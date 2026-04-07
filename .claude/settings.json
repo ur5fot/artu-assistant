@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(du -sh /Users/dim/code/R2-D2/*)",
+      "Read(//Users/dim/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/subagent-driven-development/**)",
+      "Skill(ralphex:ralphex)",
+      "Skill(ralphex:ralphex:*)"
+    ],
+    "additionalDirectories": [
+      "/Users/dim/code/R2-D2"
+    ]
+  }
+}
