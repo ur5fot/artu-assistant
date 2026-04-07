@@ -3,6 +3,7 @@ import type { SSEEvent, ToolCall } from '@r2/shared';
 import type { ClaudeClient } from './claude.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import { toClaudeTool } from '../tools/base.js';
+import { logToolCall } from '../db.js';
 
 const MAX_ITERATIONS = 10;
 
@@ -79,6 +80,7 @@ export async function runToolLoop({
       const toolDef = registry.get(block.name);
       let result;
 
+      const startTime = Date.now();
       if (toolDef) {
         try {
           result = await toolDef.handler(block.input as Record<string, unknown>);
@@ -90,6 +92,19 @@ export async function runToolLoop({
         }
       } else {
         result = { success: false, error: `Unknown tool: ${block.name}` };
+      }
+      const durationMs = Date.now() - startTime;
+
+      try {
+        logToolCall({
+          toolName: block.name,
+          input: block.input as Record<string, unknown>,
+          result,
+          success: result.success,
+          durationMs,
+        });
+      } catch {
+        // Audit log failure should not break the tool loop
       }
 
       onEvent({ type: 'tool_call_result', id: block.id, result });

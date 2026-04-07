@@ -290,7 +290,7 @@ git commit -m "feat: add SQLite database module with audit log and cleanup"
 - Modify: `packages/server/src/ai/tool-loop.ts`
 - Modify: `packages/server/src/ai/__tests__/tool-loop.test.ts`
 
-- [ ] **Step 1: Write failing test for audit log integration**
+- [x] **Step 1: Write failing test for audit log integration**
 
 Add to `packages/server/src/ai/__tests__/tool-loop.test.ts` — new import and test:
 
@@ -393,7 +393,7 @@ Also add `beforeEach` import to the top-level import line:
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -401,7 +401,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
 
 Expected: FAIL — `logToolCall` not called in tool-loop.ts, no rows in audit_log.
 
-- [ ] **Step 3: Add audit logging to tool-loop.ts**
+- [x] **Step 3: Add audit logging to tool-loop.ts**
 
 Edit `packages/server/src/ai/tool-loop.ts`. Add import at the top:
 
@@ -457,7 +457,7 @@ With:
       }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -467,7 +467,7 @@ Expected: all tests PASS (existing 8 + new 2 = 10 tests).
 
 Note: Existing tests that don't call `initDb()` will still pass because `logToolCall` is wrapped in try/catch — it will silently fail when db is not initialized, which is correct behavior.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts packages/server/src/ai/__tests__/tool-loop.test.ts
