@@ -103,8 +103,8 @@ export async function runToolLoop({
           success: result.success,
           durationMs,
         });
-      } catch {
-        // Audit log failure should not break the tool loop
+      } catch (err) {
+        console.error('Audit log write failed:', err instanceof Error ? err.message : err);
       }
 
       onEvent({ type: 'tool_call_result', id: block.id, result });

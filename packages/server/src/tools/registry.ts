@@ -34,11 +34,10 @@ export async function discoverTools(packagesDir?: string): Promise<ToolRegistry>
   const dir = packagesDir ?? path.resolve(process.cwd(), 'packages');
 
   let entries: string[];
-  try {
-    entries = fs.readdirSync(dir).filter((name) => name.startsWith('tool-'));
-  } catch {
+  if (!fs.existsSync(dir)) {
     return registry;
   }
+  entries = fs.readdirSync(dir).filter((name) => name.startsWith('tool-'));
 
   for (const entry of entries) {
     const toolPackageName = `@r2/${entry}`;

@@ -59,10 +59,13 @@ describe('Database Module', () => {
         `INSERT INTO audit_log (tool_name, input, result, success, duration_ms, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`
       );
-      // Insert old record (60 days ago)
-      insert.run('old_tool', '{}', '{}', 1, 10, '2026-02-06T00:00:00');
-      // Insert recent record
-      insert.run('new_tool', '{}', '{}', 1, 10, new Date().toISOString());
+      // Insert old record (60 days ago) using SQLite datetime format
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+      const oldDate = sixtyDaysAgo.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+      insert.run('old_tool', '{}', '{}', 1, 10, oldDate);
+      // Insert recent record using SQLite datetime format
+      const now = new Date().toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+      insert.run('new_tool', '{}', '{}', 1, 10, now);
 
       cleanupAuditLog();
 

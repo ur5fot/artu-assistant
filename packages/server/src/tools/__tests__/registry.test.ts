@@ -54,16 +54,14 @@ describe('discoverTools', () => {
     expect(registry.getAll()).toHaveLength(0);
   });
 
-  it('skips broken tool packages without crashing', async () => {
-    // Create a temp directory with a broken tool
+  it('skips tool packages that fail to import without crashing', async () => {
+    // Create a temp directory with a tool-* entry that cannot be resolved as an npm package
     const tmpDir = fs.mkdtempSync(path.join('/tmp', 'r2-discover-test-'));
     const brokenToolDir = path.join(tmpDir, 'tool-broken');
     fs.mkdirSync(brokenToolDir);
-    fs.writeFileSync(path.join(brokenToolDir, 'package.json'), '{"name":"@r2/tool-broken","main":"src/index.ts"}');
-    fs.mkdirSync(path.join(brokenToolDir, 'src'));
-    fs.writeFileSync(path.join(brokenToolDir, 'src', 'index.ts'), 'throw new Error("broken");');
 
-    // Should not throw
+    // discoverTools scans for tool-* dirs then imports @r2/<name> via Node resolution
+    // Since @r2/tool-broken is not an installed package, the import fails gracefully
     const registry = await discoverTools(tmpDir);
     expect(registry.getAll()).toHaveLength(0);
 

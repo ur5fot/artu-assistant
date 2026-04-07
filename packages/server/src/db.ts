@@ -5,6 +5,11 @@ import fs from 'node:fs';
 let db: Database.Database | null = null;
 
 export function initDb(dbPath?: string): void {
+  if (db) {
+    db.close();
+    db = null;
+  }
+
   const resolvedPath = dbPath ?? (process.env.DB_PATH || './data/r2.db');
   const dir = path.dirname(resolvedPath);
   if (!fs.existsSync(dir)) {

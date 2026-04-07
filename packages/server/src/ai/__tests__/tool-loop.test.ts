@@ -313,6 +313,8 @@ describe('Agentic Tool Loop — Audit Logging', () => {
     const rows = db.prepare('SELECT * FROM audit_log').all() as any[];
     expect(rows).toHaveLength(1);
     expect(rows[0].tool_name).toBe('search');
+    expect(JSON.parse(rows[0].input)).toEqual({ query: 'test' });
+    expect(JSON.parse(rows[0].result)).toEqual({ success: true, data: 'results' });
     expect(rows[0].success).toBe(1);
     expect(rows[0].duration_ms).toBeGreaterThanOrEqual(0);
   });
