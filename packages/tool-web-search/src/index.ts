@@ -36,7 +36,8 @@ export const webSearchTool = {
 
   async handler(params: Record<string, unknown>): Promise<ToolResult> {
     const query = params.query as string;
-    const count = Math.min(Math.max((params.count as number) || 5, 1), 20);
+    const rawCount = Number(params.count);
+    const count = Math.min(Math.max(Number.isFinite(rawCount) ? rawCount : 5, 1), 20);
 
     const apiKey = process.env.BRAVE_SEARCH_API_KEY;
     if (!apiKey) {

@@ -36,9 +36,10 @@ export function connectSSE({ messages, onEvent, onError }: SSEParams): SSEConnec
         const { done, value } = await reader.read();
         if (done) {
           // Process any remaining data in the buffer
-          if (buffer.trim().startsWith('data: ')) {
+          for (const line of buffer.split('\n')) {
+            if (!line.startsWith('data: ')) continue;
             try {
-              const event: SSEEvent = JSON.parse(buffer.trim().slice(6));
+              const event: SSEEvent = JSON.parse(line.slice(6));
               onEvent(event);
             } catch {
               // skip malformed events
