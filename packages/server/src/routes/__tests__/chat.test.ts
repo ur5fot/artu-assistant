@@ -1,0 +1,65 @@
+import { describe, it, expect, vi } from 'vitest';
+import express from 'express';
+import request from 'supertest';
+import { createChatRouter } from '../chat.js';
+
+describe('POST /api/chat', () => {
+  it('returns 400 when messages not provided', async () => {
+    const app = express();
+    app.use(express.json());
+
+    const router = createChatRouter({
+      runLoop: vi.fn(),
+    });
+    app.use('/api', router);
+
+    const res = await request(app)
+      .post('/api/chat')
+      .send({})
+      .expect(400);
+
+    expect(res.body.error).toBe('messages[] required');
+  });
+
+  it('streams SSE events for valid request', async () => {
+    const app = express();
+    app.use(express.json());
+
+    const router = createChatRouter({
+      runLoop: async ({ onEvent }) => {
+        onEvent({ type: 'text_delta', content: 'Hello' });
+        onEvent({ type: 'done' });
+      },
+    });
+    app.use('/api', router);
+
+    const res = await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: 'Hi' }] })
+      .expect(200)
+      .expect('Content-Type', /text\/event-stream/);
+
+    expect(res.text).toContain('data: {"type":"text_delta","content":"Hello"}');
+    expect(res.text).toContain('data: {"type":"done"}');
+  });
+
+  it('streams error event on loop failure', async () => {
+    const app = express();
+    app.use(express.json());
+
+    const router = createChatRouter({
+      runLoop: async () => {
+        throw new Error('Claude API down');
+      },
+    });
+    app.use('/api', router);
+
+    const res = await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: 'Hi' }] })
+      .expect(200);
+
+    expect(res.text).toContain('"type":"error"');
+    expect(res.text).toContain('Claude API down');
+  });
+});
