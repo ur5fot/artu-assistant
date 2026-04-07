@@ -77,7 +77,7 @@ export const webSearchTool = {
       return { success: false, error: 'Brave Search returned invalid JSON' };
     }
     const results: SearchResult[] =
-      data.web?.results.map((r) => ({
+      data.web?.results?.map((r) => ({
         title: r.title,
         url: r.url,
         description: r.description,
