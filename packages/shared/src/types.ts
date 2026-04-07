@@ -11,7 +11,7 @@ export interface ToolCall {
   name: string;
   input: Record<string, unknown>;
   result?: ToolResult;
-  status: 'pending' | 'running' | 'done' | 'error';
+  status: 'running' | 'done' | 'error';
 }
 
 export interface ToolResult {

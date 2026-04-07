@@ -33,7 +33,6 @@ describe('web_search tool', () => {
 
   it('has correct metadata', () => {
     expect(webSearchTool.name).toBe('web_search');
-    expect(webSearchTool.permissionLevel).toBe('auto');
     expect(webSearchTool.parameters.required).toContain('query');
   });
 

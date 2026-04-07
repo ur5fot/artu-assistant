@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import type { Message, ToolCall, ToolResult } from '@r2/shared';
+import type { Message, ToolCall } from '@r2/shared';
 import { connectSSE, type SSEConnection } from '../utils/sse';
 
 export function useChat() {
@@ -12,6 +12,7 @@ export function useChat() {
     if (!text.trim() || loading) return;
 
     setError(null);
+    setLoading(true);
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -20,87 +21,88 @@ export function useChat() {
       timestamp: Date.now(),
     };
 
-    setMessages((prev) => {
-      const updated = [...prev, userMessage];
-      startStream(updated);
-      return updated;
-    });
+    const assistantId = crypto.randomUUID();
+    let assistantText = '';
+    const toolCalls: ToolCall[] = [];
 
-    function startStream(allMessages: Message[]) {
-      setLoading(true);
+    setMessages((prev) => [...prev, userMessage]);
 
-      const assistantId = crypto.randomUUID();
-      let assistantText = '';
-      const toolCalls: ToolCall[] = [];
-
-      connectionRef.current = connectSSE({
-        messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
-        onEvent: (event) => {
-          switch (event.type) {
-            case 'text_delta':
-              assistantText += event.content;
-              setMessages([
-                ...allMessages,
+    connectionRef.current = connectSSE({
+      messages: [...messages, userMessage].map((m) => ({ role: m.role, content: m.content })),
+      onEvent: (event) => {
+        switch (event.type) {
+          case 'text_delta':
+            assistantText += event.content;
+            setMessages((prev) => {
+              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
+              return [
+                ...base,
                 {
                   id: assistantId,
-                  role: 'assistant',
+                  role: 'assistant' as const,
                   content: assistantText,
                   toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
                   timestamp: Date.now(),
                 },
-              ]);
-              break;
+              ];
+            });
+            break;
 
-            case 'tool_call_start':
-              toolCalls.push(event.toolCall);
-              setMessages([
-                ...allMessages,
+          case 'tool_call_start':
+            toolCalls.push(event.toolCall);
+            setMessages((prev) => {
+              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
+              return [
+                ...base,
                 {
                   id: assistantId,
-                  role: 'assistant',
+                  role: 'assistant' as const,
                   content: assistantText,
                   toolCalls: [...toolCalls],
                   timestamp: Date.now(),
                 },
-              ]);
-              break;
+              ];
+            });
+            break;
 
-            case 'tool_call_result': {
-              const tc = toolCalls.find((t) => t.id === event.id);
-              if (tc) {
-                tc.result = event.result;
-                tc.status = event.result.success ? 'done' : 'error';
-              }
-              setMessages([
-                ...allMessages,
-                {
-                  id: assistantId,
-                  role: 'assistant',
-                  content: assistantText,
-                  toolCalls: [...toolCalls],
-                  timestamp: Date.now(),
-                },
-              ]);
-              break;
+          case 'tool_call_result': {
+            const tc = toolCalls.find((t) => t.id === event.id);
+            if (tc) {
+              tc.result = event.result;
+              tc.status = event.result.success ? 'done' : 'error';
             }
-
-            case 'error':
-              setError(event.message);
-              setLoading(false);
-              break;
-
-            case 'done':
-              setLoading(false);
-              break;
+            setMessages((prev) => {
+              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
+              return [
+                ...base,
+                {
+                  id: assistantId,
+                  role: 'assistant' as const,
+                  content: assistantText,
+                  toolCalls: [...toolCalls],
+                  timestamp: Date.now(),
+                },
+              ];
+            });
+            break;
           }
-        },
-        onError: (err) => {
-          setError(err.message);
-          setLoading(false);
-        },
-      });
-    }
-  }, [loading]);
+
+          case 'error':
+            setError(event.message);
+            setLoading(false);
+            break;
+
+          case 'done':
+            setLoading(false);
+            break;
+        }
+      },
+      onError: (err) => {
+        setError(err.message);
+        setLoading(false);
+      },
+    });
+  }, [loading, messages]);
 
   const stop = useCallback(() => {
     connectionRef.current?.abort();

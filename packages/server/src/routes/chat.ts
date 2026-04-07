@@ -16,8 +16,20 @@ export function createChatRouter({ runLoop }: ChatRouterDeps): Router {
   router.post('/chat', async (req: Request, res: Response) => {
     const { messages } = req.body;
 
-    if (!messages || !Array.isArray(messages)) {
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
       res.status(400).json({ error: 'messages[] required' });
+      return;
+    }
+
+    const validRoles = new Set(['user', 'assistant']);
+    const valid = messages.every(
+      (m: unknown) =>
+        typeof m === 'object' && m !== null &&
+        'role' in m && validRoles.has((m as { role: string }).role) &&
+        'content' in m && typeof (m as { content: string }).content === 'string'
+    );
+    if (!valid) {
+      res.status(400).json({ error: 'Each message must have role (user|assistant) and content (string)' });
       return;
     }
 

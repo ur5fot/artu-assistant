@@ -5,7 +5,6 @@ interface Props {
 }
 
 const STATUS_LABELS: Record<ToolCall['status'], string> = {
-  pending: 'Pending...',
   running: 'Running...',
   done: 'Done',
   error: 'Error',

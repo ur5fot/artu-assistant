@@ -85,7 +85,7 @@ export async function runToolLoop({
       toolResultContents.push({
         type: 'tool_result',
         tool_use_id: block.id,
-        content: JSON.stringify(result.data ?? result.error),
+        content: JSON.stringify(result.success ? result.data : result.error) ?? '',
       });
     }
 
@@ -97,8 +97,10 @@ export async function runToolLoop({
     ];
   }
 
-  // If we hit max iterations, send a final message so Claude wraps up
-  if (iterations >= MAX_ITERATIONS) {
+  // If we hit max iterations without Claude giving a final text answer, ask it to wrap up
+  const lastResponse = currentMessages[currentMessages.length - 1];
+  const endedWithToolUse = lastResponse && 'content' in lastResponse && Array.isArray(lastResponse.content);
+  if (iterations >= MAX_ITERATIONS && endedWithToolUse) {
     const finalResponse = await client.sendMessage({
       messages: [
         ...currentMessages,

@@ -8,7 +8,6 @@ function mockRegistry(tools: Record<string, (params: any) => any> = {}): ToolReg
   const toolDefs = Object.entries(tools).map(([name, handler]) => ({
     name,
     description: `Mock ${name}`,
-    permissionLevel: 'auto' as const,
     parameters: { type: 'object' as const, properties: {}, required: [] },
     handler: async (params: Record<string, unknown>) => handler(params),
   }));

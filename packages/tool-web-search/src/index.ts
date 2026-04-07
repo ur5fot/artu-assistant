@@ -19,7 +19,6 @@ interface BraveSearchResponse {
 export const webSearchTool = {
   name: 'web_search',
   description: 'Search the web using Brave Search API. Use when you need current information, facts, or answers not in your training data.',
-  permissionLevel: 'auto' as const,
   parameters: {
     type: 'object' as const,
     properties: {
@@ -37,7 +36,7 @@ export const webSearchTool = {
 
   async handler(params: Record<string, unknown>): Promise<ToolResult> {
     const query = params.query as string;
-    const count = Math.min((params.count as number) || 5, 20);
+    const count = Math.min(Math.max((params.count as number) || 5, 1), 20);
 
     const apiKey = process.env.BRAVE_SEARCH_API_KEY;
     if (!apiKey) {
@@ -46,13 +45,21 @@ export const webSearchTool = {
 
     const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${count}`;
 
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-        'Accept-Encoding': 'gzip',
-        'X-Subscription-Token': apiKey,
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'Accept-Encoding': 'gzip',
+          'X-Subscription-Token': apiKey,
+        },
+      });
+    } catch (err) {
+      return {
+        success: false,
+        error: `Web search failed: ${err instanceof Error ? err.message : 'Network error'}`,
+      };
+    }
 
     if (!response.ok) {
       return {
