@@ -21,8 +21,8 @@ import webSearchTool from '@r2/tool-web-search';
 registry.register(webSearchTool);
 
 const chatRouter = createChatRouter({
-  runLoop: ({ messages, onEvent }) =>
-    runToolLoop({ messages, client, registry, onEvent }),
+  runLoop: ({ messages, onEvent, signal }) =>
+    runToolLoop({ messages, client, registry, onEvent, signal }),
 });
 
 app.use('/api', chatRouter);

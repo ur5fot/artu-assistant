@@ -8,11 +8,17 @@ export function useChat() {
   const [error, setError] = useState<string | null>(null);
   const connectionRef = useRef<SSEConnection | null>(null);
 
-  const send = useCallback((text: string) => {
-    if (!text.trim() || loading) return;
+  const sendingRef = useRef(false);
 
+  const send = useCallback((text: string) => {
+    if (!text.trim() || sendingRef.current) return;
+
+    sendingRef.current = true;
     setError(null);
     setLoading(true);
+
+    // Abort any existing connection before starting a new one
+    connectionRef.current?.abort();
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -90,24 +96,28 @@ export function useChat() {
           case 'error':
             setError(event.message);
             setLoading(false);
+            sendingRef.current = false;
             break;
 
           case 'done':
             setLoading(false);
+            sendingRef.current = false;
             break;
         }
       },
       onError: (err) => {
         setError(err.message);
         setLoading(false);
+        sendingRef.current = false;
       },
     });
-  }, [loading, messages]);
+  }, [messages]);
 
   const stop = useCallback(() => {
     connectionRef.current?.abort();
     connectionRef.current = null;
     setLoading(false);
+    sendingRef.current = false;
   }, []);
 
   // Clean up SSE connection on unmount

@@ -11,6 +11,7 @@ interface ToolLoopParams {
   client: ClaudeClient;
   registry: ToolRegistry;
   onEvent: (event: SSEEvent) => void;
+  signal?: AbortSignal;
 }
 
 export async function runToolLoop({
@@ -18,18 +19,24 @@ export async function runToolLoop({
   client,
   registry,
   onEvent,
+  signal,
 }: ToolLoopParams): Promise<void> {
   const tools: Tool[] = registry.getAll().map(toClaudeTool) as Tool[];
   let currentMessages: MessageParam[] = [...messages];
   let iterations = 0;
+  let lastEndedWithToolUse = false;
 
   while (iterations < MAX_ITERATIONS) {
+    if (signal?.aborted) return;
     iterations++;
 
     const response = await client.sendMessage({
       messages: currentMessages,
       tools,
+      signal,
     });
+
+    if (signal?.aborted) return;
 
     const textBlocks = response.content.filter((b) => b.type === 'text');
     const toolUseBlocks = response.content.filter((b) => b.type === 'tool_use');
@@ -43,8 +50,11 @@ export async function runToolLoop({
 
     // No tool calls — done
     if (toolUseBlocks.length === 0 || response.stop_reason !== 'tool_use') {
+      lastEndedWithToolUse = false;
       break;
     }
+
+    lastEndedWithToolUse = true;
 
     // Execute tools and collect results
     const toolResultContents: Array<{
@@ -55,6 +65,7 @@ export async function runToolLoop({
 
     for (const block of toolUseBlocks) {
       if (block.type !== 'tool_use') continue;
+      if (signal?.aborted) return;
 
       const toolCall: ToolCall = {
         id: block.id,
@@ -98,15 +109,14 @@ export async function runToolLoop({
   }
 
   // If we hit max iterations without Claude giving a final text answer, ask it to wrap up
-  const lastResponse = currentMessages[currentMessages.length - 1];
-  const endedWithToolUse = lastResponse && 'content' in lastResponse && Array.isArray(lastResponse.content);
-  if (iterations >= MAX_ITERATIONS && endedWithToolUse) {
+  if (iterations >= MAX_ITERATIONS && lastEndedWithToolUse && !signal?.aborted) {
     const finalResponse = await client.sendMessage({
       messages: [
         ...currentMessages,
         { role: 'user', content: 'Max tool iterations reached. Give a final answer now.' },
       ],
       tools: [],
+      signal,
     });
 
     for (const block of finalResponse.content) {

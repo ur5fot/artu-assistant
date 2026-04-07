@@ -5,6 +5,7 @@ import { SYSTEM_PROMPT } from './prompts.js';
 interface SendMessageParams {
   messages: MessageParam[];
   tools: Tool[];
+  signal?: AbortSignal;
 }
 
 export interface ClaudeClient {
@@ -28,12 +29,12 @@ export function createClaudeClient(): ClaudeClient {
     }
 
     try {
-      return await anthropic.messages.create(requestParams);
+      return await anthropic.messages.create(requestParams, { signal: params.signal });
     } catch (error: unknown) {
       const status = (error as { status?: number }).status;
       if (status && status >= 500) {
         // Retry once on 5xx
-        return await anthropic.messages.create(requestParams);
+        return await anthropic.messages.create(requestParams, { signal: params.signal });
       }
       throw error;
     }

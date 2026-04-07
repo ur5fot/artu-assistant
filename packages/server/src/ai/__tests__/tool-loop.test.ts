@@ -128,6 +128,108 @@ describe('Agentic Tool Loop', () => {
     expect(events[events.length - 1]).toEqual({ type: 'done' });
   });
 
+  it('stops immediately when signal is already aborted', async () => {
+    const client = mockClaudeClient([
+      { content: [{ type: 'text', text: 'Should not appear' }], stop_reason: 'end_turn' },
+    ]);
+    const registry = mockRegistry();
+    const events: SSEEvent[] = [];
+    const controller = new AbortController();
+    controller.abort();
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'Hi' }],
+      client,
+      registry,
+      onEvent: (e) => events.push(e),
+      signal: controller.signal,
+    });
+
+    expect(client.sendMessage).not.toHaveBeenCalled();
+    // No events emitted - client already disconnected
+    expect(events).toEqual([]);
+  });
+
+  it('stops after Claude call when signal is aborted mid-loop', async () => {
+    const controller = new AbortController();
+    const client = mockClaudeClient([
+      { content: [{ type: 'text', text: 'Hello' }], stop_reason: 'end_turn' },
+    ]);
+    // Abort after the first sendMessage call
+    (client.sendMessage as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      controller.abort();
+      return { content: [{ type: 'tool_use', id: 'c1', name: 'search', input: {} }], stop_reason: 'tool_use' };
+    });
+
+    const registry = mockRegistry({ search: () => ({ success: true, data: 'ok' }) });
+    const events: SSEEvent[] = [];
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'Hi' }],
+      client,
+      registry,
+      onEvent: (e) => events.push(e),
+      signal: controller.signal,
+    });
+
+    // Should not have executed any tools since signal was aborted after Claude response
+    expect(events).toEqual([]);
+  });
+
+  it('skips final forced call when signal is aborted at max iterations', async () => {
+    const controller = new AbortController();
+    const toolResponse = {
+      content: [{ type: 'tool_use', id: 'call_x', name: 'search', input: { query: 'loop' } }],
+      stop_reason: 'tool_use',
+    };
+    const responses = Array(10).fill(toolResponse).concat([
+      { content: [{ type: 'text', text: 'Should not appear' }], stop_reason: 'end_turn' },
+    ]);
+
+    const client = mockClaudeClient(responses);
+    let callCount = 0;
+    (client.sendMessage as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      const resp = responses[callCount++];
+      if (callCount === 10) controller.abort();
+      return resp;
+    });
+
+    const registry = mockRegistry({ search: () => ({ success: true, data: 'ok' }) });
+    const events: SSEEvent[] = [];
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'loop' }],
+      client,
+      registry,
+      onEvent: (e) => events.push(e),
+      signal: controller.signal,
+    });
+
+    // Should have called Claude 10 times (not 11 - the forced final call should be skipped)
+    expect(client.sendMessage).toHaveBeenCalledTimes(10);
+  });
+
+  it('passes signal to Claude client', async () => {
+    const controller = new AbortController();
+    const client = mockClaudeClient([
+      { content: [{ type: 'text', text: 'Hello' }], stop_reason: 'end_turn' },
+    ]);
+    const registry = mockRegistry();
+    const events: SSEEvent[] = [];
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'Hi' }],
+      client,
+      registry,
+      onEvent: (e) => events.push(e),
+      signal: controller.signal,
+    });
+
+    expect(client.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
+
   it('handles tool execution error gracefully', async () => {
     const client = mockClaudeClient([
       {

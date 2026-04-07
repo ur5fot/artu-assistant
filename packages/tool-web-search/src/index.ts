@@ -53,6 +53,7 @@ export const webSearchTool = {
           'Accept-Encoding': 'gzip',
           'X-Subscription-Token': apiKey,
         },
+        signal: AbortSignal.timeout(15_000),
       });
     } catch (err) {
       return {

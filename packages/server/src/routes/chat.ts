@@ -3,10 +3,27 @@ import type { Request, Response } from 'express';
 import type { SSEEvent } from '@r2/shared';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 
+function sanitizeError(message: string): string {
+  // Strip potentially sensitive details (API keys, internal paths, upstream provider info)
+  const lower = message.toLowerCase();
+  if (lower.includes('anthropic') || lower.includes('sk-ant-')) {
+    return 'AI service temporarily unavailable';
+  }
+  if (lower.includes('brave')) {
+    return 'Search service temporarily unavailable';
+  }
+  // For other errors, return a generic message in production
+  if (process.env.NODE_ENV === 'production') {
+    return 'An internal error occurred';
+  }
+  return message;
+}
+
 interface ChatRouterDeps {
   runLoop: (params: {
     messages: MessageParam[];
     onEvent: (event: SSEEvent) => void;
+    signal?: AbortSignal;
   }) => Promise<void>;
 }
 
@@ -37,19 +54,29 @@ export function createChatRouter({ runLoop }: ChatRouterDeps): Router {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    const abortController = new AbortController();
+    res.on('close', () => abortController.abort());
+
     try {
       await runLoop({
         messages,
+        signal: abortController.signal,
         onEvent: (event: SSEEvent) => {
-          res.write(`data: ${JSON.stringify(event)}\n\n`);
+          if (!res.writableEnded && !res.destroyed) {
+            res.write(`data: ${JSON.stringify(event)}\n\n`);
+          }
         },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      res.write(`data: ${JSON.stringify({ type: 'error', message })}\n\n`);
+      if (!res.writableEnded && !res.destroyed) {
+        const message = error instanceof Error ? error.message : 'Internal server error';
+        res.write(`data: ${JSON.stringify({ type: 'error', message: sanitizeError(message) })}\n\n`);
+      }
     }
 
-    res.end();
+    if (!res.writableEnded && !res.destroyed) {
+      res.end();
+    }
   });
 
   return router;

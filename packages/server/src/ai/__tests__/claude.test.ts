@@ -41,7 +41,8 @@ describe('Claude Client', () => {
         model: 'claude-sonnet-4-6-20250514',
         max_tokens: 4096,
         messages: [{ role: 'user', content: 'Hi' }],
-      })
+      }),
+      expect.objectContaining({ signal: undefined }),
     );
     expect(result).toBe(mockResponse);
   });
