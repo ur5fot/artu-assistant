@@ -17,9 +17,8 @@ app.use(express.json({ limit: '10mb' }));
 const client = createClaudeClient();
 const registry = createRegistry();
 
-// TODO: Register tools here as they are created
-// import webSearch from '@r2/tool-web-search';
-// registry.register(webSearch);
+import webSearchTool from '@r2/tool-web-search';
+registry.register(webSearchTool);
 
 const chatRouter = createChatRouter({
   runLoop: ({ messages, onEvent }) =>
