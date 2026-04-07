@@ -32,7 +32,7 @@ export function createClaudeClient(): ClaudeClient {
       return await anthropic.messages.create(requestParams, { signal: params.signal });
     } catch (error: unknown) {
       const status = (error as { status?: number }).status;
-      if (status && status >= 500) {
+      if (status && status >= 500 && !params.signal?.aborted) {
         // Retry once on 5xx
         return await anthropic.messages.create(requestParams, { signal: params.signal });
       }

@@ -53,6 +53,7 @@ export function createChatRouter({ runLoop }: ChatRouterDeps): Router {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
 
     const abortController = new AbortController();
     res.on('close', () => abortController.abort());
