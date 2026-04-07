@@ -36,7 +36,7 @@ packages/server/
 **Files:**
 - Modify: `packages/server/package.json`
 
-- [ ] **Step 1: Add better-sqlite3 to server dependencies**
+- [x] **Step 1: Add better-sqlite3 to server dependencies**
 
 Edit `packages/server/package.json` — add to `dependencies`:
 
@@ -50,7 +50,7 @@ And add to `devDependencies`:
 "@types/better-sqlite3": "^7.6.12"
 ```
 
-- [ ] **Step 2: Install dependencies**
+- [x] **Step 2: Install dependencies**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm install
@@ -58,7 +58,7 @@ cd /Users/dim/code/R2-D2 && npm install
 
 Expected: clean install, no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/package.json package-lock.json
@@ -73,7 +73,7 @@ git commit -m "chore: add better-sqlite3 dependency"
 - Create: `packages/server/src/db.ts`
 - Test: `packages/server/src/db.test.ts`
 
-- [ ] **Step 1: Write failing tests for db module**
+- [x] **Step 1: Write failing tests for db module**
 
 Create `packages/server/src/db.test.ts`:
 
@@ -180,7 +180,7 @@ describe('Database Module', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 npx vitest run packages/server/src/db.test.ts
@@ -188,7 +188,7 @@ npx vitest run packages/server/src/db.test.ts
 
 Expected: FAIL — `db.ts` does not exist.
 
-- [ ] **Step 3: Implement db module**
+- [x] **Step 3: Implement db module**
 
 Create `packages/server/src/db.ts`:
 
@@ -267,7 +267,7 @@ export function cleanupAuditLog(): void {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 npx vitest run packages/server/src/db.test.ts
@@ -275,7 +275,7 @@ npx vitest run packages/server/src/db.test.ts
 
 Expected: 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/db.test.ts
