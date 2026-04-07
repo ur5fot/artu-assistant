@@ -482,7 +482,7 @@ git commit -m "feat: integrate audit logging into tool loop"
 - Modify: `packages/server/src/tools/registry.ts`
 - Modify: `packages/server/src/tools/__tests__/registry.test.ts`
 
-- [ ] **Step 1: Write failing tests for discoverTools**
+- [x] **Step 1: Write failing tests for discoverTools**
 
 Add to `packages/server/src/tools/__tests__/registry.test.ts` — new imports and test block.
 
@@ -564,7 +564,7 @@ describe('discoverTools', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify new tests fail**
+- [x] **Step 2: Run tests to verify new tests fail**
 
 ```bash
 npx vitest run packages/server/src/tools/__tests__/registry.test.ts
@@ -572,7 +572,7 @@ npx vitest run packages/server/src/tools/__tests__/registry.test.ts
 
 Expected: existing 3 PASS, new `discoverTools` tests FAIL — function doesn't exist.
 
-- [ ] **Step 3: Implement discoverTools**
+- [x] **Step 3: Implement discoverTools**
 
 Edit `packages/server/src/tools/registry.ts`. Replace entire file:
 
@@ -638,7 +638,7 @@ export async function discoverTools(packagesDir?: string): Promise<ToolRegistry>
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 npx vitest run packages/server/src/tools/__tests__/registry.test.ts
@@ -646,7 +646,7 @@ npx vitest run packages/server/src/tools/__tests__/registry.test.ts
 
 Expected: 6 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/tools/registry.ts packages/server/src/tools/__tests__/registry.test.ts

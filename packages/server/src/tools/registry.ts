@@ -1,4 +1,6 @@
 import type { ToolDefinition } from './base.js';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export interface ToolRegistry {
   register(tool: ToolDefinition): void;
@@ -25,4 +27,33 @@ export function createRegistry(): ToolRegistry {
       return [...tools.values()];
     },
   };
+}
+
+export async function discoverTools(packagesDir?: string): Promise<ToolRegistry> {
+  const registry = createRegistry();
+  const dir = packagesDir ?? path.resolve(process.cwd(), 'packages');
+
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(dir).filter((name) => name.startsWith('tool-'));
+  } catch {
+    return registry;
+  }
+
+  for (const entry of entries) {
+    const toolPackageName = `@r2/${entry}`;
+    try {
+      const mod = await import(toolPackageName);
+      const tool: ToolDefinition = mod.default;
+      if (tool && typeof tool.name === 'string' && typeof tool.handler === 'function') {
+        registry.register(tool);
+        console.log(`  Tool discovered: ${tool.name} (${entry})`);
+      }
+    } catch (err) {
+      console.error(`  Failed to load tool ${entry}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  console.log(`Tools loaded: ${registry.getAll().length}`);
+  return registry;
 }
