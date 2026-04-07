@@ -85,7 +85,7 @@ export async function runToolLoop({
       toolResultContents.push({
         type: 'tool_result',
         tool_use_id: block.id,
-        content: JSON.stringify(result.success ? result.data : result.error) ?? '',
+        content: JSON.stringify(result.success ? (result.data ?? '') : (result.error ?? 'Unknown error')),
       });
     }
 

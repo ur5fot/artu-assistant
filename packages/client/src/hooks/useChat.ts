@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Message, ToolCall } from '@r2/shared';
 import { connectSSE, type SSEConnection } from '../utils/sse';
 
@@ -106,7 +106,15 @@ export function useChat() {
 
   const stop = useCallback(() => {
     connectionRef.current?.abort();
+    connectionRef.current = null;
     setLoading(false);
+  }, []);
+
+  // Clean up SSE connection on unmount
+  useEffect(() => {
+    return () => {
+      connectionRef.current?.abort();
+    };
   }, []);
 
   return { messages, loading, error, send, stop };
