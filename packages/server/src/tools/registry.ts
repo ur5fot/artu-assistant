@@ -1,6 +1,7 @@
 import type { ToolDefinition } from './base.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface ToolRegistry {
   register(tool: ToolDefinition): void;
@@ -31,13 +32,15 @@ export function createRegistry(): ToolRegistry {
 
 export async function discoverTools(packagesDir?: string): Promise<ToolRegistry> {
   const registry = createRegistry();
-  const dir = packagesDir ?? path.resolve(process.cwd(), 'packages');
+  const thisDir = path.dirname(fileURLToPath(import.meta.url));
+  const dir = packagesDir ?? path.resolve(thisDir, '..', '..', '..');
 
   let entries: string[];
-  if (!fs.existsSync(dir)) {
+  try {
+    entries = fs.readdirSync(dir).filter((name) => name.startsWith('tool-'));
+  } catch {
     return registry;
   }
-  entries = fs.readdirSync(dir).filter((name) => name.startsWith('tool-'));
 
   for (const entry of entries) {
     const toolPackageName = `@r2/${entry}`;

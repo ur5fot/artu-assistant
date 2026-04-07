@@ -3,6 +3,7 @@ import { createRegistry, discoverTools } from '../registry.js';
 import type { ToolDefinition } from '../base.js';
 import path from 'node:path';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const mockTool: ToolDefinition = {
   name: 'test_tool',
@@ -37,12 +38,14 @@ describe('Tool Registry', () => {
 
 describe('discoverTools', () => {
   it('discovers and registers tool packages from packages/tool-*', async () => {
-    const packagesDir = path.resolve(process.cwd(), 'packages');
+    // Resolve packages dir relative to this test file, not cwd
+    const thisDir = path.dirname(fileURLToPath(import.meta.url));
+    const packagesDir = path.resolve(thisDir, '..', '..', '..', '..');
     // tool-web-search should exist from Phase 1
     const hasWebSearch = fs.existsSync(path.join(packagesDir, 'tool-web-search'));
     if (!hasWebSearch) return; // skip if not in full repo context
 
-    const registry = await discoverTools();
+    const registry = await discoverTools(packagesDir);
     const tools = registry.getAll();
     expect(tools.length).toBeGreaterThanOrEqual(1);
     expect(tools.some((t) => t.name === 'web_search')).toBe(true);
