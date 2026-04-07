@@ -661,7 +661,7 @@ git commit -m "feat: add tool auto-discovery from packages/tool-*"
 - Modify: `packages/server/src/index.ts`
 - Modify: `packages/server/package.json`
 
-- [ ] **Step 1: Update server entry point**
+- [x] **Step 1: Update server entry point**
 
 Replace `packages/server/src/index.ts` entirely:
 
@@ -708,7 +708,7 @@ app.listen(PORT, () => {
 });
 ```
 
-- [ ] **Step 2: Remove @r2/tool-web-search from server dependencies**
+- [x] **Step 2: Remove @r2/tool-web-search from server dependencies**
 
 Edit `packages/server/package.json` — remove this line from `dependencies`:
 
@@ -716,13 +716,13 @@ Edit `packages/server/package.json` — remove this line from `dependencies`:
 "@r2/tool-web-search": "*",
 ```
 
-- [ ] **Step 3: Run npm install to update lockfile**
+- [x] **Step 3: Run npm install to update lockfile**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm install
 ```
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 ```bash
 npm test
@@ -730,7 +730,7 @@ npm test
 
 Expected: all tests pass (existing + new).
 
-- [ ] **Step 5: Typecheck all packages**
+- [x] **Step 5: Typecheck all packages**
 
 ```bash
 npx tsc --noEmit -p packages/server/tsconfig.json && \
@@ -741,7 +741,7 @@ npx tsc --noEmit -p packages/client/tsconfig.json
 
 Expected: no type errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/index.ts packages/server/package.json package-lock.json
