@@ -9,6 +9,19 @@ import type { PiiProxy } from '../pii/proxy.js';
 
 const MAX_ITERATIONS = 10;
 
+async function deanonDeep(value: unknown, piiProxy: PiiProxy): Promise<unknown> {
+  if (typeof value === 'string') return piiProxy.deanonymize(value);
+  if (Array.isArray(value)) return Promise.all(value.map(v => deanonDeep(v, piiProxy)));
+  if (value !== null && typeof value === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      result[k] = await deanonDeep(v, piiProxy);
+    }
+    return result;
+  }
+  return value;
+}
+
 interface ToolLoopParams {
   messages: MessageParam[];
   client: ClaudeClient;
@@ -129,15 +142,8 @@ export async function runToolLoop({
       if (block.type !== 'tool_use') continue;
       if (signal?.aborted) return;
 
-      // Deanonymize tool input field-by-field to avoid JSON breakage from special chars
-      const deanonInput: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(block.input as Record<string, unknown>)) {
-        if (typeof value === 'string') {
-          deanonInput[key] = await piiProxy.deanonymize(value);
-        } else {
-          deanonInput[key] = value;
-        }
-      }
+      // Recursively deanonymize all string values in tool input
+      const deanonInput = await deanonDeep(block.input, piiProxy) as Record<string, unknown>;
 
       const toolCall: ToolCall = {
         id: block.id,
