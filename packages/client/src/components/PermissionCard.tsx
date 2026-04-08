@@ -23,11 +23,14 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
 
   const handleRespond = async (allowed: boolean) => {
     setSubmitting(true);
-    const ok = await onRespond(toolCall.id, allowed, remember);
-    if (ok) {
-      setDecision(allowed ? 'allowed' : 'denied');
+    try {
+      const ok = await onRespond(toolCall.id, allowed, remember);
+      if (ok) {
+        setDecision(allowed ? 'allowed' : 'denied');
+      }
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   };
 
   const isForbidden = level === 'forbidden';
