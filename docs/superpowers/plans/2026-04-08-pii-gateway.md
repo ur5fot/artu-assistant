@@ -847,7 +847,7 @@ git commit -m "feat: add pii_masked SSE event type"
 - Modify: `packages/server/src/routes/chat.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Add PiiProxy to tool-loop params and wrap data**
+- [x] **Step 1: Add PiiProxy to tool-loop params and wrap data**
 
 In `packages/server/src/ai/tool-loop.ts`:
 
@@ -933,7 +933,7 @@ Do the same for the `auto` handler (line 163):
         onEvent({ type: 'text_delta', content: deanonText });
 ```
 
-- [ ] **Step 2: Update chat.ts to pass piiProxy**
+- [x] **Step 2: Update chat.ts to pass piiProxy**
 
 In `packages/server/src/routes/chat.ts`:
 
@@ -978,7 +978,7 @@ In the `runLoop` call (line 80-88), add `piiProxy`:
       });
 ```
 
-- [ ] **Step 3: Update index.ts to create and pass PII proxy**
+- [x] **Step 3: Update index.ts to create and pass PII proxy**
 
 In `packages/server/src/index.ts`:
 
@@ -1028,17 +1028,17 @@ const chatRouter = createChatRouter({
 });
 ```
 
-- [ ] **Step 4: Run typecheck**
+- [x] **Step 4: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 5: Run existing tests to make sure nothing breaks**
+- [x] **Step 5: Run existing tests to make sure nothing breaks**
 
 Run: `cd packages/server && npx vitest run`
 Expected: existing tests PASS. Note: some tool-loop tests may need updates (they don't pass `piiProxy`).
 
-- [ ] **Step 6: Fix tool-loop tests to pass piiProxy**
+- [x] **Step 6: Fix tool-loop tests to pass piiProxy**
 
 In `packages/server/src/ai/__tests__/tool-loop.test.ts`:
 
@@ -1054,12 +1054,12 @@ piiProxy: createPassthroughProxy(),
 
 There are approximately 15 `runToolLoop()` calls in the test file. Add `piiProxy: createPassthroughProxy()` to each one.
 
-- [ ] **Step 7: Run all tests**
+- [x] **Step 7: Run all tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts packages/server/src/routes/chat.ts packages/server/src/index.ts packages/server/src/ai/__tests__/tool-loop.test.ts

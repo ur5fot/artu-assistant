@@ -4,6 +4,7 @@ import type { ToolRegistry } from '../../tools/registry.js';
 import type { ClaudeClient } from '../claude.js';
 import type { SSEEvent } from '@r2/shared';
 import { initDb, getDb, closeDb } from '../../db.js';
+import { createPassthroughProxy } from '../../pii/proxy.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -48,6 +49,7 @@ describe('Agentic Tool Loop', () => {
       client,
       registry,
       onEvent: (e) => events.push(e),
+      piiProxy: createPassthroughProxy(),
     });
 
     expect(events).toEqual([
@@ -81,6 +83,7 @@ describe('Agentic Tool Loop', () => {
       client,
       registry,
       onEvent: (e) => events.push(e),
+      piiProxy: createPassthroughProxy(),
     });
 
     expect(events[0]).toEqual({
@@ -126,6 +129,7 @@ describe('Agentic Tool Loop', () => {
       client,
       registry,
       onEvent: (e) => events.push(e),
+      piiProxy: createPassthroughProxy(),
     });
 
     // Should have called Claude 11 times (10 tool iterations + 1 after max-iterations message)
@@ -148,6 +152,7 @@ describe('Agentic Tool Loop', () => {
       registry,
       onEvent: (e) => events.push(e),
       signal: controller.signal,
+      piiProxy: createPassthroughProxy(),
     });
 
     expect(client.sendMessage).not.toHaveBeenCalled();
@@ -175,6 +180,7 @@ describe('Agentic Tool Loop', () => {
       registry,
       onEvent: (e) => events.push(e),
       signal: controller.signal,
+      piiProxy: createPassthroughProxy(),
     });
 
     // Should not have executed any tools since signal was aborted after Claude response
@@ -208,6 +214,7 @@ describe('Agentic Tool Loop', () => {
       registry,
       onEvent: (e) => events.push(e),
       signal: controller.signal,
+      piiProxy: createPassthroughProxy(),
     });
 
     // Should have called Claude 10 times (not 11 - the forced final call should be skipped)
@@ -228,6 +235,7 @@ describe('Agentic Tool Loop', () => {
       registry,
       onEvent: (e) => events.push(e),
       signal: controller.signal,
+      piiProxy: createPassthroughProxy(),
     });
 
     expect(client.sendMessage).toHaveBeenCalledWith(
@@ -284,6 +292,7 @@ describe('Agentic Tool Loop', () => {
       registry,
       onEvent: originalOnEvent,
       pendingConfirms,
+      piiProxy: createPassthroughProxy(),
     });
 
     expect(toolDefs[0].handler).toHaveBeenCalled();
@@ -338,6 +347,7 @@ describe('Agentic Tool Loop', () => {
       registry,
       onEvent: originalOnEvent,
       pendingConfirms,
+      piiProxy: createPassthroughProxy(),
     });
 
     expect(toolDefs[0].handler).not.toHaveBeenCalled();
@@ -393,6 +403,7 @@ describe('Agentic Tool Loop', () => {
       registry,
       onEvent: (e) => events.push(e),
       pendingConfirms,
+      piiProxy: createPassthroughProxy(),
     });
 
     // Handler should be called (auto-approved)
@@ -452,6 +463,7 @@ describe('Agentic Tool Loop', () => {
       registry,
       onEvent: originalOnEvent,
       pendingConfirms,
+      piiProxy: createPassthroughProxy(),
     });
 
     const confirmEvent = events.find(e => e.type === 'tool_confirm_request');
@@ -489,6 +501,7 @@ describe('Agentic Tool Loop', () => {
       client,
       registry,
       onEvent: (e) => events.push(e),
+      piiProxy: createPassthroughProxy(),
     });
 
     expect(events[1]).toEqual({
@@ -550,6 +563,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       registry,
       onEvent: (e) => events.push(e),
       pendingConfirms: new Map(),
+      piiProxy: createPassthroughProxy(),
     });
 
     expect(toolDefs[0].handler).not.toHaveBeenCalled();
@@ -609,6 +623,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       registry,
       onEvent,
       pendingConfirms,
+      piiProxy: createPassthroughProxy(),
     });
 
     const rule = getPermissionRule('write_file');
@@ -662,6 +677,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       registry,
       onEvent,
       pendingConfirms,
+      piiProxy: createPassthroughProxy(),
     });
 
     const rule = getPermissionRule('dangerous');
@@ -716,6 +732,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       onEvent,
       pendingConfirms,
       signal: controller.signal,
+      piiProxy: createPassthroughProxy(),
     });
 
     // Tool should NOT have been executed (denied by abort)
@@ -761,6 +778,7 @@ describe('Agentic Tool Loop — Audit Logging', () => {
       client,
       registry,
       onEvent: () => {},
+      piiProxy: createPassthroughProxy(),
     });
 
     const db = getDb();
@@ -796,6 +814,7 @@ describe('Agentic Tool Loop — Audit Logging', () => {
       client,
       registry,
       onEvent: () => {},
+      piiProxy: createPassthroughProxy(),
     });
 
     const db = getDb();

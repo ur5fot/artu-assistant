@@ -5,6 +5,7 @@ import type { ToolRegistry } from '../tools/registry.js';
 import type { ConfirmResponse, PendingConfirms } from '../routes/confirm.js';
 import { toClaudeTool } from '../tools/base.js';
 import { logToolCall, getPermissionRule, savePermissionRule } from '../db.js';
+import type { PiiProxy } from '../pii/proxy.js';
 
 const MAX_ITERATIONS = 10;
 
@@ -15,6 +16,7 @@ interface ToolLoopParams {
   onEvent: (event: SSEEvent) => void;
   signal?: AbortSignal;
   pendingConfirms?: PendingConfirms;
+  piiProxy: PiiProxy;
 }
 
 async function requestConfirmation(
@@ -50,12 +52,39 @@ export async function runToolLoop({
   onEvent,
   signal,
   pendingConfirms = new Map(),
+  piiProxy,
 }: ToolLoopParams): Promise<void> {
   const allTools = registry.getAll();
   const tools: Tool[] = allTools.map(toClaudeTool) as Tool[];
   let currentMessages: MessageParam[] = [...messages];
   let iterations = 0;
   let lastEndedWithToolUse = false;
+
+  // Anonymize user messages before sending to Claude
+  const anonymizedMessages: MessageParam[] = [];
+  const allPiiEntities: Array<{ type: string; token: string }> = [];
+  for (const msg of currentMessages) {
+    if (msg.role === 'user' && typeof msg.content === 'string') {
+      const result = await piiProxy.anonymize(msg.content);
+      anonymizedMessages.push({ role: 'user', content: result.text });
+      allPiiEntities.push(...result.entities);
+    } else {
+      anonymizedMessages.push(msg);
+    }
+  }
+  currentMessages = anonymizedMessages;
+
+  // Emit pii_masked event if any PII was found
+  if (allPiiEntities.length > 0) {
+    const counts = new Map<string, number>();
+    for (const e of allPiiEntities) {
+      counts.set(e.type, (counts.get(e.type) ?? 0) + 1);
+    }
+    onEvent({
+      type: 'pii_masked',
+      entities: Array.from(counts.entries()).map(([type, count]) => ({ type, count })),
+    });
+  }
 
   while (iterations < MAX_ITERATIONS) {
     if (signal?.aborted) return;
@@ -75,7 +104,8 @@ export async function runToolLoop({
     // Emit text
     for (const block of textBlocks) {
       if (block.type === 'text') {
-        onEvent({ type: 'text_delta', content: block.text });
+        const deanonText = await piiProxy.deanonymize(block.text);
+        onEvent({ type: 'text_delta', content: deanonText });
       }
     }
 
@@ -148,7 +178,8 @@ export async function runToolLoop({
 
         if (allowed) {
           try {
-            result = await toolDef.handler(block.input as Record<string, unknown>);
+            const deanonInput = JSON.parse(await piiProxy.deanonymize(JSON.stringify(block.input)));
+            result = await toolDef.handler(deanonInput);
           } catch (err) {
             result = {
               success: false,
@@ -160,7 +191,8 @@ export async function runToolLoop({
         }
       } else {
         try {
-          result = await toolDef.handler(block.input as Record<string, unknown>);
+          const deanonInput = JSON.parse(await piiProxy.deanonymize(JSON.stringify(block.input)));
+          result = await toolDef.handler(deanonInput);
         } catch (err) {
           result = {
             success: false,
@@ -169,6 +201,14 @@ export async function runToolLoop({
         }
       }
       const durationMs = Date.now() - startTime;
+
+      // Anonymize tool result before logging and sending back to Claude
+      if (result.data) {
+        const anonResult = await piiProxy.anonymize(JSON.stringify(result.data));
+        if (anonResult.entities.length > 0) {
+          result = { ...result, data: JSON.parse(anonResult.text) };
+        }
+      }
 
       try {
         logToolCall({
