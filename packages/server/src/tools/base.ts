@@ -3,6 +3,7 @@ import type { ToolResult } from '@r2/shared';
 export interface ToolDefinition {
   name: string;
   description: string;
+  permissionLevel: 'auto' | 'confirm' | 'forbidden';
   parameters: {
     type: 'object';
     properties: Record<string, unknown>;

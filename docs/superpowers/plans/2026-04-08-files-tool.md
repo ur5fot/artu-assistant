@@ -47,7 +47,7 @@ packages/
 - Изменить: `packages/server/src/tools/__tests__/registry.test.ts`
 - Изменить: `packages/server/src/ai/__tests__/tool-loop.test.ts`
 
-- [ ] **Шаг 1: Обновить ToolDefinition в base.ts**
+- [x] **Шаг 1: Обновить ToolDefinition в base.ts**
 
 Изменить `packages/server/src/tools/base.ts` — добавить поле `permissionLevel`:
 
@@ -75,7 +75,7 @@ export function toClaudeTool(tool: ToolDefinition) {
 }
 ```
 
-- [ ] **Шаг 2: Добавить permissionLevel в web-search tool**
+- [x] **Шаг 2: Добавить permissionLevel в web-search tool**
 
 Изменить `packages/tool-web-search/src/index.ts` — добавить поле после `description`:
 
@@ -87,7 +87,7 @@ export const webSearchTool = {
   // ... остальное без изменений
 ```
 
-- [ ] **Шаг 3: Обновить mockTool в тесте registry**
+- [x] **Шаг 3: Обновить mockTool в тесте registry**
 
 Изменить `packages/server/src/tools/__tests__/registry.test.ts` — добавить `permissionLevel` в `mockTool`:
 
@@ -105,7 +105,7 @@ const mockTool: ToolDefinition = {
 };
 ```
 
-- [ ] **Шаг 4: Обновить mockRegistry в тестах tool-loop**
+- [x] **Шаг 4: Обновить mockRegistry в тестах tool-loop**
 
 Изменить `packages/server/src/ai/__tests__/tool-loop.test.ts` — в функции `mockRegistry` добавить `permissionLevel`:
 
@@ -127,7 +127,7 @@ function mockRegistry(tools: Record<string, (params: any) => any> = {}): ToolReg
 }
 ```
 
-- [ ] **Шаг 5: Запустить тесты**
+- [x] **Шаг 5: Запустить тесты**
 
 ```bash
 npm test
@@ -135,7 +135,7 @@ npm test
 
 Ожидание: все существующие тесты проходят.
 
-- [ ] **Шаг 6: Коммит**
+- [x] **Шаг 6: Коммит**
 
 ```bash
 git add packages/server/src/tools/base.ts packages/tool-web-search/src/index.ts packages/server/src/tools/__tests__/registry.test.ts packages/server/src/ai/__tests__/tool-loop.test.ts

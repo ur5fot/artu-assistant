@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const mockTool: ToolDefinition = {
   name: 'test_tool',
   description: 'A test tool',
+  permissionLevel: 'auto',
   parameters: {
     type: 'object',
     properties: { query: { type: 'string' } },
