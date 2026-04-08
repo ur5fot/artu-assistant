@@ -217,7 +217,7 @@ git commit -m "feat: replace Brave Search with SearXNG in web_search tool"
 **Файлы:**
 - Изменить: `packages/tool-web-search/__tests__/web-search.test.ts`
 
-- [ ] **Шаг 1: Заменить тесты**
+- [x] **Шаг 1: Заменить тесты**
 
 Заменить содержимое `packages/tool-web-search/__tests__/web-search.test.ts`:
 
@@ -375,7 +375,7 @@ describe('web_search tool', () => {
 });
 ```
 
-- [ ] **Шаг 2: Запустить тесты**
+- [x] **Шаг 2: Запустить тесты**
 
 ```bash
 npx vitest run packages/tool-web-search/__tests__/web-search.test.ts
@@ -383,7 +383,7 @@ npx vitest run packages/tool-web-search/__tests__/web-search.test.ts
 
 Ожидание: 8 тестов PASS.
 
-- [ ] **Шаг 3: Коммит**
+- [x] **Шаг 3: Коммит**
 
 ```bash
 git add packages/tool-web-search/__tests__/web-search.test.ts
