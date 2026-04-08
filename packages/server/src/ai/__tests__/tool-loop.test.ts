@@ -1,8 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runToolLoop } from '../tool-loop.js';
 import type { ToolRegistry } from '../../tools/registry.js';
 import type { ClaudeClient } from '../claude.js';
 import type { SSEEvent } from '@r2/shared';
+import { initDb, getDb, closeDb } from '../../db.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 
 function mockRegistry(tools: Record<string, (params: any) => any> = {}): ToolRegistry {
   const toolDefs = Object.entries(tools).map(([name, handler]) => ({
@@ -264,5 +268,87 @@ describe('Agentic Tool Loop', () => {
       id: 'call_err',
       result: { success: false, error: 'API down' },
     });
+  });
+});
+
+describe('Agentic Tool Loop — Audit Logging', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2-loop-test-'));
+    initDb(path.join(tmpDir, 'test.db'));
+  });
+
+  afterEach(() => {
+    closeDb();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('logs tool call to audit_log after execution', async () => {
+    const client = mockClaudeClient([
+      {
+        content: [
+          { type: 'tool_use', id: 'call_1', name: 'search', input: { query: 'test' } },
+        ],
+        stop_reason: 'tool_use',
+      },
+      {
+        content: [{ type: 'text', text: 'Done.' }],
+        stop_reason: 'end_turn',
+      },
+    ]);
+
+    const registry = mockRegistry({
+      search: () => ({ success: true, data: 'results' }),
+    });
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'Search' }],
+      client,
+      registry,
+      onEvent: () => {},
+    });
+
+    const db = getDb();
+    const rows = db.prepare('SELECT * FROM audit_log').all() as any[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].tool_name).toBe('search');
+    expect(JSON.parse(rows[0].input)).toEqual({ query: 'test' });
+    expect(JSON.parse(rows[0].result)).toEqual({ success: true, data: 'results' });
+    expect(rows[0].success).toBe(1);
+    expect(rows[0].duration_ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it('logs failed tool call to audit_log', async () => {
+    const client = mockClaudeClient([
+      {
+        content: [
+          { type: 'tool_use', id: 'call_err', name: 'search', input: { query: 'fail' } },
+        ],
+        stop_reason: 'tool_use',
+      },
+      {
+        content: [{ type: 'text', text: 'Error.' }],
+        stop_reason: 'end_turn',
+      },
+    ]);
+
+    const registry = mockRegistry({
+      search: () => { throw new Error('API down'); },
+    });
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'Search' }],
+      client,
+      registry,
+      onEvent: () => {},
+    });
+
+    const db = getDb();
+    const rows = db.prepare('SELECT * FROM audit_log').all() as any[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].tool_name).toBe('search');
+    expect(rows[0].success).toBe(0);
+    expect(rows[0].duration_ms).toBeGreaterThanOrEqual(0);
   });
 });

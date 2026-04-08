@@ -4,7 +4,8 @@ import cors from 'cors';
 import { createChatRouter } from './routes/chat.js';
 import { createClaudeClient } from './ai/claude.js';
 import { runToolLoop } from './ai/tool-loop.js';
-import { createRegistry } from './tools/registry.js';
+import { discoverTools } from './tools/registry.js';
+import { initDb, cleanupAuditLog } from './db.js';
 import { errorHandler } from './errors.js';
 
 const app = express();
@@ -13,12 +14,13 @@ const PORT = process.env.PORT || 3001;
 app.use(cors({ origin: `http://localhost:${process.env.CLIENT_PORT || 5173}` }));
 app.use(express.json({ limit: '10mb' }));
 
+// Initialize database
+initDb();
+cleanupAuditLog();
+
 // Setup
 const client = createClaudeClient();
-const registry = createRegistry();
-
-import webSearchTool from '@r2/tool-web-search';
-registry.register(webSearchTool);
+const registry = await discoverTools();
 
 const chatRouter = createChatRouter({
   runLoop: ({ messages, onEvent, signal }) =>

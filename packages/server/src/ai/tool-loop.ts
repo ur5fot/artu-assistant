@@ -1,8 +1,9 @@
 import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
-import type { SSEEvent, ToolCall } from '@r2/shared';
+import type { SSEEvent, ToolCall, ToolResult } from '@r2/shared';
 import type { ClaudeClient } from './claude.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import { toClaudeTool } from '../tools/base.js';
+import { logToolCall } from '../db.js';
 
 const MAX_ITERATIONS = 10;
 
@@ -77,8 +78,9 @@ export async function runToolLoop({
       onEvent({ type: 'tool_call_start', toolCall });
 
       const toolDef = registry.get(block.name);
-      let result;
+      let result: ToolResult;
 
+      const startTime = Date.now();
       if (toolDef) {
         try {
           result = await toolDef.handler(block.input as Record<string, unknown>);
@@ -90,6 +92,19 @@ export async function runToolLoop({
         }
       } else {
         result = { success: false, error: `Unknown tool: ${block.name}` };
+      }
+      const durationMs = Date.now() - startTime;
+
+      try {
+        logToolCall({
+          toolName: block.name,
+          input: block.input as Record<string, unknown>,
+          result,
+          success: result.success,
+          durationMs,
+        });
+      } catch (err) {
+        console.error('Audit log write failed:', err instanceof Error ? err.message : err);
       }
 
       onEvent({ type: 'tool_call_result', id: block.id, result });

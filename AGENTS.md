@@ -49,6 +49,8 @@ r2/
 │   ├── server/               # Express API
 │   │   ├── src/
 │   │   │   ├── index.ts              # Express entry, middleware, CORS
+│   │   │   ├── db.ts                 # SQLite connection, initDb, logToolCall, cleanup
+│   │   │   ├── db.test.ts            # Tests for db module
 │   │   │   ├── routes/
 │   │   │   │   └── chat.ts           # POST /api/chat → SSE stream
 │   │   │   ├── ai/
@@ -72,7 +74,7 @@ r2/
 │   # Будущие tools добавляются как packages/tool-{name}/
 │
 ├── data/                     # Локальные данные (gitignore)
-│   └── audit.log
+│   └── r2.db                 # SQLite database (audit log)
 │
 └── .env.example              # Шаблон переменных окружения
 ```
@@ -267,8 +269,8 @@ npm run dev
   - Anonymize перед Claude API, de-anonymize перед юзером
   - Encrypted vault (AES-256) для маппинга токенов
 - Permission dialog в UI (confirm level tools)
-- Audit log (SQLite таблица: who, what, when, result)
-- Tool registry: авто-обнаружение tools из packages/tools/*/
+- ~~Audit log (SQLite таблица: who, what, when, result)~~ ✓ Phase 2A
+- ~~Tool registry: авто-обнаружение tools из packages/tool-*/~~ ✓ Phase 2A
 
 ## Phase 3 — Voice + Memory
 
@@ -293,7 +295,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 PORT=3001
 CLIENT_PORT=5173
 BRAVE_SEARCH_API_KEY=...
-# Phase 2+
+# Active (Phase 2A)
 DB_PATH=./data/r2.db
 PII_SERVICE_URL=http://localhost:8080
 ```

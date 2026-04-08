@@ -36,7 +36,7 @@ packages/server/
 **Files:**
 - Modify: `packages/server/package.json`
 
-- [ ] **Step 1: Add better-sqlite3 to server dependencies**
+- [x] **Step 1: Add better-sqlite3 to server dependencies**
 
 Edit `packages/server/package.json` — add to `dependencies`:
 
@@ -50,7 +50,7 @@ And add to `devDependencies`:
 "@types/better-sqlite3": "^7.6.12"
 ```
 
-- [ ] **Step 2: Install dependencies**
+- [x] **Step 2: Install dependencies**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm install
@@ -58,7 +58,7 @@ cd /Users/dim/code/R2-D2 && npm install
 
 Expected: clean install, no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/package.json package-lock.json
@@ -73,7 +73,7 @@ git commit -m "chore: add better-sqlite3 dependency"
 - Create: `packages/server/src/db.ts`
 - Test: `packages/server/src/db.test.ts`
 
-- [ ] **Step 1: Write failing tests for db module**
+- [x] **Step 1: Write failing tests for db module**
 
 Create `packages/server/src/db.test.ts`:
 
@@ -180,7 +180,7 @@ describe('Database Module', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 npx vitest run packages/server/src/db.test.ts
@@ -188,7 +188,7 @@ npx vitest run packages/server/src/db.test.ts
 
 Expected: FAIL — `db.ts` does not exist.
 
-- [ ] **Step 3: Implement db module**
+- [x] **Step 3: Implement db module**
 
 Create `packages/server/src/db.ts`:
 
@@ -267,7 +267,7 @@ export function cleanupAuditLog(): void {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 npx vitest run packages/server/src/db.test.ts
@@ -275,7 +275,7 @@ npx vitest run packages/server/src/db.test.ts
 
 Expected: 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/db.test.ts
@@ -290,7 +290,7 @@ git commit -m "feat: add SQLite database module with audit log and cleanup"
 - Modify: `packages/server/src/ai/tool-loop.ts`
 - Modify: `packages/server/src/ai/__tests__/tool-loop.test.ts`
 
-- [ ] **Step 1: Write failing test for audit log integration**
+- [x] **Step 1: Write failing test for audit log integration**
 
 Add to `packages/server/src/ai/__tests__/tool-loop.test.ts` — new import and test:
 
@@ -393,7 +393,7 @@ Also add `beforeEach` import to the top-level import line:
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -401,7 +401,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
 
 Expected: FAIL — `logToolCall` not called in tool-loop.ts, no rows in audit_log.
 
-- [ ] **Step 3: Add audit logging to tool-loop.ts**
+- [x] **Step 3: Add audit logging to tool-loop.ts**
 
 Edit `packages/server/src/ai/tool-loop.ts`. Add import at the top:
 
@@ -457,7 +457,7 @@ With:
       }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -467,7 +467,7 @@ Expected: all tests PASS (existing 8 + new 2 = 10 tests).
 
 Note: Existing tests that don't call `initDb()` will still pass because `logToolCall` is wrapped in try/catch — it will silently fail when db is not initialized, which is correct behavior.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -482,7 +482,7 @@ git commit -m "feat: integrate audit logging into tool loop"
 - Modify: `packages/server/src/tools/registry.ts`
 - Modify: `packages/server/src/tools/__tests__/registry.test.ts`
 
-- [ ] **Step 1: Write failing tests for discoverTools**
+- [x] **Step 1: Write failing tests for discoverTools**
 
 Add to `packages/server/src/tools/__tests__/registry.test.ts` — new imports and test block.
 
@@ -564,7 +564,7 @@ describe('discoverTools', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify new tests fail**
+- [x] **Step 2: Run tests to verify new tests fail**
 
 ```bash
 npx vitest run packages/server/src/tools/__tests__/registry.test.ts
@@ -572,7 +572,7 @@ npx vitest run packages/server/src/tools/__tests__/registry.test.ts
 
 Expected: existing 3 PASS, new `discoverTools` tests FAIL — function doesn't exist.
 
-- [ ] **Step 3: Implement discoverTools**
+- [x] **Step 3: Implement discoverTools**
 
 Edit `packages/server/src/tools/registry.ts`. Replace entire file:
 
@@ -638,7 +638,7 @@ export async function discoverTools(packagesDir?: string): Promise<ToolRegistry>
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 npx vitest run packages/server/src/tools/__tests__/registry.test.ts
@@ -646,7 +646,7 @@ npx vitest run packages/server/src/tools/__tests__/registry.test.ts
 
 Expected: 6 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/tools/registry.ts packages/server/src/tools/__tests__/registry.test.ts
@@ -661,7 +661,7 @@ git commit -m "feat: add tool auto-discovery from packages/tool-*"
 - Modify: `packages/server/src/index.ts`
 - Modify: `packages/server/package.json`
 
-- [ ] **Step 1: Update server entry point**
+- [x] **Step 1: Update server entry point**
 
 Replace `packages/server/src/index.ts` entirely:
 
@@ -708,7 +708,7 @@ app.listen(PORT, () => {
 });
 ```
 
-- [ ] **Step 2: Remove @r2/tool-web-search from server dependencies**
+- [x] **Step 2: Remove @r2/tool-web-search from server dependencies**
 
 Edit `packages/server/package.json` — remove this line from `dependencies`:
 
@@ -716,13 +716,13 @@ Edit `packages/server/package.json` — remove this line from `dependencies`:
 "@r2/tool-web-search": "*",
 ```
 
-- [ ] **Step 3: Run npm install to update lockfile**
+- [x] **Step 3: Run npm install to update lockfile**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm install
 ```
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 ```bash
 npm test
@@ -730,7 +730,7 @@ npm test
 
 Expected: all tests pass (existing + new).
 
-- [ ] **Step 5: Typecheck all packages**
+- [x] **Step 5: Typecheck all packages**
 
 ```bash
 npx tsc --noEmit -p packages/server/tsconfig.json && \
@@ -741,7 +741,7 @@ npx tsc --noEmit -p packages/client/tsconfig.json
 
 Expected: no type errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/index.ts packages/server/package.json package-lock.json
