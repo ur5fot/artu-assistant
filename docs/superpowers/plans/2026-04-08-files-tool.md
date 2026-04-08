@@ -1118,7 +1118,7 @@ git commit -m "feat: export files tools as ToolDefinition array"
 **Файлы:**
 - Изменить: `.env.example`
 
-- [ ] **Шаг 1: Добавить R2_FILES_ROOT в .env.example**
+- [x] **Шаг 1: Добавить R2_FILES_ROOT в .env.example**
 
 Добавить строку в `.env.example`:
 
@@ -1126,13 +1126,13 @@ git commit -m "feat: export files tools as ToolDefinition array"
 R2_FILES_ROOT=~/Documents/r2
 ```
 
-- [ ] **Шаг 2: Установить зависимости**
+- [x] **Шаг 2: Установить зависимости**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm install
 ```
 
-- [ ] **Шаг 3: Запустить все тесты**
+- [x] **Шаг 3: Запустить все тесты**
 
 ```bash
 npm test
@@ -1140,7 +1140,7 @@ npm test
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 4: Typecheck всех пакетов**
+- [x] **Шаг 4: Typecheck всех пакетов**
 
 ```bash
 npx tsc --noEmit -p packages/shared/tsconfig.json && \
@@ -1152,7 +1152,7 @@ npx tsc --noEmit -p packages/client/tsconfig.json
 
 Ожидание: нет ошибок типов.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add .env.example package-lock.json
