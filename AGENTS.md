@@ -253,7 +253,7 @@ Claude API stream (с tools в параметрах)
 2. **Express server** — POST /api/chat, SSE streaming, CORS
 3. **Claude integration** — claude client, system prompt, streaming
 4. **Tool loop** — agentic loop с max iterations и error handling
-5. **web_search tool** — Brave Search API, permission: auto
+5. **web_search tool** — SearXNG (self-hosted), permission: auto
 6. **React UI** — чат с SSE, отображение tool calls, responsive
 
 ### Запуск
@@ -343,7 +343,7 @@ pii-service/__pycache__/
 - **Retry:** 1 раз при 5xx, abort при 4xx. Не добавлять backoff для single retry — усложнение без пользы для MVP.
 
 ### Безопасность
-- **Санитизация ошибок:** Никогда не отправлять клиенту raw error messages от внешних API. Фильтровать: API ключи (sk-ant-*, Brave), названия провайдеров. Использовать case-insensitive matching.
+- **Санитизация ошибок:** Никогда не отправлять клиенту raw error messages от внешних API. Фильтровать: API ключи (sk-ant-*), URL внутренних сервисов (SearXNG), названия провайдеров. Использовать case-insensitive matching.
 - **Input validation:** Валидировать `messages[]` в chat route — проверять что каждое сообщение имеет `role` и `content`.
 
 ### React / клиент
