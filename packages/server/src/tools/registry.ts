@@ -38,7 +38,12 @@ export async function discoverTools(packagesDir?: string): Promise<ToolRegistry>
   let entries: string[];
   try {
     entries = fs.readdirSync(dir).filter((name) => name.startsWith('tool-'));
-  } catch {
+  } catch (err) {
+    console.warn(
+      `WARNING: Could not read packages directory "${dir}":`,
+      err instanceof Error ? err.message : err,
+    );
+    console.warn('WARNING: No tools were discovered. The assistant will not be able to use any tools.');
     return registry;
   }
 
@@ -56,6 +61,11 @@ export async function discoverTools(packagesDir?: string): Promise<ToolRegistry>
     }
   }
 
-  console.log(`Tools loaded: ${registry.getAll().length}`);
+  const toolCount = registry.getAll().length;
+  if (toolCount === 0) {
+    console.warn('WARNING: No tools were discovered. The assistant will not be able to use any tools.');
+  } else {
+    console.log(`Tools loaded: ${toolCount}`);
+  }
   return registry;
 }
