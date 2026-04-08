@@ -5,7 +5,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "docker compose up -d; concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm run dev -w @r2/server",
     "dev:client": "npm run dev -w @r2/client",
     "test": "vitest run",

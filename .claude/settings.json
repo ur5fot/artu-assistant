@@ -7,7 +7,12 @@
       "Skill(ralphex:ralphex:*)",
       "Bash(ralphex --review --max-iterations 25 docs/superpowers/plans/completed/2026-04-07-audit-log-autodiscovery.md)",
       "Bash(ralphex --max-iterations 50 docs/superpowers/plans/2026-04-08-files-tool.md)",
-      "Bash(ralphex --max-iterations 25 docs/superpowers/plans/2026-04-08-searxng-search.md)"
+      "Bash(ralphex --max-iterations 25 docs/superpowers/plans/2026-04-08-searxng-search.md)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\('ANTHROPIC_API_KEY set:', !!process.env.ANTHROPIC_API_KEY\\); console.log\\('starts with:', process.env.ANTHROPIC_API_KEY?.substring\\(0, 10\\) + '...'\\)\")",
+      "Bash(node -e ':*)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\('KEY:', process.env.ANTHROPIC_API_KEY ? 'set \\(' + process.env.ANTHROPIC_API_KEY.length + ' chars\\)' : 'NOT SET'\\)\")",
+      "Bash(curl -s http://localhost:3001/api/health)",
+      "Bash(curl -s -N http://localhost:3001/api/chat -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"Привет, скажи кто ты в одном предложении\"}]}')"
     ],
     "additionalDirectories": [
       "/Users/dim/code/R2-D2",

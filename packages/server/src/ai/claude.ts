@@ -2,6 +2,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
 import { SYSTEM_PROMPT } from './prompts.js';
 
+const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
+const MAX_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS) || 16384;
+const THINKING_BUDGET = Number(process.env.CLAUDE_THINKING_BUDGET) || 10240;
+
 interface SendMessageParams {
   messages: MessageParam[];
   tools: Tool[];
@@ -18,10 +22,14 @@ export function createClaudeClient(): ClaudeClient {
 
   async function sendMessage(params: SendMessageParams): Promise<Anthropic.Message> {
     const requestParams: Anthropic.MessageCreateParamsNonStreaming = {
-      model: 'claude-sonnet-4-6-20250514',
-      max_tokens: 4096,
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
       system: SYSTEM_PROMPT,
       messages: params.messages,
+      thinking: {
+        type: 'enabled',
+        budget_tokens: THINKING_BUDGET,
+      },
     };
 
     if (params.tools.length > 0) {
