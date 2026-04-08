@@ -12,7 +12,10 @@
       "Bash(node -e ':*)",
       "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\('KEY:', process.env.ANTHROPIC_API_KEY ? 'set \\(' + process.env.ANTHROPIC_API_KEY.length + ' chars\\)' : 'NOT SET'\\)\")",
       "Bash(curl -s http://localhost:3001/api/health)",
-      "Bash(curl -s -N http://localhost:3001/api/chat -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"Привет, скажи кто ты в одном предложении\"}]}')"
+      "Bash(curl -s -N http://localhost:3001/api/chat -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"Привет, скажи кто ты в одном предложении\"}]}')",
+      "Read(//Users/dim/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/**)",
+      "Bash(/Users/dim/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/scripts/start-server.sh --project-dir /Users/dim/code/R2-D2)",
+      "Bash(git reset:*)"
     ],
     "additionalDirectories": [
       "/Users/dim/code/R2-D2",

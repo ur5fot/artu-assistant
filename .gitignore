@@ -10,3 +10,4 @@ dist/
 
 # ralphex progress logs
 .ralphex/progress/
+.superpowers/
