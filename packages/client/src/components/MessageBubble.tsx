@@ -48,6 +48,17 @@ export function MessageBubble({ message, pendingConfirms, onRespond }: Props) {
           {message.content}
         </div>
       )}
+      {message.timestamp > 0 && (
+        <div style={{
+          fontSize: 11,
+          color: '#aaa',
+          marginTop: 2,
+          paddingLeft: isUser ? 0 : 4,
+          paddingRight: isUser ? 4 : 0,
+        }}>
+          {new Date(message.timestamp).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
+        </div>
+      )}
     </div>
   );
 }
