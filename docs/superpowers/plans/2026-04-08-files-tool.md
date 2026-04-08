@@ -427,7 +427,7 @@ git commit -m "feat: support array tool exports in auto-discovery"
 - Создать: `packages/tool-files/src/paths.ts`
 - Тест: `packages/tool-files/__tests__/paths.test.ts`
 
-- [ ] **Шаг 1: Создать package.json**
+- [x] **Шаг 1: Создать package.json**
 
 Создать `packages/tool-files/package.json`:
 
@@ -447,7 +447,7 @@ git commit -m "feat: support array tool exports in auto-discovery"
 }
 ```
 
-- [ ] **Шаг 2: Создать tsconfig.json**
+- [x] **Шаг 2: Создать tsconfig.json**
 
 Создать `packages/tool-files/tsconfig.json`:
 
@@ -462,7 +462,7 @@ git commit -m "feat: support array tool exports in auto-discovery"
 }
 ```
 
-- [ ] **Шаг 3: Написать failing тесты для paths**
+- [x] **Шаг 3: Написать failing тесты для paths**
 
 Создать `packages/tool-files/__tests__/paths.test.ts`:
 
@@ -532,7 +532,7 @@ describe('safePath', () => {
 });
 ```
 
-- [ ] **Шаг 4: Запустить тесты — убедиться что падает**
+- [x] **Шаг 4: Запустить тесты — убедиться что падает**
 
 ```bash
 npx vitest run packages/tool-files/__tests__/paths.test.ts
@@ -540,7 +540,7 @@ npx vitest run packages/tool-files/__tests__/paths.test.ts
 
 Ожидание: FAIL — `paths.ts` не существует.
 
-- [ ] **Шаг 5: Реализовать paths.ts**
+- [x] **Шаг 5: Реализовать paths.ts**
 
 Создать `packages/tool-files/src/paths.ts`:
 
@@ -564,7 +564,7 @@ export function safePath(root: string, userPath: string): string {
 }
 ```
 
-- [ ] **Шаг 6: Запустить тесты**
+- [x] **Шаг 6: Запустить тесты**
 
 ```bash
 npx vitest run packages/tool-files/__tests__/paths.test.ts
@@ -572,7 +572,7 @@ npx vitest run packages/tool-files/__tests__/paths.test.ts
 
 Ожидание: 7 тестов PASS.
 
-- [ ] **Шаг 7: Коммит**
+- [x] **Шаг 7: Коммит**
 
 ```bash
 git add packages/tool-files/
