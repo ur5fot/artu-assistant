@@ -1,6 +1,7 @@
 import type { Message } from '@r2/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { PiiBadge } from './PiiBadge';
 import { ToolCallCard } from './ToolCallCard';
 import { PermissionCard } from './PermissionCard';
 import type { PendingConfirm } from '../hooks/useChat';
@@ -68,6 +69,9 @@ export function MessageBubble({ message, pendingConfirms, onRespond }: Props) {
         }
         return <ToolCallCard key={tc.id} toolCall={tc} />;
       })}
+      {message.piiEntities && message.piiEntities.length > 0 && (
+        <PiiBadge entities={message.piiEntities} />
+      )}
       {message.content && (
         <div style={{
           maxWidth: '80%',

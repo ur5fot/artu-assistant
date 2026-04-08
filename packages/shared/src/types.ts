@@ -4,6 +4,7 @@ export interface Message {
   content: string;
   toolCalls?: ToolCall[];
   timestamp: number;
+  piiEntities?: Array<{ type: string; count: number }>;
 }
 
 export interface ToolCall {

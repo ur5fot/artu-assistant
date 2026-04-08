@@ -37,6 +37,7 @@ export function useChat() {
     const assistantId = crypto.randomUUID();
     let assistantText = '';
     const toolCalls: ToolCall[] = [];
+    let piiEntities: Array<{ type: string; count: number }> | undefined;
 
     setMessages((prev) => [...prev, userMessage]);
 
@@ -56,6 +57,7 @@ export function useChat() {
                   content: assistantText,
                   toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
                   timestamp: Date.now(),
+                  piiEntities,
                 },
               ];
             });
@@ -73,6 +75,7 @@ export function useChat() {
                   content: assistantText,
                   toolCalls: [...toolCalls],
                   timestamp: Date.now(),
+                  piiEntities,
                 },
               ];
             });
@@ -94,6 +97,7 @@ export function useChat() {
                   content: assistantText,
                   toolCalls: [...toolCalls],
                   timestamp: Date.now(),
+                  piiEntities,
                 },
               ];
             });
@@ -118,6 +122,25 @@ export function useChat() {
                   content: assistantText,
                   toolCalls: [...toolCalls],
                   timestamp: Date.now(),
+                  piiEntities,
+                },
+              ];
+            });
+            break;
+
+          case 'pii_masked':
+            piiEntities = event.entities;
+            setMessages((prev) => {
+              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
+              return [
+                ...base,
+                {
+                  id: assistantId,
+                  role: 'assistant' as const,
+                  content: assistantText,
+                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+                  timestamp: Date.now(),
+                  piiEntities,
                 },
               ];
             });

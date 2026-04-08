@@ -1075,7 +1075,7 @@ git commit -m "feat: integrate PII proxy into tool-loop pipeline"
 - Modify: `packages/client/src/hooks/useChat.ts`
 - Modify: `packages/client/src/components/MessageBubble.tsx`
 
-- [ ] **Step 1: Create PiiBadge component**
+- [x] **Step 1: Create PiiBadge component**
 
 Create `packages/client/src/components/PiiBadge.tsx`:
 
@@ -1117,7 +1117,7 @@ export function PiiBadge({ entities }: Props) {
 }
 ```
 
-- [ ] **Step 2: Add piiEntities to useChat state**
+- [x] **Step 2: Add piiEntities to useChat state**
 
 In `packages/client/src/hooks/useChat.ts`:
 
@@ -1150,18 +1150,18 @@ Add handler for `pii_masked` event in the switch statement (after `tool_confirm_
 
 Note: The `piiEntities` field needs to be added to the Message type. Since `Message` is from `@r2/shared`, we need to extend it.
 
-- [ ] **Step 3: Add piiEntities to Message type**
+- [x] **Step 3: Add piiEntities to Message type**
 
 In `packages/shared/src/types.ts`, add to the `Message` interface (after line 6):
 ```typescript
   piiEntities?: Array<{ type: string; count: number }>;
 ```
 
-- [ ] **Step 4: Include piiEntities in all message state updates in useChat.ts**
+- [x] **Step 4: Include piiEntities in all message state updates in useChat.ts**
 
 Every `setMessages` call that creates the assistant message object should include `piiEntities`. There are 5 such calls in useChat.ts (in `text_delta`, `tool_call_start`, `tool_call_result`, `tool_confirm_request` handlers). Add `piiEntities,` after `timestamp: Date.now(),` in each one.
 
-- [ ] **Step 5: Render PiiBadge in MessageBubble**
+- [x] **Step 5: Render PiiBadge in MessageBubble**
 
 In `packages/client/src/components/MessageBubble.tsx`:
 
@@ -1177,12 +1177,12 @@ After the `toolCalls` rendering block (after line 70, before `{message.content &
       )}
 ```
 
-- [ ] **Step 6: Run typecheck**
+- [x] **Step 6: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json && npx tsc --noEmit -p packages/shared/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/client/src/components/PiiBadge.tsx packages/client/src/hooks/useChat.ts packages/client/src/components/MessageBubble.tsx packages/shared/src/types.ts
