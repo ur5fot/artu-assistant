@@ -105,7 +105,8 @@ export function useChat() {
               next.set(event.toolCall.id, { callId: event.toolCall.id, level: event.level });
               return next;
             });
-            toolCalls.push({ ...event.toolCall, status: 'running' });
+            // Don't push to toolCalls — tool_call_start already added this tool call.
+            // Just trigger a re-render so MessageBubble picks up the pending confirm.
             setMessages((prev) => {
               const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
               return [

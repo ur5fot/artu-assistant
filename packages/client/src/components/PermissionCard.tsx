@@ -91,17 +91,19 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
           </div>
         ) : (
           <>
-            <label style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              marginBottom: 10, fontSize: 12, color: '#666', cursor: 'pointer',
-            }}>
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-              />
-              {'\u0417\u0430\u043F\u043E\u043C\u043D\u0438\u0442\u044C'}
-            </label>
+            {!isForbidden && (
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                marginBottom: 10, fontSize: 12, color: '#666', cursor: 'pointer',
+              }}>
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                />
+                {'\u0417\u0430\u043F\u043E\u043C\u043D\u0438\u0442\u044C'}
+              </label>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => handleRespond(true)}
