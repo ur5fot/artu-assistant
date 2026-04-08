@@ -83,13 +83,13 @@ describe('POST /api/chat', () => {
     expect(res.text).not.toContain('Anthropic');
   });
 
-  it('sanitizes Brave-related errors (case-insensitive)', async () => {
+  it('sanitizes SearXNG-related errors (case-insensitive)', async () => {
     const app = express();
     app.use(express.json());
 
     const router = createChatRouter({
       runLoop: async () => {
-        throw new Error('brave search API timeout');
+        throw new Error('SearXNG search API timeout');
       },
     });
     app.use('/api', router);
@@ -100,7 +100,7 @@ describe('POST /api/chat', () => {
       .expect(200);
 
     expect(res.text).toContain('Search service temporarily unavailable');
-    expect(res.text).not.toContain('brave');
+    expect(res.text).not.toContain('SearXNG');
   });
 
   it('does not abort signal during runLoop execution (abort tied to res close)', async () => {
