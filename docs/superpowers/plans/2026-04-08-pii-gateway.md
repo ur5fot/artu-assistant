@@ -15,7 +15,7 @@
 **Files:**
 - Modify: `docker-compose.yml`
 
-- [ ] **Step 1: Add Presidio services to docker-compose.yml**
+- [x] **Step 1: Add Presidio services to docker-compose.yml**
 
 Replace the entire file with:
 
@@ -47,7 +47,7 @@ services:
     restart: unless-stopped
 ```
 
-- [ ] **Step 2: Add PII env vars to .env.example**
+- [x] **Step 2: Add PII env vars to .env.example**
 
 Append to end of `.env.example`:
 
@@ -69,7 +69,7 @@ PRESIDIO_ANONYMIZER_URL=http://localhost:5001
 # AU_ACN, AU_TFN, AU_MEDICARE, US_PASSPORT, US_BANK_NUMBER
 ```
 
-- [ ] **Step 3: Pull images and verify**
+- [x] **Step 3: Pull images and verify**
 
 Run:
 ```bash
@@ -79,7 +79,7 @@ docker compose ps
 ```
 Expected: all 3 services running.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docker-compose.yml .env.example
