@@ -47,7 +47,7 @@ packages/
 **Файлы:**
 - Изменить: `packages/shared/src/types.ts`
 
-- [ ] **Шаг 1: Добавить tool_confirm_request в SSEEvent**
+- [x] **Шаг 1: Добавить tool_confirm_request в SSEEvent**
 
 Изменить `packages/shared/src/types.ts`. Добавить новый тип в union SSEEvent:
 
@@ -61,7 +61,7 @@ export type SSEEvent =
   | { type: 'error'; message: string };
 ```
 
-- [ ] **Шаг 2: Typecheck**
+- [x] **Шаг 2: Typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/shared/tsconfig.json
@@ -69,7 +69,7 @@ npx tsc --noEmit -p packages/shared/tsconfig.json
 
 Ожидание: нет ошибок.
 
-- [ ] **Шаг 3: Коммит**
+- [x] **Шаг 3: Коммит**
 
 ```bash
 git add packages/shared/src/types.ts
