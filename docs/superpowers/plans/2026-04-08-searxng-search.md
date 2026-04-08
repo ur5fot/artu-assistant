@@ -37,7 +37,7 @@ r2/
 - Создать: `searxng/settings.yml`
 - Создать: `searxng/limiter.toml`
 
-- [ ] **Шаг 1: Создать docker-compose.yml**
+- [x] **Шаг 1: Создать docker-compose.yml**
 
 Создать `docker-compose.yml`:
 
@@ -55,7 +55,7 @@ services:
       - SEARXNG_BASE_URL=http://localhost:8888
 ```
 
-- [ ] **Шаг 2: Создать searxng/settings.yml**
+- [x] **Шаг 2: Создать searxng/settings.yml**
 
 Создать `searxng/settings.yml`:
 
@@ -75,7 +75,7 @@ search:
   autocomplete: ""
 ```
 
-- [ ] **Шаг 3: Создать searxng/limiter.toml**
+- [x] **Шаг 3: Создать searxng/limiter.toml**
 
 Создать `searxng/limiter.toml`:
 
@@ -88,11 +88,11 @@ link_token = false
 pass_ip = ["127.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "10.0.0.0/8"]
 ```
 
-- [ ] **Шаг 4: Добавить searxng/ в .gitignore исключения**
+- [x] **Шаг 4: Добавить searxng/ в .gitignore исключения**
 
 В `.gitignore` добавить комментарий что `searxng/` НЕ игнорируется (это конфиг, не данные). Убедиться что директория `searxng/` трекается git.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add docker-compose.yml searxng/

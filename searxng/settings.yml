@@ -1,0 +1,13 @@
+use_default_settings: true
+
+server:
+  secret_key: "r2-searxng-local-dev-key-change-in-prod"
+  bind_address: "0.0.0.0"
+  port: 8080
+
+search:
+  formats:
+    - html
+    - json
+  default_lang: ""
+  autocomplete: ""
