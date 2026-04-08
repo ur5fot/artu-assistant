@@ -15,7 +15,10 @@ const tools = [
       required: ['path'] as string[],
     },
     async handler(params: Record<string, unknown>): Promise<ToolResult> {
-      return readFile(resolveRoot(), params.path as string);
+      if (typeof params.path !== 'string' || !params.path) {
+        return { success: false, error: 'Missing or invalid "path" parameter' };
+      }
+      return readFile(resolveRoot(), params.path);
     },
   },
   {
@@ -31,7 +34,13 @@ const tools = [
       required: ['path', 'content'] as string[],
     },
     async handler(params: Record<string, unknown>): Promise<ToolResult> {
-      return writeFile(resolveRoot(), params.path as string, params.content as string);
+      if (typeof params.path !== 'string' || !params.path) {
+        return { success: false, error: 'Missing or invalid "path" parameter' };
+      }
+      if (typeof params.content !== 'string') {
+        return { success: false, error: 'Missing or invalid "content" parameter' };
+      }
+      return writeFile(resolveRoot(), params.path, params.content);
     },
   },
   {
@@ -47,8 +56,8 @@ const tools = [
       required: [] as string[],
     },
     async handler(params: Record<string, unknown>): Promise<ToolResult> {
-      const dirPath = (params.path as string) || '.';
-      const recursive = (params.recursive as boolean) || false;
+      const dirPath = typeof params.path === 'string' && params.path ? params.path : '.';
+      const recursive = params.recursive === true;
       return listFiles(resolveRoot(), dirPath, recursive);
     },
   },
@@ -64,7 +73,10 @@ const tools = [
       required: ['path'] as string[],
     },
     async handler(params: Record<string, unknown>): Promise<ToolResult> {
-      return deleteFile(resolveRoot(), params.path as string);
+      if (typeof params.path !== 'string' || !params.path) {
+        return { success: false, error: 'Missing or invalid "path" parameter' };
+      }
+      return deleteFile(resolveRoot(), params.path);
     },
   },
   {
@@ -80,7 +92,13 @@ const tools = [
       required: ['source', 'destination'] as string[],
     },
     async handler(params: Record<string, unknown>): Promise<ToolResult> {
-      return moveFile(resolveRoot(), params.source as string, params.destination as string);
+      if (typeof params.source !== 'string' || !params.source) {
+        return { success: false, error: 'Missing or invalid "source" parameter' };
+      }
+      if (typeof params.destination !== 'string' || !params.destination) {
+        return { success: false, error: 'Missing or invalid "destination" parameter' };
+      }
+      return moveFile(resolveRoot(), params.source, params.destination);
     },
   },
 ];

@@ -8,13 +8,10 @@ const MAX_LIST_ENTRIES = 1000;
 const MAX_RECURSION_DEPTH = 20;
 
 function ensureRoot(root: string): void {
-  if (!fs.existsSync(root)) {
-    fs.mkdirSync(root, { recursive: true });
-  }
+  fs.mkdirSync(root, { recursive: true });
 }
 
 export async function readFile(root: string, filePath: string): Promise<ToolResult> {
-  ensureRoot(root);
 
   let resolved: string;
   try {
@@ -142,7 +139,6 @@ export async function listFiles(root: string, dirPath: string, recursive: boolea
 }
 
 export async function deleteFile(root: string, filePath: string): Promise<ToolResult> {
-  ensureRoot(root);
 
   let resolved: string;
   try {
@@ -172,7 +168,6 @@ export async function deleteFile(root: string, filePath: string): Promise<ToolRe
 }
 
 export async function moveFile(root: string, source: string, destination: string): Promise<ToolResult> {
-  ensureRoot(root);
 
   let resolvedSrc: string;
   let resolvedDst: string;

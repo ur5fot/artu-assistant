@@ -23,7 +23,7 @@ export async function runToolLoop({
   signal,
 }: ToolLoopParams): Promise<void> {
   const tools: Tool[] = registry.getAll()
-    .filter(t => t.permissionLevel === 'auto')
+    .filter(t => t.permissionLevel !== 'forbidden')
     .map(toClaudeTool) as Tool[];
   let currentMessages: MessageParam[] = [...messages];
   let iterations = 0;
