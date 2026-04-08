@@ -258,7 +258,10 @@ Claude API stream (с tools в параметрах)
 
 ### Запуск
 ```bash
-# Из корня — запускает server + client одновременно
+# 1. Поднять SearXNG
+docker compose up -d
+
+# 2. Запустить server + client
 npm run dev
 ```
 

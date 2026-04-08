@@ -470,7 +470,7 @@ git commit -m "feat: complete SearXNG migration — update config, docs, and err
 **Файлы:**
 - Изменить: `AGENTS.md`
 
-- [ ] **Шаг 1: Обновить секцию запуска**
+- [x] **Шаг 1: Обновить секцию запуска**
 
 В секции `### Запуск` (Phase 1) заменить:
 ```bash
@@ -486,7 +486,7 @@ docker compose up -d
 npm run dev
 ```
 
-- [ ] **Шаг 2: Коммит**
+- [x] **Шаг 2: Коммит**
 
 ```bash
 git add AGENTS.md
