@@ -320,7 +320,7 @@ git commit -m "feat: add PII token vault with AES-256-GCM encryption"
 - Create: `packages/server/src/pii/presidio.ts`
 - Create: `packages/server/src/pii/presidio.test.ts`
 
-- [ ] **Step 1: Write failing tests for Presidio client**
+- [x] **Step 1: Write failing tests for Presidio client**
 
 Create `packages/server/src/pii/presidio.test.ts`:
 
@@ -406,12 +406,12 @@ describe('PresidioClient', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/pii/presidio.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement Presidio client**
+- [x] **Step 3: Implement Presidio client**
 
 Create `packages/server/src/pii/presidio.ts`:
 
@@ -502,12 +502,12 @@ export class PresidioClient {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd packages/server && npx vitest run src/pii/presidio.test.ts`
 Expected: all 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/pii/presidio.ts packages/server/src/pii/presidio.test.ts
