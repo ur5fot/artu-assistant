@@ -6,6 +6,12 @@ import { safePath } from './paths.js';
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 const MAX_LIST_ENTRIES = 1000;
 
+function ensureRoot(root: string): void {
+  if (!fs.existsSync(root)) {
+    fs.mkdirSync(root, { recursive: true });
+  }
+}
+
 export async function readFile(root: string, filePath: string): Promise<ToolResult> {
   let resolved: string;
   try {
@@ -13,6 +19,8 @@ export async function readFile(root: string, filePath: string): Promise<ToolResu
   } catch {
     return { success: false, error: 'Path outside allowed directory' };
   }
+
+  ensureRoot(root);
 
   if (!fs.existsSync(resolved)) {
     return { success: false, error: `File not found: ${filePath}` };
@@ -50,6 +58,13 @@ export async function writeFile(root: string, filePath: string, content: string)
     return { success: false, error: 'Path outside allowed directory' };
   }
 
+  ensureRoot(root);
+
+  const contentSize = Buffer.byteLength(content);
+  if (contentSize > MAX_FILE_SIZE) {
+    return { success: false, error: `Content exceeds 1MB limit (${contentSize} bytes)` };
+  }
+
   const dir = path.dirname(resolved);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -61,6 +76,19 @@ export async function writeFile(root: string, filePath: string, content: string)
     data: { path: filePath, bytes: Buffer.byteLength(content) },
     display: { type: 'text', content: `Written ${filePath} (${Buffer.byteLength(content)} bytes)` },
   };
+}
+
+function countAll(dir: string, recursive: boolean): number {
+  const items = fs.readdirSync(dir, { withFileTypes: true });
+  let count = items.length;
+  if (recursive) {
+    for (const item of items) {
+      if (item.isDirectory()) {
+        count += countAll(path.join(dir, item.name), true);
+      }
+    }
+  }
+  return count;
 }
 
 function collectEntries(
@@ -89,6 +117,8 @@ export async function listFiles(root: string, dirPath: string, recursive: boolea
     return { success: false, error: 'Path outside allowed directory' };
   }
 
+  ensureRoot(root);
+
   if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
     return { success: false, error: `Directory not found: ${dirPath}` };
   }
@@ -98,9 +128,11 @@ export async function listFiles(root: string, dirPath: string, recursive: boolea
 
   const truncated = entries.length >= MAX_LIST_ENTRIES;
   const displayLines = entries.map((e) => `${e.type === 'directory' ? '[dir]' : '     '} ${e.name}`);
-  const displayContent = truncated
-    ? displayLines.join('\n') + `\n\n(truncated at ${MAX_LIST_ENTRIES} entries)`
-    : displayLines.join('\n');
+  let displayContent = displayLines.join('\n');
+  if (truncated) {
+    const totalCount = countAll(resolved, recursive);
+    displayContent += `\n\n(truncated, ${MAX_LIST_ENTRIES} of ${totalCount} total)`;
+  }
 
   return {
     success: true,
@@ -116,6 +148,8 @@ export async function deleteFile(root: string, filePath: string): Promise<ToolRe
   } catch {
     return { success: false, error: 'Path outside allowed directory' };
   }
+
+  ensureRoot(root);
 
   if (!fs.existsSync(resolved)) {
     return { success: false, error: `File not found: ${filePath}` };
@@ -147,8 +181,14 @@ export async function moveFile(root: string, source: string, destination: string
     return { success: false, error: 'Destination path outside allowed directory' };
   }
 
+  ensureRoot(root);
+
   if (!fs.existsSync(resolvedSrc)) {
     return { success: false, error: `Source not found: ${source}` };
+  }
+
+  if (fs.existsSync(resolvedDst)) {
+    return { success: false, error: `Destination already exists: ${destination}` };
   }
 
   const dstDir = path.dirname(resolvedDst);

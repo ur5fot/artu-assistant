@@ -120,7 +120,7 @@ describe('File Operations', () => {
       expect(result.success).toBe(true);
       const entries = result.data as Array<{ name: string; type: string }>;
       expect(entries).toHaveLength(1000);
-      expect(result.display?.content).toContain('truncated at 1000');
+      expect(result.display?.content).toContain('truncated, 1000 of 1005 total');
     });
   });
 
@@ -186,6 +186,35 @@ describe('File Operations', () => {
       const result = await moveFile(root, 'legit.txt', '../../escaped.txt');
       expect(result.success).toBe(false);
       expect(result.error).toContain('outside');
+    });
+
+    it('returns error when destination already exists', async () => {
+      fs.writeFileSync(path.join(root, 'src.txt'), 'source');
+      fs.writeFileSync(path.join(root, 'dst.txt'), 'existing');
+      const result = await moveFile(root, 'src.txt', 'dst.txt');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('already exists');
+      // Both files should still exist unchanged
+      expect(fs.readFileSync(path.join(root, 'src.txt'), 'utf-8')).toBe('source');
+      expect(fs.readFileSync(path.join(root, 'dst.txt'), 'utf-8')).toBe('existing');
+    });
+  });
+
+  describe('writeFile', () => {
+    it('rejects content exceeding 1MB', async () => {
+      const largeContent = 'x'.repeat(1024 * 1024 + 1);
+      const result = await writeFile(root, 'big.txt', largeContent);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('1MB');
+    });
+  });
+
+  describe('root auto-creation', () => {
+    it('creates root directory on first operation', async () => {
+      const newRoot = path.join(root, 'nonexistent', 'deep');
+      const result = await listFiles(newRoot, '.', false);
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(newRoot)).toBe(true);
     });
   });
 });

@@ -22,7 +22,9 @@ export async function runToolLoop({
   onEvent,
   signal,
 }: ToolLoopParams): Promise<void> {
-  const tools: Tool[] = registry.getAll().map(toClaudeTool) as Tool[];
+  const tools: Tool[] = registry.getAll()
+    .filter(t => t.permissionLevel === 'auto')
+    .map(toClaudeTool) as Tool[];
   let currentMessages: MessageParam[] = [...messages];
   let iterations = 0;
   let lastEndedWithToolUse = false;
