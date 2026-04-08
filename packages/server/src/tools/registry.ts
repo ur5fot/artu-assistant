@@ -1,7 +1,7 @@
 import type { ToolDefinition } from './base.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export interface ToolRegistry {
   register(tool: ToolDefinition): void;
@@ -50,11 +50,30 @@ export async function discoverTools(packagesDir?: string): Promise<ToolRegistry>
   for (const entry of entries) {
     const toolPackageName = `@r2/${entry}`;
     try {
-      const mod = await import(toolPackageName);
-      const tool: ToolDefinition = mod.default;
-      if (tool && typeof tool.name === 'string' && typeof tool.handler === 'function') {
-        registry.register(tool);
-        console.log(`  Tool discovered: ${tool.name} (${entry})`);
+      let mod: any;
+      try {
+        mod = await import(toolPackageName);
+      } catch {
+        // Fallback: import by path (for non-linked packages)
+        const pkgJsonPath = path.join(dir, entry, 'package.json');
+        if (fs.existsSync(pkgJsonPath)) {
+          const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+          const main = pkgJson.main || 'index.js';
+          const entryPath = path.resolve(dir, entry, main);
+          mod = await import(pathToFileURL(entryPath).href);
+        } else {
+          throw new Error(`Cannot resolve ${toolPackageName}`);
+        }
+      }
+      const exported = mod.default;
+
+      const toRegister: ToolDefinition[] = Array.isArray(exported) ? exported : [exported];
+
+      for (const tool of toRegister) {
+        if (tool && typeof tool.name === 'string' && typeof tool.handler === 'function') {
+          registry.register(tool);
+          console.log(`  Tool discovered: ${tool.name} (${entry})`);
+        }
       }
     } catch (err) {
       console.error(`  Failed to load tool ${entry}:`, err instanceof Error ? err.message : err);

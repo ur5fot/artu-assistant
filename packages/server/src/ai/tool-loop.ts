@@ -22,7 +22,9 @@ export async function runToolLoop({
   onEvent,
   signal,
 }: ToolLoopParams): Promise<void> {
-  const tools: Tool[] = registry.getAll().map(toClaudeTool) as Tool[];
+  const tools: Tool[] = registry.getAll()
+    .filter(t => t.permissionLevel !== 'forbidden')
+    .map(toClaudeTool) as Tool[];
   let currentMessages: MessageParam[] = [...messages];
   let iterations = 0;
   let lastEndedWithToolUse = false;
@@ -81,7 +83,13 @@ export async function runToolLoop({
       let result: ToolResult;
 
       const startTime = Date.now();
-      if (toolDef) {
+      if (!toolDef) {
+        result = { success: false, error: `Unknown tool: ${block.name}` };
+      } else if (toolDef.permissionLevel === 'forbidden') {
+        result = { success: false, error: `This action is forbidden` };
+      } else if (toolDef.permissionLevel === 'confirm') {
+        result = { success: false, error: `This action requires user confirmation (not yet implemented)` };
+      } else {
         try {
           result = await toolDef.handler(block.input as Record<string, unknown>);
         } catch (err) {
@@ -90,8 +98,6 @@ export async function runToolLoop({
             error: err instanceof Error ? err.message : 'Unknown error',
           };
         }
-      } else {
-        result = { success: false, error: `Unknown tool: ${block.name}` };
       }
       const durationMs = Date.now() - startTime;
 

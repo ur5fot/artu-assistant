@@ -12,6 +12,7 @@ function mockRegistry(tools: Record<string, (params: any) => any> = {}): ToolReg
   const toolDefs = Object.entries(tools).map(([name, handler]) => ({
     name,
     description: `Mock ${name}`,
+    permissionLevel: 'auto' as const,
     parameters: { type: 'object' as const, properties: {}, required: [] },
     handler: async (params: Record<string, unknown>) => handler(params),
   }));
@@ -232,6 +233,101 @@ describe('Agentic Tool Loop', () => {
     expect(client.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ signal: controller.signal }),
     );
+  });
+
+  it('blocks tool with confirm permission level', async () => {
+    const client = mockClaudeClient([
+      {
+        content: [
+          { type: 'tool_use', id: 'call_c', name: 'write_file', input: { path: 'test.txt' } },
+        ],
+        stop_reason: 'tool_use',
+      },
+      {
+        content: [{ type: 'text', text: 'Cannot write without permission.' }],
+        stop_reason: 'end_turn',
+      },
+    ]);
+
+    const toolDefs = [{
+      name: 'write_file',
+      description: 'Write a file',
+      permissionLevel: 'confirm' as const,
+      parameters: { type: 'object' as const, properties: {}, required: [] },
+      handler: vi.fn(async () => ({ success: true, data: 'written' })),
+    }];
+
+    const registry: ToolRegistry = {
+      register: vi.fn(),
+      get: (name: string) => toolDefs.find((t) => t.name === name),
+      getAll: () => toolDefs,
+    };
+
+    const events: SSEEvent[] = [];
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'Write file' }],
+      client,
+      registry,
+      onEvent: (e) => events.push(e),
+    });
+
+    // Handler should NOT have been called
+    expect(toolDefs[0].handler).not.toHaveBeenCalled();
+
+    // Should have returned error result
+    const resultEvent = events.find((e) => e.type === 'tool_call_result');
+    expect(resultEvent).toBeDefined();
+    if (resultEvent && resultEvent.type === 'tool_call_result') {
+      expect(resultEvent.result.success).toBe(false);
+      expect(resultEvent.result.error).toContain('requires user confirmation');
+    }
+  });
+
+  it('blocks tool with forbidden permission level', async () => {
+    const client = mockClaudeClient([
+      {
+        content: [
+          { type: 'tool_use', id: 'call_f', name: 'dangerous', input: {} },
+        ],
+        stop_reason: 'tool_use',
+      },
+      {
+        content: [{ type: 'text', text: 'Forbidden.' }],
+        stop_reason: 'end_turn',
+      },
+    ]);
+
+    const toolDefs = [{
+      name: 'dangerous',
+      description: 'Dangerous tool',
+      permissionLevel: 'forbidden' as const,
+      parameters: { type: 'object' as const, properties: {}, required: [] },
+      handler: vi.fn(async () => ({ success: true, data: 'done' })),
+    }];
+
+    const registry: ToolRegistry = {
+      register: vi.fn(),
+      get: (name: string) => toolDefs.find((t) => t.name === name),
+      getAll: () => toolDefs,
+    };
+
+    const events: SSEEvent[] = [];
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'Do dangerous thing' }],
+      client,
+      registry,
+      onEvent: (e) => events.push(e),
+    });
+
+    expect(toolDefs[0].handler).not.toHaveBeenCalled();
+    const resultEvent = events.find((e) => e.type === 'tool_call_result');
+    expect(resultEvent).toBeDefined();
+    if (resultEvent && resultEvent.type === 'tool_call_result') {
+      expect(resultEvent.result.success).toBe(false);
+      expect(resultEvent.result.error).toContain('forbidden');
+    }
   });
 
   it('handles tool execution error gracefully', async () => {

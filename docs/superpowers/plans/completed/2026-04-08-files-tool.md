@@ -47,7 +47,7 @@ packages/
 - Изменить: `packages/server/src/tools/__tests__/registry.test.ts`
 - Изменить: `packages/server/src/ai/__tests__/tool-loop.test.ts`
 
-- [ ] **Шаг 1: Обновить ToolDefinition в base.ts**
+- [x] **Шаг 1: Обновить ToolDefinition в base.ts**
 
 Изменить `packages/server/src/tools/base.ts` — добавить поле `permissionLevel`:
 
@@ -75,7 +75,7 @@ export function toClaudeTool(tool: ToolDefinition) {
 }
 ```
 
-- [ ] **Шаг 2: Добавить permissionLevel в web-search tool**
+- [x] **Шаг 2: Добавить permissionLevel в web-search tool**
 
 Изменить `packages/tool-web-search/src/index.ts` — добавить поле после `description`:
 
@@ -87,7 +87,7 @@ export const webSearchTool = {
   // ... остальное без изменений
 ```
 
-- [ ] **Шаг 3: Обновить mockTool в тесте registry**
+- [x] **Шаг 3: Обновить mockTool в тесте registry**
 
 Изменить `packages/server/src/tools/__tests__/registry.test.ts` — добавить `permissionLevel` в `mockTool`:
 
@@ -105,7 +105,7 @@ const mockTool: ToolDefinition = {
 };
 ```
 
-- [ ] **Шаг 4: Обновить mockRegistry в тестах tool-loop**
+- [x] **Шаг 4: Обновить mockRegistry в тестах tool-loop**
 
 Изменить `packages/server/src/ai/__tests__/tool-loop.test.ts` — в функции `mockRegistry` добавить `permissionLevel`:
 
@@ -127,7 +127,7 @@ function mockRegistry(tools: Record<string, (params: any) => any> = {}): ToolReg
 }
 ```
 
-- [ ] **Шаг 5: Запустить тесты**
+- [x] **Шаг 5: Запустить тесты**
 
 ```bash
 npm test
@@ -135,7 +135,7 @@ npm test
 
 Ожидание: все существующие тесты проходят.
 
-- [ ] **Шаг 6: Коммит**
+- [x] **Шаг 6: Коммит**
 
 ```bash
 git add packages/server/src/tools/base.ts packages/tool-web-search/src/index.ts packages/server/src/tools/__tests__/registry.test.ts packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -150,7 +150,7 @@ git commit -m "feat: add permissionLevel to ToolDefinition"
 - Изменить: `packages/server/src/ai/tool-loop.ts`
 - Изменить: `packages/server/src/ai/__tests__/tool-loop.test.ts`
 
-- [ ] **Шаг 1: Написать failing тест для permission блокировки**
+- [x] **Шаг 1: Написать failing тест для permission блокировки**
 
 Добавить в `packages/server/src/ai/__tests__/tool-loop.test.ts` внутри describe `'Agentic Tool Loop'`, после последнего теста:
 
@@ -251,7 +251,7 @@ git commit -m "feat: add permissionLevel to ToolDefinition"
   });
 ```
 
-- [ ] **Шаг 2: Запустить тест — убедиться что падает**
+- [x] **Шаг 2: Запустить тест — убедиться что падает**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -259,7 +259,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
 
 Ожидание: FAIL — handler вызывается для confirm/forbidden (нет проверки permission).
 
-- [ ] **Шаг 3: Добавить permission enforcement в tool-loop.ts**
+- [x] **Шаг 3: Добавить permission enforcement в tool-loop.ts**
 
 Изменить `packages/server/src/ai/tool-loop.ts`. Заменить блок выполнения tool (строки 83-95):
 
@@ -301,7 +301,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
       }
 ```
 
-- [ ] **Шаг 4: Запустить тесты**
+- [x] **Шаг 4: Запустить тесты**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -309,7 +309,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -324,7 +324,7 @@ git commit -m "feat: add permission level enforcement in tool loop"
 - Изменить: `packages/server/src/tools/registry.ts`
 - Изменить: `packages/server/src/tools/__tests__/registry.test.ts`
 
-- [ ] **Шаг 1: Написать failing тест**
+- [x] **Шаг 1: Написать failing тест**
 
 Добавить в `packages/server/src/tools/__tests__/registry.test.ts` в describe `'discoverTools'`:
 
@@ -365,7 +365,7 @@ git commit -m "feat: add permission level enforcement in tool loop"
   });
 ```
 
-- [ ] **Шаг 2: Запустить тест — убедиться что падает**
+- [x] **Шаг 2: Запустить тест — убедиться что падает**
 
 ```bash
 npx vitest run packages/server/src/tools/__tests__/registry.test.ts
@@ -373,7 +373,7 @@ npx vitest run packages/server/src/tools/__tests__/registry.test.ts
 
 Ожидание: FAIL — массив не распознаётся, регистрируется 0 tools.
 
-- [ ] **Шаг 3: Обновить discoverTools для поддержки массивов**
+- [x] **Шаг 3: Обновить discoverTools для поддержки массивов**
 
 Изменить `packages/server/src/tools/registry.ts`. Заменить блок внутри `for (const entry of entries)`:
 
@@ -402,7 +402,7 @@ npx vitest run packages/server/src/tools/__tests__/registry.test.ts
       }
 ```
 
-- [ ] **Шаг 4: Запустить тесты**
+- [x] **Шаг 4: Запустить тесты**
 
 ```bash
 npx vitest run packages/server/src/tools/__tests__/registry.test.ts
@@ -410,7 +410,7 @@ npx vitest run packages/server/src/tools/__tests__/registry.test.ts
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add packages/server/src/tools/registry.ts packages/server/src/tools/__tests__/registry.test.ts
@@ -427,7 +427,7 @@ git commit -m "feat: support array tool exports in auto-discovery"
 - Создать: `packages/tool-files/src/paths.ts`
 - Тест: `packages/tool-files/__tests__/paths.test.ts`
 
-- [ ] **Шаг 1: Создать package.json**
+- [x] **Шаг 1: Создать package.json**
 
 Создать `packages/tool-files/package.json`:
 
@@ -447,7 +447,7 @@ git commit -m "feat: support array tool exports in auto-discovery"
 }
 ```
 
-- [ ] **Шаг 2: Создать tsconfig.json**
+- [x] **Шаг 2: Создать tsconfig.json**
 
 Создать `packages/tool-files/tsconfig.json`:
 
@@ -462,7 +462,7 @@ git commit -m "feat: support array tool exports in auto-discovery"
 }
 ```
 
-- [ ] **Шаг 3: Написать failing тесты для paths**
+- [x] **Шаг 3: Написать failing тесты для paths**
 
 Создать `packages/tool-files/__tests__/paths.test.ts`:
 
@@ -532,7 +532,7 @@ describe('safePath', () => {
 });
 ```
 
-- [ ] **Шаг 4: Запустить тесты — убедиться что падает**
+- [x] **Шаг 4: Запустить тесты — убедиться что падает**
 
 ```bash
 npx vitest run packages/tool-files/__tests__/paths.test.ts
@@ -540,7 +540,7 @@ npx vitest run packages/tool-files/__tests__/paths.test.ts
 
 Ожидание: FAIL — `paths.ts` не существует.
 
-- [ ] **Шаг 5: Реализовать paths.ts**
+- [x] **Шаг 5: Реализовать paths.ts**
 
 Создать `packages/tool-files/src/paths.ts`:
 
@@ -564,7 +564,7 @@ export function safePath(root: string, userPath: string): string {
 }
 ```
 
-- [ ] **Шаг 6: Запустить тесты**
+- [x] **Шаг 6: Запустить тесты**
 
 ```bash
 npx vitest run packages/tool-files/__tests__/paths.test.ts
@@ -572,7 +572,7 @@ npx vitest run packages/tool-files/__tests__/paths.test.ts
 
 Ожидание: 7 тестов PASS.
 
-- [ ] **Шаг 7: Коммит**
+- [x] **Шаг 7: Коммит**
 
 ```bash
 git add packages/tool-files/
@@ -587,7 +587,7 @@ git commit -m "feat: add tool-files package with path validation"
 - Создать: `packages/tool-files/src/operations.ts`
 - Тест: `packages/tool-files/__tests__/operations.test.ts`
 
-- [ ] **Шаг 1: Написать failing тесты**
+- [x] **Шаг 1: Написать failing тесты**
 
 Создать `packages/tool-files/__tests__/operations.test.ts`:
 
@@ -777,7 +777,7 @@ describe('File Operations', () => {
 });
 ```
 
-- [ ] **Шаг 2: Запустить тесты — убедиться что падает**
+- [x] **Шаг 2: Запустить тесты — убедиться что падает**
 
 ```bash
 npx vitest run packages/tool-files/__tests__/operations.test.ts
@@ -785,7 +785,7 @@ npx vitest run packages/tool-files/__tests__/operations.test.ts
 
 Ожидание: FAIL — `operations.ts` не существует.
 
-- [ ] **Шаг 3: Реализовать operations.ts**
+- [x] **Шаг 3: Реализовать operations.ts**
 
 Создать `packages/tool-files/src/operations.ts`:
 
@@ -971,7 +971,7 @@ export async function moveFile(root: string, source: string, destination: string
 }
 ```
 
-- [ ] **Шаг 4: Запустить тесты**
+- [x] **Шаг 4: Запустить тесты**
 
 ```bash
 npx vitest run packages/tool-files/__tests__/operations.test.ts
@@ -979,7 +979,7 @@ npx vitest run packages/tool-files/__tests__/operations.test.ts
 
 Ожидание: 17 тестов PASS.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add packages/tool-files/src/operations.ts packages/tool-files/__tests__/operations.test.ts
@@ -993,7 +993,7 @@ git commit -m "feat: implement 5 file operations with security checks"
 **Файлы:**
 - Создать: `packages/tool-files/src/index.ts`
 
-- [ ] **Шаг 1: Создать index.ts**
+- [x] **Шаг 1: Создать index.ts**
 
 Создать `packages/tool-files/src/index.ts`:
 
@@ -1088,7 +1088,7 @@ const tools = [
 export default tools;
 ```
 
-- [ ] **Шаг 2: Запустить все тесты**
+- [x] **Шаг 2: Запустить все тесты**
 
 ```bash
 npm test
@@ -1096,7 +1096,7 @@ npm test
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 3: Typecheck**
+- [x] **Шаг 3: Typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/tool-files/tsconfig.json
@@ -1104,7 +1104,7 @@ npx tsc --noEmit -p packages/tool-files/tsconfig.json
 
 Ожидание: нет ошибок.
 
-- [ ] **Шаг 4: Коммит**
+- [x] **Шаг 4: Коммит**
 
 ```bash
 git add packages/tool-files/src/index.ts
@@ -1118,7 +1118,7 @@ git commit -m "feat: export files tools as ToolDefinition array"
 **Файлы:**
 - Изменить: `.env.example`
 
-- [ ] **Шаг 1: Добавить R2_FILES_ROOT в .env.example**
+- [x] **Шаг 1: Добавить R2_FILES_ROOT в .env.example**
 
 Добавить строку в `.env.example`:
 
@@ -1126,13 +1126,13 @@ git commit -m "feat: export files tools as ToolDefinition array"
 R2_FILES_ROOT=~/Documents/r2
 ```
 
-- [ ] **Шаг 2: Установить зависимости**
+- [x] **Шаг 2: Установить зависимости**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm install
 ```
 
-- [ ] **Шаг 3: Запустить все тесты**
+- [x] **Шаг 3: Запустить все тесты**
 
 ```bash
 npm test
@@ -1140,7 +1140,7 @@ npm test
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 4: Typecheck всех пакетов**
+- [x] **Шаг 4: Typecheck всех пакетов**
 
 ```bash
 npx tsc --noEmit -p packages/shared/tsconfig.json && \
@@ -1152,7 +1152,7 @@ npx tsc --noEmit -p packages/client/tsconfig.json
 
 Ожидание: нет ошибок типов.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add .env.example package-lock.json

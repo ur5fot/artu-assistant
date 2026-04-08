@@ -19,6 +19,7 @@ interface BraveSearchResponse {
 export const webSearchTool = {
   name: 'web_search',
   description: 'Search the web using Brave Search API. Use when you need current information, facts, or answers not in your training data.',
+  permissionLevel: 'auto' as const,
   parameters: {
     type: 'object' as const,
     properties: {

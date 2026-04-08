@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const mockTool: ToolDefinition = {
   name: 'test_tool',
   description: 'A test tool',
+  permissionLevel: 'auto',
   parameters: {
     type: 'object',
     properties: { query: { type: 'string' } },
@@ -55,6 +56,43 @@ describe('discoverTools', () => {
     // Pass a directory with no tool-* packages
     const registry = await discoverTools('/tmp/nonexistent-dir-r2-test');
     expect(registry.getAll()).toHaveLength(0);
+  });
+
+  it('registers tools from array exports', async () => {
+    const tmpDir = fs.mkdtempSync(path.join('/tmp', 'r2-array-test-'));
+    const toolDir = path.join(tmpDir, 'tool-multi');
+    fs.mkdirSync(toolDir);
+    fs.writeFileSync(path.join(toolDir, 'package.json'), JSON.stringify({
+      name: '@r2/tool-multi',
+      main: 'index.js',
+    }));
+    fs.writeFileSync(path.join(toolDir, 'index.js'), `
+      module.exports.default = [
+        {
+          name: 'tool_a',
+          description: 'Tool A',
+          permissionLevel: 'auto',
+          parameters: { type: 'object', properties: {}, required: [] },
+          handler: async () => ({ success: true }),
+        },
+        {
+          name: 'tool_b',
+          description: 'Tool B',
+          permissionLevel: 'confirm',
+          parameters: { type: 'object', properties: {}, required: [] },
+          handler: async () => ({ success: true }),
+        },
+      ];
+    `);
+
+    try {
+      const registry = await discoverTools(tmpDir);
+      expect(registry.getAll()).toHaveLength(2);
+      expect(registry.get('tool_a')).toBeDefined();
+      expect(registry.get('tool_b')).toBeDefined();
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it('skips tool packages that fail to import without crashing', async () => {
