@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import type { SSEEvent } from '@r2/shared';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
+import type { PendingConfirms } from '../ai/tool-loop.js';
 
 function sanitizeError(message: string): string {
   // Strip potentially sensitive details (API keys, internal paths, upstream provider info)
@@ -24,10 +25,12 @@ interface ChatRouterDeps {
     messages: MessageParam[];
     onEvent: (event: SSEEvent) => void;
     signal?: AbortSignal;
+    pendingConfirms: PendingConfirms;
   }) => Promise<void>;
+  pendingConfirms: PendingConfirms;
 }
 
-export function createChatRouter({ runLoop }: ChatRouterDeps): Router {
+export function createChatRouter({ runLoop, pendingConfirms }: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -62,6 +65,7 @@ export function createChatRouter({ runLoop }: ChatRouterDeps): Router {
       await runLoop({
         messages,
         signal: abortController.signal,
+        pendingConfirms,
         onEvent: (event: SSEEvent) => {
           if (!res.writableEnded && !res.destroyed) {
             res.write(`data: ${JSON.stringify(event)}\n\n`);

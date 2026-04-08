@@ -10,6 +10,7 @@ describe('POST /api/chat', () => {
 
     const router = createChatRouter({
       runLoop: vi.fn(),
+      pendingConfirms: new Map(),
     });
     app.use('/api', router);
 
@@ -30,6 +31,7 @@ describe('POST /api/chat', () => {
         onEvent({ type: 'text_delta', content: 'Hello' });
         onEvent({ type: 'done' });
       },
+      pendingConfirms: new Map(),
     });
     app.use('/api', router);
 
@@ -51,6 +53,7 @@ describe('POST /api/chat', () => {
       runLoop: async () => {
         throw new Error('Claude API down');
       },
+      pendingConfirms: new Map(),
     });
     app.use('/api', router);
 
@@ -71,6 +74,7 @@ describe('POST /api/chat', () => {
       runLoop: async () => {
         throw new Error('Anthropic API returned 401');
       },
+      pendingConfirms: new Map(),
     });
     app.use('/api', router);
 
@@ -91,6 +95,7 @@ describe('POST /api/chat', () => {
       runLoop: async () => {
         throw new Error('Web search failed: connect ECONNREFUSED 127.0.0.1:8888');
       },
+      pendingConfirms: new Map(),
     });
     app.use('/api', router);
 
@@ -116,6 +121,7 @@ describe('POST /api/chat', () => {
         onEvent({ type: 'text_delta', content: 'Hello' });
         onEvent({ type: 'done' });
       },
+      pendingConfirms: new Map(),
     });
     app.use('/api', router);
 
@@ -137,6 +143,7 @@ describe('POST /api/chat', () => {
       runLoop: async () => {
         throw new Error('Invalid key: sk-ant-abc123');
       },
+      pendingConfirms: new Map(),
     });
     app.use('/api', router);
 

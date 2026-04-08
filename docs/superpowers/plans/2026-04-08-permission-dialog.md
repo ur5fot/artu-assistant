@@ -893,7 +893,7 @@ git commit -m "feat: implement confirm/forbidden flow with Promise-based waiting
 - Изменить: `packages/server/src/routes/chat.ts`
 - Изменить: `packages/server/src/index.ts`
 
-- [ ] **Шаг 1: Обновить chat.ts — передать pendingConfirms**
+- [x] **Шаг 1: Обновить chat.ts — передать pendingConfirms**
 
 В `packages/server/src/routes/chat.ts` обновить интерфейс `ChatRouterDeps`:
 
@@ -921,7 +921,7 @@ interface ChatRouterDeps {
         onEvent: (event: SSEEvent) => {
 ```
 
-- [ ] **Шаг 2: Обновить index.ts**
+- [x] **Шаг 2: Обновить index.ts**
 
 Заменить `packages/server/src/index.ts`:
 
@@ -979,7 +979,7 @@ app.listen(PORT, () => {
 });
 ```
 
-- [ ] **Шаг 3: Запустить все серверные тесты**
+- [x] **Шаг 3: Запустить все серверные тесты**
 
 ```bash
 npm test
@@ -987,7 +987,7 @@ npm test
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 4: Коммит**
+- [x] **Шаг 4: Коммит**
 
 ```bash
 git add packages/server/src/routes/chat.ts packages/server/src/index.ts

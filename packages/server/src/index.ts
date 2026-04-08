@@ -7,6 +7,8 @@ dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', '.env') });
 import express from 'express';
 import cors from 'cors';
 import { createChatRouter } from './routes/chat.js';
+import { createConfirmRouter, type PendingConfirms } from './routes/confirm.js';
+import { createPermissionsRouter } from './routes/permissions.js';
 import { createClaudeClient } from './ai/claude.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { discoverTools } from './tools/registry.js';
@@ -26,13 +28,17 @@ cleanupAuditLog();
 // Setup
 const client = createClaudeClient();
 const registry = await discoverTools();
+const pendingConfirms: PendingConfirms = new Map();
 
 const chatRouter = createChatRouter({
-  runLoop: ({ messages, onEvent, signal }) =>
-    runToolLoop({ messages, client, registry, onEvent, signal }),
+  runLoop: ({ messages, onEvent, signal, pendingConfirms: pc }) =>
+    runToolLoop({ messages, client, registry, onEvent, signal, pendingConfirms: pc }),
+  pendingConfirms,
 });
 
 app.use('/api', chatRouter);
+app.use('/api', createConfirmRouter(pendingConfirms));
+app.use('/api', createPermissionsRouter());
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'R2 online', timestamp: new Date().toISOString() });
