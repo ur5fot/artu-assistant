@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "NODE_OPTIONS='--no-deprecation' tsx watch src/index.ts",
     "build": "tsc",
     "test": "vitest run"
   },
