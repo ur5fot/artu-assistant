@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFile, writeFile, listFiles, deleteFile, moveFile } from '../src/operations.js';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -197,6 +197,67 @@ describe('File Operations', () => {
       // Both files should still exist unchanged
       expect(fs.readFileSync(path.join(root, 'src.txt'), 'utf-8')).toBe('source');
       expect(fs.readFileSync(path.join(root, 'dst.txt'), 'utf-8')).toBe('existing');
+    });
+
+    it('falls back to copy+unlink on cross-device move (EXDEV)', async () => {
+      fs.writeFileSync(path.join(root, 'cross.txt'), 'cross-device');
+      const spy = vi.spyOn(fs, 'linkSync').mockImplementationOnce(() => {
+        const err = new Error('cross-device link not permitted') as NodeJS.ErrnoException;
+        err.code = 'EXDEV';
+        throw err;
+      });
+      const result = await moveFile(root, 'cross.txt', 'moved.txt');
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(path.join(root, 'cross.txt'))).toBe(false);
+      expect(fs.readFileSync(path.join(root, 'moved.txt'), 'utf-8')).toBe('cross-device');
+      spy.mockRestore();
+    });
+
+    it('does not overwrite on cross-device move when destination exists', async () => {
+      fs.writeFileSync(path.join(root, 'src2.txt'), 'source');
+      fs.writeFileSync(path.join(root, 'dst2.txt'), 'existing');
+      vi.spyOn(fs, 'linkSync').mockImplementationOnce(() => {
+        const err = new Error('cross-device link not permitted') as NodeJS.ErrnoException;
+        err.code = 'EXDEV';
+        throw err;
+      });
+      const result = await moveFile(root, 'src2.txt', 'dst2.txt');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('already exists');
+      // Source should still exist, destination unchanged
+      expect(fs.readFileSync(path.join(root, 'src2.txt'), 'utf-8')).toBe('source');
+      expect(fs.readFileSync(path.join(root, 'dst2.txt'), 'utf-8')).toBe('existing');
+      vi.restoreAllMocks();
+    });
+
+    it('falls back to copy+unlink on EPERM (no hard-link support)', async () => {
+      fs.writeFileSync(path.join(root, 'eperm.txt'), 'no-hardlinks');
+      const spy = vi.spyOn(fs, 'linkSync').mockImplementationOnce(() => {
+        const err = new Error('operation not permitted') as NodeJS.ErrnoException;
+        err.code = 'EPERM';
+        throw err;
+      });
+      const result = await moveFile(root, 'eperm.txt', 'moved-eperm.txt');
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(path.join(root, 'eperm.txt'))).toBe(false);
+      expect(fs.readFileSync(path.join(root, 'moved-eperm.txt'), 'utf-8')).toBe('no-hardlinks');
+      spy.mockRestore();
+    });
+
+    it('rolls back destination if source unlink fails', async () => {
+      fs.writeFileSync(path.join(root, 'rollback.txt'), 'rollback-data');
+      const unlinkSpy = vi.spyOn(fs, 'unlinkSync').mockImplementationOnce(() => {
+        const err = new Error('permission denied') as NodeJS.ErrnoException;
+        err.code = 'EACCES';
+        throw err;
+      });
+      const result = await moveFile(root, 'rollback.txt', 'rollback-dst.txt');
+      expect(result.success).toBe(false);
+      // Destination should be cleaned up (rollback)
+      expect(fs.existsSync(path.join(root, 'rollback-dst.txt'))).toBe(false);
+      // Source should still exist
+      expect(fs.readFileSync(path.join(root, 'rollback.txt'), 'utf-8')).toBe('rollback-data');
+      unlinkSpy.mockRestore();
     });
 
     it('rejects moving directories', async () => {

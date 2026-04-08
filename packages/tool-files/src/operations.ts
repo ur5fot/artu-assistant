@@ -26,28 +26,31 @@ export async function readFile(root: string, filePath: string): Promise<ToolResu
     return { success: false, error: `File not found: ${filePath}` };
   }
 
-  const stat = fs.statSync(resolved);
-  if (stat.size > MAX_FILE_SIZE) {
-    return { success: false, error: `File exceeds 1MB limit (${stat.size} bytes)` };
-  }
-
-  // Read file content (already size-checked above)
-  const rawBuf = fs.readFileSync(resolved);
-
-  // Check for binary content in first 512 bytes
-  const checkLen = Math.min(512, rawBuf.length);
-  for (let i = 0; i < checkLen; i++) {
-    if (rawBuf[i] === 0x00) {
-      return { success: false, error: 'Cannot read binary file' };
+  try {
+    const stat = fs.statSync(resolved);
+    if (stat.size > MAX_FILE_SIZE) {
+      return { success: false, error: `File exceeds 1MB limit (${stat.size} bytes)` };
     }
-  }
 
-  const content = rawBuf.toString('utf-8');
-  return {
-    success: true,
-    data: content,
-    display: { type: 'code', content },
-  };
+    const rawBuf = fs.readFileSync(resolved);
+
+    // Check for binary content in first 512 bytes
+    const checkLen = Math.min(512, rawBuf.length);
+    for (let i = 0; i < checkLen; i++) {
+      if (rawBuf[i] === 0x00) {
+        return { success: false, error: 'Cannot read binary file' };
+      }
+    }
+
+    const content = rawBuf.toString('utf-8');
+    return {
+      success: true,
+      data: content,
+      display: { type: 'code', content },
+    };
+  } catch {
+    return { success: false, error: `Failed to read file: ${filePath}` };
+  }
 }
 
 export async function writeFile(root: string, filePath: string, content: string): Promise<ToolResult> {
@@ -65,17 +68,21 @@ export async function writeFile(root: string, filePath: string, content: string)
     return { success: false, error: `Content exceeds 1MB limit (${contentSize} bytes)` };
   }
 
-  const dir = path.dirname(resolved);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+  try {
+    const dir = path.dirname(resolved);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
 
-  fs.writeFileSync(resolved, content, 'utf-8');
-  return {
-    success: true,
-    data: { path: filePath, bytes: Buffer.byteLength(content) },
-    display: { type: 'text', content: `Written ${filePath} (${Buffer.byteLength(content)} bytes)` },
-  };
+    fs.writeFileSync(resolved, content, 'utf-8');
+    return {
+      success: true,
+      data: { path: filePath, bytes: Buffer.byteLength(content) },
+      display: { type: 'text', content: `Written ${filePath} (${Buffer.byteLength(content)} bytes)` },
+    };
+  } catch {
+    return { success: false, error: `Failed to write file: ${filePath}` };
+  }
 }
 
 const COUNT_CAP = 100_000;
@@ -109,7 +116,7 @@ function collectEntries(
 ): void {
   const items = fs.readdirSync(dir, { withFileTypes: true });
   for (const item of items) {
-    if (entries.length >= MAX_LIST_ENTRIES) return;
+    if (entries.length > MAX_LIST_ENTRIES) return;
     const name = prefix ? `${prefix}/${item.name}` : item.name;
     const type = item.isDirectory() ? 'directory' : 'file';
     entries.push({ name, type });
@@ -129,27 +136,32 @@ export async function listFiles(root: string, dirPath: string, recursive: boolea
 
   ensureRoot(root);
 
-  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
-    return { success: false, error: `Directory not found: ${dirPath}` };
+  try {
+    if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+      return { success: false, error: `Directory not found: ${dirPath}` };
+    }
+
+    const entries: Array<{ name: string; type: string }> = [];
+    collectEntries(resolved, '', recursive, entries);
+
+    const truncated = entries.length > MAX_LIST_ENTRIES;
+    if (truncated) entries.length = MAX_LIST_ENTRIES;
+    const displayLines = entries.map((e) => `${e.type === 'directory' ? '[dir]' : '     '} ${e.name}`);
+    let displayContent = displayLines.join('\n');
+    if (truncated) {
+      const { count: totalCount, capped } = countAll(resolved, recursive);
+      const totalLabel = capped ? `${COUNT_CAP}+` : `${totalCount}`;
+      displayContent += `\n\n(truncated, ${MAX_LIST_ENTRIES} of ${totalLabel} total)`;
+    }
+
+    return {
+      success: true,
+      data: entries,
+      display: { type: 'text', content: displayContent },
+    };
+  } catch {
+    return { success: false, error: `Failed to list directory: ${dirPath}` };
   }
-
-  const entries: Array<{ name: string; type: string }> = [];
-  collectEntries(resolved, '', recursive, entries);
-
-  const truncated = entries.length >= MAX_LIST_ENTRIES;
-  const displayLines = entries.map((e) => `${e.type === 'directory' ? '[dir]' : '     '} ${e.name}`);
-  let displayContent = displayLines.join('\n');
-  if (truncated) {
-    const { count: totalCount, capped } = countAll(resolved, recursive);
-    const totalLabel = capped ? `${COUNT_CAP}+` : `${totalCount}`;
-    displayContent += `\n\n(truncated, ${MAX_LIST_ENTRIES} of ${totalLabel} total)`;
-  }
-
-  return {
-    success: true,
-    data: entries,
-    display: { type: 'text', content: displayContent },
-  };
 }
 
 export async function deleteFile(root: string, filePath: string): Promise<ToolResult> {
@@ -166,16 +178,20 @@ export async function deleteFile(root: string, filePath: string): Promise<ToolRe
     return { success: false, error: `File not found: ${filePath}` };
   }
 
-  if (fs.statSync(resolved).isDirectory()) {
-    return { success: false, error: 'Cannot delete directories' };
-  }
+  try {
+    if (fs.statSync(resolved).isDirectory()) {
+      return { success: false, error: 'Cannot delete directories' };
+    }
 
-  fs.unlinkSync(resolved);
-  return {
-    success: true,
-    data: { path: filePath },
-    display: { type: 'text', content: `Deleted ${filePath}` },
-  };
+    fs.unlinkSync(resolved);
+    return {
+      success: true,
+      data: { path: filePath },
+      display: { type: 'text', content: `Deleted ${filePath}` },
+    };
+  } catch {
+    return { success: false, error: `Failed to delete file: ${filePath}` };
+  }
 }
 
 export async function moveFile(root: string, source: string, destination: string): Promise<ToolResult> {
@@ -194,27 +210,55 @@ export async function moveFile(root: string, source: string, destination: string
 
   ensureRoot(root);
 
-  if (!fs.existsSync(resolvedSrc)) {
-    return { success: false, error: `Source not found: ${source}` };
-  }
+  try {
+    if (!fs.existsSync(resolvedSrc)) {
+      return { success: false, error: `Source not found: ${source}` };
+    }
 
-  if (fs.statSync(resolvedSrc).isDirectory()) {
-    return { success: false, error: 'Cannot move directories' };
-  }
+    if (fs.statSync(resolvedSrc).isDirectory()) {
+      return { success: false, error: 'Cannot move directories' };
+    }
 
-  if (fs.existsSync(resolvedDst)) {
-    return { success: false, error: `Destination already exists: ${destination}` };
-  }
+    const dstDir = path.dirname(resolvedDst);
+    if (!fs.existsSync(dstDir)) {
+      fs.mkdirSync(dstDir, { recursive: true });
+    }
 
-  const dstDir = path.dirname(resolvedDst);
-  if (!fs.existsSync(dstDir)) {
-    fs.mkdirSync(dstDir, { recursive: true });
-  }
+    // Use link+unlink to move without overwrite race (link fails atomically if dest exists).
+    // Fall back to copy+unlink when hard links aren't supported (EXDEV, EPERM, ENOTSUP, EOPNOTSUPP).
+    const fallbackCodes = new Set(['EXDEV', 'EPERM', 'ENOTSUP', 'EOPNOTSUPP']);
+    let dstCreated = false;
+    try {
+      fs.linkSync(resolvedSrc, resolvedDst);
+      dstCreated = true;
+    } catch (linkErr: unknown) {
+      const code = linkErr instanceof Error && 'code' in linkErr
+        ? (linkErr as NodeJS.ErrnoException).code
+        : undefined;
+      if (code && fallbackCodes.has(code)) {
+        fs.copyFileSync(resolvedSrc, resolvedDst, fs.constants.COPYFILE_EXCL);
+        dstCreated = true;
+      } else {
+        throw linkErr;
+      }
+    }
+    try {
+      fs.unlinkSync(resolvedSrc);
+    } catch (unlinkErr: unknown) {
+      // Rollback: remove destination we created since move didn't complete
+      try { fs.unlinkSync(resolvedDst); } catch { /* best-effort cleanup */ }
+      throw unlinkErr;
+    }
 
-  fs.renameSync(resolvedSrc, resolvedDst);
-  return {
-    success: true,
-    data: { source, destination },
-    display: { type: 'text', content: `Moved ${source} → ${destination}` },
-  };
+    return {
+      success: true,
+      data: { source, destination },
+      display: { type: 'text', content: `Moved ${source} → ${destination}` },
+    };
+  } catch (e: unknown) {
+    if (e instanceof Error && 'code' in e && (e as NodeJS.ErrnoException).code === 'EEXIST') {
+      return { success: false, error: `Destination already exists: ${destination}` };
+    }
+    return { success: false, error: `Failed to move file: ${source}` };
+  }
 }
