@@ -84,7 +84,7 @@ git commit -m "feat: add tool_confirm_request SSE event type"
 - Изменить: `packages/server/src/db.ts`
 - Изменить: `packages/server/src/db.test.ts`
 
-- [ ] **Шаг 1: Написать failing тесты**
+- [x] **Шаг 1: Написать failing тесты**
 
 Добавить в `packages/server/src/db.test.ts` новый describe блок после существующих:
 
@@ -120,7 +120,7 @@ describe('Permission Rules', () => {
 
 Добавить в import вверху файла: `getPermissionRule, savePermissionRule, clearPermissionRules`.
 
-- [ ] **Шаг 2: Запустить тесты — убедиться что падает**
+- [x] **Шаг 2: Запустить тесты — убедиться что падает**
 
 ```bash
 npx vitest run packages/server/src/db.test.ts
@@ -128,7 +128,7 @@ npx vitest run packages/server/src/db.test.ts
 
 Ожидание: FAIL — функции не существуют.
 
-- [ ] **Шаг 3: Реализовать permission rules**
+- [x] **Шаг 3: Реализовать permission rules**
 
 Добавить в `packages/server/src/db.ts`. В функцию `initDb()` добавить создание таблицы после `audit_log`:
 
@@ -168,7 +168,7 @@ export function clearPermissionRules(): void {
 }
 ```
 
-- [ ] **Шаг 4: Запустить тесты**
+- [x] **Шаг 4: Запустить тесты**
 
 ```bash
 npx vitest run packages/server/src/db.test.ts
@@ -176,7 +176,7 @@ npx vitest run packages/server/src/db.test.ts
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/db.test.ts
