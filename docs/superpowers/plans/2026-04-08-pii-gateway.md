@@ -522,7 +522,7 @@ git commit -m "feat: add Presidio HTTP client for analyzer and anonymizer"
 - Create: `packages/server/src/pii/proxy.ts`
 - Create: `packages/server/src/pii/proxy.test.ts`
 
-- [ ] **Step 1: Write failing tests for PII proxy**
+- [x] **Step 1: Write failing tests for PII proxy**
 
 Create `packages/server/src/pii/proxy.test.ts`:
 
@@ -684,12 +684,12 @@ describe('PiiProxy', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/pii/proxy.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement PII proxy**
+- [x] **Step 3: Implement PII proxy**
 
 Create `packages/server/src/pii/proxy.ts`:
 
@@ -791,12 +791,12 @@ export function createPassthroughProxy(): PiiProxy {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd packages/server && npx vitest run src/pii/proxy.test.ts`
 Expected: all 6 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/pii/proxy.ts packages/server/src/pii/proxy.test.ts
