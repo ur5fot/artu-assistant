@@ -324,7 +324,7 @@ git commit -m "feat: add permission level enforcement in tool loop"
 - Изменить: `packages/server/src/tools/registry.ts`
 - Изменить: `packages/server/src/tools/__tests__/registry.test.ts`
 
-- [ ] **Шаг 1: Написать failing тест**
+- [x] **Шаг 1: Написать failing тест**
 
 Добавить в `packages/server/src/tools/__tests__/registry.test.ts` в describe `'discoverTools'`:
 
@@ -365,7 +365,7 @@ git commit -m "feat: add permission level enforcement in tool loop"
   });
 ```
 
-- [ ] **Шаг 2: Запустить тест — убедиться что падает**
+- [x] **Шаг 2: Запустить тест — убедиться что падает**
 
 ```bash
 npx vitest run packages/server/src/tools/__tests__/registry.test.ts
@@ -373,7 +373,7 @@ npx vitest run packages/server/src/tools/__tests__/registry.test.ts
 
 Ожидание: FAIL — массив не распознаётся, регистрируется 0 tools.
 
-- [ ] **Шаг 3: Обновить discoverTools для поддержки массивов**
+- [x] **Шаг 3: Обновить discoverTools для поддержки массивов**
 
 Изменить `packages/server/src/tools/registry.ts`. Заменить блок внутри `for (const entry of entries)`:
 
@@ -402,7 +402,7 @@ npx vitest run packages/server/src/tools/__tests__/registry.test.ts
       }
 ```
 
-- [ ] **Шаг 4: Запустить тесты**
+- [x] **Шаг 4: Запустить тесты**
 
 ```bash
 npx vitest run packages/server/src/tools/__tests__/registry.test.ts
@@ -410,7 +410,7 @@ npx vitest run packages/server/src/tools/__tests__/registry.test.ts
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add packages/server/src/tools/registry.ts packages/server/src/tools/__tests__/registry.test.ts

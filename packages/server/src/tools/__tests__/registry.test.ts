@@ -58,6 +58,41 @@ describe('discoverTools', () => {
     expect(registry.getAll()).toHaveLength(0);
   });
 
+  it('registers tools from array exports', async () => {
+    const tmpDir = fs.mkdtempSync(path.join('/tmp', 'r2-array-test-'));
+    const toolDir = path.join(tmpDir, 'tool-multi');
+    fs.mkdirSync(toolDir);
+    fs.writeFileSync(path.join(toolDir, 'package.json'), JSON.stringify({
+      name: '@r2/tool-multi',
+      main: 'index.js',
+    }));
+    fs.writeFileSync(path.join(toolDir, 'index.js'), `
+      module.exports.default = [
+        {
+          name: 'tool_a',
+          description: 'Tool A',
+          permissionLevel: 'auto',
+          parameters: { type: 'object', properties: {}, required: [] },
+          handler: async () => ({ success: true }),
+        },
+        {
+          name: 'tool_b',
+          description: 'Tool B',
+          permissionLevel: 'confirm',
+          parameters: { type: 'object', properties: {}, required: [] },
+          handler: async () => ({ success: true }),
+        },
+      ];
+    `);
+
+    const registry = await discoverTools(tmpDir);
+    expect(registry.getAll()).toHaveLength(2);
+    expect(registry.get('tool_a')).toBeDefined();
+    expect(registry.get('tool_b')).toBeDefined();
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('skips tool packages that fail to import without crashing', async () => {
     // Create a temp directory with a tool-* entry that cannot be resolved as an npm package
     const tmpDir = fs.mkdtempSync(path.join('/tmp', 'r2-discover-test-'));
