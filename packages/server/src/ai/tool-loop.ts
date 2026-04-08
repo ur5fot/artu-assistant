@@ -1,5 +1,5 @@
 import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
-import type { SSEEvent, ToolCall } from '@r2/shared';
+import type { SSEEvent, ToolCall, ToolResult } from '@r2/shared';
 import type { ClaudeClient } from './claude.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import { toClaudeTool } from '../tools/base.js';
@@ -78,7 +78,7 @@ export async function runToolLoop({
       onEvent({ type: 'tool_call_start', toolCall });
 
       const toolDef = registry.get(block.name);
-      let result;
+      let result: ToolResult;
 
       const startTime = Date.now();
       if (toolDef) {
