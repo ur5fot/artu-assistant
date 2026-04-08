@@ -1364,7 +1364,7 @@ git commit -m "feat: integrate PermissionCard into chat flow"
 **Файлы:**
 - Изменить: `packages/server/src/ai/tool-loop.ts`
 
-- [ ] **Шаг 1: Убрать filter по permissionLevel**
+- [x] **Шаг 1: Убрать filter по permissionLevel**
 
 В `packages/server/src/ai/tool-loop.ts` строка 25-27, заменить:
 
@@ -1382,7 +1382,7 @@ git commit -m "feat: integrate PermissionCard into chat flow"
 
 Claude теперь видит все tools — confirm и forbidden тоже. Решение принимает пользователь через карточку.
 
-- [ ] **Шаг 2: Запустить все тесты**
+- [x] **Шаг 2: Запустить все тесты**
 
 ```bash
 npm test
@@ -1390,7 +1390,7 @@ npm test
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 3: Typecheck всех пакетов**
+- [x] **Шаг 3: Typecheck всех пакетов**
 
 ```bash
 npx tsc --noEmit -p packages/shared/tsconfig.json && \
@@ -1400,7 +1400,7 @@ npx tsc --noEmit -p packages/client/tsconfig.json
 
 Ожидание: нет ошибок.
 
-- [ ] **Шаг 4: Коммит**
+- [x] **Шаг 4: Коммит**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts

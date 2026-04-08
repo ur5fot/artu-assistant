@@ -38,8 +38,8 @@ describe('Claude Client', () => {
 
     expect(anthropicInstance.messages.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-sonnet-4-6-20250514',
-        max_tokens: 4096,
+        model: 'claude-sonnet-4-6',
+        max_tokens: 16384,
         messages: [{ role: 'user', content: 'Hi' }],
       }),
       expect.objectContaining({ signal: undefined }),
