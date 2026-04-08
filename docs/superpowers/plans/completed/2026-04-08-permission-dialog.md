@@ -47,7 +47,7 @@ packages/
 **Файлы:**
 - Изменить: `packages/shared/src/types.ts`
 
-- [ ] **Шаг 1: Добавить tool_confirm_request в SSEEvent**
+- [x] **Шаг 1: Добавить tool_confirm_request в SSEEvent**
 
 Изменить `packages/shared/src/types.ts`. Добавить новый тип в union SSEEvent:
 
@@ -61,7 +61,7 @@ export type SSEEvent =
   | { type: 'error'; message: string };
 ```
 
-- [ ] **Шаг 2: Typecheck**
+- [x] **Шаг 2: Typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/shared/tsconfig.json
@@ -69,7 +69,7 @@ npx tsc --noEmit -p packages/shared/tsconfig.json
 
 Ожидание: нет ошибок.
 
-- [ ] **Шаг 3: Коммит**
+- [x] **Шаг 3: Коммит**
 
 ```bash
 git add packages/shared/src/types.ts
@@ -84,7 +84,7 @@ git commit -m "feat: add tool_confirm_request SSE event type"
 - Изменить: `packages/server/src/db.ts`
 - Изменить: `packages/server/src/db.test.ts`
 
-- [ ] **Шаг 1: Написать failing тесты**
+- [x] **Шаг 1: Написать failing тесты**
 
 Добавить в `packages/server/src/db.test.ts` новый describe блок после существующих:
 
@@ -120,7 +120,7 @@ describe('Permission Rules', () => {
 
 Добавить в import вверху файла: `getPermissionRule, savePermissionRule, clearPermissionRules`.
 
-- [ ] **Шаг 2: Запустить тесты — убедиться что падает**
+- [x] **Шаг 2: Запустить тесты — убедиться что падает**
 
 ```bash
 npx vitest run packages/server/src/db.test.ts
@@ -128,7 +128,7 @@ npx vitest run packages/server/src/db.test.ts
 
 Ожидание: FAIL — функции не существуют.
 
-- [ ] **Шаг 3: Реализовать permission rules**
+- [x] **Шаг 3: Реализовать permission rules**
 
 Добавить в `packages/server/src/db.ts`. В функцию `initDb()` добавить создание таблицы после `audit_log`:
 
@@ -168,7 +168,7 @@ export function clearPermissionRules(): void {
 }
 ```
 
-- [ ] **Шаг 4: Запустить тесты**
+- [x] **Шаг 4: Запустить тесты**
 
 ```bash
 npx vitest run packages/server/src/db.test.ts
@@ -176,7 +176,7 @@ npx vitest run packages/server/src/db.test.ts
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/db.test.ts
@@ -193,7 +193,7 @@ git commit -m "feat: add permission_rules table with get/save/clear"
 - Создать: `packages/server/src/routes/__tests__/confirm.test.ts`
 - Создать: `packages/server/src/routes/__tests__/permissions.test.ts`
 
-- [ ] **Шаг 1: Написать failing тесты для confirm route**
+- [x] **Шаг 1: Написать failing тесты для confirm route**
 
 Создать `packages/server/src/routes/__tests__/confirm.test.ts`:
 
@@ -252,7 +252,7 @@ describe('POST /api/confirm', () => {
 });
 ```
 
-- [ ] **Шаг 2: Написать failing тесты для permissions route**
+- [x] **Шаг 2: Написать failing тесты для permissions route**
 
 Создать `packages/server/src/routes/__tests__/permissions.test.ts`:
 
@@ -296,7 +296,7 @@ describe('DELETE /api/permissions', () => {
 });
 ```
 
-- [ ] **Шаг 3: Запустить тесты — убедиться что падает**
+- [x] **Шаг 3: Запустить тесты — убедиться что падает**
 
 ```bash
 npx vitest run packages/server/src/routes/__tests__/confirm.test.ts packages/server/src/routes/__tests__/permissions.test.ts
@@ -304,7 +304,7 @@ npx vitest run packages/server/src/routes/__tests__/confirm.test.ts packages/ser
 
 Ожидание: FAIL — модули не существуют.
 
-- [ ] **Шаг 4: Реализовать confirm route**
+- [x] **Шаг 4: Реализовать confirm route**
 
 Создать `packages/server/src/routes/confirm.ts`:
 
@@ -361,7 +361,7 @@ export function createConfirmRouter(pendingConfirms: PendingConfirms): Router {
 }
 ```
 
-- [ ] **Шаг 5: Реализовать permissions route**
+- [x] **Шаг 5: Реализовать permissions route**
 
 Создать `packages/server/src/routes/permissions.ts`:
 
@@ -382,7 +382,7 @@ export function createPermissionsRouter(): Router {
 }
 ```
 
-- [ ] **Шаг 6: Запустить тесты**
+- [x] **Шаг 6: Запустить тесты**
 
 ```bash
 npx vitest run packages/server/src/routes/__tests__/confirm.test.ts packages/server/src/routes/__tests__/permissions.test.ts
@@ -390,7 +390,7 @@ npx vitest run packages/server/src/routes/__tests__/confirm.test.ts packages/ser
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 7: Коммит**
+- [x] **Шаг 7: Коммит**
 
 ```bash
 git add packages/server/src/routes/confirm.ts packages/server/src/routes/permissions.ts packages/server/src/routes/__tests__/confirm.test.ts packages/server/src/routes/__tests__/permissions.test.ts
@@ -405,7 +405,7 @@ git commit -m "feat: add confirm and permissions API routes"
 - Изменить: `packages/server/src/ai/tool-loop.ts`
 - Изменить: `packages/server/src/ai/__tests__/tool-loop.test.ts`
 
-- [ ] **Шаг 1: Написать failing тесты**
+- [x] **Шаг 1: Написать failing тесты**
 
 Добавить в `packages/server/src/ai/__tests__/tool-loop.test.ts`. Заменить существующие тесты `'blocks tool with confirm permission level'` и `'blocks tool with forbidden permission level'` на новые:
 
@@ -647,7 +647,7 @@ import os from 'node:os';
 
 И добавить tmpDir setup в основной describe (или создать новый describe для permission tests с beforeEach/afterEach).
 
-- [ ] **Шаг 2: Запустить тесты — убедиться что падает**
+- [x] **Шаг 2: Запустить тесты — убедиться что падает**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -655,7 +655,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
 
 Ожидание: FAIL — `pendingConfirms` не принимается `runToolLoop`.
 
-- [ ] **Шаг 3: Обновить tool-loop.ts**
+- [x] **Шаг 3: Обновить tool-loop.ts**
 
 Заменить содержимое `packages/server/src/ai/tool-loop.ts`:
 
@@ -870,7 +870,7 @@ export async function runToolLoop({
 }
 ```
 
-- [ ] **Шаг 4: Запустить тесты**
+- [x] **Шаг 4: Запустить тесты**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -878,7 +878,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -893,7 +893,7 @@ git commit -m "feat: implement confirm/forbidden flow with Promise-based waiting
 - Изменить: `packages/server/src/routes/chat.ts`
 - Изменить: `packages/server/src/index.ts`
 
-- [ ] **Шаг 1: Обновить chat.ts — передать pendingConfirms**
+- [x] **Шаг 1: Обновить chat.ts — передать pendingConfirms**
 
 В `packages/server/src/routes/chat.ts` обновить интерфейс `ChatRouterDeps`:
 
@@ -921,7 +921,7 @@ interface ChatRouterDeps {
         onEvent: (event: SSEEvent) => {
 ```
 
-- [ ] **Шаг 2: Обновить index.ts**
+- [x] **Шаг 2: Обновить index.ts**
 
 Заменить `packages/server/src/index.ts`:
 
@@ -979,7 +979,7 @@ app.listen(PORT, () => {
 });
 ```
 
-- [ ] **Шаг 3: Запустить все серверные тесты**
+- [x] **Шаг 3: Запустить все серверные тесты**
 
 ```bash
 npm test
@@ -987,7 +987,7 @@ npm test
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 4: Коммит**
+- [x] **Шаг 4: Коммит**
 
 ```bash
 git add packages/server/src/routes/chat.ts packages/server/src/index.ts
@@ -1001,7 +1001,7 @@ git commit -m "feat: wire confirm and permissions routes into server"
 **Файлы:**
 - Создать: `packages/client/src/components/PermissionCard.tsx`
 
-- [ ] **Шаг 1: Создать PermissionCard.tsx**
+- [x] **Шаг 1: Создать PermissionCard.tsx**
 
 Создать `packages/client/src/components/PermissionCard.tsx`:
 
@@ -1140,7 +1140,7 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
 }
 ```
 
-- [ ] **Шаг 2: Коммит**
+- [x] **Шаг 2: Коммит**
 
 ```bash
 git add packages/client/src/components/PermissionCard.tsx
@@ -1155,7 +1155,7 @@ git commit -m "feat: add PermissionCard component for confirm/forbidden tools"
 - Изменить: `packages/client/src/hooks/useChat.ts`
 - Изменить: `packages/client/src/components/MessageBubble.tsx`
 
-- [ ] **Шаг 1: Обновить useChat.ts**
+- [x] **Шаг 1: Обновить useChat.ts**
 
 Добавить обработку `tool_confirm_request` и функцию `respondToConfirm`.
 
@@ -1231,7 +1231,7 @@ const [pendingConfirms, setPendingConfirms] = useState<Map<string, PendingConfir
   return { messages, loading, error, send, stop, pendingConfirms, respondToConfirm };
 ```
 
-- [ ] **Шаг 2: Обновить MessageBubble.tsx**
+- [x] **Шаг 2: Обновить MessageBubble.tsx**
 
 Изменить `packages/client/src/components/MessageBubble.tsx` — рендерить `PermissionCard` для tool calls с pending confirm:
 
@@ -1295,7 +1295,7 @@ export function MessageBubble({ message, pendingConfirms, onRespond }: Props) {
 }
 ```
 
-- [ ] **Шаг 3: Обновить Chat.tsx — передать props**
+- [x] **Шаг 3: Обновить Chat.tsx — передать props**
 
 Изменить `packages/client/src/components/Chat.tsx`:
 
@@ -1350,7 +1350,7 @@ export function Chat() {
 }
 ```
 
-- [ ] **Шаг 4: Коммит**
+- [x] **Шаг 4: Коммит**
 
 ```bash
 git add packages/client/src/hooks/useChat.ts packages/client/src/components/MessageBubble.tsx packages/client/src/components/Chat.tsx
@@ -1364,7 +1364,7 @@ git commit -m "feat: integrate PermissionCard into chat flow"
 **Файлы:**
 - Изменить: `packages/server/src/ai/tool-loop.ts`
 
-- [ ] **Шаг 1: Убрать filter по permissionLevel**
+- [x] **Шаг 1: Убрать filter по permissionLevel**
 
 В `packages/server/src/ai/tool-loop.ts` строка 25-27, заменить:
 
@@ -1382,7 +1382,7 @@ git commit -m "feat: integrate PermissionCard into chat flow"
 
 Claude теперь видит все tools — confirm и forbidden тоже. Решение принимает пользователь через карточку.
 
-- [ ] **Шаг 2: Запустить все тесты**
+- [x] **Шаг 2: Запустить все тесты**
 
 ```bash
 npm test
@@ -1390,7 +1390,7 @@ npm test
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 3: Typecheck всех пакетов**
+- [x] **Шаг 3: Typecheck всех пакетов**
 
 ```bash
 npx tsc --noEmit -p packages/shared/tsconfig.json && \
@@ -1400,7 +1400,7 @@ npx tsc --noEmit -p packages/client/tsconfig.json
 
 Ожидание: нет ошибок.
 
-- [ ] **Шаг 4: Коммит**
+- [x] **Шаг 4: Коммит**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts
@@ -1411,13 +1411,13 @@ git commit -m "feat: show all tools to Claude, enforce permissions at execution 
 
 ## Задача 9: Финальная интеграция
 
-- [ ] **Шаг 1: Установить зависимости**
+- [x] **Шаг 1: Установить зависимости**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm install
 ```
 
-- [ ] **Шаг 2: Запустить все тесты**
+- [x] **Шаг 2: Запустить все тесты**
 
 ```bash
 npm test
@@ -1425,7 +1425,7 @@ npm test
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 3: Typecheck всех пакетов**
+- [x] **Шаг 3: Typecheck всех пакетов**
 
 ```bash
 npx tsc --noEmit -p packages/shared/tsconfig.json && \
@@ -1437,7 +1437,7 @@ npx tsc --noEmit -p packages/client/tsconfig.json
 
 Ожидание: нет ошибок.
 
-- [ ] **Шаг 4: Коммит**
+- [x] **Шаг 4: Коммит**
 
 ```bash
 git add -A

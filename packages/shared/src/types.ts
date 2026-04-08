@@ -28,5 +28,6 @@ export type SSEEvent =
   | { type: 'text_delta'; content: string }
   | { type: 'tool_call_start'; toolCall: ToolCall }
   | { type: 'tool_call_result'; id: string; result: ToolResult }
+  | { type: 'tool_confirm_request'; toolCall: ToolCall; level: 'confirm' | 'forbidden' }
   | { type: 'done' }
   | { type: 'error'; message: string };

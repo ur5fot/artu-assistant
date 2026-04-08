@@ -33,6 +33,15 @@ export function initDb(dbPath?: string): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS permission_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tool_name TEXT NOT NULL UNIQUE,
+      allowed INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
 }
 
 export function getDb(): Database.Database {
@@ -67,6 +76,27 @@ export function logToolCall(params: LogToolCallParams): void {
     params.success ? 1 : 0,
     params.durationMs,
   );
+}
+
+export function getPermissionRule(toolName: string): { allowed: boolean } | null {
+  const d = getDb();
+  const row = d.prepare('SELECT allowed FROM permission_rules WHERE tool_name = ?').get(toolName) as { allowed: number } | undefined;
+  if (!row) return null;
+  return { allowed: row.allowed === 1 };
+}
+
+export function savePermissionRule(toolName: string, allowed: boolean): void {
+  const d = getDb();
+  d.prepare(
+    `INSERT INTO permission_rules (tool_name, allowed)
+     VALUES (?, ?)
+     ON CONFLICT(tool_name) DO UPDATE SET allowed = excluded.allowed, created_at = datetime('now')`
+  ).run(toolName, allowed ? 1 : 0);
+}
+
+export function clearPermissionRules(): void {
+  const d = getDb();
+  d.prepare('DELETE FROM permission_rules').run();
 }
 
 export function cleanupAuditLog(): void {

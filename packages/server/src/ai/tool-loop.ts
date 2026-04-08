@@ -2,8 +2,9 @@ import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
 import type { SSEEvent, ToolCall, ToolResult } from '@r2/shared';
 import type { ClaudeClient } from './claude.js';
 import type { ToolRegistry } from '../tools/registry.js';
+import type { ConfirmResponse, PendingConfirms } from '../routes/confirm.js';
 import { toClaudeTool } from '../tools/base.js';
-import { logToolCall } from '../db.js';
+import { logToolCall, getPermissionRule, savePermissionRule } from '../db.js';
 
 const MAX_ITERATIONS = 10;
 
@@ -13,6 +14,33 @@ interface ToolLoopParams {
   registry: ToolRegistry;
   onEvent: (event: SSEEvent) => void;
   signal?: AbortSignal;
+  pendingConfirms?: PendingConfirms;
+}
+
+async function requestConfirmation(
+  callId: string,
+  toolCall: ToolCall,
+  level: 'confirm' | 'forbidden',
+  onEvent: (event: SSEEvent) => void,
+  pendingConfirms: PendingConfirms,
+  signal?: AbortSignal,
+): Promise<ConfirmResponse> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve({ allowed: false, remember: false });
+      return;
+    }
+    const onAbort = () => {
+      pendingConfirms.delete(callId);
+      resolve({ allowed: false, remember: false });
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    pendingConfirms.set(callId, (response) => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve(response);
+    });
+    onEvent({ type: 'tool_confirm_request', toolCall, level });
+  });
 }
 
 export async function runToolLoop({
@@ -21,10 +49,10 @@ export async function runToolLoop({
   registry,
   onEvent,
   signal,
+  pendingConfirms = new Map(),
 }: ToolLoopParams): Promise<void> {
-  const tools: Tool[] = registry.getAll()
-    .filter(t => t.permissionLevel !== 'forbidden')
-    .map(toClaudeTool) as Tool[];
+  const allTools = registry.getAll();
+  const tools: Tool[] = allTools.map(toClaudeTool) as Tool[];
   let currentMessages: MessageParam[] = [...messages];
   let iterations = 0;
   let lastEndedWithToolUse = false;
@@ -85,10 +113,51 @@ export async function runToolLoop({
       const startTime = Date.now();
       if (!toolDef) {
         result = { success: false, error: `Unknown tool: ${block.name}` };
-      } else if (toolDef.permissionLevel === 'forbidden') {
-        result = { success: false, error: `This action is forbidden` };
-      } else if (toolDef.permissionLevel === 'confirm') {
-        result = { success: false, error: `This action requires user confirmation (not yet implemented)` };
+      } else if (toolDef.permissionLevel === 'confirm' || toolDef.permissionLevel === 'forbidden') {
+        // Check saved permission rule (only for 'confirm' level — 'forbidden' always asks)
+        let allowed: boolean | null = null;
+        if (toolDef.permissionLevel === 'confirm') {
+          try {
+            const rule = getPermissionRule(block.name);
+            if (rule) allowed = rule.allowed;
+          } catch (err) {
+            console.error('Failed to read permission rule:', err instanceof Error ? err.message : err);
+          }
+        }
+
+        if (allowed === null) {
+          // Ask user for confirmation
+          const confirmResponse = await requestConfirmation(
+            block.id,
+            toolCall,
+            toolDef.permissionLevel,
+            onEvent,
+            pendingConfirms,
+            signal,
+          );
+          allowed = confirmResponse.allowed;
+
+          if (confirmResponse.remember && toolDef.permissionLevel === 'confirm') {
+            try {
+              savePermissionRule(block.name, confirmResponse.allowed);
+            } catch (err) {
+              console.error('Failed to save permission rule:', err instanceof Error ? err.message : err);
+            }
+          }
+        }
+
+        if (allowed) {
+          try {
+            result = await toolDef.handler(block.input as Record<string, unknown>);
+          } catch (err) {
+            result = {
+              success: false,
+              error: err instanceof Error ? err.message : 'Unknown error',
+            };
+          }
+        } else {
+          result = { success: false, error: 'Action denied by user' };
+        }
       } else {
         try {
           result = await toolDef.handler(block.input as Record<string, unknown>);

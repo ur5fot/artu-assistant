@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { initDb, logToolCall, cleanupAuditLog, getDb, closeDb } from './db.js';
+import { initDb, logToolCall, cleanupAuditLog, getDb, closeDb, getPermissionRule, savePermissionRule, clearPermissionRules } from './db.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -98,6 +98,34 @@ describe('Database Module', () => {
         'SELECT tool_name FROM audit_log ORDER BY id ASC LIMIT 1'
       ).get() as any;
       expect(oldest.tool_name).toBe('tool_5');
+    });
+  });
+
+  describe('Permission Rules', () => {
+    it('returns null for unknown tool', () => {
+      const rule = getPermissionRule('unknown_tool');
+      expect(rule).toBeNull();
+    });
+
+    it('saves and retrieves permission rule', () => {
+      savePermissionRule('file_write', true);
+      const rule = getPermissionRule('file_write');
+      expect(rule).toEqual({ allowed: true });
+    });
+
+    it('overwrites existing rule for same tool', () => {
+      savePermissionRule('file_write', true);
+      savePermissionRule('file_write', false);
+      const rule = getPermissionRule('file_write');
+      expect(rule).toEqual({ allowed: false });
+    });
+
+    it('clears all permission rules', () => {
+      savePermissionRule('file_write', true);
+      savePermissionRule('file_delete', false);
+      clearPermissionRules();
+      expect(getPermissionRule('file_write')).toBeNull();
+      expect(getPermissionRule('file_delete')).toBeNull();
     });
   });
 });
