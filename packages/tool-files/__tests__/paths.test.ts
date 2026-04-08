@@ -24,6 +24,16 @@ describe('resolveRoot', () => {
     delete process.env.R2_FILES_ROOT;
     expect(resolveRoot()).toBe(path.join(os.homedir(), 'Documents', 'r2'));
   });
+
+  it('expands bare ~ to home directory', () => {
+    process.env.R2_FILES_ROOT = '~';
+    expect(resolveRoot()).toBe(os.homedir());
+  });
+
+  it('expands ~/path to home directory', () => {
+    process.env.R2_FILES_ROOT = '~/my-files';
+    expect(resolveRoot()).toBe(path.join(os.homedir(), 'my-files'));
+  });
 });
 
 describe('safePath', () => {
