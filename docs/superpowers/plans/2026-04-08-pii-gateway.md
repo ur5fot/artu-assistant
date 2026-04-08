@@ -811,7 +811,7 @@ git commit -m "feat: add PII proxy with anonymize/deanonymize and fail-open/clos
 - Modify: `packages/shared/src/types.ts`
 - Modify: `packages/shared/src/index.ts`
 
-- [ ] **Step 1: Add pii_masked SSE event type**
+- [x] **Step 1: Add pii_masked SSE event type**
 
 In `packages/shared/src/types.ts`, change the SSEEvent union (line 27-33) to:
 
@@ -826,12 +826,12 @@ export type SSEEvent =
   | { type: 'error'; message: string };
 ```
 
-- [ ] **Step 2: Run typecheck to verify**
+- [x] **Step 2: Run typecheck to verify**
 
 Run: `cd packages/shared && npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/shared/src/types.ts
