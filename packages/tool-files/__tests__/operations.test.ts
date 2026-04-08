@@ -120,7 +120,7 @@ describe('File Operations', () => {
       expect(result.success).toBe(true);
       const entries = result.data as Array<{ name: string; type: string }>;
       expect(entries).toHaveLength(1000);
-      expect(result.display?.content).toContain('truncated');
+      expect(result.display?.content).toContain('truncated at 1000');
     });
   });
 
@@ -136,6 +136,14 @@ describe('File Operations', () => {
       const result = await deleteFile(root, 'ghost.txt');
       expect(result.success).toBe(false);
       expect(result.error).toContain('not found');
+    });
+
+    it('returns error when deleting a directory', async () => {
+      fs.mkdirSync(path.join(root, 'mydir'));
+      const result = await deleteFile(root, 'mydir');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Cannot delete directories');
+      expect(fs.existsSync(path.join(root, 'mydir'))).toBe(true);
     });
 
     it('rejects paths outside root', async () => {

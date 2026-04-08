@@ -23,17 +23,18 @@ export async function readFile(root: string, filePath: string): Promise<ToolResu
     return { success: false, error: `File exceeds 1MB limit (${stat.size} bytes)` };
   }
 
-  // Check for binary content
-  const fd = fs.openSync(resolved, 'r');
-  const checkBuf = Buffer.alloc(Math.min(512, stat.size));
-  fs.readSync(fd, checkBuf, 0, checkBuf.length, 0);
-  fs.closeSync(fd);
+  // Read file content (already size-checked above)
+  const rawBuf = fs.readFileSync(resolved);
 
-  if (checkBuf.includes(0x00)) {
-    return { success: false, error: 'Cannot read binary file' };
+  // Check for binary content in first 512 bytes
+  const checkLen = Math.min(512, rawBuf.length);
+  for (let i = 0; i < checkLen; i++) {
+    if (rawBuf[i] === 0x00) {
+      return { success: false, error: 'Cannot read binary file' };
+    }
   }
 
-  const content = fs.readFileSync(resolved, 'utf-8');
+  const content = rawBuf.toString('utf-8');
   return {
     success: true,
     data: content,
@@ -63,7 +64,6 @@ export async function writeFile(root: string, filePath: string, content: string)
 }
 
 function collectEntries(
-  root: string,
   dir: string,
   prefix: string,
   recursive: boolean,
@@ -76,7 +76,7 @@ function collectEntries(
     const type = item.isDirectory() ? 'directory' : 'file';
     entries.push({ name, type });
     if (recursive && item.isDirectory()) {
-      collectEntries(root, path.join(dir, item.name), name, true, entries);
+      collectEntries(path.join(dir, item.name), name, true, entries);
     }
   }
 }
@@ -94,30 +94,12 @@ export async function listFiles(root: string, dirPath: string, recursive: boolea
   }
 
   const entries: Array<{ name: string; type: string }> = [];
-  collectEntries(root, resolved, '', recursive, entries);
+  collectEntries(resolved, '', recursive, entries);
 
-  // Count total if we hit the limit
-  let totalCount = entries.length;
-  if (entries.length >= MAX_LIST_ENTRIES) {
-    // Re-count total for truncation message
-    const countAll = (d: string): number => {
-      let count = 0;
-      const items = fs.readdirSync(d, { withFileTypes: true });
-      for (const item of items) {
-        count++;
-        if (recursive && item.isDirectory()) {
-          count += countAll(path.join(d, item.name));
-        }
-      }
-      return count;
-    };
-    totalCount = countAll(resolved);
-  }
-
-  const truncated = totalCount > MAX_LIST_ENTRIES;
+  const truncated = entries.length >= MAX_LIST_ENTRIES;
   const displayLines = entries.map((e) => `${e.type === 'directory' ? '[dir]' : '     '} ${e.name}`);
   const displayContent = truncated
-    ? displayLines.join('\n') + `\n\n(truncated, ${MAX_LIST_ENTRIES} of ${totalCount} total)`
+    ? displayLines.join('\n') + `\n\n(truncated at ${MAX_LIST_ENTRIES} entries)`
     : displayLines.join('\n');
 
   return {
@@ -137,6 +119,10 @@ export async function deleteFile(root: string, filePath: string): Promise<ToolRe
 
   if (!fs.existsSync(resolved)) {
     return { success: false, error: `File not found: ${filePath}` };
+  }
+
+  if (fs.statSync(resolved).isDirectory()) {
+    return { success: false, error: 'Cannot delete directories' };
   }
 
   fs.unlinkSync(resolved);

@@ -85,12 +85,14 @@ describe('discoverTools', () => {
       ];
     `);
 
-    const registry = await discoverTools(tmpDir);
-    expect(registry.getAll()).toHaveLength(2);
-    expect(registry.get('tool_a')).toBeDefined();
-    expect(registry.get('tool_b')).toBeDefined();
-
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    try {
+      const registry = await discoverTools(tmpDir);
+      expect(registry.getAll()).toHaveLength(2);
+      expect(registry.get('tool_a')).toBeDefined();
+      expect(registry.get('tool_b')).toBeDefined();
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it('skips tool packages that fail to import without crashing', async () => {
