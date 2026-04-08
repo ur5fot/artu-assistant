@@ -9,7 +9,7 @@ function sanitizeError(message: string): string {
   if (lower.includes('anthropic') || lower.includes('sk-ant-')) {
     return 'AI service temporarily unavailable';
   }
-  if (lower.includes('searxng')) {
+  if (lower.includes('searxng') || lower.includes('web search failed') || lower.includes('search error') || lower.includes('search returned')) {
     return 'Search service temporarily unavailable';
   }
   // For other errors, return a generic message in production

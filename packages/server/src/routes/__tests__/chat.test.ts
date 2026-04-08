@@ -89,7 +89,7 @@ describe('POST /api/chat', () => {
 
     const router = createChatRouter({
       runLoop: async () => {
-        throw new Error('SearXNG search API timeout');
+        throw new Error('Web search failed: connect ECONNREFUSED 127.0.0.1:8888');
       },
     });
     app.use('/api', router);
@@ -100,7 +100,7 @@ describe('POST /api/chat', () => {
       .expect(200);
 
     expect(res.text).toContain('Search service temporarily unavailable');
-    expect(res.text).not.toContain('SearXNG');
+    expect(res.text).not.toContain('127.0.0.1');
   });
 
   it('does not abort signal during runLoop execution (abort tied to res close)', async () => {
