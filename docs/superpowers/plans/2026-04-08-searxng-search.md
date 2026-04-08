@@ -106,7 +106,7 @@ git commit -m "feat: add SearXNG Docker setup for self-hosted search"
 **Файлы:**
 - Изменить: `packages/tool-web-search/src/index.ts`
 
-- [ ] **Шаг 1: Заменить реализацию web_search**
+- [x] **Шаг 1: Заменить реализацию web_search**
 
 Заменить содержимое `packages/tool-web-search/src/index.ts`:
 
@@ -203,7 +203,7 @@ export const webSearchTool = {
 export default webSearchTool;
 ```
 
-- [ ] **Шаг 2: Коммит**
+- [x] **Шаг 2: Коммит**
 
 ```bash
 git add packages/tool-web-search/src/index.ts

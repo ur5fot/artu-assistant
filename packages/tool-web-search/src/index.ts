@@ -6,19 +6,17 @@ interface SearchResult {
   description: string;
 }
 
-interface BraveSearchResponse {
-  web?: {
-    results: Array<{
-      title: string;
-      url: string;
-      description: string;
-    }>;
-  };
+interface SearXNGResponse {
+  results: Array<{
+    title: string;
+    url: string;
+    content: string;
+  }>;
 }
 
 export const webSearchTool = {
   name: 'web_search',
-  description: 'Search the web using Brave Search API. Use when you need current information, facts, or answers not in your training data.',
+  description: 'Search the web using SearXNG. Use when you need current information, facts, or answers not in your training data.',
   permissionLevel: 'auto' as const,
   parameters: {
     type: 'object' as const,
@@ -40,21 +38,13 @@ export const webSearchTool = {
     const rawCount = Number(params.count);
     const count = Math.min(Math.max(Number.isFinite(rawCount) ? rawCount : 5, 1), 20);
 
-    const apiKey = process.env.BRAVE_SEARCH_API_KEY;
-    if (!apiKey) {
-      return { success: false, error: 'BRAVE_SEARCH_API_KEY not configured' };
-    }
-
-    const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${count}`;
+    const baseUrl = process.env.SEARXNG_URL || 'http://localhost:8888';
+    const url = `${baseUrl}/search?q=${encodeURIComponent(query)}&format=json&categories=general`;
 
     let response: Response;
     try {
       response = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-          'Accept-Encoding': 'gzip',
-          'X-Subscription-Token': apiKey,
-        },
+        headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(15_000),
       });
     } catch (err) {
@@ -67,22 +57,24 @@ export const webSearchTool = {
     if (!response.ok) {
       return {
         success: false,
-        error: `Brave Search API error: ${response.status} ${response.statusText}`,
+        error: `Search error: ${response.status} ${response.statusText}`,
       };
     }
 
-    let data: BraveSearchResponse;
+    let data: SearXNGResponse;
     try {
       data = await response.json();
     } catch {
-      return { success: false, error: 'Brave Search returned invalid JSON' };
+      return { success: false, error: 'Search returned invalid JSON' };
     }
-    const results: SearchResult[] =
-      data.web?.results?.map((r) => ({
+
+    const results: SearchResult[] = (data.results ?? [])
+      .slice(0, count)
+      .map((r) => ({
         title: r.title,
         url: r.url,
-        description: r.description,
-      })) ?? [];
+        description: r.content,
+      }));
 
     return {
       success: true,
