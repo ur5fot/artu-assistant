@@ -94,7 +94,7 @@ git commit -m "feat: add Presidio analyzer and anonymizer Docker services"
 - Create: `packages/server/src/pii/vault.ts`
 - Create: `packages/server/src/pii/vault.test.ts`
 
-- [ ] **Step 1: Write failing tests for vault**
+- [x] **Step 1: Write failing tests for vault**
 
 Create `packages/server/src/pii/vault.test.ts`:
 
@@ -183,12 +183,12 @@ describe('PiiVault', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/pii/vault.test.ts`
 Expected: FAIL — module `./vault.js` not found.
 
-- [ ] **Step 3: Add pii_tokens table to db.ts**
+- [x] **Step 3: Add pii_tokens table to db.ts**
 
 In `packages/server/src/db.ts`, after the `permission_rules` table creation (after line 44), add:
 
@@ -205,7 +205,7 @@ In `packages/server/src/db.ts`, after the `permission_rules` table creation (aft
   `);
 ```
 
-- [ ] **Step 4: Implement vault**
+- [x] **Step 4: Implement vault**
 
 Create `packages/server/src/pii/vault.ts`:
 
@@ -300,12 +300,12 @@ export class PiiVault {
 }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd packages/server && npx vitest run src/pii/vault.test.ts`
 Expected: all 8 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/pii/vault.ts packages/server/src/pii/vault.test.ts packages/server/src/db.ts
