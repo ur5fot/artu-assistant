@@ -587,7 +587,7 @@ git commit -m "feat: add tool-files package with path validation"
 - Создать: `packages/tool-files/src/operations.ts`
 - Тест: `packages/tool-files/__tests__/operations.test.ts`
 
-- [ ] **Шаг 1: Написать failing тесты**
+- [x] **Шаг 1: Написать failing тесты**
 
 Создать `packages/tool-files/__tests__/operations.test.ts`:
 
@@ -777,7 +777,7 @@ describe('File Operations', () => {
 });
 ```
 
-- [ ] **Шаг 2: Запустить тесты — убедиться что падает**
+- [x] **Шаг 2: Запустить тесты — убедиться что падает**
 
 ```bash
 npx vitest run packages/tool-files/__tests__/operations.test.ts
@@ -785,7 +785,7 @@ npx vitest run packages/tool-files/__tests__/operations.test.ts
 
 Ожидание: FAIL — `operations.ts` не существует.
 
-- [ ] **Шаг 3: Реализовать operations.ts**
+- [x] **Шаг 3: Реализовать operations.ts**
 
 Создать `packages/tool-files/src/operations.ts`:
 
@@ -971,7 +971,7 @@ export async function moveFile(root: string, source: string, destination: string
 }
 ```
 
-- [ ] **Шаг 4: Запустить тесты**
+- [x] **Шаг 4: Запустить тесты**
 
 ```bash
 npx vitest run packages/tool-files/__tests__/operations.test.ts
@@ -979,7 +979,7 @@ npx vitest run packages/tool-files/__tests__/operations.test.ts
 
 Ожидание: 17 тестов PASS.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add packages/tool-files/src/operations.ts packages/tool-files/__tests__/operations.test.ts
