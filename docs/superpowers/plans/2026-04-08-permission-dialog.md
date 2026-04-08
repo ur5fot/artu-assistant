@@ -405,7 +405,7 @@ git commit -m "feat: add confirm and permissions API routes"
 - Изменить: `packages/server/src/ai/tool-loop.ts`
 - Изменить: `packages/server/src/ai/__tests__/tool-loop.test.ts`
 
-- [ ] **Шаг 1: Написать failing тесты**
+- [x] **Шаг 1: Написать failing тесты**
 
 Добавить в `packages/server/src/ai/__tests__/tool-loop.test.ts`. Заменить существующие тесты `'blocks tool with confirm permission level'` и `'blocks tool with forbidden permission level'` на новые:
 
@@ -647,7 +647,7 @@ import os from 'node:os';
 
 И добавить tmpDir setup в основной describe (или создать новый describe для permission tests с beforeEach/afterEach).
 
-- [ ] **Шаг 2: Запустить тесты — убедиться что падает**
+- [x] **Шаг 2: Запустить тесты — убедиться что падает**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -655,7 +655,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
 
 Ожидание: FAIL — `pendingConfirms` не принимается `runToolLoop`.
 
-- [ ] **Шаг 3: Обновить tool-loop.ts**
+- [x] **Шаг 3: Обновить tool-loop.ts**
 
 Заменить содержимое `packages/server/src/ai/tool-loop.ts`:
 
@@ -870,7 +870,7 @@ export async function runToolLoop({
 }
 ```
 
-- [ ] **Шаг 4: Запустить тесты**
+- [x] **Шаг 4: Запустить тесты**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -878,7 +878,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts packages/server/src/ai/__tests__/tool-loop.test.ts
