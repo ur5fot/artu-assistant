@@ -1250,7 +1250,7 @@ git commit -m "feat: add DELETE /api/pii-tokens endpoint"
 **Files:**
 - Create: `packages/server/src/pii/integration.test.ts`
 
-- [ ] **Step 1: Write integration test for the full anonymize → deanonymize flow**
+- [x] **Step 1: Write integration test for the full anonymize → deanonymize flow**
 
 Create `packages/server/src/pii/integration.test.ts`:
 
@@ -1405,17 +1405,17 @@ describe('PII Pipeline Integration', () => {
 });
 ```
 
-- [ ] **Step 2: Run integration tests**
+- [x] **Step 2: Run integration tests**
 
 Run: `cd packages/server && npx vitest run src/pii/integration.test.ts`
 Expected: all 3 tests PASS.
 
-- [ ] **Step 3: Run full test suite**
+- [x] **Step 3: Run full test suite**
 
 Run: `cd packages/server && npx vitest run`
 Expected: ALL tests PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/pii/integration.test.ts
