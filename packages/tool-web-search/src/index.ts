@@ -50,7 +50,7 @@ export const webSearchTool = {
     } catch (err) {
       return {
         success: false,
-        error: `Web search failed: ${err instanceof Error ? err.message : 'Network error'}`,
+        error: 'Web search failed: SearXNG is not reachable. Is it running? (docker compose up -d)',
       };
     }
 

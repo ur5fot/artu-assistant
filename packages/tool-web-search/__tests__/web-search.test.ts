@@ -114,7 +114,7 @@ describe('web_search tool', () => {
     const result = await webSearchTool.handler({ query: 'test' });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Connection refused');
+    expect(result.error).toContain('SearXNG is not reachable');
   });
 
   it('returns error on invalid JSON', async () => {
