@@ -1197,7 +1197,7 @@ git commit -m "feat: add PII badge component to show masked entity counts"
 - Create: `packages/server/src/routes/pii.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Create PII tokens route**
+- [x] **Step 1: Create PII tokens route**
 
 Create `packages/server/src/routes/pii.ts`:
 
@@ -1219,7 +1219,7 @@ export function createPiiRouter(): Router {
 }
 ```
 
-- [ ] **Step 2: Register route in index.ts**
+- [x] **Step 2: Register route in index.ts**
 
 In `packages/server/src/index.ts`, add import:
 ```typescript
@@ -1231,12 +1231,12 @@ After `app.use('/api', createPermissionsRouter());` (line 41), add:
 app.use('/api', createPiiRouter());
 ```
 
-- [ ] **Step 3: Run typecheck**
+- [x] **Step 3: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/routes/pii.ts packages/server/src/index.ts
