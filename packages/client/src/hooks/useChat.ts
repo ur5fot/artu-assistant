@@ -41,7 +41,7 @@ export function useChat() {
     setMessages((prev) => [...prev, userMessage]);
 
     connectionRef.current = connectSSE({
-      messages: [...messages, userMessage].map((m) => ({ role: m.role, content: m.content })),
+      messages: [...messages, userMessage].map((m) => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
       onEvent: (event) => {
         switch (event.type) {
           case 'text_delta':

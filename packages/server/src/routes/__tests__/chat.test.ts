@@ -135,6 +135,53 @@ describe('POST /api/chat', () => {
     expect(signalAbortedDuringLoop).toBe(false);
   });
 
+  it('formats timestamps in message content before passing to runLoop', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+    });
+    app.use('/api', router);
+
+    const ts = new Date('2026-04-08T14:30:00').getTime();
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: 'Hello', timestamp: ts }] })
+      .expect(200);
+
+    expect(receivedMessages).toHaveLength(1);
+    expect(receivedMessages[0].content).toMatch(/^\[.*\] Hello$/);
+    expect(receivedMessages[0].role).toBe('user');
+  });
+
+  it('passes messages without timestamp as-is', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: 'Hello' }] })
+      .expect(200);
+
+    expect(receivedMessages[0].content).toBe('Hello');
+  });
+
   it('sanitizes errors containing API key patterns', async () => {
     const app = express();
     app.use(express.json());

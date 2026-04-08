@@ -5,7 +5,7 @@ export interface SSEConnection {
 }
 
 interface SSEParams {
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{ role: string; content: string; timestamp?: number }>;
   onEvent: (event: SSEEvent) => void;
   onError: (error: Error) => void;
 }

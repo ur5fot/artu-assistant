@@ -4,6 +4,21 @@ import type { SSEEvent } from '@r2/shared';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { PendingConfirms } from './confirm.js';
 
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleString('uk-UA', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function addTimestamps(messages: Array<{ role: string; content: string; timestamp?: number }>): MessageParam[] {
+  return messages.map((m) => ({
+    role: m.role as 'user' | 'assistant',
+    content: m.timestamp ? `[${formatTimestamp(m.timestamp)}] ${m.content}` : m.content,
+  }));
+}
+
 function sanitizeError(message: string): string {
   // Strip potentially sensitive details (API keys, internal paths, upstream provider info)
   const lower = message.toLowerCase();
@@ -63,7 +78,7 @@ export function createChatRouter({ runLoop, pendingConfirms }: ChatRouterDeps): 
 
     try {
       await runLoop({
-        messages,
+        messages: addTimestamps(messages),
         signal: abortController.signal,
         pendingConfirms,
         onEvent: (event: SSEEvent) => {
