@@ -4,11 +4,12 @@ import type { ToolCall } from '@r2/shared';
 interface Props {
   toolCall: ToolCall;
   level: 'confirm' | 'forbidden';
-  onRespond: (callId: string, allowed: boolean, remember: boolean) => void;
+  onRespond: (callId: string, allowed: boolean, remember: boolean) => Promise<boolean>;
 }
 
 export function PermissionCard({ toolCall, level, onRespond }: Props) {
   const [decision, setDecision] = useState<'allowed' | 'denied' | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [remember, setRemember] = useState(false);
   const [pulse, setPulse] = useState(false);
   const responded = decision !== null;
@@ -20,9 +21,13 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
     return () => clearTimeout(timer);
   }, [responded]);
 
-  const handleRespond = (allowed: boolean) => {
-    setDecision(allowed ? 'allowed' : 'denied');
-    onRespond(toolCall.id, allowed, remember);
+  const handleRespond = async (allowed: boolean) => {
+    setSubmitting(true);
+    const ok = await onRespond(toolCall.id, allowed, remember);
+    if (ok) {
+      setDecision(allowed ? 'allowed' : 'denied');
+    }
+    setSubmitting(false);
   };
 
   const isForbidden = level === 'forbidden';
@@ -35,7 +40,7 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
     marginBottom: 6,
     maxWidth: '80%',
     fontSize: 13,
-    opacity: responded ? 0.7 : 1,
+    opacity: responded ? 0.7 : submitting ? 0.85 : 1,
     animation: pulse && !responded ? 'pulse-border 1.5s ease-in-out infinite' : undefined,
   };
 
@@ -60,7 +65,7 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
             {isForbidden ? '\u{1F534}' : '\u26A0'}
           </div>
           <div style={{ fontWeight: 600, fontSize: 14 }}>
-            {toolCall.name} — {isForbidden ? '\u041E\u043F\u0430\u0441\u043D\u043E\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435' : '\u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u0435'}
+            {toolCall.name} — {isForbidden ? 'Dangerous action' : 'Confirmation'}
           </div>
         </div>
 
@@ -87,7 +92,7 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
             fontWeight: 600, fontSize: 13,
             color: decision === 'allowed' ? '#059669' : '#DC2626',
           }}>
-            {decision === 'allowed' ? '\u2713 \u0420\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u043E' : '\u2717 \u041E\u0442\u043A\u043B\u043E\u043D\u0435\u043D\u043E'}
+            {decision === 'allowed' ? '\u2713 Allowed' : '\u2717 Denied'}
           </div>
         ) : (
           <>
@@ -101,28 +106,32 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
                   checked={remember}
                   onChange={(e) => setRemember(e.target.checked)}
                 />
-                {'\u0417\u0430\u043F\u043E\u043C\u043D\u0438\u0442\u044C'}
+                Remember
               </label>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => handleRespond(true)}
+                disabled={submitting}
                 style={{
                   flex: 1, padding: 8, borderRadius: 8, border: 'none',
-                  background: '#2A5A8A', color: '#fff', fontSize: 13, cursor: 'pointer',
+                  background: '#2A5A8A', color: '#fff', fontSize: 13,
+                  cursor: submitting ? 'wait' : 'pointer', opacity: submitting ? 0.6 : 1,
                 }}
               >
-                {'\u0420\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u044C'}
+                Allow
               </button>
               <button
                 onClick={() => handleRespond(false)}
+                disabled={submitting}
                 style={{
                   flex: 1, padding: 8, borderRadius: 8,
                   border: '1px solid #ddd', background: '#fff',
-                  color: '#666', fontSize: 13, cursor: 'pointer',
+                  color: '#666', fontSize: 13,
+                  cursor: submitting ? 'wait' : 'pointer', opacity: submitting ? 0.6 : 1,
                 }}
               >
-                {'\u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C'}
+                Deny
               </button>
             </div>
           </>

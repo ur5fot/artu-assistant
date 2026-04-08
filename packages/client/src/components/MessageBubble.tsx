@@ -6,7 +6,7 @@ import type { PendingConfirm } from '../hooks/useChat';
 interface Props {
   message: Message;
   pendingConfirms: Map<string, PendingConfirm>;
-  onRespond: (callId: string, allowed: boolean, remember: boolean) => void;
+  onRespond: (callId: string, allowed: boolean, remember: boolean) => Promise<boolean>;
 }
 
 export function MessageBubble({ message, pendingConfirms, onRespond }: Props) {

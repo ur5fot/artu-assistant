@@ -25,6 +25,7 @@ export function useChat() {
 
     // Abort any existing connection before starting a new one
     connectionRef.current?.abort();
+    setPendingConfirms(new Map());
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -145,11 +146,12 @@ export function useChat() {
   const stop = useCallback(() => {
     connectionRef.current?.abort();
     connectionRef.current = null;
+    setPendingConfirms(new Map());
     setLoading(false);
     sendingRef.current = false;
   }, []);
 
-  const respondToConfirm = useCallback(async (callId: string, allowed: boolean, remember: boolean) => {
+  const respondToConfirm = useCallback(async (callId: string, allowed: boolean, remember: boolean): Promise<boolean> => {
     try {
       const res = await fetch('/api/confirm', {
         method: 'POST',
@@ -158,15 +160,17 @@ export function useChat() {
       });
       if (!res.ok) {
         console.error('Confirm response failed:', res.status, await res.text());
-        return;
+        return false;
       }
       setPendingConfirms((prev) => {
         const next = new Map(prev);
         next.delete(callId);
         return next;
       });
+      return true;
     } catch (err) {
       console.error('Failed to send confirm response:', err);
+      return false;
     }
   }, []);
 
