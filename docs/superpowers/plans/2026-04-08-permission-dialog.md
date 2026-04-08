@@ -1155,7 +1155,7 @@ git commit -m "feat: add PermissionCard component for confirm/forbidden tools"
 - Изменить: `packages/client/src/hooks/useChat.ts`
 - Изменить: `packages/client/src/components/MessageBubble.tsx`
 
-- [ ] **Шаг 1: Обновить useChat.ts**
+- [x] **Шаг 1: Обновить useChat.ts**
 
 Добавить обработку `tool_confirm_request` и функцию `respondToConfirm`.
 
@@ -1231,7 +1231,7 @@ const [pendingConfirms, setPendingConfirms] = useState<Map<string, PendingConfir
   return { messages, loading, error, send, stop, pendingConfirms, respondToConfirm };
 ```
 
-- [ ] **Шаг 2: Обновить MessageBubble.tsx**
+- [x] **Шаг 2: Обновить MessageBubble.tsx**
 
 Изменить `packages/client/src/components/MessageBubble.tsx` — рендерить `PermissionCard` для tool calls с pending confirm:
 
@@ -1295,7 +1295,7 @@ export function MessageBubble({ message, pendingConfirms, onRespond }: Props) {
 }
 ```
 
-- [ ] **Шаг 3: Обновить Chat.tsx — передать props**
+- [x] **Шаг 3: Обновить Chat.tsx — передать props**
 
 Изменить `packages/client/src/components/Chat.tsx`:
 
@@ -1350,7 +1350,7 @@ export function Chat() {
 }
 ```
 
-- [ ] **Шаг 4: Коммит**
+- [x] **Шаг 4: Коммит**
 
 ```bash
 git add packages/client/src/hooks/useChat.ts packages/client/src/components/MessageBubble.tsx packages/client/src/components/Chat.tsx
