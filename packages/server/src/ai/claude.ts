@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
-import { SYSTEM_PROMPT } from './prompts.js';
+import { getSystemPrompt } from './prompts.js';
 
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
 const MAX_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS) || 16384;
@@ -24,7 +24,7 @@ export function createClaudeClient(): ClaudeClient {
     const requestParams: Anthropic.MessageCreateParamsNonStreaming = {
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
+      system: getSystemPrompt(),
       messages: params.messages,
       thinking: {
         type: 'enabled',
