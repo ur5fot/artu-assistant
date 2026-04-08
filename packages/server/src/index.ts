@@ -41,17 +41,22 @@ if (piiMode === 'disabled') {
   if (!encryptionKey) {
     encryptionKey = crypto.randomBytes(32).toString('hex');
     console.log('Generated PII_ENCRYPTION_KEY — add to .env to persist across restarts');
-    const envPath = path.resolve(__dirname, '..', '..', '..', '.env');
-    if (fs.existsSync(envPath)) {
-      const envContent = fs.readFileSync(envPath, 'utf8');
-      if (envContent.includes('PII_ENCRYPTION_KEY=')) {
-        fs.writeFileSync(envPath, envContent.replace(/PII_ENCRYPTION_KEY=.*/, `PII_ENCRYPTION_KEY=${encryptionKey}`));
-      } else {
-        fs.appendFileSync(envPath, `\nPII_ENCRYPTION_KEY=${encryptionKey}\n`);
+    try {
+      const envPath = path.resolve(__dirname, '..', '..', '..', '.env');
+      if (fs.existsSync(envPath)) {
+        const envContent = fs.readFileSync(envPath, 'utf8');
+        if (/^PII_ENCRYPTION_KEY=/m.test(envContent)) {
+          fs.writeFileSync(envPath, envContent.replace(/^PII_ENCRYPTION_KEY=.*/m, `PII_ENCRYPTION_KEY=${encryptionKey}`));
+        } else {
+          fs.appendFileSync(envPath, `\nPII_ENCRYPTION_KEY=${encryptionKey}\n`);
+        }
       }
+    } catch (err) {
+      console.warn('Could not persist PII_ENCRYPTION_KEY to .env:', err instanceof Error ? err.message : err);
     }
   }
   piiVault = new PiiVault(encryptionKey);
+  piiVault.clearExpired();
   const entityTypes = (process.env.PII_ENTITY_TYPES || 'EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,IBAN_CODE').split(',');
   piiProxy = createPiiProxy({
     encryptionKey,

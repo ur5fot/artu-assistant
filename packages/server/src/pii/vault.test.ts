@@ -71,4 +71,32 @@ describe('PiiVault', () => {
   it('throws on invalid encryption key', () => {
     expect(() => new PiiVault('tooshort')).toThrow('PII_ENCRYPTION_KEY must be 64 hex chars (32 bytes)');
   });
+
+  it('clears expired tokens', () => {
+    vault.store('<EMAIL:a7f3>', 'john@example.com', 'EMAIL_ADDRESS');
+    // Manually set expires_at in the past
+    const db = getDb();
+    db.prepare("UPDATE pii_tokens SET expires_at = datetime('now', '-1 day') WHERE token = ?").run('<EMAIL:a7f3>');
+    vault.store('<PHONE:b2c1>', '+380501234567', 'PHONE_NUMBER');
+
+    vault.clearExpired();
+    expect(vault.retrieve('<EMAIL:a7f3>')).toBeNull();
+    expect(vault.retrieve('<PHONE:b2c1>')).toBe('+380501234567');
+  });
+
+  it('retrieve ignores expired tokens', () => {
+    vault.store('<EMAIL:a7f3>', 'john@example.com', 'EMAIL_ADDRESS');
+    const db = getDb();
+    db.prepare("UPDATE pii_tokens SET expires_at = datetime('now', '-1 day') WHERE token = ?").run('<EMAIL:a7f3>');
+    expect(vault.retrieve('<EMAIL:a7f3>')).toBeNull();
+  });
+
+  it('re-storing expired token refreshes expiry', () => {
+    vault.store('<EMAIL:a7f3>', 'john@example.com', 'EMAIL_ADDRESS');
+    const db = getDb();
+    db.prepare("UPDATE pii_tokens SET expires_at = datetime('now', '-1 day') WHERE token = ?").run('<EMAIL:a7f3>');
+    expect(vault.retrieve('<EMAIL:a7f3>')).toBeNull();
+    vault.store('<EMAIL:a7f3>', 'john@example.com', 'EMAIL_ADDRESS');
+    expect(vault.retrieve('<EMAIL:a7f3>')).toBe('john@example.com');
+  });
 });

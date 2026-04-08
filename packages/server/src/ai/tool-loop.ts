@@ -77,6 +77,7 @@ export async function runToolLoop({
   const anonymizedMessages: MessageParam[] = [];
   const allPiiEntities: Array<{ type: string; token: string }> = [];
   for (const msg of currentMessages) {
+    if (signal?.aborted) return;
     if (typeof msg.content === 'string') {
       const result = await piiProxy.anonymize(msg.content);
       anonymizedMessages.push({ role: msg.role, content: result.text });

@@ -49,11 +49,24 @@ export function createPiiProxy(config: PiiProxyConfig): PiiProxy {
       // Build tokens for each detected entity and do local string replacement
       const entities: Array<{ type: string; token: string }> = [];
 
-      // Sort by start position descending so replacements don't shift earlier offsets
-      const sorted = [...analyzerResults].sort((a, b) => b.start - a.start);
+      // Sort by score descending (prefer best detections), then by span width descending (prefer wider)
+      const byScore = [...analyzerResults].sort((a, b) =>
+        b.score - a.score || (b.end - b.start) - (a.end - a.start),
+      );
+
+      // Filter overlapping spans — higher-scored entities win
+      const filtered: AnalyzerResult[] = [];
+      for (const r of byScore) {
+        const overlaps = filtered.some(f => r.start < f.end && r.end > f.start);
+        if (!overlaps) filtered.push(r);
+      }
+
+      // Sort remaining by start descending so replacements don't shift earlier offsets
+      filtered.sort((a, b) => b.start - a.start);
+
       let anonymized = text;
 
-      for (const result of sorted) {
+      for (const result of filtered) {
         const originalValue = text.slice(result.start, result.end);
         const token = vault.makeToken(originalValue, result.entity_type);
         vault.store(token, originalValue, result.entity_type);

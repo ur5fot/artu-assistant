@@ -65,13 +65,15 @@ export class PiiVault {
     db.prepare(
       `INSERT INTO pii_tokens (token, encrypted_value, entity_type)
        VALUES (?, ?, ?)
-       ON CONFLICT(token) DO UPDATE SET encrypted_value = excluded.encrypted_value, entity_type = excluded.entity_type`
+       ON CONFLICT(token) DO UPDATE SET encrypted_value = excluded.encrypted_value, entity_type = excluded.entity_type, expires_at = datetime('now', '+7 days')`
     ).run(token, this.encrypt(value), entityType);
   }
 
   retrieve(token: string): string | null {
     const db = getDb();
-    const row = db.prepare('SELECT encrypted_value FROM pii_tokens WHERE token = ?').get(token) as { encrypted_value: string } | undefined;
+    const row = db.prepare(
+      "SELECT encrypted_value FROM pii_tokens WHERE token = ? AND (expires_at IS NULL OR expires_at >= datetime('now'))"
+    ).get(token) as { encrypted_value: string } | undefined;
     if (!row) return null;
     return this.decrypt(row.encrypted_value);
   }
@@ -81,4 +83,8 @@ export class PiiVault {
     db.prepare('DELETE FROM pii_tokens').run();
   }
 
+  clearExpired(): void {
+    const db = getDb();
+    db.prepare("DELETE FROM pii_tokens WHERE expires_at < datetime('now')").run();
+  }
 }
