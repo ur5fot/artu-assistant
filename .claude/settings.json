@@ -4,10 +4,12 @@
       "Bash(du -sh /Users/dim/code/R2-D2/*)",
       "Read(//Users/dim/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/subagent-driven-development/**)",
       "Skill(ralphex:ralphex)",
-      "Skill(ralphex:ralphex:*)"
+      "Skill(ralphex:ralphex:*)",
+      "Bash(ralphex --review --max-iterations 25 docs/superpowers/plans/completed/2026-04-07-audit-log-autodiscovery.md)"
     ],
     "additionalDirectories": [
-      "/Users/dim/code/R2-D2"
+      "/Users/dim/code/R2-D2",
+      "/Users/dim/.claude/projects/-Users-dim-code-R2-D2/memory"
     ]
   }
 }
