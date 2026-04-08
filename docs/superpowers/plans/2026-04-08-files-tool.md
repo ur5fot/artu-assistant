@@ -993,7 +993,7 @@ git commit -m "feat: implement 5 file operations with security checks"
 **Файлы:**
 - Создать: `packages/tool-files/src/index.ts`
 
-- [ ] **Шаг 1: Создать index.ts**
+- [x] **Шаг 1: Создать index.ts**
 
 Создать `packages/tool-files/src/index.ts`:
 
@@ -1088,7 +1088,7 @@ const tools = [
 export default tools;
 ```
 
-- [ ] **Шаг 2: Запустить все тесты**
+- [x] **Шаг 2: Запустить все тесты**
 
 ```bash
 npm test
@@ -1096,7 +1096,7 @@ npm test
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 3: Typecheck**
+- [x] **Шаг 3: Typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/tool-files/tsconfig.json
@@ -1104,7 +1104,7 @@ npx tsc --noEmit -p packages/tool-files/tsconfig.json
 
 Ожидание: нет ошибок.
 
-- [ ] **Шаг 4: Коммит**
+- [x] **Шаг 4: Коммит**
 
 ```bash
 git add packages/tool-files/src/index.ts
