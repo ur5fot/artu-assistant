@@ -6,7 +6,8 @@
       "Skill(ralphex:ralphex)",
       "Skill(ralphex:ralphex:*)",
       "Bash(ralphex --review --max-iterations 25 docs/superpowers/plans/completed/2026-04-07-audit-log-autodiscovery.md)",
-      "Bash(ralphex --max-iterations 50 docs/superpowers/plans/2026-04-08-files-tool.md)"
+      "Bash(ralphex --max-iterations 50 docs/superpowers/plans/2026-04-08-files-tool.md)",
+      "Bash(ralphex --max-iterations 25 docs/superpowers/plans/2026-04-08-searxng-search.md)"
     ],
     "additionalDirectories": [
       "/Users/dim/code/R2-D2",
