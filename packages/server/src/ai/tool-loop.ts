@@ -77,10 +77,10 @@ export async function runToolLoop({
   const anonymizedMessages: MessageParam[] = [];
   const allPiiEntities: Array<{ type: string; token: string }> = [];
   for (const msg of currentMessages) {
-    if (msg.role === 'user' && typeof msg.content === 'string') {
+    if (typeof msg.content === 'string') {
       const result = await piiProxy.anonymize(msg.content);
-      anonymizedMessages.push({ role: 'user', content: result.text });
-      allPiiEntities.push(...result.entities);
+      anonymizedMessages.push({ role: msg.role, content: result.text });
+      if (msg.role === 'user') allPiiEntities.push(...result.entities);
     } else {
       anonymizedMessages.push(msg);
     }
@@ -220,7 +220,13 @@ export async function runToolLoop({
       if (result.data) {
         const anonResult = await piiProxy.anonymize(JSON.stringify(result.data));
         if (anonResult.entities.length > 0) {
-          result = { ...result, data: JSON.parse(anonResult.text) };
+          try {
+            result = { ...result, data: JSON.parse(anonResult.text) };
+          } catch {
+            // Token replacement broke JSON structure (e.g. PII in numeric values);
+            // fall back to the anonymized string representation
+            result = { ...result, data: anonResult.text };
+          }
         }
       }
 
