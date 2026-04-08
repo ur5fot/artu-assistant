@@ -78,17 +78,27 @@ export async function writeFile(root: string, filePath: string, content: string)
   };
 }
 
-function countAll(dir: string, recursive: boolean): number {
-  const items = fs.readdirSync(dir, { withFileTypes: true });
-  let count = items.length;
-  if (recursive) {
-    for (const item of items) {
-      if (item.isDirectory()) {
-        count += countAll(path.join(dir, item.name), true);
+const COUNT_CAP = 100_000;
+
+function countAll(dir: string, recursive: boolean): { count: number; capped: boolean } {
+  let count = 0;
+
+  function walk(d: string): void {
+    if (count >= COUNT_CAP) return;
+    const items = fs.readdirSync(d, { withFileTypes: true });
+    count += items.length;
+    if (recursive) {
+      for (const item of items) {
+        if (count >= COUNT_CAP) return;
+        if (item.isDirectory()) {
+          walk(path.join(d, item.name));
+        }
       }
     }
   }
-  return count;
+
+  walk(dir);
+  return { count, capped: count >= COUNT_CAP };
 }
 
 function collectEntries(
@@ -130,8 +140,9 @@ export async function listFiles(root: string, dirPath: string, recursive: boolea
   const displayLines = entries.map((e) => `${e.type === 'directory' ? '[dir]' : '     '} ${e.name}`);
   let displayContent = displayLines.join('\n');
   if (truncated) {
-    const totalCount = countAll(resolved, recursive);
-    displayContent += `\n\n(truncated, ${MAX_LIST_ENTRIES} of ${totalCount} total)`;
+    const { count: totalCount, capped } = countAll(resolved, recursive);
+    const totalLabel = capped ? `${COUNT_CAP}+` : `${totalCount}`;
+    displayContent += `\n\n(truncated, ${MAX_LIST_ENTRIES} of ${totalLabel} total)`;
   }
 
   return {
@@ -185,6 +196,10 @@ export async function moveFile(root: string, source: string, destination: string
 
   if (!fs.existsSync(resolvedSrc)) {
     return { success: false, error: `Source not found: ${source}` };
+  }
+
+  if (fs.statSync(resolvedSrc).isDirectory()) {
+    return { success: false, error: 'Cannot move directories' };
   }
 
   if (fs.existsSync(resolvedDst)) {

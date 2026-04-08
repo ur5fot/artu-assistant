@@ -198,6 +198,13 @@ describe('File Operations', () => {
       expect(fs.readFileSync(path.join(root, 'src.txt'), 'utf-8')).toBe('source');
       expect(fs.readFileSync(path.join(root, 'dst.txt'), 'utf-8')).toBe('existing');
     });
+
+    it('rejects moving directories', async () => {
+      fs.mkdirSync(path.join(root, 'mydir'));
+      const result = await moveFile(root, 'mydir', 'newname');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Cannot move directories');
+    });
   });
 
   describe('writeFile', () => {
