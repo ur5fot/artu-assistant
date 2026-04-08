@@ -38,6 +38,7 @@ export function safePath(root: string, userPath: string): string {
     // Path doesn't exist yet (e.g. write destination) — check the closest existing ancestor
     if (e instanceof Error && 'code' in e && (e as NodeJS.ErrnoException).code === 'ENOENT') {
       let ancestor = path.dirname(resolved);
+      let validated = false;
       while (ancestor !== path.dirname(ancestor)) {
         try {
           const realAncestor = fs.realpathSync(ancestor);
@@ -45,6 +46,7 @@ export function safePath(root: string, userPath: string): string {
           if (!isInsideRoot(realAncestor, realRoot)) {
             throw new Error('Path outside allowed directory');
           }
+          validated = true;
           break;
         } catch (innerErr: unknown) {
           if (innerErr instanceof Error && innerErr.message === 'Path outside allowed directory') {
@@ -52,6 +54,9 @@ export function safePath(root: string, userPath: string): string {
           }
           ancestor = path.dirname(ancestor);
         }
+      }
+      if (!validated) {
+        throw new Error('Path outside allowed directory');
       }
     } else {
       // Unknown errors (EACCES, ELOOP, etc.) — deny access rather than fail open
