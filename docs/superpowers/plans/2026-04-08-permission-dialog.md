@@ -1001,7 +1001,7 @@ git commit -m "feat: wire confirm and permissions routes into server"
 **Файлы:**
 - Создать: `packages/client/src/components/PermissionCard.tsx`
 
-- [ ] **Шаг 1: Создать PermissionCard.tsx**
+- [x] **Шаг 1: Создать PermissionCard.tsx**
 
 Создать `packages/client/src/components/PermissionCard.tsx`:
 
@@ -1140,7 +1140,7 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
 }
 ```
 
-- [ ] **Шаг 2: Коммит**
+- [x] **Шаг 2: Коммит**
 
 ```bash
 git add packages/client/src/components/PermissionCard.tsx
