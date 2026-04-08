@@ -7,7 +7,7 @@ export function resolveRoot(): string {
   if (!raw) return path.join(os.homedir(), 'Documents', 'r2');
   if (raw === '~') return os.homedir();
   if (raw.startsWith('~/')) return path.join(os.homedir(), raw.slice(2));
-  return raw;
+  return path.resolve(raw);
 }
 
 function isInsideRoot(target: string, rootDir: string): boolean {

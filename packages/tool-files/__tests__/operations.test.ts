@@ -120,7 +120,7 @@ describe('File Operations', () => {
       expect(result.success).toBe(true);
       const entries = result.data as Array<{ name: string; type: string }>;
       expect(entries).toHaveLength(1000);
-      expect(result.display?.content).toContain('truncated, 1000 of 1005 total');
+      expect(result.display?.content).toContain('truncated, showing first 1000 entries');
     });
   });
 

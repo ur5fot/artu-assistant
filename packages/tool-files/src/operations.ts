@@ -85,29 +85,6 @@ export async function writeFile(root: string, filePath: string, content: string)
   }
 }
 
-const COUNT_CAP = 100_000;
-
-function countAll(dir: string, recursive: boolean): { count: number; capped: boolean } {
-  let count = 0;
-
-  function walk(d: string): void {
-    if (count >= COUNT_CAP) return;
-    const items = fs.readdirSync(d, { withFileTypes: true });
-    count += items.length;
-    if (recursive) {
-      for (const item of items) {
-        if (count >= COUNT_CAP) return;
-        if (item.isDirectory()) {
-          walk(path.join(d, item.name));
-        }
-      }
-    }
-  }
-
-  walk(dir);
-  return { count, capped: count >= COUNT_CAP };
-}
-
 function collectEntries(
   dir: string,
   prefix: string,
@@ -116,7 +93,7 @@ function collectEntries(
 ): void {
   const items = fs.readdirSync(dir, { withFileTypes: true });
   for (const item of items) {
-    if (entries.length > MAX_LIST_ENTRIES) return;
+    if (entries.length >= MAX_LIST_ENTRIES) return;
     const name = prefix ? `${prefix}/${item.name}` : item.name;
     const type = item.isDirectory() ? 'directory' : 'file';
     entries.push({ name, type });
@@ -144,14 +121,11 @@ export async function listFiles(root: string, dirPath: string, recursive: boolea
     const entries: Array<{ name: string; type: string }> = [];
     collectEntries(resolved, '', recursive, entries);
 
-    const truncated = entries.length > MAX_LIST_ENTRIES;
-    if (truncated) entries.length = MAX_LIST_ENTRIES;
+    const truncated = entries.length >= MAX_LIST_ENTRIES;
     const displayLines = entries.map((e) => `${e.type === 'directory' ? '[dir]' : '     '} ${e.name}`);
     let displayContent = displayLines.join('\n');
     if (truncated) {
-      const { count: totalCount, capped } = countAll(resolved, recursive);
-      const totalLabel = capped ? `${COUNT_CAP}+` : `${totalCount}`;
-      displayContent += `\n\n(truncated, ${MAX_LIST_ENTRIES} of ${totalLabel} total)`;
+      displayContent += `\n\n(truncated, showing first ${MAX_LIST_ENTRIES} entries)`;
     }
 
     return {
@@ -227,17 +201,14 @@ export async function moveFile(root: string, source: string, destination: string
     // Use link+unlink to move without overwrite race (link fails atomically if dest exists).
     // Fall back to copy+unlink when hard links aren't supported (EXDEV, EPERM, ENOTSUP, EOPNOTSUPP).
     const fallbackCodes = new Set(['EXDEV', 'EPERM', 'ENOTSUP', 'EOPNOTSUPP']);
-    let dstCreated = false;
     try {
       fs.linkSync(resolvedSrc, resolvedDst);
-      dstCreated = true;
     } catch (linkErr: unknown) {
       const code = linkErr instanceof Error && 'code' in linkErr
         ? (linkErr as NodeJS.ErrnoException).code
         : undefined;
       if (code && fallbackCodes.has(code)) {
         fs.copyFileSync(resolvedSrc, resolvedDst, fs.constants.COPYFILE_EXCL);
-        dstCreated = true;
       } else {
         throw linkErr;
       }
