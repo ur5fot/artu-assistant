@@ -150,7 +150,7 @@ git commit -m "feat: add permissionLevel to ToolDefinition"
 - Изменить: `packages/server/src/ai/tool-loop.ts`
 - Изменить: `packages/server/src/ai/__tests__/tool-loop.test.ts`
 
-- [ ] **Шаг 1: Написать failing тест для permission блокировки**
+- [x] **Шаг 1: Написать failing тест для permission блокировки**
 
 Добавить в `packages/server/src/ai/__tests__/tool-loop.test.ts` внутри describe `'Agentic Tool Loop'`, после последнего теста:
 
@@ -251,7 +251,7 @@ git commit -m "feat: add permissionLevel to ToolDefinition"
   });
 ```
 
-- [ ] **Шаг 2: Запустить тест — убедиться что падает**
+- [x] **Шаг 2: Запустить тест — убедиться что падает**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -259,7 +259,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
 
 Ожидание: FAIL — handler вызывается для confirm/forbidden (нет проверки permission).
 
-- [ ] **Шаг 3: Добавить permission enforcement в tool-loop.ts**
+- [x] **Шаг 3: Добавить permission enforcement в tool-loop.ts**
 
 Изменить `packages/server/src/ai/tool-loop.ts`. Заменить блок выполнения tool (строки 83-95):
 
@@ -301,7 +301,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
       }
 ```
 
-- [ ] **Шаг 4: Запустить тесты**
+- [x] **Шаг 4: Запустить тесты**
 
 ```bash
 npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -309,7 +309,7 @@ npx vitest run packages/server/src/ai/__tests__/tool-loop.test.ts
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts packages/server/src/ai/__tests__/tool-loop.test.ts
