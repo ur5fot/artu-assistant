@@ -1411,13 +1411,13 @@ git commit -m "feat: show all tools to Claude, enforce permissions at execution 
 
 ## Задача 9: Финальная интеграция
 
-- [ ] **Шаг 1: Установить зависимости**
+- [x] **Шаг 1: Установить зависимости**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm install
 ```
 
-- [ ] **Шаг 2: Запустить все тесты**
+- [x] **Шаг 2: Запустить все тесты**
 
 ```bash
 npm test
@@ -1425,7 +1425,7 @@ npm test
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 3: Typecheck всех пакетов**
+- [x] **Шаг 3: Typecheck всех пакетов**
 
 ```bash
 npx tsc --noEmit -p packages/shared/tsconfig.json && \
@@ -1437,7 +1437,7 @@ npx tsc --noEmit -p packages/client/tsconfig.json
 
 Ожидание: нет ошибок.
 
-- [ ] **Шаг 4: Коммит**
+- [x] **Шаг 4: Коммит**
 
 ```bash
 git add -A
