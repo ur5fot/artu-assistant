@@ -6,5 +6,7 @@ dist/
 *.enc
 *.tsbuildinfo
 
+# searxng/ is NOT ignored — it contains config, not data
+
 # ralphex progress logs
 .ralphex/progress/

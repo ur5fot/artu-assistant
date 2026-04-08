@@ -37,7 +37,7 @@ r2/
 - Создать: `searxng/settings.yml`
 - Создать: `searxng/limiter.toml`
 
-- [ ] **Шаг 1: Создать docker-compose.yml**
+- [x] **Шаг 1: Создать docker-compose.yml**
 
 Создать `docker-compose.yml`:
 
@@ -55,7 +55,7 @@ services:
       - SEARXNG_BASE_URL=http://localhost:8888
 ```
 
-- [ ] **Шаг 2: Создать searxng/settings.yml**
+- [x] **Шаг 2: Создать searxng/settings.yml**
 
 Создать `searxng/settings.yml`:
 
@@ -75,7 +75,7 @@ search:
   autocomplete: ""
 ```
 
-- [ ] **Шаг 3: Создать searxng/limiter.toml**
+- [x] **Шаг 3: Создать searxng/limiter.toml**
 
 Создать `searxng/limiter.toml`:
 
@@ -88,11 +88,11 @@ link_token = false
 pass_ip = ["127.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "10.0.0.0/8"]
 ```
 
-- [ ] **Шаг 4: Добавить searxng/ в .gitignore исключения**
+- [x] **Шаг 4: Добавить searxng/ в .gitignore исключения**
 
 В `.gitignore` добавить комментарий что `searxng/` НЕ игнорируется (это конфиг, не данные). Убедиться что директория `searxng/` трекается git.
 
-- [ ] **Шаг 5: Коммит**
+- [x] **Шаг 5: Коммит**
 
 ```bash
 git add docker-compose.yml searxng/
@@ -106,7 +106,7 @@ git commit -m "feat: add SearXNG Docker setup for self-hosted search"
 **Файлы:**
 - Изменить: `packages/tool-web-search/src/index.ts`
 
-- [ ] **Шаг 1: Заменить реализацию web_search**
+- [x] **Шаг 1: Заменить реализацию web_search**
 
 Заменить содержимое `packages/tool-web-search/src/index.ts`:
 
@@ -203,7 +203,7 @@ export const webSearchTool = {
 export default webSearchTool;
 ```
 
-- [ ] **Шаг 2: Коммит**
+- [x] **Шаг 2: Коммит**
 
 ```bash
 git add packages/tool-web-search/src/index.ts
@@ -217,7 +217,7 @@ git commit -m "feat: replace Brave Search with SearXNG in web_search tool"
 **Файлы:**
 - Изменить: `packages/tool-web-search/__tests__/web-search.test.ts`
 
-- [ ] **Шаг 1: Заменить тесты**
+- [x] **Шаг 1: Заменить тесты**
 
 Заменить содержимое `packages/tool-web-search/__tests__/web-search.test.ts`:
 
@@ -375,7 +375,7 @@ describe('web_search tool', () => {
 });
 ```
 
-- [ ] **Шаг 2: Запустить тесты**
+- [x] **Шаг 2: Запустить тесты**
 
 ```bash
 npx vitest run packages/tool-web-search/__tests__/web-search.test.ts
@@ -383,7 +383,7 @@ npx vitest run packages/tool-web-search/__tests__/web-search.test.ts
 
 Ожидание: 8 тестов PASS.
 
-- [ ] **Шаг 3: Коммит**
+- [x] **Шаг 3: Коммит**
 
 ```bash
 git add packages/tool-web-search/__tests__/web-search.test.ts
@@ -399,7 +399,7 @@ git commit -m "test: update web_search tests for SearXNG"
 - Изменить: `AGENTS.md`
 - Изменить: `packages/server/src/routes/__tests__/chat.test.ts` (если есть Brave references в sanitize)
 
-- [ ] **Шаг 1: Обновить .env.example**
+- [x] **Шаг 1: Обновить .env.example**
 
 Заменить содержимое `.env.example`:
 
@@ -415,7 +415,7 @@ DB_PATH=./data/r2.db
 R2_FILES_ROOT=~/Documents/r2
 ```
 
-- [ ] **Шаг 2: Обновить AGENTS.md — заменить Brave на SearXNG в стеке**
+- [x] **Шаг 2: Обновить AGENTS.md — заменить Brave на SearXNG в стеке**
 
 В секции `## Стек` заменить строку:
 ```
@@ -431,15 +431,15 @@ R2_FILES_ROOT=~/Documents/r2
 SEARXNG_URL=http://localhost:8888
 ```
 
-- [ ] **Шаг 3: Обновить error sanitization в chat.test.ts**
+- [x] **Шаг 3: Обновить error sanitization в chat.test.ts**
 
 Проверить `packages/server/src/routes/__tests__/chat.test.ts` — если есть тесты для sanitize "brave" ошибок, обновить на "searxng" или "search". Если sanitize проверяет общий паттерн "search" — оставить как есть.
 
-- [ ] **Шаг 4: Обновить error sanitization в chat.ts**
+- [x] **Шаг 4: Обновить error sanitization в chat.ts**
 
 Проверить `packages/server/src/routes/chat.ts` — если `sanitizeError()` фильтрует "brave", заменить на "searxng" или убрать специфичный фильтр (SearXNG localhost, нет ключей для утечки).
 
-- [ ] **Шаг 5: Запустить все тесты**
+- [x] **Шаг 5: Запустить все тесты**
 
 ```bash
 npm test
@@ -447,7 +447,7 @@ npm test
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 6: Typecheck**
+- [x] **Шаг 6: Typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/tool-web-search/tsconfig.json && \
@@ -456,7 +456,7 @@ npx tsc --noEmit -p packages/server/tsconfig.json
 
 Ожидание: нет ошибок.
 
-- [ ] **Шаг 7: Коммит**
+- [x] **Шаг 7: Коммит**
 
 ```bash
 git add .env.example AGENTS.md packages/server/src/routes/
@@ -470,7 +470,7 @@ git commit -m "feat: complete SearXNG migration — update config, docs, and err
 **Файлы:**
 - Изменить: `AGENTS.md`
 
-- [ ] **Шаг 1: Обновить секцию запуска**
+- [x] **Шаг 1: Обновить секцию запуска**
 
 В секции `### Запуск` (Phase 1) заменить:
 ```bash
@@ -486,7 +486,7 @@ docker compose up -d
 npm run dev
 ```
 
-- [ ] **Шаг 2: Коммит**
+- [x] **Шаг 2: Коммит**
 
 ```bash
 git add AGENTS.md
