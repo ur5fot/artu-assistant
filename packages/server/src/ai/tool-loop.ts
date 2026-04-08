@@ -129,8 +129,15 @@ export async function runToolLoop({
       if (block.type !== 'tool_use') continue;
       if (signal?.aborted) return;
 
-      // Deanonymize tool input once before branching
-      const deanonInput = JSON.parse(await piiProxy.deanonymize(JSON.stringify(block.input)));
+      // Deanonymize tool input field-by-field to avoid JSON breakage from special chars
+      const deanonInput: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(block.input as Record<string, unknown>)) {
+        if (typeof value === 'string') {
+          deanonInput[key] = await piiProxy.deanonymize(value);
+        } else {
+          deanonInput[key] = value;
+        }
+      }
 
       const toolCall: ToolCall = {
         id: block.id,
