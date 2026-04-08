@@ -193,7 +193,7 @@ git commit -m "feat: add permission_rules table with get/save/clear"
 - Создать: `packages/server/src/routes/__tests__/confirm.test.ts`
 - Создать: `packages/server/src/routes/__tests__/permissions.test.ts`
 
-- [ ] **Шаг 1: Написать failing тесты для confirm route**
+- [x] **Шаг 1: Написать failing тесты для confirm route**
 
 Создать `packages/server/src/routes/__tests__/confirm.test.ts`:
 
@@ -252,7 +252,7 @@ describe('POST /api/confirm', () => {
 });
 ```
 
-- [ ] **Шаг 2: Написать failing тесты для permissions route**
+- [x] **Шаг 2: Написать failing тесты для permissions route**
 
 Создать `packages/server/src/routes/__tests__/permissions.test.ts`:
 
@@ -296,7 +296,7 @@ describe('DELETE /api/permissions', () => {
 });
 ```
 
-- [ ] **Шаг 3: Запустить тесты — убедиться что падает**
+- [x] **Шаг 3: Запустить тесты — убедиться что падает**
 
 ```bash
 npx vitest run packages/server/src/routes/__tests__/confirm.test.ts packages/server/src/routes/__tests__/permissions.test.ts
@@ -304,7 +304,7 @@ npx vitest run packages/server/src/routes/__tests__/confirm.test.ts packages/ser
 
 Ожидание: FAIL — модули не существуют.
 
-- [ ] **Шаг 4: Реализовать confirm route**
+- [x] **Шаг 4: Реализовать confirm route**
 
 Создать `packages/server/src/routes/confirm.ts`:
 
@@ -361,7 +361,7 @@ export function createConfirmRouter(pendingConfirms: PendingConfirms): Router {
 }
 ```
 
-- [ ] **Шаг 5: Реализовать permissions route**
+- [x] **Шаг 5: Реализовать permissions route**
 
 Создать `packages/server/src/routes/permissions.ts`:
 
@@ -382,7 +382,7 @@ export function createPermissionsRouter(): Router {
 }
 ```
 
-- [ ] **Шаг 6: Запустить тесты**
+- [x] **Шаг 6: Запустить тесты**
 
 ```bash
 npx vitest run packages/server/src/routes/__tests__/confirm.test.ts packages/server/src/routes/__tests__/permissions.test.ts
@@ -390,7 +390,7 @@ npx vitest run packages/server/src/routes/__tests__/confirm.test.ts packages/ser
 
 Ожидание: все тесты PASS.
 
-- [ ] **Шаг 7: Коммит**
+- [x] **Шаг 7: Коммит**
 
 ```bash
 git add packages/server/src/routes/confirm.ts packages/server/src/routes/permissions.ts packages/server/src/routes/__tests__/confirm.test.ts packages/server/src/routes/__tests__/permissions.test.ts
