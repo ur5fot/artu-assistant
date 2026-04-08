@@ -1,11 +1,19 @@
 import type { Message } from '@r2/shared';
 import { ToolCallCard } from './ToolCallCard';
+import { PermissionCard } from './PermissionCard';
+
+interface PendingConfirm {
+  callId: string;
+  level: 'confirm' | 'forbidden';
+}
 
 interface Props {
   message: Message;
+  pendingConfirms: Map<string, PendingConfirm>;
+  onRespond: (callId: string, allowed: boolean, remember: boolean) => void;
 }
 
-export function MessageBubble({ message }: Props) {
+export function MessageBubble({ message, pendingConfirms, onRespond }: Props) {
   const isUser = message.role === 'user';
 
   return (
@@ -15,9 +23,20 @@ export function MessageBubble({ message }: Props) {
       alignItems: isUser ? 'flex-end' : 'flex-start',
       marginBottom: 12,
     }}>
-      {message.toolCalls?.map((tc) => (
-        <ToolCallCard key={tc.id} toolCall={tc} />
-      ))}
+      {message.toolCalls?.map((tc) => {
+        const pending = pendingConfirms.get(tc.id);
+        if (pending) {
+          return (
+            <PermissionCard
+              key={tc.id}
+              toolCall={tc}
+              level={pending.level}
+              onRespond={onRespond}
+            />
+          );
+        }
+        return <ToolCallCard key={tc.id} toolCall={tc} />;
+      })}
       {message.content && (
         <div style={{
           maxWidth: '80%',

@@ -2,10 +2,16 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Message, ToolCall } from '@r2/shared';
 import { connectSSE, type SSEConnection } from '../utils/sse';
 
+interface PendingConfirm {
+  callId: string;
+  level: 'confirm' | 'forbidden';
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingConfirms, setPendingConfirms] = useState<Map<string, PendingConfirm>>(new Map());
   const connectionRef = useRef<SSEConnection | null>(null);
 
   const sendingRef = useRef(false);
@@ -93,6 +99,28 @@ export function useChat() {
             break;
           }
 
+          case 'tool_confirm_request':
+            setPendingConfirms((prev) => {
+              const next = new Map(prev);
+              next.set(event.toolCall.id, { callId: event.toolCall.id, level: event.level });
+              return next;
+            });
+            toolCalls.push({ ...event.toolCall, status: 'running' });
+            setMessages((prev) => {
+              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
+              return [
+                ...base,
+                {
+                  id: assistantId,
+                  role: 'assistant' as const,
+                  content: assistantText,
+                  toolCalls: [...toolCalls],
+                  timestamp: Date.now(),
+                },
+              ];
+            });
+            break;
+
           case 'error':
             setError(event.message);
             setLoading(false);
@@ -120,6 +148,23 @@ export function useChat() {
     sendingRef.current = false;
   }, []);
 
+  const respondToConfirm = useCallback(async (callId: string, allowed: boolean, remember: boolean) => {
+    try {
+      await fetch('/api/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callId, allowed, remember }),
+      });
+      setPendingConfirms((prev) => {
+        const next = new Map(prev);
+        next.delete(callId);
+        return next;
+      });
+    } catch (err) {
+      console.error('Failed to send confirm response:', err);
+    }
+  }, []);
+
   // Clean up SSE connection on unmount
   useEffect(() => {
     return () => {
@@ -127,5 +172,5 @@ export function useChat() {
     };
   }, []);
 
-  return { messages, loading, error, send, stop };
+  return { messages, loading, error, send, stop, pendingConfirms, respondToConfirm };
 }
