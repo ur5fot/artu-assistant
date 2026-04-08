@@ -8,10 +8,10 @@ interface Props {
 }
 
 export function PermissionCard({ toolCall, level, onRespond }: Props) {
-  const [responded, setResponded] = useState(false);
   const [decision, setDecision] = useState<'allowed' | 'denied' | null>(null);
   const [remember, setRemember] = useState(false);
   const [pulse, setPulse] = useState(false);
+  const responded = decision !== null;
 
   // Pulse reminder after 60 seconds
   useEffect(() => {
@@ -21,7 +21,6 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
   }, [responded]);
 
   const handleRespond = (allowed: boolean) => {
-    setResponded(true);
     setDecision(allowed ? 'allowed' : 'denied');
     onRespond(toolCall.id, allowed, remember);
   };

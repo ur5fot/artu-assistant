@@ -499,6 +499,232 @@ describe('Agentic Tool Loop', () => {
   });
 });
 
+describe('Agentic Tool Loop — Permission Rules', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2-perm-loop-'));
+    initDb(path.join(tmpDir, 'test.db'));
+  });
+
+  afterEach(() => {
+    closeDb();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('auto-denies tool when saved rule has allowed=false', async () => {
+    const { savePermissionRule } = await import('../../db.js');
+    savePermissionRule('write_file', false);
+
+    const client = mockClaudeClient([
+      {
+        content: [
+          { type: 'tool_use', id: 'call_deny', name: 'write_file', input: { path: 'x.txt' } },
+        ],
+        stop_reason: 'tool_use',
+      },
+      {
+        content: [{ type: 'text', text: 'Denied.' }],
+        stop_reason: 'end_turn',
+      },
+    ]);
+
+    const toolDefs = [{
+      name: 'write_file',
+      description: 'Write a file',
+      permissionLevel: 'confirm' as const,
+      parameters: { type: 'object' as const, properties: {}, required: [] },
+      handler: vi.fn(async () => ({ success: true, data: 'written' })),
+    }];
+
+    const registry: ToolRegistry = {
+      register: vi.fn(),
+      get: (name: string) => toolDefs.find((t) => t.name === name),
+      getAll: () => toolDefs,
+    };
+
+    const events: SSEEvent[] = [];
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'Write file' }],
+      client,
+      registry,
+      onEvent: (e) => events.push(e),
+      pendingConfirms: new Map(),
+    });
+
+    expect(toolDefs[0].handler).not.toHaveBeenCalled();
+    expect(events.some(e => e.type === 'tool_confirm_request')).toBe(false);
+    const resultEvent = events.find(e => e.type === 'tool_call_result');
+    expect(resultEvent).toBeDefined();
+    if (resultEvent && resultEvent.type === 'tool_call_result') {
+      expect(resultEvent.result.success).toBe(false);
+      expect(resultEvent.result.error).toContain('denied');
+    }
+  });
+
+  it('saves permission rule to DB when remember=true', async () => {
+    const { getPermissionRule } = await import('../../db.js');
+
+    const client = mockClaudeClient([
+      {
+        content: [
+          { type: 'tool_use', id: 'call_rem', name: 'write_file', input: { path: 'x.txt' } },
+        ],
+        stop_reason: 'tool_use',
+      },
+      {
+        content: [{ type: 'text', text: 'Done.' }],
+        stop_reason: 'end_turn',
+      },
+    ]);
+
+    const toolDefs = [{
+      name: 'write_file',
+      description: 'Write a file',
+      permissionLevel: 'confirm' as const,
+      parameters: { type: 'object' as const, properties: {}, required: [] },
+      handler: vi.fn(async () => ({ success: true, data: 'written' })),
+    }];
+
+    const registry: ToolRegistry = {
+      register: vi.fn(),
+      get: (name: string) => toolDefs.find((t) => t.name === name),
+      getAll: () => toolDefs,
+    };
+
+    const pendingConfirms = new Map();
+    const onEvent = (e: SSEEvent) => {
+      if (e.type === 'tool_confirm_request') {
+        const resolve = pendingConfirms.get(e.toolCall.id);
+        if (resolve) {
+          pendingConfirms.delete(e.toolCall.id);
+          resolve({ allowed: true, remember: true });
+        }
+      }
+    };
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'Write file' }],
+      client,
+      registry,
+      onEvent,
+      pendingConfirms,
+    });
+
+    const rule = getPermissionRule('write_file');
+    expect(rule).toEqual({ allowed: true });
+  });
+
+  it('does not save permission rule for forbidden tools even with remember=true', async () => {
+    const { getPermissionRule } = await import('../../db.js');
+
+    const client = mockClaudeClient([
+      {
+        content: [
+          { type: 'tool_use', id: 'call_forb', name: 'dangerous', input: {} },
+        ],
+        stop_reason: 'tool_use',
+      },
+      {
+        content: [{ type: 'text', text: 'Done.' }],
+        stop_reason: 'end_turn',
+      },
+    ]);
+
+    const toolDefs = [{
+      name: 'dangerous',
+      description: 'Dangerous tool',
+      permissionLevel: 'forbidden' as const,
+      parameters: { type: 'object' as const, properties: {}, required: [] },
+      handler: vi.fn(async () => ({ success: true, data: 'done' })),
+    }];
+
+    const registry: ToolRegistry = {
+      register: vi.fn(),
+      get: (name: string) => toolDefs.find((t) => t.name === name),
+      getAll: () => toolDefs,
+    };
+
+    const pendingConfirms = new Map();
+    const onEvent = (e: SSEEvent) => {
+      if (e.type === 'tool_confirm_request') {
+        const resolve = pendingConfirms.get(e.toolCall.id);
+        if (resolve) {
+          pendingConfirms.delete(e.toolCall.id);
+          resolve({ allowed: true, remember: true });
+        }
+      }
+    };
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'Do it' }],
+      client,
+      registry,
+      onEvent,
+      pendingConfirms,
+    });
+
+    const rule = getPermissionRule('dangerous');
+    expect(rule).toBeNull();
+  });
+
+  it('resolves with denied when signal aborts during confirm wait', async () => {
+    const controller = new AbortController();
+
+    const client = mockClaudeClient([
+      {
+        content: [
+          { type: 'tool_use', id: 'call_abort', name: 'write_file', input: { path: 'x.txt' } },
+        ],
+        stop_reason: 'tool_use',
+      },
+      {
+        content: [{ type: 'text', text: 'Done.' }],
+        stop_reason: 'end_turn',
+      },
+    ]);
+
+    const toolDefs = [{
+      name: 'write_file',
+      description: 'Write a file',
+      permissionLevel: 'confirm' as const,
+      parameters: { type: 'object' as const, properties: {}, required: [] },
+      handler: vi.fn(async () => ({ success: true, data: 'written' })),
+    }];
+
+    const registry: ToolRegistry = {
+      register: vi.fn(),
+      get: (name: string) => toolDefs.find((t) => t.name === name),
+      getAll: () => toolDefs,
+    };
+
+    const events: SSEEvent[] = [];
+    const pendingConfirms = new Map();
+
+    // Abort shortly after confirm request is sent
+    const onEvent = (e: SSEEvent) => {
+      events.push(e);
+      if (e.type === 'tool_confirm_request') {
+        setTimeout(() => controller.abort(), 10);
+      }
+    };
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'Write file' }],
+      client,
+      registry,
+      onEvent,
+      pendingConfirms,
+      signal: controller.signal,
+    });
+
+    // Tool should NOT have been executed (denied by abort)
+    expect(toolDefs[0].handler).not.toHaveBeenCalled();
+    // Pending confirm should be cleaned up
+    expect(pendingConfirms.size).toBe(0);
+  });
+});
+
 describe('Agentic Tool Loop — Audit Logging', () => {
   let tmpDir: string;
 

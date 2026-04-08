@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import type { SSEEvent } from '@r2/shared';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
-import type { PendingConfirms } from '../ai/tool-loop.js';
+import type { PendingConfirms } from './confirm.js';
 
 function sanitizeError(message: string): string {
   // Strip potentially sensitive details (API keys, internal paths, upstream provider info)

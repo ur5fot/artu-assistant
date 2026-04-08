@@ -1,11 +1,7 @@
 import type { Message } from '@r2/shared';
 import { ToolCallCard } from './ToolCallCard';
 import { PermissionCard } from './PermissionCard';
-
-interface PendingConfirm {
-  callId: string;
-  level: 'confirm' | 'forbidden';
-}
+import type { PendingConfirm } from '../hooks/useChat';
 
 interface Props {
   message: Message;

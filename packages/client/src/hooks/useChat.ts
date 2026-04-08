@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Message, ToolCall } from '@r2/shared';
 import { connectSSE, type SSEConnection } from '../utils/sse';
 
-interface PendingConfirm {
+export interface PendingConfirm {
   callId: string;
   level: 'confirm' | 'forbidden';
 }
@@ -150,11 +150,15 @@ export function useChat() {
 
   const respondToConfirm = useCallback(async (callId: string, allowed: boolean, remember: boolean) => {
     try {
-      await fetch('/api/confirm', {
+      const res = await fetch('/api/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ callId, allowed, remember }),
       });
+      if (!res.ok) {
+        console.error('Confirm response failed:', res.status, await res.text());
+        return;
+      }
       setPendingConfirms((prev) => {
         const next = new Map(prev);
         next.delete(callId);

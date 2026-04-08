@@ -2,13 +2,11 @@ import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
 import type { SSEEvent, ToolCall, ToolResult } from '@r2/shared';
 import type { ClaudeClient } from './claude.js';
 import type { ToolRegistry } from '../tools/registry.js';
-import type { ConfirmResponse } from '../routes/confirm.js';
+import type { ConfirmResponse, PendingConfirms } from '../routes/confirm.js';
 import { toClaudeTool } from '../tools/base.js';
 import { logToolCall, getPermissionRule, savePermissionRule } from '../db.js';
 
 const MAX_ITERATIONS = 10;
-
-export type PendingConfirms = Map<string, (response: ConfirmResponse) => void>;
 
 interface ToolLoopParams {
   messages: MessageParam[];
@@ -25,9 +23,22 @@ async function requestConfirmation(
   level: 'confirm' | 'forbidden',
   onEvent: (event: SSEEvent) => void,
   pendingConfirms: PendingConfirms,
+  signal?: AbortSignal,
 ): Promise<ConfirmResponse> {
   return new Promise((resolve) => {
-    pendingConfirms.set(callId, resolve);
+    if (signal?.aborted) {
+      resolve({ allowed: false, remember: false });
+      return;
+    }
+    const onAbort = () => {
+      pendingConfirms.delete(callId);
+      resolve({ allowed: false, remember: false });
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    pendingConfirms.set(callId, (response) => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve(response);
+    });
     onEvent({ type: 'tool_confirm_request', toolCall, level });
   });
 }
@@ -103,13 +114,15 @@ export async function runToolLoop({
       if (!toolDef) {
         result = { success: false, error: `Unknown tool: ${block.name}` };
       } else if (toolDef.permissionLevel === 'confirm' || toolDef.permissionLevel === 'forbidden') {
-        // Check saved permission rule
+        // Check saved permission rule (only for 'confirm' level — 'forbidden' always asks)
         let allowed: boolean | null = null;
-        try {
-          const rule = getPermissionRule(block.name);
-          if (rule) allowed = rule.allowed;
-        } catch {
-          // DB not initialized — proceed to ask user
+        if (toolDef.permissionLevel === 'confirm') {
+          try {
+            const rule = getPermissionRule(block.name);
+            if (rule) allowed = rule.allowed;
+          } catch (err) {
+            console.error('Failed to read permission rule:', err instanceof Error ? err.message : err);
+          }
         }
 
         if (allowed === null) {
@@ -120,14 +133,15 @@ export async function runToolLoop({
             toolDef.permissionLevel,
             onEvent,
             pendingConfirms,
+            signal,
           );
           allowed = confirmResponse.allowed;
 
-          if (confirmResponse.remember) {
+          if (confirmResponse.remember && toolDef.permissionLevel === 'confirm') {
             try {
               savePermissionRule(block.name, confirmResponse.allowed);
-            } catch {
-              // Permission save failure shouldn't break the flow
+            } catch (err) {
+              console.error('Failed to save permission rule:', err instanceof Error ? err.message : err);
             }
           }
         }

@@ -32,6 +32,36 @@ describe('POST /api/confirm', () => {
     expect(res.body.error).toContain('not found');
   });
 
+  it('returns 400 when allowed missing', async () => {
+    const app = express();
+    app.use(express.json());
+    const pending: PendingConfirms = new Map();
+    app.use('/api', createConfirmRouter(pending));
+
+    const res = await request(app)
+      .post('/api/confirm')
+      .send({ callId: 'call_1' })
+      .expect(400);
+
+    expect(res.body.error).toContain('allowed');
+  });
+
+  it('defaults remember to false when omitted', async () => {
+    const app = express();
+    app.use(express.json());
+    const pending: PendingConfirms = new Map();
+    const resolve = vi.fn();
+    pending.set('call_1', resolve);
+    app.use('/api', createConfirmRouter(pending));
+
+    await request(app)
+      .post('/api/confirm')
+      .send({ callId: 'call_1', allowed: true })
+      .expect(200);
+
+    expect(resolve).toHaveBeenCalledWith({ allowed: true, remember: false });
+  });
+
   it('resolves pending confirm and returns ok', async () => {
     const app = express();
     app.use(express.json());

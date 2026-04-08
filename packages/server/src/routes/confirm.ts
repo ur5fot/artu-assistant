@@ -32,7 +32,7 @@ export function createConfirmRouter(pendingConfirms: PendingConfirms): Router {
 
     pendingConfirms.delete(callId);
 
-    resolve({ allowed: !!allowed, remember: !!remember });
+    resolve({ allowed, remember: !!remember });
     res.json({ ok: true });
   });
 
