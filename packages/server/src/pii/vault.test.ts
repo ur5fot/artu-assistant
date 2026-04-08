@@ -26,7 +26,7 @@ describe('PiiVault', () => {
     const hash1 = vault.tokenHash('john@example.com');
     const hash2 = vault.tokenHash('john@example.com');
     expect(hash1).toBe(hash2);
-    expect(hash1).toHaveLength(4);
+    expect(hash1).toHaveLength(8);
   });
 
   it('generates different hashes for different values', () => {
@@ -68,15 +68,7 @@ describe('PiiVault', () => {
     expect(vault.retrieve('<PHONE:b2c1>')).toBeNull();
   });
 
-  it('clears expired tokens', () => {
-    vault.store('<EMAIL:a7f3>', 'john@example.com', 'EMAIL_ADDRESS');
-    // Manually set expires_at in the past
-    const db = getDb();
-    db.prepare("UPDATE pii_tokens SET expires_at = datetime('now', '-1 day') WHERE token = ?").run('<EMAIL:a7f3>');
-    vault.store('<PHONE:b2c1>', '+380501234567', 'PHONE_NUMBER');
-
-    vault.clearExpired();
-    expect(vault.retrieve('<EMAIL:a7f3>')).toBeNull();
-    expect(vault.retrieve('<PHONE:b2c1>')).toBe('+380501234567');
+  it('throws on invalid encryption key', () => {
+    expect(() => new PiiVault('tooshort')).toThrow('PII_ENCRYPTION_KEY must be 64 hex chars (32 bytes)');
   });
 });

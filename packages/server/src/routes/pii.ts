@@ -1,13 +1,12 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { getDb } from '../db.js';
+import type { PiiVault } from '../pii/vault.js';
 
-export function createPiiRouter(): Router {
+export function createPiiRouter(vault: PiiVault): Router {
   const router = Router();
 
   router.delete('/pii-tokens', (_req: Request, res: Response) => {
-    const db = getDb();
-    db.prepare('DELETE FROM pii_tokens').run();
+    vault.clearAll();
     res.json({ ok: true });
   });
 

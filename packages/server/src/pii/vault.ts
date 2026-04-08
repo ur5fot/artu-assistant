@@ -33,7 +33,7 @@ export class PiiVault {
       .createHmac('sha256', this.key)
       .update(value)
       .digest('hex')
-      .slice(0, 4);
+      .slice(0, 8);
   }
 
   makeToken(value: string, presidioType: string): string {
@@ -81,8 +81,4 @@ export class PiiVault {
     db.prepare('DELETE FROM pii_tokens').run();
   }
 
-  clearExpired(): void {
-    const db = getDb();
-    db.prepare("DELETE FROM pii_tokens WHERE expires_at < datetime('now')").run();
-  }
 }

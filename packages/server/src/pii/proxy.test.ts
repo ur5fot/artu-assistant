@@ -31,18 +31,14 @@ describe('PiiProxy', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('anonymizes text with detected PII', async () => {
+  it('anonymizes text with detected PII via local replacement', async () => {
     const mockAnalyze = vi.fn().mockResolvedValue([
       { entity_type: 'EMAIL_ADDRESS', start: 12, end: 28, score: 0.95 },
     ]);
-    const mockAnonymize = vi.fn().mockResolvedValue({
-      text: 'My email is <EMAIL:a7f3>',
-      items: [{ entity_type: 'EMAIL_ADDRESS', start: 12, end: 24, text: '<EMAIL:a7f3>' }],
-    });
 
     vi.mocked(PresidioClient).mockImplementation(() => ({
       analyze: mockAnalyze,
-      anonymize: mockAnonymize,
+      anonymize: vi.fn(),
     }) as any);
 
     const proxy = createPiiProxy({
@@ -54,7 +50,8 @@ describe('PiiProxy', () => {
     });
 
     const result = await proxy.anonymize('My email is john@example.com');
-    expect(result.text).toBe('My email is <EMAIL:a7f3>');
+    expect(result.text).toMatch(/My email is <EMAIL:[a-f0-9]{8}>/);
+    expect(result.text).not.toContain('john@example.com');
     expect(result.entities).toHaveLength(1);
     expect(result.entities[0].type).toBe('EMAIL_ADDRESS');
   });
@@ -84,14 +81,10 @@ describe('PiiProxy', () => {
     const mockAnalyze = vi.fn().mockResolvedValue([
       { entity_type: 'EMAIL_ADDRESS', start: 12, end: 28, score: 0.95 },
     ]);
-    const mockAnonymize = vi.fn().mockImplementation(async (_text: string, _results: any, operators: any) => {
-      const token = operators.EMAIL_ADDRESS.new_value;
-      return { text: `My email is ${token}`, items: [] };
-    });
 
     vi.mocked(PresidioClient).mockImplementation(() => ({
       analyze: mockAnalyze,
-      anonymize: mockAnonymize,
+      anonymize: vi.fn(),
     }) as any);
 
     const proxy = createPiiProxy({
@@ -149,7 +142,37 @@ describe('PiiProxy', () => {
     expect(result.text).toBe('john@example.com');
     expect(result.entities).toHaveLength(0);
 
-    const restored = await proxy.deanonymize('<EMAIL:a7f3>');
-    expect(restored).toBe('<EMAIL:a7f3>');
+    const restored = await proxy.deanonymize('<EMAIL:a7f3a7f3>');
+    expect(restored).toBe('<EMAIL:a7f3a7f3>');
+  });
+
+  it('handles multiple entities of the same type', async () => {
+    const mockAnalyze = vi.fn().mockResolvedValue([
+      { entity_type: 'EMAIL_ADDRESS', start: 0, end: 16, score: 0.95 },
+      { entity_type: 'EMAIL_ADDRESS', start: 21, end: 37, score: 0.95 },
+    ]);
+
+    vi.mocked(PresidioClient).mockImplementation(() => ({
+      analyze: mockAnalyze,
+      anonymize: vi.fn(),
+    }) as any);
+
+    const proxy = createPiiProxy({
+      encryptionKey: testKey,
+      analyzerUrl: 'http://localhost:5002',
+      anonymizerUrl: 'http://localhost:5001',
+      entityTypes: ['EMAIL_ADDRESS'],
+      mode: 'required',
+    });
+
+    const result = await proxy.anonymize('john@example.com and jane@example.com');
+    expect(result.text).not.toContain('john@example.com');
+    expect(result.text).not.toContain('jane@example.com');
+    expect(result.entities).toHaveLength(2);
+
+    // Deanonymize round-trip
+    const restored = await proxy.deanonymize(result.text);
+    expect(restored).toContain('john@example.com');
+    expect(restored).toContain('jane@example.com');
   });
 });

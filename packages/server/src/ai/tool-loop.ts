@@ -129,10 +129,13 @@ export async function runToolLoop({
       if (block.type !== 'tool_use') continue;
       if (signal?.aborted) return;
 
+      // Deanonymize tool input once before branching
+      const deanonInput = JSON.parse(await piiProxy.deanonymize(JSON.stringify(block.input)));
+
       const toolCall: ToolCall = {
         id: block.id,
         name: block.name,
-        input: block.input as Record<string, unknown>,
+        input: deanonInput as Record<string, unknown>,
         status: 'running',
       };
       onEvent({ type: 'tool_call_start', toolCall });
@@ -178,7 +181,6 @@ export async function runToolLoop({
 
         if (allowed) {
           try {
-            const deanonInput = JSON.parse(await piiProxy.deanonymize(JSON.stringify(block.input)));
             result = await toolDef.handler(deanonInput);
           } catch (err) {
             result = {
@@ -191,7 +193,6 @@ export async function runToolLoop({
         }
       } else {
         try {
-          const deanonInput = JSON.parse(await piiProxy.deanonymize(JSON.stringify(block.input)));
           result = await toolDef.handler(deanonInput);
         } catch (err) {
           result = {
@@ -253,7 +254,8 @@ export async function runToolLoop({
 
     for (const block of finalResponse.content) {
       if (block.type === 'text') {
-        onEvent({ type: 'text_delta', content: block.text });
+        const deanonText = await piiProxy.deanonymize(block.text);
+        onEvent({ type: 'text_delta', content: deanonText });
       }
     }
   }

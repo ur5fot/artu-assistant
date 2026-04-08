@@ -16,6 +16,7 @@ import { discoverTools } from './tools/registry.js';
 import { initDb, cleanupAuditLog } from './db.js';
 import { errorHandler } from './errors.js';
 import { createPiiProxy, createPassthroughProxy } from './pii/proxy.js';
+import { PiiVault } from './pii/vault.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
@@ -32,6 +33,7 @@ cleanupAuditLog();
 // Initialize PII proxy
 const piiMode = (process.env.PII_MODE || 'optional') as 'required' | 'optional' | 'disabled';
 let piiProxy;
+let piiVault: PiiVault | null = null;
 if (piiMode === 'disabled') {
   piiProxy = createPassthroughProxy();
 } else {
@@ -41,9 +43,15 @@ if (piiMode === 'disabled') {
     console.log('Generated PII_ENCRYPTION_KEY — add to .env to persist across restarts');
     const envPath = path.resolve(__dirname, '..', '..', '..', '.env');
     if (fs.existsSync(envPath)) {
-      fs.appendFileSync(envPath, `\nPII_ENCRYPTION_KEY=${encryptionKey}\n`);
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      if (envContent.includes('PII_ENCRYPTION_KEY=')) {
+        fs.writeFileSync(envPath, envContent.replace(/PII_ENCRYPTION_KEY=.*/, `PII_ENCRYPTION_KEY=${encryptionKey}`));
+      } else {
+        fs.appendFileSync(envPath, `\nPII_ENCRYPTION_KEY=${encryptionKey}\n`);
+      }
     }
   }
+  piiVault = new PiiVault(encryptionKey);
   const entityTypes = (process.env.PII_ENTITY_TYPES || 'EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,IBAN_CODE').split(',');
   piiProxy = createPiiProxy({
     encryptionKey,
@@ -69,7 +77,9 @@ const chatRouter = createChatRouter({
 app.use('/api', chatRouter);
 app.use('/api', createConfirmRouter(pendingConfirms));
 app.use('/api', createPermissionsRouter());
-app.use('/api', createPiiRouter());
+if (piiVault) {
+  app.use('/api', createPiiRouter(piiVault));
+}
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'R2 online', timestamp: new Date().toISOString() });

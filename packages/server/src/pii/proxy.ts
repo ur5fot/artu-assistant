@@ -19,7 +19,7 @@ interface PiiProxyConfig {
   mode: 'required' | 'optional';
 }
 
-const TOKEN_REGEX = /<([A-Z]+):([a-f0-9]{4})>/g;
+const TOKEN_REGEX = /<([A-Z]+):([a-f0-9]{8})>/g;
 
 export function createPiiProxy(config: PiiProxyConfig): PiiProxy {
   const vault = new PiiVault(config.encryptionKey);
@@ -46,32 +46,22 @@ export function createPiiProxy(config: PiiProxyConfig): PiiProxy {
         return { text, entities: [] };
       }
 
-      // Build operators: for each detected entity, generate a token and store in vault
-      const operators: Record<string, { type: string; new_value: string }> = {};
+      // Build tokens for each detected entity and do local string replacement
       const entities: Array<{ type: string; token: string }> = [];
 
-      for (const result of analyzerResults) {
+      // Sort by start position descending so replacements don't shift earlier offsets
+      const sorted = [...analyzerResults].sort((a, b) => b.start - a.start);
+      let anonymized = text;
+
+      for (const result of sorted) {
         const originalValue = text.slice(result.start, result.end);
         const token = vault.makeToken(originalValue, result.entity_type);
         vault.store(token, originalValue, result.entity_type);
-
-        operators[result.entity_type] = {
-          type: 'replace',
-          new_value: token,
-        };
+        anonymized = anonymized.slice(0, result.start) + token + anonymized.slice(result.end);
         entities.push({ type: result.entity_type, token });
       }
 
-      try {
-        const anonymized = await presidio.anonymize(text, analyzerResults, operators);
-        return { text: anonymized.text, entities };
-      } catch (err) {
-        if (config.mode === 'optional') {
-          console.warn('PII anonymizer unavailable, passing through:', err instanceof Error ? err.message : err);
-          return { text, entities: [] };
-        }
-        throw err;
-      }
+      return { text: anonymized, entities };
     },
 
     async deanonymize(text: string): Promise<string> {

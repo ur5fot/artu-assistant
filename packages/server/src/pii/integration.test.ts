@@ -26,23 +26,14 @@ describe('PII Pipeline Integration', () => {
   });
 
   it('full round-trip: anonymize → store in vault → deanonymize', async () => {
-    // Mock analyzer response
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [
-          { entity_type: 'EMAIL_ADDRESS', start: 10, end: 26, score: 0.95 },
-          { entity_type: 'PHONE_NUMBER', start: 34, end: 46, score: 0.90 },
-        ],
-      })
-      // Mock anonymizer response
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          text: 'Контакт: <EMAIL:mock> і телефон <PHONE:mock>',
-          items: [],
-        }),
-      });
+    // Mock analyzer response — only analyzer is called now (local replacement)
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        { entity_type: 'EMAIL_ADDRESS', start: 10, end: 26, score: 0.95 },
+        { entity_type: 'PHONE_NUMBER', start: 39, end: 52, score: 0.90 },
+      ],
+    });
 
     const proxy = createPiiProxy({
       encryptionKey: testKey,
@@ -63,23 +54,20 @@ describe('PII Pipeline Integration', () => {
     const db = getDb();
     const tokens = db.prepare('SELECT * FROM pii_tokens').all();
     expect(tokens).toHaveLength(2);
+
+    // Verify deanonymize restores originals
+    const restored = await proxy.deanonymize(anon.text);
+    expect(restored).toContain('john@example.com');
+    expect(restored).toContain('+380501234567');
   });
 
   it('audit log contains placeholders, not real PII', async () => {
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [
-          { entity_type: 'EMAIL_ADDRESS', start: 0, end: 16, score: 0.95 },
-        ],
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          text: '<EMAIL:a7f3>',
-          items: [],
-        }),
-      });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        { entity_type: 'EMAIL_ADDRESS', start: 0, end: 16, score: 0.95 },
+      ],
+    });
 
     const proxy = createPiiProxy({
       encryptionKey: testKey,
@@ -92,11 +80,11 @@ describe('PII Pipeline Integration', () => {
     const result = await proxy.anonymize('john@example.com');
     // The anonymized text is what would be written to audit log
     expect(result.text).not.toContain('john@example.com');
-    expect(result.text).toMatch(/<EMAIL:[a-f0-9]{4}>/);
+    expect(result.text).toMatch(/<EMAIL:[a-f0-9]{8}>/);
   });
 
   it('consistent hashing: same PII always maps to same token', async () => {
-    // Two separate analyze calls for same email
+    // Two separate analyze calls for same email — only analyzer is called
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
@@ -106,23 +94,9 @@ describe('PII Pipeline Integration', () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          text: 'token1',
-          items: [],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
         json: async () => [
           { entity_type: 'EMAIL_ADDRESS', start: 0, end: 16, score: 0.95 },
         ],
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          text: 'token2',
-          items: [],
-        }),
       });
 
     const proxy = createPiiProxy({
@@ -134,14 +108,41 @@ describe('PII Pipeline Integration', () => {
     });
 
     // Both calls use the same email → same token should be generated
-    await proxy.anonymize('john@example.com');
-    await proxy.anonymize('john@example.com');
+    const result1 = await proxy.anonymize('john@example.com');
+    const result2 = await proxy.anonymize('john@example.com');
+    expect(result1.text).toBe(result2.text);
+    expect(result1.entities[0].token).toBe(result2.entities[0].token);
+  });
 
-    // Check that the anonymizer was called with the same token both times
-    const anonCall1 = JSON.parse(mockFetch.mock.calls[1][1].body);
-    const anonCall2 = JSON.parse(mockFetch.mock.calls[3][1].body);
-    const token1 = anonCall1.operators.EMAIL_ADDRESS.new_value;
-    const token2 = anonCall2.operators.EMAIL_ADDRESS.new_value;
-    expect(token1).toBe(token2);
+  it('handles multiple entities of the same type correctly', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        { entity_type: 'EMAIL_ADDRESS', start: 0, end: 16, score: 0.95 },
+        { entity_type: 'EMAIL_ADDRESS', start: 21, end: 37, score: 0.95 },
+      ],
+    });
+
+    const proxy = createPiiProxy({
+      encryptionKey: testKey,
+      analyzerUrl: 'http://localhost:5002',
+      anonymizerUrl: 'http://localhost:5001',
+      entityTypes: ['EMAIL_ADDRESS'],
+      mode: 'required',
+    });
+
+    const anon = await proxy.anonymize('john@example.com and jane@example.com');
+    expect(anon.entities).toHaveLength(2);
+    expect(anon.text).not.toContain('john@example.com');
+    expect(anon.text).not.toContain('jane@example.com');
+
+    // Each email should get a unique token
+    const tokens = anon.entities.map(e => e.token);
+    expect(tokens[0]).not.toBe(tokens[1]);
+
+    // Deanonymize should restore both
+    const restored = await proxy.deanonymize(anon.text);
+    expect(restored).toContain('john@example.com');
+    expect(restored).toContain('jane@example.com');
   });
 });
