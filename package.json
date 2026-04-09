@@ -6,10 +6,10 @@
   ],
   "scripts": {
     "dev": "docker compose up -d; concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:tunnel": "docker compose up -d; concurrently \"npm run dev:server\" \"VITE_HOST=true npm run dev:client\" \"npm run tunnel\"",
+    "dev:tunnel": "docker compose up -d; concurrently \"npm run dev:server\" \"VITE_HOST=true npm run dev:client\" \"sleep 5 && npm run tunnel\"",
     "dev:server": "npm run dev -w @r2/server",
     "dev:client": "npm run dev -w @r2/client",
-    "tunnel": "echo '' > /tmp/r2-cf.yml && cloudflared tunnel --config /tmp/r2-cf.yml --url http://127.0.0.1:${CLIENT_PORT:-5173}",
+    "tunnel": "echo '' > /tmp/r2-cf.yml && cloudflared tunnel --config /tmp/r2-cf.yml --url http://127.0.0.1:$(node -e \"require('dotenv').config({path:'.env'});console.log(process.env.CLIENT_PORT||5173)\")",
     "start": "node packages/supervisor/dist/index.js",
     "start:build": "npm run build -w @r2/shared && npm run build -w @r2/server && npm run build -w @r2/supervisor && npm start",
     "test": "vitest run",
