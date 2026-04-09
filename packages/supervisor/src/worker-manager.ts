@@ -12,7 +12,7 @@ export interface WorkerManagerOptions {
 
 type WorkerStatus = 'stopped' | 'starting' | 'running' | 'restarting' | 'crashed';
 
-const BACKOFF_DELAYS = [0, 2000, 5000];
+const BACKOFF_DELAYS = [500, 2000, 5000];
 
 export class WorkerManager extends EventEmitter {
   private worker: ChildProcess | null = null;
@@ -61,9 +61,11 @@ export class WorkerManager extends EventEmitter {
       this.killWorker();
     }
     this._status = 'stopped';
+    this.emit('worker_stopped');
   }
 
   async restart(): Promise<void> {
+    if (this.restarting) return;
     this.stopping = false;
     this.restarting = true;
     if (this.worker) {
@@ -85,7 +87,7 @@ export class WorkerManager extends EventEmitter {
       : [];
 
     this.worker = fork(this.workerPath, [], {
-      stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
       execArgv,
       env: { ...process.env },
     });
@@ -135,14 +137,10 @@ export class WorkerManager extends EventEmitter {
     this._status = 'restarting';
     this.emit('worker_restarting', delayMs);
 
-    if (delayMs === 0) {
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
       this.spawn();
-    } else {
-      this.restartTimer = setTimeout(() => {
-        this.restartTimer = null;
-        this.spawn();
-      }, delayMs);
-    }
+    }, delayMs);
   }
 
   private clearKillTimer(): void {

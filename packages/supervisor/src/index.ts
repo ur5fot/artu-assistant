@@ -41,6 +41,11 @@ manager.on('worker_restarting', (delayMs: number) => {
   wsServer.broadcast({ type: 'worker_restarting', delayMs });
 });
 
+manager.on('worker_stopped', () => {
+  console.log('[supervisor] Worker stopped');
+  wsServer.broadcast({ type: 'worker_stopped' });
+});
+
 // Wire WS commands → WorkerManager
 wsServer.onCommand((cmd) => {
   if (cmd.type === 'restart') {
