@@ -7,7 +7,7 @@ interface SupervisorState {
   connected: boolean;
 }
 
-const WS_URL = import.meta.env.VITE_SUPERVISOR_WS_URL || 'ws://localhost:3100';
+const WS_URL = import.meta.env.VITE_SUPERVISOR_WS_URL;
 const RECONNECT_DELAYS = [1000, 2000, 5000, 10000];
 
 function eventToStatus(type: string): WorkerStatus {
@@ -31,6 +31,7 @@ export function useSupervisor(): SupervisorState {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const connect = useCallback(() => {
+    if (!WS_URL) return; // No supervisor URL configured (dev mode)
     if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
     }
@@ -60,7 +61,7 @@ export function useSupervisor(): SupervisorState {
 
       ws.onclose = () => {
         wsRef.current = null;
-        setState({ workerStatus: 'running', connected: false });
+        setState({ workerStatus: 'unknown', connected: false });
         scheduleReconnect();
       };
 
@@ -68,7 +69,7 @@ export function useSupervisor(): SupervisorState {
         ws.close();
       };
     } catch {
-      setState({ workerStatus: 'running', connected: false });
+      setState({ workerStatus: 'unknown', connected: false });
       scheduleReconnect();
     }
   }, []);

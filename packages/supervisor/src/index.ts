@@ -47,25 +47,19 @@ wsServer.onCommand((cmd) => {
     console.log('[supervisor] Restart requested via WebSocket');
     manager.restart();
   }
-  if (cmd.type === 'status') {
-    // Current status already sent on connect
-  }
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('[supervisor] Received SIGTERM, shutting down...');
+function shutdown(signal: string) {
+  console.log(`[supervisor] Received ${signal}, shutting down...`);
   manager.stop();
   wsServer.close();
-  process.exit(0);
-});
+  // Allow event loop to drain for worker cleanup, then exit
+  setTimeout(() => process.exit(0), SHUTDOWN_TIMEOUT + 1000).unref();
+}
 
-process.on('SIGINT', () => {
-  console.log('[supervisor] Received SIGINT, shutting down...');
-  manager.stop();
-  wsServer.close();
-  process.exit(0);
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 // Start
 console.log(`[supervisor] R2 supervisor v0.1.0`);

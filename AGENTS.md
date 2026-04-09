@@ -39,7 +39,8 @@ r2/
 │   │   │   │   ├── ToolCallCard.tsx   # Отображение tool call + результат
 │   │   │   │   └── ChatInput.tsx      # Поле ввода + кнопка отправки
 │   │   │   ├── hooks/
-│   │   │   │   └── useChat.ts         # SSE подключение, state сообщений
+│   │   │   │   ├── useChat.ts         # SSE подключение, state сообщений
+│   │   │   │   └── useSupervisor.ts   # WebSocket: worker status от supervisor
 │   │   │   └── utils/
 │   │   │       └── sse.ts             # SSE клиент с reconnect
 │   │   ├── package.json
@@ -61,6 +62,14 @@ r2/
 │   │   │   │   ├── registry.ts       # Авто-загрузка и регистрация tools
 │   │   │   │   └── base.ts           # ToolDefinition interface
 │   │   │   └── errors.ts             # Централизованная обработка ошибок
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   │
+│   ├── supervisor/            # Process manager (Phase 3A, prod-only)
+│   │   ├── src/
+│   │   │   ├── index.ts              # Entry point: wires WorkerManager + WS server
+│   │   │   ├── worker-manager.ts     # Spawns/restarts worker via child_process.fork
+│   │   │   └── ws-server.ts          # WebSocket status broadcast (port 3100)
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   │
@@ -258,11 +267,13 @@ Claude API stream (с tools в параметрах)
 
 ### Запуск
 ```bash
-# 1. Поднять SearXNG
+# Dev (без supervisor)
 docker compose up -d
-
-# 2. Запустить server + client
 npm run dev
+
+# Production (через supervisor)
+npm run start:build   # Build all + start supervisor
+npm start             # Start supervisor (requires prior build)
 ```
 
 ## Phase 2 — Tools + PII
@@ -275,13 +286,14 @@ npm run dev
 - ~~Audit log (SQLite таблица: who, what, when, result)~~ ✓ Phase 2A
 - ~~Tool registry: авто-обнаружение tools из packages/tool-*/~~ ✓ Phase 2A
 
-## Phase 3 — Voice + Memory
+## Phase 3 — Self-modifying R2
 
-- Web Speech API для STT (браузер)
-- Piper TTS для озвучки ответов
-- Долгосрочная память (SQLite + embeddings)
-- История разговоров с контекстом
-- Conversation management (new chat, history list)
+- **3A) Supervisor + Worker split** ✓ — process manager, auto-restart, WS status
+- 3B) Chat persistence — SQLite conversation history
+- 3C) Git-in-the-loop — Claude Code CLI on dev branch
+- 3D) Git watcher + auto-deploy — pull + restart on master changes
+- 3E) Eval система — test cases, pre-merge checks
+- 3F) Chat commands + UI — r2 task/deploy, status bar, diff view
 
 ## Phase 4 — CRM Integration
 
@@ -301,6 +313,10 @@ SEARXNG_URL=http://localhost:8888
 # Active (Phase 2A)
 DB_PATH=./data/r2.db
 PII_SERVICE_URL=http://localhost:8080
+# Supervisor (Phase 3A)
+R2_SUPERVISOR_PORT=3100
+R2_SHUTDOWN_TIMEOUT=5000
+VITE_SUPERVISOR_WS_URL=ws://localhost:3100  # Client-side, set only for prod
 ```
 
 ## Git

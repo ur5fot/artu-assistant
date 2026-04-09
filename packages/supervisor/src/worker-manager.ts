@@ -18,9 +18,11 @@ export class WorkerManager extends EventEmitter {
   private worker: ChildProcess | null = null;
   private _status: WorkerStatus = 'stopped';
   private stopping = false;
+  private restarting = false;
   private crashTimestamps: number[] = [];
   private restartCount = 0;
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
+  private killTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly workerPath: string;
   private readonly useTsx: boolean;
@@ -63,11 +65,13 @@ export class WorkerManager extends EventEmitter {
 
   async restart(): Promise<void> {
     this.stopping = false;
+    this.restarting = true;
     if (this.worker) {
       this._status = 'restarting';
       this.emit('worker_restarting', 0);
       await this.killWorkerAsync();
     }
+    this.restarting = false;
     this.spawn();
   }
 
@@ -98,9 +102,10 @@ export class WorkerManager extends EventEmitter {
 
     this.worker.on('exit', (code, signal) => {
       this.worker = null;
+      this.clearKillTimer();
 
-      if (this.stopping) {
-        this._status = 'stopped';
+      if (this.stopping || this.restarting) {
+        if (this.stopping) this._status = 'stopped';
         return;
       }
 
@@ -139,11 +144,20 @@ export class WorkerManager extends EventEmitter {
     }
   }
 
+  private clearKillTimer(): void {
+    if (this.killTimer) {
+      clearTimeout(this.killTimer);
+      this.killTimer = null;
+    }
+  }
+
   private killWorker(): void {
     if (!this.worker) return;
     this.worker.kill('SIGTERM');
     const pid = this.worker.pid;
-    setTimeout(() => {
+    this.clearKillTimer();
+    this.killTimer = setTimeout(() => {
+      this.killTimer = null;
       try {
         if (pid) process.kill(pid, 0); // check if still alive
         if (pid) process.kill(pid, 'SIGKILL');
@@ -151,6 +165,7 @@ export class WorkerManager extends EventEmitter {
         // already dead
       }
     }, this.shutdownTimeoutMs);
+    this.killTimer.unref();
   }
 
   private killWorkerAsync(): Promise<void> {
@@ -159,8 +174,12 @@ export class WorkerManager extends EventEmitter {
         resolve();
         return;
       }
-      const onExit = () => resolve();
-      this.worker.once('exit', onExit);
+      const timeout = setTimeout(() => resolve(), this.shutdownTimeoutMs + 1000);
+      timeout.unref();
+      this.worker.once('exit', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
       this.killWorker();
     });
   }

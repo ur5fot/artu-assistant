@@ -8,7 +8,7 @@ export interface SupervisorEvent {
 }
 
 export interface SupervisorCommand {
-  type: 'restart' | 'status';
+  type: 'restart';
 }
 
 export class StatusWsServer {
