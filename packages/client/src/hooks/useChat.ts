@@ -12,12 +12,13 @@ export function useChat() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingConfirms, setPendingConfirms] = useState<Map<string, PendingConfirm>>(new Map());
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const connectionRef = useRef<SSEConnection | null>(null);
 
   const sendingRef = useRef(false);
 
   const send = useCallback((text: string) => {
-    if (!text.trim() || sendingRef.current) return;
+    if (!text.trim() || sendingRef.current || !historyLoaded) return;
 
     sendingRef.current = true;
     setError(null);
@@ -42,7 +43,7 @@ export function useChat() {
     setMessages((prev) => [...prev, userMessage]);
 
     connectionRef.current = connectSSE({
-      messages: [...messages, userMessage].map((m) => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
+      messages: [...messages, userMessage].map((m) => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp })),
       onEvent: (event) => {
         switch (event.type) {
           case 'text_delta':
@@ -164,7 +165,7 @@ export function useChat() {
         sendingRef.current = false;
       },
     });
-  }, [messages]);
+  }, [messages, historyLoaded]);
 
   const stop = useCallback(() => {
     connectionRef.current?.abort();
@@ -204,5 +205,25 @@ export function useChat() {
     };
   }, []);
 
-  return { messages, loading, error, send, stop, pendingConfirms, respondToConfirm };
+  // Load chat history on mount
+  useEffect(() => {
+    fetch('/api/messages')
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load messages: ${res.status}`);
+        return res.json();
+      })
+      .then((msgs: Message[]) => {
+        if (msgs.length > 0) {
+          setMessages((prev) => (prev.length > 0 ? prev : msgs));
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load chat history:', err);
+      })
+      .finally(() => {
+        setHistoryLoaded(true);
+      });
+  }, []);
+
+  return { messages, loading, error, send, stop, pendingConfirms, respondToConfirm, historyLoaded };
 }

@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import type { SSEEvent } from '@r2/shared';
+import type { ToolCall } from '@r2/shared';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { PendingConfirms } from './confirm.js';
 import type { PiiProxy } from '../pii/proxy.js';
+import { saveMessage } from '../db.js';
+import crypto from 'node:crypto';
 
 function formatTimestamp(ts: number): string {
   const d = new Date(ts);
@@ -71,6 +74,21 @@ export function createChatRouter({ runLoop, pendingConfirms, piiProxy }: ChatRou
       return;
     }
 
+    // Save the latest user message to DB
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'user') {
+      try {
+        saveMessage({
+          messageId: lastMsg.id || crypto.randomUUID(),
+          role: 'user',
+          content: lastMsg.content,
+          timestamp: lastMsg.timestamp || Date.now(),
+        });
+      } catch (err) {
+        console.error('Failed to save user message:', err instanceof Error ? err.message : err);
+      }
+    }
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -79,6 +97,12 @@ export function createChatRouter({ runLoop, pendingConfirms, piiProxy }: ChatRou
     const abortController = new AbortController();
     res.on('close', () => abortController.abort());
 
+    // Accumulate assistant response for persistence
+    let assistantText = '';
+    const assistantToolCalls: ToolCall[] = [];
+    let assistantPiiEntities: Array<{ type: string; count: number }> | undefined;
+    const assistantId = crypto.randomUUID();
+
     try {
       await runLoop({
         messages: addTimestamps(messages),
@@ -86,6 +110,38 @@ export function createChatRouter({ runLoop, pendingConfirms, piiProxy }: ChatRou
         pendingConfirms,
         piiProxy,
         onEvent: (event: SSEEvent) => {
+          // Accumulate assistant data for persistence
+          if (event.type === 'text_delta') {
+            assistantText += event.content;
+          } else if (event.type === 'tool_call_start') {
+            assistantToolCalls.push(event.toolCall);
+          } else if (event.type === 'tool_call_result') {
+            const tc = assistantToolCalls.find((t) => t.id === event.id);
+            if (tc) {
+              tc.result = event.result;
+              tc.status = event.result.success ? 'done' : 'error';
+            }
+          } else if (event.type === 'pii_masked') {
+            assistantPiiEntities = event.entities;
+          } else if (event.type === 'done') {
+            // Save assistant message on completion
+            if (assistantText || assistantToolCalls.length > 0) {
+              try {
+                saveMessage({
+                  messageId: assistantId,
+                  role: 'assistant',
+                  content: assistantText,
+                  toolCalls: assistantToolCalls.length > 0 ? assistantToolCalls : undefined,
+                  piiEntities: assistantPiiEntities,
+                  timestamp: Date.now(),
+                });
+              } catch (err) {
+                console.error('Failed to save assistant message:', err instanceof Error ? err.message : err);
+              }
+            }
+          }
+
+          // Forward to SSE stream
           if (!res.writableEnded && !res.destroyed) {
             res.write(`data: ${JSON.stringify(event)}\n\n`);
           }

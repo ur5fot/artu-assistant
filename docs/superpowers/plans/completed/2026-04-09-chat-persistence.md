@@ -16,7 +16,7 @@
 - Modify: `packages/server/src/db.ts`
 - Modify: `packages/server/src/db.test.ts`
 
-- [ ] **Step 1: Write failing tests for saveMessage and getMessages**
+- [x] **Step 1: Write failing tests for saveMessage and getMessages**
 
 Add to `packages/server/src/db.test.ts`, after the existing `Permission Rules` describe block:
 
@@ -113,12 +113,12 @@ Also add `saveMessage`, `getMessages`, `clearMessages` to the import at line 3:
 import { initDb, logToolCall, cleanupAuditLog, getDb, closeDb, getPermissionRule, savePermissionRule, clearPermissionRules, saveMessage, getMessages, clearMessages } from './db.js';
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/db.test.ts`
 Expected: FAIL — `saveMessage` is not exported.
 
-- [ ] **Step 3: Add chat_messages table and functions to db.ts**
+- [x] **Step 3: Add chat_messages table and functions to db.ts**
 
 In `packages/server/src/db.ts`:
 
@@ -202,12 +202,12 @@ export function clearMessages(): void {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd packages/server && npx vitest run src/db.test.ts`
 Expected: all tests PASS (existing + 6 new).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/db.test.ts
@@ -222,7 +222,7 @@ git commit -m "feat: add chat_messages table with save/get/clear functions"
 - Create: `packages/server/src/routes/messages.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Create messages route**
+- [x] **Step 1: Create messages route**
 
 Create `packages/server/src/routes/messages.ts`:
 
@@ -248,7 +248,7 @@ export function createMessagesRouter(): Router {
 }
 ```
 
-- [ ] **Step 2: Register route in index.ts**
+- [x] **Step 2: Register route in index.ts**
 
 In `packages/server/src/index.ts`, add import after line 12:
 
@@ -262,12 +262,12 @@ After `app.use('/api', createPermissionsRouter());` (line 84), add:
 app.use('/api', createMessagesRouter());
 ```
 
-- [ ] **Step 3: Run typecheck**
+- [x] **Step 3: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/routes/messages.ts packages/server/src/index.ts
@@ -281,7 +281,7 @@ git commit -m "feat: add GET /api/messages and DELETE /api/messages endpoints"
 **Files:**
 - Modify: `packages/server/src/routes/chat.ts`
 
-- [ ] **Step 1: Add message saving to chat route**
+- [x] **Step 1: Add message saving to chat route**
 
 In `packages/server/src/routes/chat.ts`:
 
@@ -369,7 +369,7 @@ Add `crypto` import if not already present. At the top of the file, after existi
 import crypto from 'node:crypto';
 ```
 
-- [ ] **Step 2: Update message validation to accept id and timestamp**
+- [x] **Step 2: Update message validation to accept id and timestamp**
 
 The client sends `id` and `timestamp` with messages. The validation (lines 60-68) only checks `role` and `content`. No changes needed to validation — extra fields are just ignored by the validator but passed through. However, we need to ensure the client sends `id` in the messages array.
 
@@ -384,17 +384,17 @@ This doesn't send `id`. Update `packages/client/src/hooks/useChat.ts` line 44 to
       messages: [...messages, userMessage].map((m) => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp })),
 ```
 
-- [ ] **Step 3: Run typecheck**
+- [x] **Step 3: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Run existing tests**
+- [x] **Step 4: Run existing tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/routes/chat.ts packages/client/src/hooks/useChat.ts
@@ -408,7 +408,7 @@ git commit -m "feat: save user and assistant messages to DB in chat route"
 **Files:**
 - Modify: `packages/client/src/hooks/useChat.ts`
 
-- [ ] **Step 1: Add history loading to useChat**
+- [x] **Step 1: Add history loading to useChat**
 
 In `packages/client/src/hooks/useChat.ts`:
 
@@ -445,12 +445,12 @@ Update the return statement (line 207) to include `historyLoaded`:
   return { messages, loading, error, send, stop, pendingConfirms, respondToConfirm, historyLoaded };
 ```
 
-- [ ] **Step 2: Run client typecheck**
+- [x] **Step 2: Run client typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/client/src/hooks/useChat.ts
@@ -464,21 +464,21 @@ git commit -m "feat: load chat history from server on mount"
 **Files:**
 - All modified files
 
-- [ ] **Step 1: Full typecheck across all packages**
+- [x] **Step 1: Full typecheck across all packages**
 
 Run: `npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no type errors.
 
-- [ ] **Step 2: Run all server tests**
+- [x] **Step 2: Run all server tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 3: Fix any issues found**
+- [x] **Step 3: Fix any issues found**
 
 If any type errors or test failures, fix them.
 
-- [ ] **Step 4: Final commit**
+- [x] **Step 4: Final commit**
 
 ```bash
 git add -A
