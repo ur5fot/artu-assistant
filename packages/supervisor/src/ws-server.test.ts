@@ -10,10 +10,11 @@ describe('StatusWsServer', () => {
   });
 
   it('accepts connections and sends current status on connect', async () => {
-    server = new StatusWsServer({ port: 0 }); // random port
+    server = new StatusWsServer({ port: 0 });
+    await server.ready;
     const port = server.port;
 
-    const ws = new WebSocket(`ws://localhost:${port}`);
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`);
     const message = await new Promise<string>((resolve) => {
       ws.on('message', (data) => resolve(data.toString()));
     });
@@ -25,10 +26,11 @@ describe('StatusWsServer', () => {
 
   it('broadcasts events to all connected clients', async () => {
     server = new StatusWsServer({ port: 0 });
+    await server.ready;
     const port = server.port;
 
-    const ws1 = new WebSocket(`ws://localhost:${port}`);
-    const ws2 = new WebSocket(`ws://localhost:${port}`);
+    const ws1 = new WebSocket(`ws://127.0.0.1:${port}`);
+    const ws2 = new WebSocket(`ws://127.0.0.1:${port}`);
 
     // Wait for initial status messages
     await Promise.all([
@@ -54,12 +56,13 @@ describe('StatusWsServer', () => {
 
   it('handles restart command from client', async () => {
     server = new StatusWsServer({ port: 0 });
+    await server.ready;
     const port = server.port;
 
     const commands: string[] = [];
     server.onCommand((cmd) => commands.push(cmd.type));
 
-    const ws = new WebSocket(`ws://localhost:${port}`);
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`);
 
     // Wait for initial status message before sending command
     await new Promise<void>((resolve) => {

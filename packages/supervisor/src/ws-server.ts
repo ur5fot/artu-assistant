@@ -15,9 +15,11 @@ export class StatusWsServer {
   private wss: WebSocketServer;
   private currentStatus: SupervisorEvent = { type: 'worker_stopped' };
   private commandHandler: ((cmd: SupervisorCommand) => void) | null = null;
+  readonly ready: Promise<void>;
 
-  constructor(options: { port: number }) {
-    this.wss = new WebSocketServer({ port: options.port });
+  constructor(options: { port: number; host?: string }) {
+    this.wss = new WebSocketServer({ port: options.port, host: options.host ?? '127.0.0.1' });
+    this.ready = new Promise((resolve) => this.wss.on('listening', resolve));
 
     this.wss.on('connection', (ws) => {
       // Send current status on connect

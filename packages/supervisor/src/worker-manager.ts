@@ -72,6 +72,7 @@ export class WorkerManager extends EventEmitter {
       await this.killWorkerAsync();
     }
     this.restarting = false;
+    if (this.stopping) return;
     this.spawn();
   }
 
