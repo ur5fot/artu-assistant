@@ -68,6 +68,10 @@ export class WorkerManager extends EventEmitter {
     if (this.restarting) return;
     this.stopping = false;
     this.restarting = true;
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
     if (this.worker) {
       this._status = 'restarting';
       this.emit('worker_restarting', 0);

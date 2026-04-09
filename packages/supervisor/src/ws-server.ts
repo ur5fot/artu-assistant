@@ -21,7 +21,18 @@ export class StatusWsServer {
     this.wss = new WebSocketServer({ port: options.port, host: options.host ?? '127.0.0.1' });
     this.ready = new Promise((resolve) => this.wss.on('listening', resolve));
 
-    this.wss.on('connection', (ws) => {
+    this.wss.on('connection', (ws, req) => {
+      // CSWSH protection: allow only localhost origins (or no origin for non-browser clients)
+      const origin = req.headers['origin'];
+      if (origin) {
+        const allowed = ['http://localhost', 'http://127.0.0.1', 'https://localhost', 'https://127.0.0.1'];
+        const isAllowed = allowed.some((prefix) => origin === prefix || origin.startsWith(prefix + ':'));
+        if (!isAllowed) {
+          ws.close(1008, 'Origin not allowed');
+          return;
+        }
+      }
+
       // Send current status on connect
       ws.send(JSON.stringify(this.currentStatus));
 

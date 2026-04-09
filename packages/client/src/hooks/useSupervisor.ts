@@ -16,7 +16,7 @@ function eventToStatus(type: string): WorkerStatus {
     case 'worker_starting': return 'starting';
     case 'worker_crashed': return 'crashed';
     case 'worker_restarting': return 'restarting';
-    case 'worker_stopped': return 'starting';
+    case 'worker_stopped': return 'unknown';
     default: return 'unknown';
   }
 }
@@ -29,9 +29,11 @@ export function useSupervisor(): SupervisorState {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempt = useRef(0);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
 
   const connect = useCallback(() => {
     if (!WS_URL) return; // No supervisor URL configured (dev mode)
+    if (!mountedRef.current) return;
     if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
     }
@@ -41,11 +43,13 @@ export function useSupervisor(): SupervisorState {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        if (!mountedRef.current) { ws.close(); return; }
         reconnectAttempt.current = 0;
         setState((prev) => ({ ...prev, connected: true }));
       };
 
       ws.onmessage = (event) => {
+        if (!mountedRef.current) return;
         try {
           const data = JSON.parse(event.data);
           if (data.type) {
@@ -60,7 +64,10 @@ export function useSupervisor(): SupervisorState {
       };
 
       ws.onclose = () => {
+        // Guard against stale socket closing after a new one was assigned (e.g. StrictMode re-mount)
+        if (wsRef.current !== ws) return;
         wsRef.current = null;
+        if (!mountedRef.current) return;
         setState({ workerStatus: 'unknown', connected: false });
         scheduleReconnect();
       };
@@ -69,12 +76,14 @@ export function useSupervisor(): SupervisorState {
         ws.close();
       };
     } catch {
+      if (!mountedRef.current) return;
       setState({ workerStatus: 'unknown', connected: false });
       scheduleReconnect();
     }
   }, []);
 
   const scheduleReconnect = useCallback(() => {
+    if (!mountedRef.current) return;
     const delay = RECONNECT_DELAYS[Math.min(reconnectAttempt.current, RECONNECT_DELAYS.length - 1)];
     reconnectAttempt.current++;
     reconnectTimer.current = setTimeout(() => {
@@ -84,8 +93,10 @@ export function useSupervisor(): SupervisorState {
   }, [connect]);
 
   useEffect(() => {
+    mountedRef.current = true;
     connect();
     return () => {
+      mountedRef.current = false;
       wsRef.current?.close();
       if (reconnectTimer.current) {
         clearTimeout(reconnectTimer.current);
