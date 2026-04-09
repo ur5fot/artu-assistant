@@ -14,12 +14,12 @@ services:
     image: mcr.microsoft.com/presidio-analyzer:latest
     container_name: r2-presidio-analyzer
     ports:
-      - "127.0.0.1:5002:5002"
+      - "127.0.0.1:5002:3000"
     restart: unless-stopped
 
   presidio-anonymizer:
     image: mcr.microsoft.com/presidio-anonymizer:latest
     container_name: r2-presidio-anonymizer
     ports:
-      - "127.0.0.1:5001:5001"
+      - "127.0.0.1:5001:3000"
     restart: unless-stopped
