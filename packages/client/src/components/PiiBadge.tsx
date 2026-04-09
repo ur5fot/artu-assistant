@@ -7,6 +7,11 @@ interface Props {
 export function PiiBadge({ entities }: Props) {
   const [expanded, setExpanded] = useState(false);
 
+  // Deduplicate by type+original
+  const unique = entities.filter((e, i, arr) =>
+    arr.findIndex((x) => x.type === e.type && x.original === e.original) === i
+  );
+
   return (
     <div style={{
       display: 'inline-flex',
@@ -24,8 +29,8 @@ export function PiiBadge({ entities }: Props) {
       <span>{'\u{1F6E1}'} {entities.length} PII masked</span>
       {expanded && (
         <div style={{ marginTop: 4, fontSize: 11, color: '#475569' }}>
-          {entities.map((e, i) => (
-            <div key={i}>{e.type}: <strong>{e.original}</strong></div>
+          {unique.map((e, i) => (
+            <div key={i}>{e.type}: <strong>{e.original || '***'}</strong></div>
           ))}
         </div>
       )}

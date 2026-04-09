@@ -54,6 +54,7 @@ describe('PiiProxy', () => {
     expect(result.text).not.toContain('john@example.com');
     expect(result.entities).toHaveLength(1);
     expect(result.entities[0].type).toBe('EMAIL_ADDRESS');
+    expect(result.entities[0].original).toBe('john@example.com');
   });
 
   it('returns original text when no PII detected', async () => {
