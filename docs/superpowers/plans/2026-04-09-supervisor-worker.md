@@ -679,7 +679,7 @@ git commit -m "feat: wire supervisor entry point with WorkerManager and WS serve
 **Files:**
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Add IPC ready signal and SIGTERM handler**
+- [x] **Step 1: Add IPC ready signal and SIGTERM handler**
 
 In `packages/server/src/index.ts`, replace the `app.listen` block (lines 95-97) with:
 
@@ -702,17 +702,17 @@ process.on('SIGTERM', () => {
 });
 ```
 
-- [ ] **Step 2: Run existing server tests**
+- [x] **Step 2: Run existing server tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all existing tests PASS (changes are in startup code, not tested directly).
 
-- [ ] **Step 3: Run typecheck**
+- [x] **Step 3: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/index.ts
