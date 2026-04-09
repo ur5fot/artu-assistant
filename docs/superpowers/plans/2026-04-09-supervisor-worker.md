@@ -400,7 +400,7 @@ git commit -m "feat: add WorkerManager with spawn, IPC ready, and auto-restart"
 - Create: `packages/supervisor/src/ws-server.ts`
 - Create: `packages/supervisor/src/ws-server.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/supervisor/src/ws-server.test.ts`:
 
@@ -482,12 +482,12 @@ describe('StatusWsServer', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/supervisor && npx vitest run src/ws-server.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement WebSocket server**
+- [x] **Step 3: Implement WebSocket server**
 
 Create `packages/supervisor/src/ws-server.ts`:
 
@@ -561,12 +561,12 @@ export class StatusWsServer {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd packages/supervisor && npx vitest run src/ws-server.test.ts`
 Expected: all 3 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/supervisor/src/ws-server.ts packages/supervisor/src/ws-server.test.ts
