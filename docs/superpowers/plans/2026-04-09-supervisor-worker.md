@@ -770,7 +770,7 @@ git commit -m "feat: add production start scripts and supervisor env vars"
 - Create: `packages/client/src/hooks/useSupervisor.ts`
 - Modify: `packages/client/src/App.tsx`
 
-- [ ] **Step 1: Create useSupervisor hook**
+- [x] **Step 1: Create useSupervisor hook**
 
 Create `packages/client/src/hooks/useSupervisor.ts`:
 
@@ -873,7 +873,7 @@ export function useSupervisor(): SupervisorState {
 }
 ```
 
-- [ ] **Step 2: Add status indicator to App.tsx**
+- [x] **Step 2: Add status indicator to App.tsx**
 
 Replace `packages/client/src/App.tsx`:
 
@@ -941,12 +941,12 @@ export default function App() {
 }
 ```
 
-- [ ] **Step 3: Run client typecheck**
+- [x] **Step 3: Run client typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/client/src/hooks/useSupervisor.ts packages/client/src/App.tsx
