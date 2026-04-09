@@ -239,6 +239,7 @@ Claude API stream (с tools в параметрах)
 - Async/await, никаких callback hell
 - Именование: camelCase для переменных, PascalCase для компонентов/интерфейсов
 - Все пути — через path.join/resolve, не хардкод
+- **Порты и URL — НИКОГДА не хардкодить.** Всегда читать из env (process.env.PORT, etc.) с дефолтами. Это касается vite.config.ts, серверных URL, WebSocket адресов.
 
 ### Error Handling
 - Tools: всегда возвращают `ToolResult`, никогда не throw наружу
@@ -289,7 +290,7 @@ npm start             # Start supervisor (requires prior build)
 ## Phase 3 — Self-modifying R2
 
 - **3A) Supervisor + Worker split** ✓ — process manager, auto-restart, WS status
-- 3B) Chat persistence — SQLite conversation history
+- **3B) Chat persistence** ✓ — SQLite conversation history, GET /api/messages
 - 3C) Git-in-the-loop — Claude Code CLI on dev branch
 - 3D) Git watcher + auto-deploy — pull + restart on master changes
 - 3E) Eval система — test cases, pre-merge checks
