@@ -12,6 +12,7 @@ export function useChat() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingConfirms, setPendingConfirms] = useState<Map<string, PendingConfirm>>(new Map());
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const connectionRef = useRef<SSEConnection | null>(null);
 
   const sendingRef = useRef(false);
@@ -204,5 +205,22 @@ export function useChat() {
     };
   }, []);
 
-  return { messages, loading, error, send, stop, pendingConfirms, respondToConfirm };
+  // Load chat history on mount
+  useEffect(() => {
+    fetch('/api/messages')
+      .then((res) => res.json())
+      .then((msgs: Message[]) => {
+        if (msgs.length > 0) {
+          setMessages(msgs);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load chat history:', err);
+      })
+      .finally(() => {
+        setHistoryLoaded(true);
+      });
+  }, []);
+
+  return { messages, loading, error, send, stop, pendingConfirms, respondToConfirm, historyLoaded };
 }

@@ -408,7 +408,7 @@ git commit -m "feat: save user and assistant messages to DB in chat route"
 **Files:**
 - Modify: `packages/client/src/hooks/useChat.ts`
 
-- [ ] **Step 1: Add history loading to useChat**
+- [x] **Step 1: Add history loading to useChat**
 
 In `packages/client/src/hooks/useChat.ts`:
 
@@ -445,12 +445,12 @@ Update the return statement (line 207) to include `historyLoaded`:
   return { messages, loading, error, send, stop, pendingConfirms, respondToConfirm, historyLoaded };
 ```
 
-- [ ] **Step 2: Run client typecheck**
+- [x] **Step 2: Run client typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/client/src/hooks/useChat.ts
