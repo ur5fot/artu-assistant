@@ -9,3 +9,17 @@ services:
     restart: unless-stopped
     environment:
       - SEARXNG_BASE_URL=http://localhost:8888
+
+  presidio-analyzer:
+    image: mcr.microsoft.com/presidio-analyzer:latest
+    container_name: r2-presidio-analyzer
+    ports:
+      - "127.0.0.1:5002:5002"
+    restart: unless-stopped
+
+  presidio-anonymizer:
+    image: mcr.microsoft.com/presidio-anonymizer:latest
+    container_name: r2-presidio-anonymizer
+    ports:
+      - "127.0.0.1:5001:5001"
+    restart: unless-stopped

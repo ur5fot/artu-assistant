@@ -5,8 +5,22 @@ import type { ToolRegistry } from '../tools/registry.js';
 import type { ConfirmResponse, PendingConfirms } from '../routes/confirm.js';
 import { toClaudeTool } from '../tools/base.js';
 import { logToolCall, getPermissionRule, savePermissionRule } from '../db.js';
+import type { PiiProxy } from '../pii/proxy.js';
 
 const MAX_ITERATIONS = 10;
+
+async function deanonDeep(value: unknown, piiProxy: PiiProxy): Promise<unknown> {
+  if (typeof value === 'string') return piiProxy.deanonymize(value);
+  if (Array.isArray(value)) return Promise.all(value.map(v => deanonDeep(v, piiProxy)));
+  if (value !== null && typeof value === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      result[k] = await deanonDeep(v, piiProxy);
+    }
+    return result;
+  }
+  return value;
+}
 
 interface ToolLoopParams {
   messages: MessageParam[];
@@ -15,6 +29,7 @@ interface ToolLoopParams {
   onEvent: (event: SSEEvent) => void;
   signal?: AbortSignal;
   pendingConfirms?: PendingConfirms;
+  piiProxy: PiiProxy;
 }
 
 async function requestConfirmation(
@@ -50,12 +65,40 @@ export async function runToolLoop({
   onEvent,
   signal,
   pendingConfirms = new Map(),
+  piiProxy,
 }: ToolLoopParams): Promise<void> {
   const allTools = registry.getAll();
   const tools: Tool[] = allTools.map(toClaudeTool) as Tool[];
   let currentMessages: MessageParam[] = [...messages];
   let iterations = 0;
   let lastEndedWithToolUse = false;
+
+  // Anonymize user messages before sending to Claude
+  const anonymizedMessages: MessageParam[] = [];
+  const allPiiEntities: Array<{ type: string; token: string }> = [];
+  for (const msg of currentMessages) {
+    if (signal?.aborted) return;
+    if (typeof msg.content === 'string') {
+      const result = await piiProxy.anonymize(msg.content);
+      anonymizedMessages.push({ role: msg.role, content: result.text });
+      if (msg.role === 'user') allPiiEntities.push(...result.entities);
+    } else {
+      anonymizedMessages.push(msg);
+    }
+  }
+  currentMessages = anonymizedMessages;
+
+  // Emit pii_masked event if any PII was found
+  if (allPiiEntities.length > 0) {
+    const counts = new Map<string, number>();
+    for (const e of allPiiEntities) {
+      counts.set(e.type, (counts.get(e.type) ?? 0) + 1);
+    }
+    onEvent({
+      type: 'pii_masked',
+      entities: Array.from(counts.entries()).map(([type, count]) => ({ type, count })),
+    });
+  }
 
   while (iterations < MAX_ITERATIONS) {
     if (signal?.aborted) return;
@@ -75,7 +118,8 @@ export async function runToolLoop({
     // Emit text
     for (const block of textBlocks) {
       if (block.type === 'text') {
-        onEvent({ type: 'text_delta', content: block.text });
+        const deanonText = await piiProxy.deanonymize(block.text);
+        onEvent({ type: 'text_delta', content: deanonText });
       }
     }
 
@@ -99,10 +143,13 @@ export async function runToolLoop({
       if (block.type !== 'tool_use') continue;
       if (signal?.aborted) return;
 
+      // Recursively deanonymize all string values in tool input
+      const deanonInput = await deanonDeep(block.input, piiProxy) as Record<string, unknown>;
+
       const toolCall: ToolCall = {
         id: block.id,
         name: block.name,
-        input: block.input as Record<string, unknown>,
+        input: deanonInput as Record<string, unknown>,
         status: 'running',
       };
       onEvent({ type: 'tool_call_start', toolCall });
@@ -148,7 +195,7 @@ export async function runToolLoop({
 
         if (allowed) {
           try {
-            result = await toolDef.handler(block.input as Record<string, unknown>);
+            result = await toolDef.handler(deanonInput);
           } catch (err) {
             result = {
               success: false,
@@ -160,7 +207,7 @@ export async function runToolLoop({
         }
       } else {
         try {
-          result = await toolDef.handler(block.input as Record<string, unknown>);
+          result = await toolDef.handler(deanonInput);
         } catch (err) {
           result = {
             success: false,
@@ -169,6 +216,20 @@ export async function runToolLoop({
         }
       }
       const durationMs = Date.now() - startTime;
+
+      // Anonymize tool result before logging and sending back to Claude
+      if (result.data) {
+        const anonResult = await piiProxy.anonymize(JSON.stringify(result.data));
+        if (anonResult.entities.length > 0) {
+          try {
+            result = { ...result, data: JSON.parse(anonResult.text) };
+          } catch {
+            // Token replacement broke JSON structure (e.g. PII in numeric values);
+            // fall back to the anonymized string representation
+            result = { ...result, data: anonResult.text };
+          }
+        }
+      }
 
       try {
         logToolCall({
@@ -213,7 +274,8 @@ export async function runToolLoop({
 
     for (const block of finalResponse.content) {
       if (block.type === 'text') {
-        onEvent({ type: 'text_delta', content: block.text });
+        const deanonText = await piiProxy.deanonymize(block.text);
+        onEvent({ type: 'text_delta', content: deanonText });
       }
     }
   }

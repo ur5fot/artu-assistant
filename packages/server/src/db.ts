@@ -42,6 +42,17 @@ export function initDb(dbPath?: string): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pii_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT NOT NULL UNIQUE,
+      encrypted_value TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT DEFAULT (datetime('now', '+7 days'))
+    )
+  `);
 }
 
 export function getDb(): Database.Database {

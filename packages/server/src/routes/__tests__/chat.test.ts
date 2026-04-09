@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createChatRouter } from '../chat.js';
+import { createPassthroughProxy } from '../../pii/proxy.js';
 
 describe('POST /api/chat', () => {
   it('returns 400 when messages not provided', async () => {
@@ -11,6 +12,7 @@ describe('POST /api/chat', () => {
     const router = createChatRouter({
       runLoop: vi.fn(),
       pendingConfirms: new Map(),
+      piiProxy: createPassthroughProxy(),
     });
     app.use('/api', router);
 
@@ -32,6 +34,7 @@ describe('POST /api/chat', () => {
         onEvent({ type: 'done' });
       },
       pendingConfirms: new Map(),
+      piiProxy: createPassthroughProxy(),
     });
     app.use('/api', router);
 
@@ -54,6 +57,7 @@ describe('POST /api/chat', () => {
         throw new Error('Claude API down');
       },
       pendingConfirms: new Map(),
+      piiProxy: createPassthroughProxy(),
     });
     app.use('/api', router);
 
@@ -75,6 +79,7 @@ describe('POST /api/chat', () => {
         throw new Error('Anthropic API returned 401');
       },
       pendingConfirms: new Map(),
+      piiProxy: createPassthroughProxy(),
     });
     app.use('/api', router);
 
@@ -96,6 +101,7 @@ describe('POST /api/chat', () => {
         throw new Error('Web search failed: connect ECONNREFUSED 127.0.0.1:8888');
       },
       pendingConfirms: new Map(),
+      piiProxy: createPassthroughProxy(),
     });
     app.use('/api', router);
 
@@ -122,6 +128,7 @@ describe('POST /api/chat', () => {
         onEvent({ type: 'done' });
       },
       pendingConfirms: new Map(),
+      piiProxy: createPassthroughProxy(),
     });
     app.use('/api', router);
 
@@ -146,6 +153,7 @@ describe('POST /api/chat', () => {
         onEvent({ type: 'done' });
       },
       pendingConfirms: new Map(),
+      piiProxy: createPassthroughProxy(),
     });
     app.use('/api', router);
 
@@ -171,6 +179,7 @@ describe('POST /api/chat', () => {
         onEvent({ type: 'done' });
       },
       pendingConfirms: new Map(),
+      piiProxy: createPassthroughProxy(),
     });
     app.use('/api', router);
 
@@ -191,6 +200,7 @@ describe('POST /api/chat', () => {
         throw new Error('Invalid key: sk-ant-abc123');
       },
       pendingConfirms: new Map(),
+      piiProxy: createPassthroughProxy(),
     });
     app.use('/api', router);
 

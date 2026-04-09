@@ -15,7 +15,7 @@
 **Files:**
 - Modify: `docker-compose.yml`
 
-- [ ] **Step 1: Add Presidio services to docker-compose.yml**
+- [x] **Step 1: Add Presidio services to docker-compose.yml**
 
 Replace the entire file with:
 
@@ -47,7 +47,7 @@ services:
     restart: unless-stopped
 ```
 
-- [ ] **Step 2: Add PII env vars to .env.example**
+- [x] **Step 2: Add PII env vars to .env.example**
 
 Append to end of `.env.example`:
 
@@ -69,7 +69,7 @@ PRESIDIO_ANONYMIZER_URL=http://localhost:5001
 # AU_ACN, AU_TFN, AU_MEDICARE, US_PASSPORT, US_BANK_NUMBER
 ```
 
-- [ ] **Step 3: Pull images and verify**
+- [x] **Step 3: Pull images and verify**
 
 Run:
 ```bash
@@ -79,7 +79,7 @@ docker compose ps
 ```
 Expected: all 3 services running.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docker-compose.yml .env.example
@@ -94,7 +94,7 @@ git commit -m "feat: add Presidio analyzer and anonymizer Docker services"
 - Create: `packages/server/src/pii/vault.ts`
 - Create: `packages/server/src/pii/vault.test.ts`
 
-- [ ] **Step 1: Write failing tests for vault**
+- [x] **Step 1: Write failing tests for vault**
 
 Create `packages/server/src/pii/vault.test.ts`:
 
@@ -183,12 +183,12 @@ describe('PiiVault', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/pii/vault.test.ts`
 Expected: FAIL — module `./vault.js` not found.
 
-- [ ] **Step 3: Add pii_tokens table to db.ts**
+- [x] **Step 3: Add pii_tokens table to db.ts**
 
 In `packages/server/src/db.ts`, after the `permission_rules` table creation (after line 44), add:
 
@@ -205,7 +205,7 @@ In `packages/server/src/db.ts`, after the `permission_rules` table creation (aft
   `);
 ```
 
-- [ ] **Step 4: Implement vault**
+- [x] **Step 4: Implement vault**
 
 Create `packages/server/src/pii/vault.ts`:
 
@@ -300,12 +300,12 @@ export class PiiVault {
 }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd packages/server && npx vitest run src/pii/vault.test.ts`
 Expected: all 8 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/pii/vault.ts packages/server/src/pii/vault.test.ts packages/server/src/db.ts
@@ -320,7 +320,7 @@ git commit -m "feat: add PII token vault with AES-256-GCM encryption"
 - Create: `packages/server/src/pii/presidio.ts`
 - Create: `packages/server/src/pii/presidio.test.ts`
 
-- [ ] **Step 1: Write failing tests for Presidio client**
+- [x] **Step 1: Write failing tests for Presidio client**
 
 Create `packages/server/src/pii/presidio.test.ts`:
 
@@ -406,12 +406,12 @@ describe('PresidioClient', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/pii/presidio.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement Presidio client**
+- [x] **Step 3: Implement Presidio client**
 
 Create `packages/server/src/pii/presidio.ts`:
 
@@ -502,12 +502,12 @@ export class PresidioClient {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd packages/server && npx vitest run src/pii/presidio.test.ts`
 Expected: all 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/pii/presidio.ts packages/server/src/pii/presidio.test.ts
@@ -522,7 +522,7 @@ git commit -m "feat: add Presidio HTTP client for analyzer and anonymizer"
 - Create: `packages/server/src/pii/proxy.ts`
 - Create: `packages/server/src/pii/proxy.test.ts`
 
-- [ ] **Step 1: Write failing tests for PII proxy**
+- [x] **Step 1: Write failing tests for PII proxy**
 
 Create `packages/server/src/pii/proxy.test.ts`:
 
@@ -684,12 +684,12 @@ describe('PiiProxy', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/pii/proxy.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement PII proxy**
+- [x] **Step 3: Implement PII proxy**
 
 Create `packages/server/src/pii/proxy.ts`:
 
@@ -791,12 +791,12 @@ export function createPassthroughProxy(): PiiProxy {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd packages/server && npx vitest run src/pii/proxy.test.ts`
 Expected: all 6 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/pii/proxy.ts packages/server/src/pii/proxy.test.ts
@@ -811,7 +811,7 @@ git commit -m "feat: add PII proxy with anonymize/deanonymize and fail-open/clos
 - Modify: `packages/shared/src/types.ts`
 - Modify: `packages/shared/src/index.ts`
 
-- [ ] **Step 1: Add pii_masked SSE event type**
+- [x] **Step 1: Add pii_masked SSE event type**
 
 In `packages/shared/src/types.ts`, change the SSEEvent union (line 27-33) to:
 
@@ -826,12 +826,12 @@ export type SSEEvent =
   | { type: 'error'; message: string };
 ```
 
-- [ ] **Step 2: Run typecheck to verify**
+- [x] **Step 2: Run typecheck to verify**
 
 Run: `cd packages/shared && npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/shared/src/types.ts
@@ -847,7 +847,7 @@ git commit -m "feat: add pii_masked SSE event type"
 - Modify: `packages/server/src/routes/chat.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Add PiiProxy to tool-loop params and wrap data**
+- [x] **Step 1: Add PiiProxy to tool-loop params and wrap data**
 
 In `packages/server/src/ai/tool-loop.ts`:
 
@@ -933,7 +933,7 @@ Do the same for the `auto` handler (line 163):
         onEvent({ type: 'text_delta', content: deanonText });
 ```
 
-- [ ] **Step 2: Update chat.ts to pass piiProxy**
+- [x] **Step 2: Update chat.ts to pass piiProxy**
 
 In `packages/server/src/routes/chat.ts`:
 
@@ -978,7 +978,7 @@ In the `runLoop` call (line 80-88), add `piiProxy`:
       });
 ```
 
-- [ ] **Step 3: Update index.ts to create and pass PII proxy**
+- [x] **Step 3: Update index.ts to create and pass PII proxy**
 
 In `packages/server/src/index.ts`:
 
@@ -1028,17 +1028,17 @@ const chatRouter = createChatRouter({
 });
 ```
 
-- [ ] **Step 4: Run typecheck**
+- [x] **Step 4: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 5: Run existing tests to make sure nothing breaks**
+- [x] **Step 5: Run existing tests to make sure nothing breaks**
 
 Run: `cd packages/server && npx vitest run`
 Expected: existing tests PASS. Note: some tool-loop tests may need updates (they don't pass `piiProxy`).
 
-- [ ] **Step 6: Fix tool-loop tests to pass piiProxy**
+- [x] **Step 6: Fix tool-loop tests to pass piiProxy**
 
 In `packages/server/src/ai/__tests__/tool-loop.test.ts`:
 
@@ -1054,12 +1054,12 @@ piiProxy: createPassthroughProxy(),
 
 There are approximately 15 `runToolLoop()` calls in the test file. Add `piiProxy: createPassthroughProxy()` to each one.
 
-- [ ] **Step 7: Run all tests**
+- [x] **Step 7: Run all tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts packages/server/src/routes/chat.ts packages/server/src/index.ts packages/server/src/ai/__tests__/tool-loop.test.ts
@@ -1075,7 +1075,7 @@ git commit -m "feat: integrate PII proxy into tool-loop pipeline"
 - Modify: `packages/client/src/hooks/useChat.ts`
 - Modify: `packages/client/src/components/MessageBubble.tsx`
 
-- [ ] **Step 1: Create PiiBadge component**
+- [x] **Step 1: Create PiiBadge component**
 
 Create `packages/client/src/components/PiiBadge.tsx`:
 
@@ -1117,7 +1117,7 @@ export function PiiBadge({ entities }: Props) {
 }
 ```
 
-- [ ] **Step 2: Add piiEntities to useChat state**
+- [x] **Step 2: Add piiEntities to useChat state**
 
 In `packages/client/src/hooks/useChat.ts`:
 
@@ -1150,18 +1150,18 @@ Add handler for `pii_masked` event in the switch statement (after `tool_confirm_
 
 Note: The `piiEntities` field needs to be added to the Message type. Since `Message` is from `@r2/shared`, we need to extend it.
 
-- [ ] **Step 3: Add piiEntities to Message type**
+- [x] **Step 3: Add piiEntities to Message type**
 
 In `packages/shared/src/types.ts`, add to the `Message` interface (after line 6):
 ```typescript
   piiEntities?: Array<{ type: string; count: number }>;
 ```
 
-- [ ] **Step 4: Include piiEntities in all message state updates in useChat.ts**
+- [x] **Step 4: Include piiEntities in all message state updates in useChat.ts**
 
 Every `setMessages` call that creates the assistant message object should include `piiEntities`. There are 5 such calls in useChat.ts (in `text_delta`, `tool_call_start`, `tool_call_result`, `tool_confirm_request` handlers). Add `piiEntities,` after `timestamp: Date.now(),` in each one.
 
-- [ ] **Step 5: Render PiiBadge in MessageBubble**
+- [x] **Step 5: Render PiiBadge in MessageBubble**
 
 In `packages/client/src/components/MessageBubble.tsx`:
 
@@ -1177,12 +1177,12 @@ After the `toolCalls` rendering block (after line 70, before `{message.content &
       )}
 ```
 
-- [ ] **Step 6: Run typecheck**
+- [x] **Step 6: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json && npx tsc --noEmit -p packages/shared/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/client/src/components/PiiBadge.tsx packages/client/src/hooks/useChat.ts packages/client/src/components/MessageBubble.tsx packages/shared/src/types.ts
@@ -1197,7 +1197,7 @@ git commit -m "feat: add PII badge component to show masked entity counts"
 - Create: `packages/server/src/routes/pii.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Create PII tokens route**
+- [x] **Step 1: Create PII tokens route**
 
 Create `packages/server/src/routes/pii.ts`:
 
@@ -1219,7 +1219,7 @@ export function createPiiRouter(): Router {
 }
 ```
 
-- [ ] **Step 2: Register route in index.ts**
+- [x] **Step 2: Register route in index.ts**
 
 In `packages/server/src/index.ts`, add import:
 ```typescript
@@ -1231,12 +1231,12 @@ After `app.use('/api', createPermissionsRouter());` (line 41), add:
 app.use('/api', createPiiRouter());
 ```
 
-- [ ] **Step 3: Run typecheck**
+- [x] **Step 3: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/routes/pii.ts packages/server/src/index.ts
@@ -1250,7 +1250,7 @@ git commit -m "feat: add DELETE /api/pii-tokens endpoint"
 **Files:**
 - Create: `packages/server/src/pii/integration.test.ts`
 
-- [ ] **Step 1: Write integration test for the full anonymize → deanonymize flow**
+- [x] **Step 1: Write integration test for the full anonymize → deanonymize flow**
 
 Create `packages/server/src/pii/integration.test.ts`:
 
@@ -1405,17 +1405,17 @@ describe('PII Pipeline Integration', () => {
 });
 ```
 
-- [ ] **Step 2: Run integration tests**
+- [x] **Step 2: Run integration tests**
 
 Run: `cd packages/server && npx vitest run src/pii/integration.test.ts`
 Expected: all 3 tests PASS.
 
-- [ ] **Step 3: Run full test suite**
+- [x] **Step 3: Run full test suite**
 
 Run: `cd packages/server && npx vitest run`
 Expected: ALL tests PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/pii/integration.test.ts
@@ -1429,21 +1429,21 @@ git commit -m "test: add PII pipeline integration tests"
 **Files:**
 - All modified files
 
-- [ ] **Step 1: Full typecheck across all packages**
+- [x] **Step 1: Full typecheck across all packages**
 
 Run: `npm run build --workspaces --if-present 2>&1 || npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no type errors.
 
-- [ ] **Step 2: Run all tests across all packages**
+- [x] **Step 2: Run all tests across all packages**
 
 Run: `npm test --workspaces --if-present`
 Expected: all tests PASS.
 
-- [ ] **Step 3: Fix any issues found**
+- [x] **Step 3: Fix any issues found**
 
 If any type errors or test failures, fix them.
 
-- [ ] **Step 4: Final commit**
+- [x] **Step 4: Final commit**
 
 ```bash
 git add -A

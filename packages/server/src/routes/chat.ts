@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import type { SSEEvent } from '@r2/shared';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { PendingConfirms } from './confirm.js';
+import type { PiiProxy } from '../pii/proxy.js';
 
 function formatTimestamp(ts: number): string {
   const d = new Date(ts);
@@ -41,11 +42,13 @@ interface ChatRouterDeps {
     onEvent: (event: SSEEvent) => void;
     signal?: AbortSignal;
     pendingConfirms: PendingConfirms;
+    piiProxy: PiiProxy;
   }) => Promise<void>;
   pendingConfirms: PendingConfirms;
+  piiProxy: PiiProxy;
 }
 
-export function createChatRouter({ runLoop, pendingConfirms }: ChatRouterDeps): Router {
+export function createChatRouter({ runLoop, pendingConfirms, piiProxy }: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -81,6 +84,7 @@ export function createChatRouter({ runLoop, pendingConfirms }: ChatRouterDeps): 
         messages: addTimestamps(messages),
         signal: abortController.signal,
         pendingConfirms,
+        piiProxy,
         onEvent: (event: SSEEvent) => {
           if (!res.writableEnded && !res.destroyed) {
             res.write(`data: ${JSON.stringify(event)}\n\n`);

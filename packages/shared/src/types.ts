@@ -4,6 +4,7 @@ export interface Message {
   content: string;
   toolCalls?: ToolCall[];
   timestamp: number;
+  piiEntities?: Array<{ type: string; count: number }>;
 }
 
 export interface ToolCall {
@@ -29,5 +30,6 @@ export type SSEEvent =
   | { type: 'tool_call_start'; toolCall: ToolCall }
   | { type: 'tool_call_result'; id: string; result: ToolResult }
   | { type: 'tool_confirm_request'; toolCall: ToolCall; level: 'confirm' | 'forbidden' }
+  | { type: 'pii_masked'; entities: Array<{ type: string; count: number }> }
   | { type: 'done' }
   | { type: 'error'; message: string };
