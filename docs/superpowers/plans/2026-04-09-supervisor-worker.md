@@ -960,26 +960,26 @@ git commit -m "feat: add useSupervisor hook and worker status indicator"
 **Files:**
 - All modified files
 
-- [ ] **Step 1: Full typecheck across all packages**
+- [x] **Step 1: Full typecheck across all packages**
 
 Run: `npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/supervisor/tsconfig.json`
 Expected: no type errors.
 
-- [ ] **Step 2: Run all server tests**
+- [x] **Step 2: Run all server tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 3: Run all supervisor tests**
+- [x] **Step 3: Run all supervisor tests**
 
 Run: `cd packages/supervisor && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 4: Fix any issues found**
+- [x] **Step 4: Fix any issues found**
 
 If any type errors or test failures, fix them.
 
-- [ ] **Step 5: Final commit**
+- [x] **Step 5: Final commit**
 
 ```bash
 git add -A
