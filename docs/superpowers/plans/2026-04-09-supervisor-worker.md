@@ -17,7 +17,7 @@
 - Create: `packages/supervisor/tsconfig.json`
 - Create: `packages/supervisor/src/index.ts` (placeholder)
 
-- [ ] **Step 1: Create package.json**
+- [x] **Step 1: Create package.json**
 
 Create `packages/supervisor/package.json`:
 
@@ -44,7 +44,7 @@ Create `packages/supervisor/package.json`:
 }
 ```
 
-- [ ] **Step 2: Create tsconfig.json**
+- [x] **Step 2: Create tsconfig.json**
 
 Create `packages/supervisor/tsconfig.json`:
 
@@ -59,7 +59,7 @@ Create `packages/supervisor/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 3: Create placeholder entry point**
+- [x] **Step 3: Create placeholder entry point**
 
 Create `packages/supervisor/src/index.ts`:
 
@@ -67,17 +67,17 @@ Create `packages/supervisor/src/index.ts`:
 console.log('R2 supervisor starting...');
 ```
 
-- [ ] **Step 4: Install dependencies**
+- [x] **Step 4: Install dependencies**
 
 Run: `npm install`
 Expected: workspaces resolve, no errors.
 
-- [ ] **Step 5: Verify typecheck**
+- [x] **Step 5: Verify typecheck**
 
 Run: `npx tsc --noEmit -p packages/supervisor/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/supervisor/
