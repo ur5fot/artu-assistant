@@ -18,7 +18,7 @@ export function useChat() {
   const sendingRef = useRef(false);
 
   const send = useCallback((text: string) => {
-    if (!text.trim() || sendingRef.current) return;
+    if (!text.trim() || sendingRef.current || !historyLoaded) return;
 
     sendingRef.current = true;
     setError(null);
@@ -165,7 +165,7 @@ export function useChat() {
         sendingRef.current = false;
       },
     });
-  }, [messages]);
+  }, [messages, historyLoaded]);
 
   const stop = useCallback(() => {
     connectionRef.current?.abort();
@@ -208,10 +208,13 @@ export function useChat() {
   // Load chat history on mount
   useEffect(() => {
     fetch('/api/messages')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load messages: ${res.status}`);
+        return res.json();
+      })
       .then((msgs: Message[]) => {
         if (msgs.length > 0) {
-          setMessages(msgs);
+          setMessages((prev) => (prev.length > 0 ? prev : msgs));
         }
       })
       .catch((err) => {

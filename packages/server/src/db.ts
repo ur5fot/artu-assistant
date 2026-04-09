@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import type { ToolCall } from '@r2/shared';
 
 let db: Database.Database | null = null;
 
@@ -127,7 +128,7 @@ interface SaveMessageParams {
   messageId: string;
   role: 'user' | 'assistant';
   content: string;
-  toolCalls?: unknown[];
+  toolCalls?: ToolCall[];
   piiEntities?: Array<{ type: string; count: number }>;
   timestamp: number;
 }
@@ -151,13 +152,13 @@ export function getMessages(): Array<{
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  toolCalls?: unknown[];
+  toolCalls?: ToolCall[];
   piiEntities?: Array<{ type: string; count: number }>;
   timestamp: number;
 }> {
   const d = getDb();
   const rows = d.prepare(
-    'SELECT message_id, role, content, tool_calls, pii_entities, timestamp FROM chat_messages ORDER BY timestamp ASC'
+    'SELECT message_id, role, content, tool_calls, pii_entities, timestamp FROM chat_messages ORDER BY timestamp ASC, id ASC'
   ).all() as Array<{
     message_id: string;
     role: string;
