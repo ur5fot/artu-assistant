@@ -580,7 +580,7 @@ git commit -m "feat: add WebSocket server for supervisor status broadcast"
 **Files:**
 - Modify: `packages/supervisor/src/index.ts`
 
-- [ ] **Step 1: Implement supervisor entry point**
+- [x] **Step 1: Implement supervisor entry point**
 
 Replace `packages/supervisor/src/index.ts`:
 
@@ -660,12 +660,12 @@ console.log(`[supervisor] WebSocket status on ws://localhost:${WS_PORT}`);
 manager.start();
 ```
 
-- [ ] **Step 2: Run typecheck**
+- [x] **Step 2: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/supervisor/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/supervisor/src/index.ts
