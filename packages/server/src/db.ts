@@ -53,6 +53,19 @@ export function initDb(dbPath?: string): void {
       expires_at TEXT DEFAULT (datetime('now', '+7 days'))
     )
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      tool_calls TEXT,
+      pii_entities TEXT,
+      timestamp INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
 }
 
 export function getDb(): Database.Database {
@@ -108,6 +121,65 @@ export function savePermissionRule(toolName: string, allowed: boolean): void {
 export function clearPermissionRules(): void {
   const d = getDb();
   d.prepare('DELETE FROM permission_rules').run();
+}
+
+interface SaveMessageParams {
+  messageId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  toolCalls?: unknown[];
+  piiEntities?: Array<{ type: string; count: number }>;
+  timestamp: number;
+}
+
+export function saveMessage(params: SaveMessageParams): void {
+  const d = getDb();
+  d.prepare(
+    `INSERT OR IGNORE INTO chat_messages (message_id, role, content, tool_calls, pii_entities, timestamp)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(
+    params.messageId,
+    params.role,
+    params.content,
+    params.toolCalls ? JSON.stringify(params.toolCalls) : null,
+    params.piiEntities ? JSON.stringify(params.piiEntities) : null,
+    params.timestamp,
+  );
+}
+
+export function getMessages(): Array<{
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  toolCalls?: unknown[];
+  piiEntities?: Array<{ type: string; count: number }>;
+  timestamp: number;
+}> {
+  const d = getDb();
+  const rows = d.prepare(
+    'SELECT message_id, role, content, tool_calls, pii_entities, timestamp FROM chat_messages ORDER BY timestamp ASC'
+  ).all() as Array<{
+    message_id: string;
+    role: string;
+    content: string;
+    tool_calls: string | null;
+    pii_entities: string | null;
+    timestamp: number;
+  }>;
+
+  return rows.map((row) => ({
+    id: row.message_id,
+    role: row.role as 'user' | 'assistant',
+    content: row.content,
+    toolCalls: row.tool_calls ? JSON.parse(row.tool_calls) : undefined,
+    piiEntities: row.pii_entities ? JSON.parse(row.pii_entities) : undefined,
+    timestamp: row.timestamp,
+  }));
+}
+
+export function clearMessages(): void {
+  const d = getDb();
+  d.prepare('DELETE FROM chat_messages').run();
 }
 
 export function cleanupAuditLog(): void {

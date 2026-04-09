@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { initDb, logToolCall, cleanupAuditLog, getDb, closeDb, getPermissionRule, savePermissionRule, clearPermissionRules } from './db.js';
+import { initDb, logToolCall, cleanupAuditLog, getDb, closeDb, getPermissionRule, savePermissionRule, clearPermissionRules, saveMessage, getMessages, clearMessages } from './db.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -126,6 +126,91 @@ describe('Database Module', () => {
       clearPermissionRules();
       expect(getPermissionRule('file_write')).toBeNull();
       expect(getPermissionRule('file_delete')).toBeNull();
+    });
+  });
+
+  describe('Chat Messages', () => {
+    it('saves and retrieves a user message', () => {
+      saveMessage({
+        messageId: 'msg-1',
+        role: 'user',
+        content: 'Hello R2',
+        timestamp: 1700000000000,
+      });
+
+      const messages = getMessages();
+      expect(messages).toHaveLength(1);
+      expect(messages[0].id).toBe('msg-1');
+      expect(messages[0].role).toBe('user');
+      expect(messages[0].content).toBe('Hello R2');
+      expect(messages[0].timestamp).toBe(1700000000000);
+      expect(messages[0].toolCalls).toBeUndefined();
+      expect(messages[0].piiEntities).toBeUndefined();
+    });
+
+    it('saves assistant message with tool calls', () => {
+      saveMessage({
+        messageId: 'msg-2',
+        role: 'assistant',
+        content: 'Searching...',
+        toolCalls: [{
+          id: 'tc-1',
+          name: 'web_search',
+          input: { query: 'test' },
+          status: 'done',
+          result: { success: true, data: 'results' },
+        }],
+        timestamp: 1700000001000,
+      });
+
+      const messages = getMessages();
+      expect(messages).toHaveLength(1);
+      expect(messages[0].toolCalls).toHaveLength(1);
+      expect(messages[0].toolCalls![0].name).toBe('web_search');
+      expect(messages[0].toolCalls![0].result).toEqual({ success: true, data: 'results' });
+    });
+
+    it('saves message with piiEntities', () => {
+      saveMessage({
+        messageId: 'msg-3',
+        role: 'assistant',
+        content: 'Found it',
+        piiEntities: [{ type: 'EMAIL_ADDRESS', count: 2 }],
+        timestamp: 1700000002000,
+      });
+
+      const messages = getMessages();
+      expect(messages[0].piiEntities).toEqual([{ type: 'EMAIL_ADDRESS', count: 2 }]);
+    });
+
+    it('returns messages ordered by timestamp ASC', () => {
+      saveMessage({ messageId: 'msg-a', role: 'user', content: 'First', timestamp: 1700000000000 });
+      saveMessage({ messageId: 'msg-b', role: 'assistant', content: 'Second', timestamp: 1700000001000 });
+      saveMessage({ messageId: 'msg-c', role: 'user', content: 'Third', timestamp: 1700000002000 });
+
+      const messages = getMessages();
+      expect(messages).toHaveLength(3);
+      expect(messages[0].content).toBe('First');
+      expect(messages[1].content).toBe('Second');
+      expect(messages[2].content).toBe('Third');
+    });
+
+    it('is idempotent — duplicate messageId is ignored', () => {
+      saveMessage({ messageId: 'msg-dup', role: 'user', content: 'Hello', timestamp: 1700000000000 });
+      saveMessage({ messageId: 'msg-dup', role: 'user', content: 'Hello again', timestamp: 1700000001000 });
+
+      const messages = getMessages();
+      expect(messages).toHaveLength(1);
+      expect(messages[0].content).toBe('Hello');
+    });
+
+    it('clears all messages', () => {
+      saveMessage({ messageId: 'msg-x', role: 'user', content: 'Hello', timestamp: 1700000000000 });
+      saveMessage({ messageId: 'msg-y', role: 'assistant', content: 'Hi', timestamp: 1700000001000 });
+      clearMessages();
+
+      const messages = getMessages();
+      expect(messages).toHaveLength(0);
     });
   });
 });
