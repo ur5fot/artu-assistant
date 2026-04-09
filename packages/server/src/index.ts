@@ -13,7 +13,7 @@ import { createPiiRouter } from './routes/pii.js';
 import { createClaudeClient } from './ai/claude.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { discoverTools } from './tools/registry.js';
-import { initDb, cleanupAuditLog } from './db.js';
+import { initDb, cleanupAuditLog, closeDb } from './db.js';
 import { errorHandler } from './errors.js';
 import { createPiiProxy, createPassthroughProxy } from './pii/proxy.js';
 import { PiiVault } from './pii/vault.js';
@@ -92,6 +92,19 @@ app.get('/api/health', (_req, res) => {
 
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`R2 server running on http://localhost:${PORT}`);
+  // Signal supervisor that worker is ready (no-op without supervisor)
+  process.send?.({ type: 'ready' });
+});
+
+// Graceful shutdown on SIGTERM (from supervisor)
+process.on('SIGTERM', () => {
+  console.log('Worker received SIGTERM, shutting down...');
+  server.close(() => {
+    closeDb();
+    process.exit(0);
+  });
+  // Force exit if close takes too long
+  setTimeout(() => process.exit(1), 5000);
 });

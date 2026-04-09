@@ -17,7 +17,7 @@
 - Create: `packages/supervisor/tsconfig.json`
 - Create: `packages/supervisor/src/index.ts` (placeholder)
 
-- [ ] **Step 1: Create package.json**
+- [x] **Step 1: Create package.json**
 
 Create `packages/supervisor/package.json`:
 
@@ -44,7 +44,7 @@ Create `packages/supervisor/package.json`:
 }
 ```
 
-- [ ] **Step 2: Create tsconfig.json**
+- [x] **Step 2: Create tsconfig.json**
 
 Create `packages/supervisor/tsconfig.json`:
 
@@ -59,7 +59,7 @@ Create `packages/supervisor/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 3: Create placeholder entry point**
+- [x] **Step 3: Create placeholder entry point**
 
 Create `packages/supervisor/src/index.ts`:
 
@@ -67,17 +67,17 @@ Create `packages/supervisor/src/index.ts`:
 console.log('R2 supervisor starting...');
 ```
 
-- [ ] **Step 4: Install dependencies**
+- [x] **Step 4: Install dependencies**
 
 Run: `npm install`
 Expected: workspaces resolve, no errors.
 
-- [ ] **Step 5: Verify typecheck**
+- [x] **Step 5: Verify typecheck**
 
 Run: `npx tsc --noEmit -p packages/supervisor/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/supervisor/
@@ -92,7 +92,7 @@ git commit -m "feat: scaffold @r2/supervisor package"
 - Create: `packages/supervisor/src/worker-manager.ts`
 - Create: `packages/supervisor/src/worker-manager.test.ts`
 
-- [ ] **Step 1: Write failing tests for spawn and ready**
+- [x] **Step 1: Write failing tests for spawn and ready**
 
 Create `packages/supervisor/src/worker-manager.test.ts`:
 
@@ -178,7 +178,7 @@ describe('WorkerManager', () => {
 });
 ```
 
-- [ ] **Step 2: Create test fixtures**
+- [x] **Step 2: Create test fixtures**
 
 Create `packages/supervisor/src/__fixtures__/mock-worker.ts`:
 
@@ -201,12 +201,12 @@ Create `packages/supervisor/src/__fixtures__/crash-worker.ts`:
 process.exit(1);
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `cd packages/supervisor && npx vitest run src/worker-manager.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 4: Implement WorkerManager**
+- [x] **Step 4: Implement WorkerManager**
 
 Create `packages/supervisor/src/worker-manager.ts`:
 
@@ -380,12 +380,12 @@ export class WorkerManager extends EventEmitter {
 }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd packages/supervisor && npx vitest run src/worker-manager.test.ts`
 Expected: all 4 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/supervisor/src/worker-manager.ts packages/supervisor/src/worker-manager.test.ts packages/supervisor/src/__fixtures__/
@@ -400,7 +400,7 @@ git commit -m "feat: add WorkerManager with spawn, IPC ready, and auto-restart"
 - Create: `packages/supervisor/src/ws-server.ts`
 - Create: `packages/supervisor/src/ws-server.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/supervisor/src/ws-server.test.ts`:
 
@@ -482,12 +482,12 @@ describe('StatusWsServer', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/supervisor && npx vitest run src/ws-server.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement WebSocket server**
+- [x] **Step 3: Implement WebSocket server**
 
 Create `packages/supervisor/src/ws-server.ts`:
 
@@ -561,12 +561,12 @@ export class StatusWsServer {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd packages/supervisor && npx vitest run src/ws-server.test.ts`
 Expected: all 3 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/supervisor/src/ws-server.ts packages/supervisor/src/ws-server.test.ts
@@ -580,7 +580,7 @@ git commit -m "feat: add WebSocket server for supervisor status broadcast"
 **Files:**
 - Modify: `packages/supervisor/src/index.ts`
 
-- [ ] **Step 1: Implement supervisor entry point**
+- [x] **Step 1: Implement supervisor entry point**
 
 Replace `packages/supervisor/src/index.ts`:
 
@@ -660,12 +660,12 @@ console.log(`[supervisor] WebSocket status on ws://localhost:${WS_PORT}`);
 manager.start();
 ```
 
-- [ ] **Step 2: Run typecheck**
+- [x] **Step 2: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/supervisor/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/supervisor/src/index.ts
@@ -679,7 +679,7 @@ git commit -m "feat: wire supervisor entry point with WorkerManager and WS serve
 **Files:**
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Add IPC ready signal and SIGTERM handler**
+- [x] **Step 1: Add IPC ready signal and SIGTERM handler**
 
 In `packages/server/src/index.ts`, replace the `app.listen` block (lines 95-97) with:
 
@@ -702,17 +702,17 @@ process.on('SIGTERM', () => {
 });
 ```
 
-- [ ] **Step 2: Run existing server tests**
+- [x] **Step 2: Run existing server tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all existing tests PASS (changes are in startup code, not tested directly).
 
-- [ ] **Step 3: Run typecheck**
+- [x] **Step 3: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/index.ts
@@ -727,7 +727,7 @@ git commit -m "feat: add IPC ready signal and graceful shutdown to worker"
 - Modify: `package.json` (root)
 - Modify: `.env.example`
 
-- [ ] **Step 1: Add start scripts to root package.json**
+- [x] **Step 1: Add start scripts to root package.json**
 
 In the root `package.json`, add to `scripts`:
 
@@ -745,7 +745,7 @@ In the root `package.json`, add to `scripts`:
 }
 ```
 
-- [ ] **Step 2: Add supervisor env vars to .env.example**
+- [x] **Step 2: Add supervisor env vars to .env.example**
 
 Append to `.env.example`:
 
@@ -755,7 +755,7 @@ R2_SUPERVISOR_PORT=3100
 R2_SHUTDOWN_TIMEOUT=5000
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add package.json .env.example
@@ -770,7 +770,7 @@ git commit -m "feat: add production start scripts and supervisor env vars"
 - Create: `packages/client/src/hooks/useSupervisor.ts`
 - Modify: `packages/client/src/App.tsx`
 
-- [ ] **Step 1: Create useSupervisor hook**
+- [x] **Step 1: Create useSupervisor hook**
 
 Create `packages/client/src/hooks/useSupervisor.ts`:
 
@@ -873,7 +873,7 @@ export function useSupervisor(): SupervisorState {
 }
 ```
 
-- [ ] **Step 2: Add status indicator to App.tsx**
+- [x] **Step 2: Add status indicator to App.tsx**
 
 Replace `packages/client/src/App.tsx`:
 
@@ -941,12 +941,12 @@ export default function App() {
 }
 ```
 
-- [ ] **Step 3: Run client typecheck**
+- [x] **Step 3: Run client typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/client/src/hooks/useSupervisor.ts packages/client/src/App.tsx
@@ -960,26 +960,26 @@ git commit -m "feat: add useSupervisor hook and worker status indicator"
 **Files:**
 - All modified files
 
-- [ ] **Step 1: Full typecheck across all packages**
+- [x] **Step 1: Full typecheck across all packages**
 
 Run: `npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/supervisor/tsconfig.json`
 Expected: no type errors.
 
-- [ ] **Step 2: Run all server tests**
+- [x] **Step 2: Run all server tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 3: Run all supervisor tests**
+- [x] **Step 3: Run all supervisor tests**
 
 Run: `cd packages/supervisor && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 4: Fix any issues found**
+- [x] **Step 4: Fix any issues found**
 
 If any type errors or test failures, fix them.
 
-- [ ] **Step 5: Final commit**
+- [x] **Step 5: Final commit**
 
 ```bash
 git add -A
