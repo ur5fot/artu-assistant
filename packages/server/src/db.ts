@@ -158,7 +158,7 @@ export function getMessages(): Array<{
 }> {
   const d = getDb();
   const rows = d.prepare(
-    'SELECT message_id, role, content, tool_calls, pii_entities, timestamp FROM chat_messages ORDER BY timestamp ASC, id ASC'
+    'SELECT message_id, role, content, tool_calls, pii_entities, timestamp FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC'
   ).all() as Array<{
     message_id: string;
     role: string;

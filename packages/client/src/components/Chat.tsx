@@ -4,7 +4,7 @@ import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 
 export function Chat() {
-  const { messages, loading, error, send, pendingConfirms, respondToConfirm } = useChat();
+  const { messages, loading, error, send, pendingConfirms, respondToConfirm, historyLoaded } = useChat();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export function Chat() {
         )}
         <div ref={bottomRef} />
       </div>
-      <ChatInput onSend={send} disabled={loading} />
+      <ChatInput onSend={send} disabled={loading || !historyLoaded} />
     </>
   );
 }
