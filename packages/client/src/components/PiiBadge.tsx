@@ -1,12 +1,11 @@
 import { useState } from 'react';
 
 interface Props {
-  entities: Array<{ type: string; count: number }>;
+  entities: Array<{ type: string; original: string }>;
 }
 
 export function PiiBadge({ entities }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const total = entities.reduce((sum, e) => sum + e.count, 0);
 
   return (
     <div style={{
@@ -22,11 +21,11 @@ export function PiiBadge({ entities }: Props) {
       marginBottom: 4,
       maxWidth: '80%',
     }} onClick={() => setExpanded(!expanded)}>
-      <span>{'\u{1F6E1}'} {total} PII masked</span>
+      <span>{'\u{1F6E1}'} {entities.length} PII masked</span>
       {expanded && (
         <div style={{ marginTop: 4, fontSize: 11, color: '#475569' }}>
-          {entities.map((e) => (
-            <div key={e.type}>{e.count}&times; {e.type}</div>
+          {entities.map((e, i) => (
+            <div key={i}>{e.type}: <strong>{e.original}</strong></div>
           ))}
         </div>
       )}

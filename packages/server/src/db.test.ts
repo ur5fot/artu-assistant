@@ -175,12 +175,12 @@ describe('Database Module', () => {
         messageId: 'msg-3',
         role: 'assistant',
         content: 'Found it',
-        piiEntities: [{ type: 'EMAIL_ADDRESS', count: 2 }],
+        piiEntities: [{ type: 'EMAIL_ADDRESS', original: 'john@example.com' }, { type: 'EMAIL_ADDRESS', original: 'jane@test.com' }],
         timestamp: 1700000002000,
       });
 
       const messages = getMessages();
-      expect(messages[0].piiEntities).toEqual([{ type: 'EMAIL_ADDRESS', count: 2 }]);
+      expect(messages[0].piiEntities).toEqual([{ type: 'EMAIL_ADDRESS', original: 'john@example.com' }, { type: 'EMAIL_ADDRESS', original: 'jane@test.com' }]);
     });
 
     it('returns messages ordered by timestamp ASC', () => {

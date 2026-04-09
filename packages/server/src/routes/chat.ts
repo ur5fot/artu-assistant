@@ -100,7 +100,7 @@ export function createChatRouter({ runLoop, pendingConfirms, piiProxy }: ChatRou
     // Accumulate assistant response for persistence
     let assistantText = '';
     const assistantToolCalls: ToolCall[] = [];
-    let assistantPiiEntities: Array<{ type: string; count: number }> | undefined;
+    let assistantPiiEntities: Array<{ type: string; original: string }> | undefined;
     const assistantId = crypto.randomUUID();
 
     try {

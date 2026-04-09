@@ -3,7 +3,7 @@ import { PiiVault } from './vault.js';
 
 export interface AnonymizeResult {
   text: string;
-  entities: Array<{ type: string; token: string }>;
+  entities: Array<{ type: string; token: string; original: string }>;
 }
 
 export interface PiiProxy {
@@ -47,7 +47,7 @@ export function createPiiProxy(config: PiiProxyConfig): PiiProxy {
       }
 
       // Build tokens for each detected entity and do local string replacement
-      const entities: Array<{ type: string; token: string }> = [];
+      const entities: Array<{ type: string; token: string; original: string }> = [];
 
       // Sort by score descending (prefer best detections), then by span width descending (prefer wider)
       const byScore = [...analyzerResults].sort((a, b) =>
@@ -71,7 +71,7 @@ export function createPiiProxy(config: PiiProxyConfig): PiiProxy {
         const token = vault.makeToken(originalValue, result.entity_type);
         vault.store(token, originalValue, result.entity_type);
         anonymized = anonymized.slice(0, result.start) + token + anonymized.slice(result.end);
-        entities.push({ type: result.entity_type, token });
+        entities.push({ type: result.entity_type, token, original: originalValue });
       }
 
       return { text: anonymized, entities };

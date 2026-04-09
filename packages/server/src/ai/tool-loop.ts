@@ -75,7 +75,7 @@ export async function runToolLoop({
 
   // Anonymize user messages before sending to Claude
   const anonymizedMessages: MessageParam[] = [];
-  const allPiiEntities: Array<{ type: string; token: string }> = [];
+  const allPiiEntities: Array<{ type: string; token: string; original: string }> = [];
   for (const msg of currentMessages) {
     if (signal?.aborted) return;
     if (typeof msg.content === 'string') {
@@ -90,13 +90,9 @@ export async function runToolLoop({
 
   // Emit pii_masked event if any PII was found
   if (allPiiEntities.length > 0) {
-    const counts = new Map<string, number>();
-    for (const e of allPiiEntities) {
-      counts.set(e.type, (counts.get(e.type) ?? 0) + 1);
-    }
     onEvent({
       type: 'pii_masked',
-      entities: Array.from(counts.entries()).map(([type, count]) => ({ type, count })),
+      entities: allPiiEntities.map((e) => ({ type: e.type, original: e.original })),
     });
   }
 

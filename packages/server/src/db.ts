@@ -129,7 +129,7 @@ interface SaveMessageParams {
   role: 'user' | 'assistant';
   content: string;
   toolCalls?: ToolCall[];
-  piiEntities?: Array<{ type: string; count: number }>;
+  piiEntities?: Array<{ type: string; original: string }>;
   timestamp: number;
 }
 
@@ -153,7 +153,7 @@ export function getMessages(): Array<{
   role: 'user' | 'assistant';
   content: string;
   toolCalls?: ToolCall[];
-  piiEntities?: Array<{ type: string; count: number }>;
+  piiEntities?: Array<{ type: string; original: string }>;
   timestamp: number;
 }> {
   const d = getDb();

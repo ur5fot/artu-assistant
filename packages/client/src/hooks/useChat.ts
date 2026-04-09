@@ -38,7 +38,7 @@ export function useChat() {
     const assistantId = crypto.randomUUID();
     let assistantText = '';
     const toolCalls: ToolCall[] = [];
-    let piiEntities: Array<{ type: string; count: number }> | undefined;
+    let piiEntities: Array<{ type: string; original: string }> | undefined;
 
     setMessages((prev) => [...prev, userMessage]);
 
