@@ -10,6 +10,7 @@ import { createChatRouter } from './routes/chat.js';
 import { createConfirmRouter, type PendingConfirms } from './routes/confirm.js';
 import { createPermissionsRouter } from './routes/permissions.js';
 import { createPiiRouter } from './routes/pii.js';
+import { createMessagesRouter } from './routes/messages.js';
 import { createClaudeClient } from './ai/claude.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { discoverTools } from './tools/registry.js';
@@ -82,6 +83,7 @@ const chatRouter = createChatRouter({
 app.use('/api', chatRouter);
 app.use('/api', createConfirmRouter(pendingConfirms));
 app.use('/api', createPermissionsRouter());
+app.use('/api', createMessagesRouter());
 if (piiVault) {
   app.use('/api', createPiiRouter(piiVault));
 }

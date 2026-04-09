@@ -166,8 +166,8 @@ describe('Database Module', () => {
       const messages = getMessages();
       expect(messages).toHaveLength(1);
       expect(messages[0].toolCalls).toHaveLength(1);
-      expect(messages[0].toolCalls![0].name).toBe('web_search');
-      expect(messages[0].toolCalls![0].result).toEqual({ success: true, data: 'results' });
+      expect((messages[0].toolCalls![0] as Record<string, unknown>).name).toBe('web_search');
+      expect((messages[0].toolCalls![0] as Record<string, unknown>).result).toEqual({ success: true, data: 'results' });
     });
 
     it('saves message with piiEntities', () => {
