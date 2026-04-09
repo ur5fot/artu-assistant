@@ -11,6 +11,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: parseInt(process.env.CLIENT_PORT || '5173', 10),
+    host: process.env.VITE_HOST === 'true' ? true : undefined,
+    allowedHosts: process.env.VITE_HOST === 'true' ? true : undefined,
     proxy: {
       '/api': `http://localhost:${process.env.PORT || 3001}`,
     },
