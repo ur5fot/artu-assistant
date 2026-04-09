@@ -464,21 +464,21 @@ git commit -m "feat: load chat history from server on mount"
 **Files:**
 - All modified files
 
-- [ ] **Step 1: Full typecheck across all packages**
+- [x] **Step 1: Full typecheck across all packages**
 
 Run: `npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no type errors.
 
-- [ ] **Step 2: Run all server tests**
+- [x] **Step 2: Run all server tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 3: Fix any issues found**
+- [x] **Step 3: Fix any issues found**
 
 If any type errors or test failures, fix them.
 
-- [ ] **Step 4: Final commit**
+- [x] **Step 4: Final commit**
 
 ```bash
 git add -A
