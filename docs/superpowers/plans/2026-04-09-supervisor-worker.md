@@ -92,7 +92,7 @@ git commit -m "feat: scaffold @r2/supervisor package"
 - Create: `packages/supervisor/src/worker-manager.ts`
 - Create: `packages/supervisor/src/worker-manager.test.ts`
 
-- [ ] **Step 1: Write failing tests for spawn and ready**
+- [x] **Step 1: Write failing tests for spawn and ready**
 
 Create `packages/supervisor/src/worker-manager.test.ts`:
 
@@ -178,7 +178,7 @@ describe('WorkerManager', () => {
 });
 ```
 
-- [ ] **Step 2: Create test fixtures**
+- [x] **Step 2: Create test fixtures**
 
 Create `packages/supervisor/src/__fixtures__/mock-worker.ts`:
 
@@ -201,12 +201,12 @@ Create `packages/supervisor/src/__fixtures__/crash-worker.ts`:
 process.exit(1);
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `cd packages/supervisor && npx vitest run src/worker-manager.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 4: Implement WorkerManager**
+- [x] **Step 4: Implement WorkerManager**
 
 Create `packages/supervisor/src/worker-manager.ts`:
 
@@ -380,12 +380,12 @@ export class WorkerManager extends EventEmitter {
 }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd packages/supervisor && npx vitest run src/worker-manager.test.ts`
 Expected: all 4 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/supervisor/src/worker-manager.ts packages/supervisor/src/worker-manager.test.ts packages/supervisor/src/__fixtures__/
