@@ -281,7 +281,7 @@ git commit -m "feat: add GET /api/messages and DELETE /api/messages endpoints"
 **Files:**
 - Modify: `packages/server/src/routes/chat.ts`
 
-- [ ] **Step 1: Add message saving to chat route**
+- [x] **Step 1: Add message saving to chat route**
 
 In `packages/server/src/routes/chat.ts`:
 
@@ -369,7 +369,7 @@ Add `crypto` import if not already present. At the top of the file, after existi
 import crypto from 'node:crypto';
 ```
 
-- [ ] **Step 2: Update message validation to accept id and timestamp**
+- [x] **Step 2: Update message validation to accept id and timestamp**
 
 The client sends `id` and `timestamp` with messages. The validation (lines 60-68) only checks `role` and `content`. No changes needed to validation — extra fields are just ignored by the validator but passed through. However, we need to ensure the client sends `id` in the messages array.
 
@@ -384,17 +384,17 @@ This doesn't send `id`. Update `packages/client/src/hooks/useChat.ts` line 44 to
       messages: [...messages, userMessage].map((m) => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp })),
 ```
 
-- [ ] **Step 3: Run typecheck**
+- [x] **Step 3: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Run existing tests**
+- [x] **Step 4: Run existing tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/routes/chat.ts packages/client/src/hooks/useChat.ts
