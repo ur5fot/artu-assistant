@@ -8,6 +8,8 @@
     "dev": "docker compose up -d; concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm run dev -w @r2/server",
     "dev:client": "npm run dev -w @r2/client",
+    "start": "node packages/supervisor/dist/index.js",
+    "start:build": "npm run build -w @r2/shared && npm run build -w @r2/server && npm run build -w @r2/supervisor && npm start",
     "test": "vitest run",
     "test:watch": "vitest"
   },

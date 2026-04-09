@@ -727,7 +727,7 @@ git commit -m "feat: add IPC ready signal and graceful shutdown to worker"
 - Modify: `package.json` (root)
 - Modify: `.env.example`
 
-- [ ] **Step 1: Add start scripts to root package.json**
+- [x] **Step 1: Add start scripts to root package.json**
 
 In the root `package.json`, add to `scripts`:
 
@@ -745,7 +745,7 @@ In the root `package.json`, add to `scripts`:
 }
 ```
 
-- [ ] **Step 2: Add supervisor env vars to .env.example**
+- [x] **Step 2: Add supervisor env vars to .env.example**
 
 Append to `.env.example`:
 
@@ -755,7 +755,7 @@ R2_SUPERVISOR_PORT=3100
 R2_SHUTDOWN_TIMEOUT=5000
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add package.json .env.example
