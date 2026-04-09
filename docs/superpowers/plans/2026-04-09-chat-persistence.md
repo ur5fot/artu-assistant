@@ -222,7 +222,7 @@ git commit -m "feat: add chat_messages table with save/get/clear functions"
 - Create: `packages/server/src/routes/messages.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Create messages route**
+- [x] **Step 1: Create messages route**
 
 Create `packages/server/src/routes/messages.ts`:
 
@@ -248,7 +248,7 @@ export function createMessagesRouter(): Router {
 }
 ```
 
-- [ ] **Step 2: Register route in index.ts**
+- [x] **Step 2: Register route in index.ts**
 
 In `packages/server/src/index.ts`, add import after line 12:
 
@@ -262,12 +262,12 @@ After `app.use('/api', createPermissionsRouter());` (line 84), add:
 app.use('/api', createMessagesRouter());
 ```
 
-- [ ] **Step 3: Run typecheck**
+- [x] **Step 3: Run typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/routes/messages.ts packages/server/src/index.ts
