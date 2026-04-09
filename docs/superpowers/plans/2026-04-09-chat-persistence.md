@@ -16,7 +16,7 @@
 - Modify: `packages/server/src/db.ts`
 - Modify: `packages/server/src/db.test.ts`
 
-- [ ] **Step 1: Write failing tests for saveMessage and getMessages**
+- [x] **Step 1: Write failing tests for saveMessage and getMessages**
 
 Add to `packages/server/src/db.test.ts`, after the existing `Permission Rules` describe block:
 
@@ -113,12 +113,12 @@ Also add `saveMessage`, `getMessages`, `clearMessages` to the import at line 3:
 import { initDb, logToolCall, cleanupAuditLog, getDb, closeDb, getPermissionRule, savePermissionRule, clearPermissionRules, saveMessage, getMessages, clearMessages } from './db.js';
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/db.test.ts`
 Expected: FAIL — `saveMessage` is not exported.
 
-- [ ] **Step 3: Add chat_messages table and functions to db.ts**
+- [x] **Step 3: Add chat_messages table and functions to db.ts**
 
 In `packages/server/src/db.ts`:
 
@@ -202,12 +202,12 @@ export function clearMessages(): void {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd packages/server && npx vitest run src/db.test.ts`
 Expected: all tests PASS (existing + 6 new).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/db.test.ts
