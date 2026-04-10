@@ -51,8 +51,42 @@ describe('startGitWatcher', () => {
     await Promise.resolve();
 
     expect(mockRun).toHaveBeenCalledWith('git', ['fetch', 'origin', 'master', '--quiet'], '/repo');
-    expect(mockRun).toHaveBeenCalledWith('git', ['rev-parse', 'origin/master'], '/repo');
+    expect(mockRun).toHaveBeenCalledWith('git', ['rev-parse', 'master'], '/repo');
     expect(onNewCommit).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('detects and pulls when local branch is already behind origin at startup', async () => {
+    // Regression: previously seeded storedHash from origin/branch, so if
+    // local was behind origin at startup the first poll would see no diff
+    // and skip the pull forever.
+    mockRun.mockImplementation(async (_cmd: string, args: string[]) => {
+      if (args[0] === 'fetch') return '';
+      if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') return 'master';
+      if (args[0] === 'rev-parse' && args[1] === 'master') return 'local-old';
+      if (args[0] === 'rev-parse' && args[1] === 'origin/master') return 'remote-new';
+      if (args[0] === 'pull') return '';
+      return '';
+    });
+
+    const onNewCommit = vi.fn();
+    const stop = startGitWatcher({
+      repoPath: '/repo',
+      branch: 'master',
+      intervalMs: 1000,
+      onNewCommit,
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(mockRun).toHaveBeenCalledWith(
+      'git',
+      ['pull', 'origin', 'master', '--ff-only'],
+      '/repo',
+    );
+    expect(onNewCommit).toHaveBeenCalledWith('remote-new');
     stop();
   });
 

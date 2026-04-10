@@ -24,7 +24,11 @@ export function startGitWatcher(params: GitWatcherParams): () => void {
   const initialize = async () => {
     try {
       await run('git', ['fetch', 'origin', params.branch, '--quiet'], params.repoPath);
-      storedHash = await run('git', ['rev-parse', `origin/${params.branch}`], params.repoPath);
+      // Seed from local branch, not origin/branch: if local is behind origin
+      // at startup (e.g. supervisor was stopped when an external push landed),
+      // the first poll must detect the diff and pull — otherwise the worker
+      // runs stale code until the next upstream commit.
+      storedHash = await run('git', ['rev-parse', params.branch], params.repoPath);
     } catch (err) {
       console.error(
         '[git-watcher] Failed to read initial hash:',
