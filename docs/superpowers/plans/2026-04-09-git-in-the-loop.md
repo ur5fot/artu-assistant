@@ -2818,13 +2818,13 @@ git commit -m "feat: add PlanReviewCard and plan review flow in client"
 **Files:**
 - Modify: `packages/client/src/components/ToolCallCard.tsx`
 
-- [ ] **Step 1: Read existing ToolCallCard to preserve other tool branches**
+- [x] **Step 1: Read existing ToolCallCard to preserve other tool branches**
 
 Run: `cat packages/client/src/components/ToolCallCard.tsx`
 
 Note the existing structure — the new code must preserve non-code_task rendering.
 
-- [ ] **Step 2: Extend ToolCallCard with code_task specialization**
+- [x] **Step 2: Extend ToolCallCard with code_task specialization**
 
 Replace `packages/client/src/components/ToolCallCard.tsx`:
 
@@ -2999,12 +2999,12 @@ function CodeTaskCard({ toolCall }: { toolCall: ToolCall }) {
 }
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/client/src/components/ToolCallCard.tsx
