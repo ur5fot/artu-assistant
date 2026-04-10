@@ -211,6 +211,7 @@ interface RalphexRunParams {
   task: string;
   context?: string;
   onProgress: (message: string) => void;
+  requestPlanReview: (plan: string) => Promise<{ approved: boolean; editedPlan?: string }>;
   signal?: AbortSignal;
 }
 
@@ -219,30 +220,50 @@ export async function runRalphex(params: RalphexRunParams): Promise<void>;
 
 ### Implementation
 
-1. Generate plan file at `/tmp/r2-task-<uuid>.md`:
+1. **Generate draft plan** via Haiku (or use template if draft fails):
 
-```markdown
-# R2 Auto Task
+```typescript
+async function generatePlan(task: string, context?: string): Promise<string>
+```
+Haiku is given the task + context + R2 project overview, produces a markdown plan with TDD steps.
+Fallback: template with placeholder task.
 
-**Goal:** ${task}
+2. **Show plan to user** via `requestPlanReview(plan)`:
+   - Emits SSE `tool_plan_review` event with plan content
+   - Waits for user response via `POST /api/plan-review { callId, approved, editedPlan? }`
+   - User can: approve, edit + approve, or reject
+   - Similar to existing `pendingConfirms` pattern
 
-**Context:** ${context ?? 'none'}
+3. **If rejected** → throw error "Plan rejected by user"
 
----
+4. **Write plan file** at `/tmp/r2-task-<uuid>.md` (using edited plan if provided)
 
-## Task 1: Implement the task
+5. **Spawn** `ralphex --max-iterations 20 <plan-path>` (cwd = workdir)
 
-- [ ] **Step 1: Analyze the codebase and the task**
-- [ ] **Step 2: Make the required changes**
-- [ ] **Step 3: Run tests if any exist**
-- [ ] **Step 4: Commit**
+6. **Tail progress** file, stream new lines via `onProgress`
+
+7. **Wait** for process exit; on non-zero exit throw error
+
+8. **Cleanup**: delete plan file
+
+### New SSE event
+
+```typescript
+| { type: 'tool_plan_review'; id: string; plan: string }
 ```
 
-2. Spawn: `ralphex --max-iterations 20 <plan-path>` (cwd = workdir)
-3. Tail `${workdir}/.ralphex/progress/progress-r2-task-*.txt`, stream new lines via `onProgress`
-4. Wait for process exit
-5. On non-zero exit: throw error
-6. Cleanup: delete plan file
+### New API endpoint
+
+`POST /api/plan-review`:
+```json
+{ "callId": "string", "approved": true, "editedPlan": "markdown..." }
+```
+
+Server side: `pendingPlanReviews` Map resolves Promise with user response.
+
+### Integration with tool-loop
+
+Tool-loop passes `requestPlanReview` callback as part of `ToolContext`. In `auto` mode, handler uses ralphex which calls `requestPlanReview` before spawning.
 
 ## Progress streaming
 
@@ -254,12 +275,14 @@ type SSEEvent = ... | { type: 'tool_progress'; id: string; message: string };
 
 ### Integration with tool-loop
 
-Tool handlers receive a context object. Add `onProgress` callback:
+Tool handlers receive a context object:
 
 ```typescript
 interface ToolContext {
   onProgress?: (message: string) => void;
+  requestPlanReview?: (plan: string) => Promise<{ approved: boolean; editedPlan?: string }>;
   signal?: AbortSignal;
+  meta?: { autoMode?: boolean };
 }
 
 type ToolHandler = (params: Record<string, unknown>, ctx?: ToolContext) => Promise<ToolResult>;
@@ -338,6 +361,31 @@ if (block.name === 'code_task') {
 ```
 
 Note: destructive check runs in tool-loop BEFORE the handler, because the result affects whether to show card. The handler will not re-run it.
+
+## UI — Plan review card (auto mode only)
+
+When `tool_plan_review` event arrives, client renders `PlanReviewCard`:
+
+- Shows generated plan in `<textarea>` (editable)
+- Buttons: **Run plan** (blue), **Cancel** (gray)
+- User can edit plan text before clicking Run
+- On Run → POST `/api/plan-review { callId, approved: true, editedPlan: textarea.value }`
+- On Cancel → POST `/api/plan-review { callId, approved: false }`
+
+Card replaces `ToolCallCard` while `running` state is active but `tool_plan_review` received. After user responds, card disappears and normal progress stream resumes.
+
+### useChat integration
+
+New state: `pendingPlanReviews: Map<callId, { plan: string }>`. On `tool_plan_review` event add to map. After `respondToPlanReview()` remove from map.
+
+### Message extension
+
+```typescript
+interface ToolCall {
+  ...
+  pendingPlan?: string;  // set by useChat on tool_plan_review
+}
+```
 
 ## UI — ToolCallCard for code_task
 

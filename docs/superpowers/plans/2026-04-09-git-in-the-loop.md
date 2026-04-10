@@ -779,7 +779,7 @@ git commit -m "feat: add Claude Agent SDK wrapper with progress streaming"
 
 ---
 
-### Task 6: Ralphex wrapper (auto mode)
+### Task 6: Ralphex wrapper with plan review (auto mode)
 
 **Files:**
 - Create: `packages/tool-code-task/src/ralphex.ts`
@@ -791,7 +791,7 @@ Create `packages/tool-code-task/src/ralphex.test.ts`:
 
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { runRalphex, buildPlanContent } from './ralphex.js';
+import { buildPlanContent, runRalphex } from './ralphex.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -801,7 +801,7 @@ describe('buildPlanContent', () => {
     const plan = buildPlanContent('add dark mode', 'use tailwind');
     expect(plan).toContain('add dark mode');
     expect(plan).toContain('use tailwind');
-    expect(plan).toContain('- [ ]'); // checkbox syntax
+    expect(plan).toContain('- [ ]');
   });
 
   it('handles missing context', () => {
@@ -822,6 +822,56 @@ describe('runRalphex', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('calls requestPlanReview with generated plan', async () => {
+    const mockReview = vi.fn().mockResolvedValue({ approved: false });
+
+    await expect(runRalphex({
+      workdir: tmpDir,
+      task: 'test task',
+      onProgress: () => {},
+      requestPlanReview: mockReview,
+    })).rejects.toThrow(/rejected/i);
+
+    expect(mockReview).toHaveBeenCalledWith(expect.stringContaining('test task'));
+  });
+
+  it('uses editedPlan when user provides one', async () => {
+    let writtenPath = '';
+    const origWrite = fs.writeFileSync;
+    const spy = vi.spyOn(fs, 'writeFileSync').mockImplementation((p, content) => {
+      if (typeof p === 'string' && p.endsWith('.md')) {
+        writtenPath = p;
+        origWrite.call(fs, p, content);
+      }
+    });
+
+    const mockSpawn = vi.fn().mockReturnValue({
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      on: (event: string, cb: (code: number) => void) => {
+        if (event === 'exit') setTimeout(() => cb(0), 10);
+      },
+      kill: vi.fn(),
+    });
+    vi.doMock('node:child_process', () => ({ spawn: mockSpawn }));
+    const { runRalphex: fn } = await import('./ralphex.js');
+
+    const customPlan = '# Custom plan\n\n- [ ] Do thing';
+    await fn({
+      workdir: tmpDir,
+      task: 'test',
+      onProgress: () => {},
+      requestPlanReview: async () => ({ approved: true, editedPlan: customPlan }),
+    });
+
+    expect(writtenPath).toBeTruthy();
+    const written = fs.readFileSync(writtenPath, 'utf8');
+    expect(written).toBe(customPlan);
+
+    spy.mockRestore();
+    vi.doUnmock('node:child_process');
+  });
+
   it('throws when ralphex CLI exits non-zero', async () => {
     const mockSpawn = vi.fn().mockReturnValue({
       stdout: { on: vi.fn() },
@@ -839,6 +889,7 @@ describe('runRalphex', () => {
       workdir: tmpDir,
       task: 'test',
       onProgress: () => {},
+      requestPlanReview: async () => ({ approved: true }),
     })).rejects.toThrow();
 
     vi.doUnmock('node:child_process');
@@ -862,11 +913,17 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 
+export interface PlanReviewResponse {
+  approved: boolean;
+  editedPlan?: string;
+}
+
 export interface RalphexRunParams {
   workdir: string;
   task: string;
   context?: string;
   onProgress: (message: string) => void;
+  requestPlanReview: (plan: string) => Promise<PlanReviewResponse>;
   signal?: AbortSignal;
 }
 
@@ -903,9 +960,18 @@ git add -A && git commit -m "r2: ${task.replace(/"/g, '\\"')}"
 }
 
 export async function runRalphex(params: RalphexRunParams): Promise<void> {
+  const draftPlan = buildPlanContent(params.task, params.context);
+
+  // Show plan to user and wait for approval/edits
+  const review = await params.requestPlanReview(draftPlan);
+  if (!review.approved) {
+    throw new Error('Plan rejected by user');
+  }
+  const finalPlan = review.editedPlan ?? draftPlan;
+
   const planId = crypto.randomBytes(4).toString('hex');
   const planPath = path.join(os.tmpdir(), `r2-task-${planId}.md`);
-  fs.writeFileSync(planPath, buildPlanContent(params.task, params.context));
+  fs.writeFileSync(planPath, finalPlan);
 
   try {
     await new Promise<void>((resolve, reject) => {
@@ -982,6 +1048,7 @@ export type SSEEvent =
   | { type: 'text_delta'; content: string }
   | { type: 'tool_call_start'; toolCall: ToolCall }
   | { type: 'tool_progress'; id: string; message: string }
+  | { type: 'tool_plan_review'; id: string; plan: string }
   | { type: 'tool_call_result'; id: string; result: ToolResult }
   | { type: 'tool_confirm_request'; toolCall: ToolCall; level: 'confirm' | 'forbidden'; destructiveWarning?: { reason: string } }
   | { type: 'pii_masked'; entities: Array<{ type: string; original: string }> }
@@ -996,8 +1063,14 @@ In `packages/server/src/tools/base.ts`, replace the file contents with:
 ```typescript
 import type { ToolResult } from '@r2/shared';
 
+export interface PlanReviewResponse {
+  approved: boolean;
+  editedPlan?: string;
+}
+
 export interface ToolContext {
   onProgress?: (message: string) => void;
+  requestPlanReview?: (plan: string) => Promise<PlanReviewResponse>;
   signal?: AbortSignal;
   meta?: { autoMode?: boolean };
 }
@@ -1255,6 +1328,229 @@ git commit -m "feat: add destructive check for code_task in tool-loop"
 
 ---
 
+### Task 8b: Plan review route and pending map
+
+**Files:**
+- Create: `packages/server/src/routes/plan-review.ts`
+- Modify: `packages/server/src/index.ts`
+- Modify: `packages/server/src/ai/tool-loop.ts`
+- Modify: `packages/server/src/routes/chat.ts`
+
+- [ ] **Step 1: Create plan-review route**
+
+Create `packages/server/src/routes/plan-review.ts`:
+
+```typescript
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+
+export interface PlanReviewResponse {
+  approved: boolean;
+  editedPlan?: string;
+}
+
+export type PendingPlanReviews = Map<string, (response: PlanReviewResponse) => void>;
+
+export function createPlanReviewRouter(pendingPlanReviews: PendingPlanReviews): Router {
+  const router = Router();
+
+  router.post('/plan-review', (req: Request, res: Response) => {
+    const { callId, approved, editedPlan } = req.body;
+
+    if (!callId || typeof callId !== 'string') {
+      res.status(400).json({ error: 'callId (string) required' });
+      return;
+    }
+    if (typeof approved !== 'boolean') {
+      res.status(400).json({ error: 'approved (boolean) required' });
+      return;
+    }
+
+    const resolve = pendingPlanReviews.get(callId);
+    if (!resolve) {
+      res.status(404).json({ error: `Pending plan review "${callId}" not found` });
+      return;
+    }
+
+    pendingPlanReviews.delete(callId);
+    resolve({
+      approved,
+      editedPlan: typeof editedPlan === 'string' ? editedPlan : undefined,
+    });
+    res.json({ ok: true });
+  });
+
+  return router;
+}
+```
+
+- [ ] **Step 2: Wire pendingPlanReviews in index.ts**
+
+In `packages/server/src/index.ts`:
+
+Add import:
+```typescript
+import { createPlanReviewRouter, type PendingPlanReviews } from './routes/plan-review.js';
+```
+
+After `const pendingConfirms: PendingConfirms = new Map();` add:
+```typescript
+const pendingPlanReviews: PendingPlanReviews = new Map();
+```
+
+Update `createChatRouter` call to pass `pendingPlanReviews`:
+```typescript
+const chatRouter = createChatRouter({
+  runLoop: ({ messages, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, piiProxy: pp }) =>
+    runToolLoop({ messages, client, registry, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, piiProxy: pp }),
+  pendingConfirms,
+  pendingPlanReviews,
+  piiProxy,
+});
+```
+
+Register route after other `/api` routes:
+```typescript
+app.use('/api', createPlanReviewRouter(pendingPlanReviews));
+```
+
+- [ ] **Step 3: Update chat.ts to forward pendingPlanReviews**
+
+In `packages/server/src/routes/chat.ts`, update `ChatRouterDeps`:
+
+```typescript
+import type { PendingPlanReviews } from './plan-review.js';
+
+interface ChatRouterDeps {
+  runLoop: (params: {
+    messages: MessageParam[];
+    onEvent: (event: SSEEvent) => void;
+    signal?: AbortSignal;
+    pendingConfirms: PendingConfirms;
+    pendingPlanReviews: PendingPlanReviews;
+    piiProxy: PiiProxy;
+  }) => Promise<void>;
+  pendingConfirms: PendingConfirms;
+  pendingPlanReviews: PendingPlanReviews;
+  piiProxy: PiiProxy;
+}
+```
+
+In `createChatRouter`, destructure `pendingPlanReviews` and pass to `runLoop`:
+
+```typescript
+export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy }: ChatRouterDeps): Router {
+```
+
+Inside router handler:
+```typescript
+      await runLoop({
+        messages: addTimestamps(messages),
+        signal: abortController.signal,
+        pendingConfirms,
+        pendingPlanReviews,
+        piiProxy,
+        onEvent: (event: SSEEvent) => {
+          // ... existing accumulation logic ...
+          if (!res.writableEnded && !res.destroyed) {
+            res.write(`data: ${JSON.stringify(event)}\n\n`);
+          }
+        },
+      });
+```
+
+- [ ] **Step 4: Add requestPlanReview helper in tool-loop.ts**
+
+In `packages/server/src/ai/tool-loop.ts`, add `pendingPlanReviews` to `ToolLoopParams`:
+
+```typescript
+import type { PendingPlanReviews, PlanReviewResponse } from '../routes/plan-review.js';
+
+interface ToolLoopParams {
+  // ... existing ...
+  pendingPlanReviews?: PendingPlanReviews;
+}
+```
+
+Add helper function after `requestConfirmation`:
+
+```typescript
+function createPlanReviewRequester(
+  callId: string,
+  onEvent: (event: SSEEvent) => void,
+  pendingPlanReviews: PendingPlanReviews,
+  signal?: AbortSignal,
+): (plan: string) => Promise<PlanReviewResponse> {
+  return (plan: string) => {
+    return new Promise((resolve) => {
+      if (signal?.aborted) {
+        resolve({ approved: false });
+        return;
+      }
+      const onAbort = () => {
+        pendingPlanReviews.delete(callId);
+        resolve({ approved: false });
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+      pendingPlanReviews.set(callId, (response) => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve(response);
+      });
+      onEvent({ type: 'tool_plan_review', id: callId, plan });
+    });
+  };
+}
+```
+
+- [ ] **Step 5: Pass requestPlanReview in progressCtx**
+
+In the handler execution block (both `allowed` paths — auto and confirm), update `progressCtx`:
+
+```typescript
+const progressCtx = {
+  onProgress: (message: string) => onEvent({ type: 'tool_progress', id: block.id, message }),
+  requestPlanReview: pendingPlanReviews
+    ? createPlanReviewRequester(block.id, onEvent, pendingPlanReviews, signal)
+    : undefined,
+  signal,
+  meta: { autoMode },
+};
+```
+
+Also add `pendingPlanReviews = new Map()` to `runToolLoop` destructuring default:
+
+```typescript
+export async function runToolLoop({
+  messages,
+  client,
+  registry,
+  onEvent,
+  signal,
+  pendingConfirms = new Map(),
+  pendingPlanReviews = new Map(),
+  piiProxy,
+}: ToolLoopParams): Promise<void> {
+```
+
+- [ ] **Step 6: Run typecheck**
+
+Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
+Expected: no errors.
+
+- [ ] **Step 7: Run existing tests**
+
+Run: `cd packages/server && npx vitest run`
+Expected: all existing tests PASS (new parameter is optional).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/server/src/routes/plan-review.ts packages/server/src/routes/chat.ts packages/server/src/ai/tool-loop.ts packages/server/src/index.ts
+git commit -m "feat: add plan review flow for code_task auto mode"
+```
+
+---
+
 ### Task 9: code_task handler — orchestration
 
 **Files:**
@@ -1337,10 +1633,23 @@ describe('codeTaskTool', () => {
 
     await codeTaskTool.handler(
       { task: 'test' },
-      { onProgress: () => {}, meta: { autoMode: true } },
+      {
+        onProgress: () => {},
+        meta: { autoMode: true },
+        requestPlanReview: async () => ({ approved: true }),
+      },
     );
 
     expect(ralphex.runRalphex).toHaveBeenCalled();
+  });
+
+  it('fails in auto mode when requestPlanReview is missing', async () => {
+    const result = await codeTaskTool.handler(
+      { task: 'test' },
+      { onProgress: () => {}, meta: { autoMode: true } },
+    );
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/plan review/i);
   });
 
   it('returns summary, files, diffs and commit', async () => {
@@ -1392,6 +1701,7 @@ const exec = promisify(execCb);
 
 interface ToolContext {
   onProgress?: (message: string) => void;
+  requestPlanReview?: (plan: string) => Promise<{ approved: boolean; editedPlan?: string }>;
   signal?: AbortSignal;
   meta?: { autoMode?: boolean };
 }
@@ -1444,7 +1754,17 @@ export const codeTaskTool = {
       onProgress(`Running ${mode === 'ralphex' ? 'ralphex' : 'agent'}...`);
 
       if (mode === 'ralphex') {
-        await runRalphex({ workdir, task, context, onProgress, signal });
+        if (!ctx?.requestPlanReview) {
+          return { success: false, error: 'Plan review callback required for auto mode' };
+        }
+        await runRalphex({
+          workdir,
+          task,
+          context,
+          onProgress,
+          requestPlanReview: ctx.requestPlanReview,
+          signal,
+        });
       } else {
         await runAgent({ workdir, task, context, onProgress, signal });
       }
