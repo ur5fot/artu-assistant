@@ -3,12 +3,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WorkerManager } from './worker-manager.js';
 import { StatusWsServer } from './ws-server.js';
+import { startGitWatcher } from './git-watcher.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', '.env') });
 
 const WS_PORT = parseInt(process.env.R2_SUPERVISOR_PORT || '3100', 10);
 const SHUTDOWN_TIMEOUT = parseInt(process.env.R2_SHUTDOWN_TIMEOUT || '5000', 10);
+const GIT_POLL_INTERVAL = parseInt(process.env.R2_GIT_POLL_INTERVAL || '60000', 10);
+const GIT_WATCH_BRANCH = process.env.R2_GIT_WATCH_BRANCH || 'master';
+const GIT_REPO_PATH = process.env.R2_GIT_REPO_PATH || path.resolve(__dirname, '..', '..', '..');
 
 // Resolve worker entry point
 const workerPath = path.resolve(__dirname, '..', '..', 'server', 'dist', 'index.js');
@@ -54,9 +58,12 @@ wsServer.onCommand((cmd) => {
   }
 });
 
+let stopWatcher: (() => void) | null = null;
+
 // Graceful shutdown
 function shutdown(signal: string) {
   console.log(`[supervisor] Received ${signal}, shutting down...`);
+  stopWatcher?.();
   manager.stop();
   wsServer.close();
   // Allow event loop to drain for worker cleanup, then exit
@@ -70,3 +77,20 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 console.log(`[supervisor] R2 supervisor v0.1.0`);
 console.log(`[supervisor] WebSocket status on ws://localhost:${WS_PORT}`);
 manager.start();
+
+if (GIT_POLL_INTERVAL > 0) {
+  stopWatcher = startGitWatcher({
+    repoPath: GIT_REPO_PATH,
+    branch: GIT_WATCH_BRANCH,
+    intervalMs: GIT_POLL_INTERVAL,
+    onNewCommit: (hash) => {
+      console.log(
+        `[supervisor] New commit on ${GIT_WATCH_BRANCH}: ${hash.slice(0, 7)} — restarting worker`,
+      );
+      manager.restart();
+    },
+  });
+  console.log(
+    `[supervisor] Git watcher polling ${GIT_WATCH_BRANCH} every ${GIT_POLL_INTERVAL}ms`,
+  );
+}

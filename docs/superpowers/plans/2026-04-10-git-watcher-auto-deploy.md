@@ -352,7 +352,7 @@ git commit -m "feat: add git watcher with polling loop"
 **Files:**
 - Modify: `packages/supervisor/src/index.ts`
 
-- [ ] **Step 1: Add git watcher to supervisor entry**
+- [x] **Step 1: Add git watcher to supervisor entry**
 
 In `packages/supervisor/src/index.ts`, add import:
 
@@ -398,17 +398,17 @@ function shutdown(signal: string) {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/supervisor/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 3: Run existing supervisor tests**
+- [x] **Step 3: Run existing supervisor tests**
 
 Run: `cd packages/supervisor && npx vitest run`
 Expected: all existing tests PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/supervisor/src/index.ts
