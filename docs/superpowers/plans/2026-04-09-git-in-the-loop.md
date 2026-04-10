@@ -1257,7 +1257,7 @@ git commit -m "feat: add ralphex wrapper with plan review flow"
 - Modify: `packages/tool-code-task/src/index.ts`
 - Create: `packages/tool-code-task/src/__tests__/code-task.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/code-task.test.ts`:
 
@@ -1409,12 +1409,12 @@ describe('codeTaskTool', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/code-task.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement handler**
+- [x] **Step 3: Implement handler**
 
 Replace `packages/tool-code-task/src/index.ts`:
 
@@ -1588,12 +1588,12 @@ export const codeTaskTool: ToolDefinition = {
 export default codeTaskTool;
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/code-task.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/index.ts packages/tool-code-task/src/__tests__/code-task.test.ts
