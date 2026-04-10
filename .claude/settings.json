@@ -41,11 +41,42 @@
       "Bash(docker exec:*)",
       "Bash(docker compose:*)",
       "Bash(curl -s http://127.0.0.1:5002/analyze -X POST -H \"Content-Type: application/json\" -d '{\"text\":\"email john@example.com\",\"language\":\"en\",\"entities\":[\"EMAIL_ADDRESS\"]}')",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(cloudflared tunnel:*)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5176/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:5176/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://massive-proper-kiss-outline.trycloudflare.com/)",
+      "Bash(pkill -f \"cloudflared tunnel\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://gourmet-laboratories-merge-maple.trycloudflare.com/)",
+      "Bash(curl -s -H \"Host: gourmet-laboratories-merge-maple.trycloudflare.com\" http://127.0.0.1:5176/)",
+      "Bash(curl -s -H \"Host: test.trycloudflare.com\" http://127.0.0.1:5176/)",
+      "Bash(pkill -f \"npm run dev\")",
+      "Bash(pkill -f \"tsx watch\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(npm run:*)",
+      "Bash(npx --workspace=@r2/client vite --host)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -H \"Host: appraisal-supplier-priced-architect.trycloudflare.com\" http://127.0.0.1:5176/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://appraisal-supplier-priced-architect.trycloudflare.com/)",
+      "Bash(curl -v https://appraisal-supplier-priced-architect.trycloudflare.com/)",
+      "Read(//Users/dim/.cloudflared/**)",
+      "Bash(dig r2.cryptofeecalc.com +short)",
+      "Bash(dig r2.cryptofeecalc.com @1.1.1.1 +short)",
+      "Bash(nslookup r2.cryptofeecalc.com 8.8.8.8)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://r2.cryptofeecalc.com/)",
+      "Bash(curl -s --resolve r2.cryptofeecalc.com:443:104.21.0.0 https://r2.cryptofeecalc.com/ -o /dev/null -w \"%{http_code}\")",
+      "Bash(host r2.cryptofeecalc.com)",
+      "Bash(scutil --dns)",
+      "Bash(curl -s -X POST https://r2.cryptofeecalc.com/api/chat -H \"Content-Type: application/json\" -d '{\"messages\":[{\"id\":\"test\",\"role\":\"user\",\"content\":\"привет\",\"timestamp\":1700000000000}]}' --max-time 30)",
+      "Bash(curl -s -X POST http://localhost:5176/api/chat -H \"Content-Type: application/json\" -d '{\"messages\":[{\"id\":\"test2\",\"role\":\"user\",\"content\":\"привет\",\"timestamp\":1700000000000}]}' --max-time 30)",
+      "Bash(npm view:*)",
+      "Bash(ralphex --max-iterations 50 docs/superpowers/plans/2026-04-09-git-in-the-loop.md)"
     ],
     "additionalDirectories": [
       "/Users/dim/code/R2-D2",
-      "/Users/dim/.claude/projects/-Users-dim-code-R2-D2/memory"
+      "/Users/dim/.claude/projects/-Users-dim-code-R2-D2/memory",
+      "/tmp",
+      "/Users/dim/.cloudflared"
     ]
   }
 }
