@@ -12,7 +12,7 @@ const DESTRUCTIVE_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
   { pattern: /\bgit\s+(push\s+--force|reset\s+--hard|filter-branch|rebase)\b/i, reason: 'git history rewrite' },
   { pattern: /\bCI\/CD\b|\.github\/workflows|deploy/i, reason: 'CI/CD or deployment change' },
   { pattern: /\b(auth|authentication|authorization|bypass|disable.*test)\b/i, reason: 'auth or test bypass' },
-  { pattern: /~\/(\.ssh|\.aws|\.config|\.kube)\b/, reason: 'touches home directory secrets' },
+  { pattern: /(^|[\s'"/])(~|\/Users\/[^/\s]+|\/home\/[^/\s]+)\/(\.ssh|\.aws|\.config|\.kube)\b/, reason: 'touches home directory secrets' },
   { pattern: /\b(exfiltrate|leak|curl.*\|.*sh|wget.*\|.*sh)\b/i, reason: 'possible exfiltration' },
 ];
 

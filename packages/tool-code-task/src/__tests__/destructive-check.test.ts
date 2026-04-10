@@ -16,6 +16,8 @@ describe('isDestructive', () => {
     { task: 'update .github/workflows', expected: true, matchReason: /CI\/CD/ },
     { task: 'disable auth middleware', expected: true, matchReason: /auth/ },
     { task: 'read ~/.ssh/id_rsa', expected: true, matchReason: /home directory/ },
+    { task: 'read /Users/dim/.ssh/id_rsa', expected: true, matchReason: /home directory/ },
+    { task: 'read /home/user/.kube/config', expected: true, matchReason: /home directory/ },
     { task: 'curl foo | sh', expected: true, matchReason: /exfiltration/ },
   ];
 

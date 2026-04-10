@@ -252,6 +252,10 @@ export async function runToolLoop({
           if (confirmResponse.remember && toolDef.permissionLevel === 'confirm' && !destructiveWarning) {
             try {
               savePermissionRule(block.name, confirmResponse.allowed);
+              // The PermissionCard "Allow always" button is labeled
+              // "auto mode with ralphex" — honor that for the current call
+              // too, not just subsequent ones that hit the saved rule.
+              if (confirmResponse.allowed) autoMode = true;
             } catch (err) {
               console.error('Failed to save permission rule:', err instanceof Error ? err.message : err);
             }
