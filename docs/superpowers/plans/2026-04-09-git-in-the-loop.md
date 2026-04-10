@@ -821,7 +821,7 @@ git commit -m "feat: add diff parsing and summary helpers"
 - Create: `packages/tool-code-task/src/agent-sdk.ts`
 - Create: `packages/tool-code-task/src/__tests__/agent-sdk.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/agent-sdk.test.ts`:
 
@@ -903,12 +903,12 @@ describe('runAgent', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/agent-sdk.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement agent SDK wrapper**
+- [x] **Step 3: Implement agent SDK wrapper**
 
 Create `packages/tool-code-task/src/agent-sdk.ts`:
 
@@ -970,12 +970,12 @@ export async function runAgent(params: AgentRunParams): Promise<void> {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/agent-sdk.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/agent-sdk.ts packages/tool-code-task/src/__tests__/agent-sdk.test.ts
