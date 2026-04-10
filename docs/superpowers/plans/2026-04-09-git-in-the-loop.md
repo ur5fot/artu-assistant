@@ -209,7 +209,7 @@ git commit -m "feat: scaffold @r2/tool-code-task package"
 - Create: `packages/tool-code-task/src/shell.ts`
 - Create: `packages/tool-code-task/src/__tests__/shell.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/shell.test.ts`:
 
@@ -274,12 +274,12 @@ describe('shell helpers', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/shell.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement shell helper**
+- [x] **Step 3: Implement shell helper**
 
 Create `packages/tool-code-task/src/shell.ts`:
 
@@ -308,12 +308,12 @@ export async function tryRun(
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/shell.test.ts`
 Expected: all 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/shell.ts packages/tool-code-task/src/__tests__/shell.test.ts
