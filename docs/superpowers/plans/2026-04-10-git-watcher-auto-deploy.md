@@ -726,7 +726,7 @@ git commit -m "feat: scaffold @r2/tool-code-deploy package"
 - Modify: `packages/tool-code-deploy/src/index.ts`
 - Create: `packages/tool-code-deploy/src/__tests__/code-deploy.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-deploy/src/__tests__/code-deploy.test.ts`:
 
@@ -821,12 +821,12 @@ describe('codeDeployTool', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-deploy && npx vitest run`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement code_deploy tool**
+- [x] **Step 3: Implement code_deploy tool**
 
 Replace `packages/tool-code-deploy/src/index.ts`:
 
@@ -909,12 +909,12 @@ export const codeDeployTool: ToolDefinition = {
 export default codeDeployTool;
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-deploy && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-deploy/src/index.ts packages/tool-code-deploy/src/__tests__/code-deploy.test.ts
