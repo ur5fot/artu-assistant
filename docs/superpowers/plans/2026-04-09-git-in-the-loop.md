@@ -3018,7 +3018,7 @@ git commit -m "feat: add code_task UI with progress, diff display, and blocked f
 **Files:**
 - Modify: `.env.example`
 
-- [ ] **Step 1: Add new env variables**
+- [x] **Step 1: Add new env variables**
 
 Append to `.env.example`:
 
@@ -3030,35 +3030,35 @@ R2_DEV_BASE_BRANCH=master
 R2_RALPHEX_MAX_ITERATIONS=20
 ```
 
-- [ ] **Step 2: Verify dev branch exists**
+- [x] **Step 2: Verify dev branch exists**
 
 Run: `git rev-parse --verify origin/dev 2>&1 || echo "MISSING"`
 If missing, run: `git branch dev master && git push -u origin dev`
 
-- [ ] **Step 3: Verify tool auto-discovery**
+- [x] **Step 3: Verify tool auto-discovery**
 
 Run: `npm run dev:server` in one terminal and check output
 Expected: `Tool discovered: code_task (tool-code-task)` in startup logs.
 Stop with Ctrl+C after verification.
 
-- [ ] **Step 4: Full typecheck**
+- [x] **Step 4: Full typecheck**
 
 Run: `npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json && npx tsc --noEmit -p packages/tool-code-task/tsconfig.json`
 Expected: no type errors.
 
-- [ ] **Step 5: Run all tests**
+- [x] **Step 5: Run all tests**
 
 Run: `npm test --workspaces --if-present`
 Expected: all tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .env.example
 git commit -m "feat: add Phase 3C env vars"
 ```
 
-- [ ] **Step 7: Final commit**
+- [x] **Step 7: Final commit**
 
 ```bash
 git add -A
