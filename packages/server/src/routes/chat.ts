@@ -175,6 +175,23 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         const message = error instanceof Error ? error.message : 'Internal server error';
         res.write(`data: ${JSON.stringify({ type: 'error', message: sanitizeError(message) })}\n\n`);
       }
+      // Persist any partial assistant output so history/audit survives a
+      // mid-loop failure. Without this the text and tool calls already
+      // streamed to the client vanish on reload.
+      if (assistantText || assistantToolCalls.length > 0) {
+        try {
+          saveMessage({
+            messageId: assistantId,
+            role: 'assistant',
+            content: assistantText,
+            toolCalls: assistantToolCalls.length > 0 ? assistantToolCalls : undefined,
+            piiEntities: assistantPiiEntities,
+            timestamp: Date.now(),
+          });
+        } catch (err) {
+          console.error('Failed to save partial assistant message:', err instanceof Error ? err.message : err);
+        }
+      }
     }
 
     if (!res.writableEnded && !res.destroyed) {

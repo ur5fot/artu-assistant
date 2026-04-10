@@ -105,6 +105,11 @@ export async function runRalphex(params: RalphexRunParams): Promise<void> {
         params.signal?.addEventListener('abort', onAbort, { once: true });
       }
 
+      // Cap the pending-line buffer so a pathological child that streams
+      // megabytes without a newline can't grow the buffer unbounded. If the
+      // limit is exceeded we flush the prefix as a synthetic line and drop
+      // the rest until the next newline arrives.
+      const MAX_PENDING_LINE = 16 * 1024;
       let stdoutBuffer = '';
       child.stdout?.on('data', (chunk: Buffer) => {
         stdoutBuffer += chunk.toString();
@@ -113,6 +118,11 @@ export async function runRalphex(params: RalphexRunParams): Promise<void> {
         for (const line of lines) {
           const trimmed = line.trim();
           if (trimmed.length > 0) params.onProgress(trimmed.slice(0, 120));
+        }
+        if (stdoutBuffer.length > MAX_PENDING_LINE) {
+          const trimmed = stdoutBuffer.slice(0, MAX_PENDING_LINE).trim();
+          if (trimmed.length > 0) params.onProgress(trimmed.slice(0, 120));
+          stdoutBuffer = '';
         }
       });
 
