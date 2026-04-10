@@ -35,13 +35,18 @@ export function createMergeRouter(): Router {
           res.status(409).json({ error: 'merge conflicts', conflicts });
           return;
         }
-        res.status(500).json({ error: 'merge failed without conflicts' });
+        res.status(500).json({
+          error: mergeResult.stderr || 'merge failed without conflicts',
+        });
         return;
       }
 
       try {
         await run('git', ['push', 'origin', masterBranch], cwd);
       } catch (err) {
+        // Roll back local master so it doesn't drift ahead of origin;
+        // next deploy attempt will start from a clean state.
+        await tryRun('git', ['reset', '--hard', `origin/${masterBranch}`], cwd);
         res.status(500).json({
           error: err instanceof Error ? `push failed: ${err.message}` : 'push failed',
         });

@@ -44,7 +44,7 @@ describe('supervisor shell helpers', () => {
   it('tryRun returns ok=true on success', async () => {
     mockExecFile.mockReturnValueOnce('data');
     const result = await tryRun('git', ['show']);
-    expect(result).toEqual({ ok: true, stdout: 'data', code: 0 });
+    expect(result).toEqual({ ok: true, stdout: 'data', stderr: '', code: 0 });
   });
 
   it('tryRun returns ok=false on error', async () => {

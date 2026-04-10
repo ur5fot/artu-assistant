@@ -16,11 +16,13 @@ export async function tryRun(
   cmd: string,
   args: string[],
   cwd?: string,
-): Promise<{ ok: boolean; stdout: string; code: number }> {
+): Promise<{ ok: boolean; stdout: string; stderr: string; code: number }> {
   try {
     const stdout = await run(cmd, args, cwd);
-    return { ok: true, stdout, code: 0 };
+    return { ok: true, stdout, stderr: '', code: 0 };
   } catch (err: any) {
-    return { ok: false, stdout: '', code: err?.code ?? 1 };
+    const stderr = typeof err?.stderr === 'string' ? err.stderr.trim() : '';
+    const stdout = typeof err?.stdout === 'string' ? err.stdout.trim() : '';
+    return { ok: false, stdout, stderr, code: err?.code ?? 1 };
   }
 }

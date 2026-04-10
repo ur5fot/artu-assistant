@@ -53,9 +53,8 @@ export function startGitWatcher(params: GitWatcherParams): () => void {
       const head = await currentBranch();
       if (head !== params.branch) {
         console.error(
-          `[git-watcher] New commit on ${params.branch} but HEAD is on ${head}; skipping pull`,
+          `[git-watcher] New commit on ${params.branch} but HEAD is on ${head}; skipping pull, will retry`,
         );
-        storedHash = newHash;
         return;
       }
 
@@ -73,10 +72,17 @@ export function startGitWatcher(params: GitWatcherParams): () => void {
   };
 
   // Seed baseline then start interval; stop() is safe during initialize().
-  initialize().then(() => {
-    if (stopped) return;
-    timer = setInterval(poll, params.intervalMs);
-  });
+  initialize()
+    .then(() => {
+      if (stopped) return;
+      timer = setInterval(poll, params.intervalMs);
+    })
+    .catch((err) => {
+      console.error(
+        '[git-watcher] initialize failed:',
+        err instanceof Error ? err.message : err,
+      );
+    });
 
   return () => {
     stopped = true;
