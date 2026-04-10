@@ -13,6 +13,7 @@ export interface ToolCall {
   input: Record<string, unknown>;
   result?: ToolResult;
   status: 'running' | 'done' | 'error';
+  progress?: string;
 }
 
 export interface ToolResult {
@@ -25,11 +26,38 @@ export interface ToolResult {
   };
 }
 
+export interface ToolContext {
+  onProgress?: (message: string) => void;
+  requestPlanReview?: (plan: string) => Promise<PlanReviewResponse>;
+  signal?: AbortSignal;
+  meta?: { autoMode?: boolean; callId?: string };
+}
+
+export interface PlanReviewResponse {
+  approved: boolean;
+  editedPlan?: string;
+}
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  permissionLevel: 'auto' | 'confirm' | 'forbidden';
+  parameters: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+  handler: (params: Record<string, unknown>, ctx?: ToolContext) => Promise<ToolResult>;
+  preCheck?: (input: Record<string, unknown>) => Promise<{ destructive: boolean; reason: string }>;
+}
+
 export type SSEEvent =
   | { type: 'text_delta'; content: string }
   | { type: 'tool_call_start'; toolCall: ToolCall }
+  | { type: 'tool_progress'; id: string; message: string }
+  | { type: 'tool_plan_review'; id: string; task: string; plan: string }
   | { type: 'tool_call_result'; id: string; result: ToolResult }
-  | { type: 'tool_confirm_request'; toolCall: ToolCall; level: 'confirm' | 'forbidden' }
+  | { type: 'tool_confirm_request'; toolCall: ToolCall; level: 'confirm' | 'forbidden'; destructiveWarning?: { reason: string } }
   | { type: 'pii_masked'; entities: Array<{ type: string; original: string }> }
   | { type: 'done' }
   | { type: 'error'; message: string };

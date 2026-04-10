@@ -16,7 +16,7 @@
 - Modify: `packages/shared/src/types.ts`
 - Modify: `packages/server/src/tools/base.ts`
 
-- [ ] **Step 1: Add types to @r2/shared**
+- [x] **Step 1: Add types to @r2/shared**
 
 In `packages/shared/src/types.ts`, append:
 
@@ -75,7 +75,7 @@ export interface ToolCall {
 }
 ```
 
-- [ ] **Step 2: Re-export from server/src/tools/base.ts**
+- [x] **Step 2: Re-export from server/src/tools/base.ts**
 
 Replace `packages/server/src/tools/base.ts` with:
 
@@ -93,17 +93,17 @@ export function toClaudeTool(tool: SharedToolDefinition) {
 }
 ```
 
-- [ ] **Step 3: Typecheck all packages**
+- [x] **Step 3: Typecheck all packages**
 
 Run: `npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Run existing tests**
+- [x] **Step 4: Run existing tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all existing tests pass (types moved but re-exports preserve compatibility).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/shared/src/types.ts packages/server/src/tools/base.ts

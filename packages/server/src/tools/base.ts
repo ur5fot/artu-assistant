@@ -1,18 +1,8 @@
-import type { ToolResult } from '@r2/shared';
+import type { ToolDefinition as SharedToolDefinition } from '@r2/shared';
 
-export interface ToolDefinition {
-  name: string;
-  description: string;
-  permissionLevel: 'auto' | 'confirm' | 'forbidden';
-  parameters: {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required?: string[];
-  };
-  handler: (params: Record<string, unknown>) => Promise<ToolResult>;
-}
+export type { ToolDefinition, ToolContext, PlanReviewResponse } from '@r2/shared';
 
-export function toClaudeTool(tool: ToolDefinition) {
+export function toClaudeTool(tool: SharedToolDefinition) {
   return {
     name: tool.name,
     description: tool.description,
