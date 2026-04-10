@@ -309,10 +309,21 @@ export async function runToolLoop({
 
       onEvent({ type: 'tool_call_result', id: block.id, result });
 
+      // Strip heavy presentational fields before feeding the result back to
+      // Claude. `fullDiff` (from code_task) can be tens of KB and would blow
+      // the next iteration's context window + waste PII-anonymization work,
+      // while `shortDiff`/`summary`/`files` already tell Claude what changed.
+      // The client still receives fullDiff via the tool_call_result event.
+      let claudeData: unknown = result.data;
+      if (result.success && claudeData && typeof claudeData === 'object' && !Array.isArray(claudeData)) {
+        const { fullDiff: _fd, ...rest } = claudeData as Record<string, unknown>;
+        claudeData = rest;
+      }
+
       toolResultContents.push({
         type: 'tool_result',
         tool_use_id: block.id,
-        content: JSON.stringify(result.success ? (result.data ?? '') : (result.error ?? 'Unknown error')),
+        content: JSON.stringify(result.success ? (claudeData ?? '') : (result.error ?? 'Unknown error')),
         ...(result.success ? {} : { is_error: true }),
       });
     }

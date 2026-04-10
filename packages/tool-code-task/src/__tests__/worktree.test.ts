@@ -18,8 +18,47 @@ vi.mock('node:fs', () => ({
   statSync: vi.fn(),
 }));
 
-import { ensureWorktree, removeWorktree, commitChanges, validateWorktreePath } from '../worktree.js';
+import { ensureWorktree, removeWorktree, commitChanges, validateWorktreePath, parseRawDiffZ } from '../worktree.js';
 import fs from 'node:fs';
+
+describe('parseRawDiffZ', () => {
+  it('parses a simple modify record', () => {
+    const raw = ':100644 100644 abc def M\0src/foo.ts\0';
+    expect(parseRawDiffZ(raw)).toEqual([{ file: 'src/foo.ts', mode: '100644' }]);
+  });
+
+  it('parses an add record', () => {
+    const raw = ':000000 100644 0000000 abc A\0src/new.ts\0';
+    expect(parseRawDiffZ(raw)).toEqual([{ file: 'src/new.ts', mode: '100644' }]);
+  });
+
+  it('returns destination path for rename (not "old\\tnew")', () => {
+    // Status R100 has source and destination as two separate NUL-terminated fields
+    const raw = ':100644 100644 abc def R100\0src/old.ts\0.env\0';
+    const parsed = parseRawDiffZ(raw);
+    expect(parsed).toEqual([{ file: '.env', mode: '100644' }]);
+    // Regression guard: old regex-based parser captured "src/old.ts\t.env"
+    expect(parsed[0].file).not.toContain('\t');
+    expect(parsed[0].file).not.toContain('old.ts');
+  });
+
+  it('parses a copy record destination', () => {
+    const raw = ':100644 100644 abc def C75\0src/a.ts\0src/b.ts\0';
+    expect(parseRawDiffZ(raw)).toEqual([{ file: 'src/b.ts', mode: '100644' }]);
+  });
+
+  it('parses multiple mixed records', () => {
+    const raw =
+      ':100644 100644 abc def M\0foo.ts\0' +
+      ':100644 100644 abc def R100\0a.ts\0b.ts\0' +
+      ':100644 120000 abc def M\0link\0';
+    expect(parseRawDiffZ(raw)).toEqual([
+      { file: 'foo.ts', mode: '100644' },
+      { file: 'b.ts', mode: '100644' },
+      { file: 'link', mode: '120000' },
+    ]);
+  });
+});
 
 describe('validateWorktreePath', () => {
   beforeEach(() => {
@@ -57,13 +96,33 @@ describe('ensureWorktree', () => {
 
   it('creates worktree when path does not exist', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false);
-    mockRun.mockResolvedValue('');
+    // resolveBaseRef calls tryRun rev-parse --verify for candidates; origin/dev resolves on first try.
+    mockTryRun.mockResolvedValue({ ok: true, stdout: '', code: 0 });
+    mockRun.mockResolvedValueOnce(''); // git worktree add
+    mockRun.mockResolvedValueOnce('basesha1234'); // git rev-parse HEAD in worktree
+
+    const baseSha = await ensureWorktree('/tmp/r2-dev-abc', 'dev');
+
+    expect(mockRun).toHaveBeenCalledWith(
+      'git',
+      ['worktree', 'add', '--detach', '/tmp/r2-dev-abc', 'origin/dev'],
+    );
+    expect(baseSha).toBe('basesha1234');
+  });
+
+  it('falls back to local branch when origin/dev missing', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    // origin/dev fails, local dev succeeds
+    mockTryRun.mockResolvedValueOnce({ ok: false, stdout: '', code: 1 });
+    mockTryRun.mockResolvedValueOnce({ ok: true, stdout: '', code: 0 });
+    mockRun.mockResolvedValueOnce('');
+    mockRun.mockResolvedValueOnce('sha');
 
     await ensureWorktree('/tmp/r2-dev-abc', 'dev');
 
     expect(mockRun).toHaveBeenCalledWith(
       'git',
-      ['worktree', 'add', '--detach', '/tmp/r2-dev-abc', 'origin/dev'],
+      ['worktree', 'add', '--detach', '/tmp/r2-dev-abc', 'dev'],
     );
   });
 

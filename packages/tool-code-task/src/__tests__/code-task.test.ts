@@ -5,6 +5,7 @@ const mockRemoveWorktree = vi.fn();
 const mockCommitChanges = vi.fn();
 const mockGetStagedFiles = vi.fn();
 const mockUnstageFile = vi.fn();
+const mockPreserveCommit = vi.fn();
 const mockRunAgent = vi.fn();
 const mockRunRalphex = vi.fn();
 const mockRun = vi.fn();
@@ -15,6 +16,7 @@ vi.mock('../worktree.js', () => ({
   commitChanges: (...a: any[]) => mockCommitChanges(...a),
   getStagedFiles: (...a: any[]) => mockGetStagedFiles(...a),
   unstageFile: (...a: any[]) => mockUnstageFile(...a),
+  preserveCommit: (...a: any[]) => mockPreserveCommit(...a),
 }));
 
 vi.mock('../agent-sdk.js', () => ({ runAgent: (...a: any[]) => mockRunAgent(...a) }));
@@ -31,12 +33,13 @@ import { codeTaskTool } from '../index.js';
 describe('codeTaskTool', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEnsureWorktree.mockResolvedValue(undefined);
+    mockEnsureWorktree.mockResolvedValue('basesha1234');
     mockRemoveWorktree.mockResolvedValue(undefined);
     mockCommitChanges.mockResolvedValue('abc1234567890');
     mockGetStagedFiles.mockResolvedValue([{ file: 'src/App.tsx', mode: '100644' }]);
     mockRunAgent.mockResolvedValue(undefined);
     mockRunRalphex.mockResolvedValue(undefined);
+    mockPreserveCommit.mockResolvedValue(undefined);
     mockRun.mockImplementation((cmd: string, args: string[]) => {
       if (args.includes('--numstat')) return Promise.resolve('5\t2\tsrc/App.tsx');
       return Promise.resolve('diff content');

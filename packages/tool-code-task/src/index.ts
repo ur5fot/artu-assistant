@@ -2,7 +2,7 @@ import type { ToolDefinition, ToolContext, ToolResult } from '@r2/shared';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { ensureWorktree, removeWorktree, commitChanges, getStagedFiles, unstageFile } from './worktree.js';
+import { ensureWorktree, removeWorktree, commitChanges, getStagedFiles, unstageFile, preserveCommit } from './worktree.js';
 import { runAgent } from './agent-sdk.js';
 import { runRalphex } from './ralphex.js';
 import { parseDiffStats, truncateDiff, summarizeDiff } from './diff.js';
@@ -94,9 +94,11 @@ export const codeTaskTool: ToolDefinition = {
     }
 
     let worktreeCreated = false;
+    let baseSha = '';
+    let commit = '';
     try {
       onProgress('Preparing worktree...');
-      await ensureWorktree(workdir, branch);
+      baseSha = await ensureWorktree(workdir, branch, baseBranch);
       worktreeCreated = true;
 
       onProgress(`Running ${autoMode ? 'ralphex' : 'agent'}...`);
@@ -117,16 +119,20 @@ export const codeTaskTool: ToolDefinition = {
       const blockedFiles = await filterStagedFiles(workdir);
 
       onProgress('Committing...');
-      const commit = await commitChanges(workdir, `r2: ${task}`);
+      commit = await commitChanges(workdir, `r2: ${task}`);
 
       onProgress('Computing diff...');
       let files: ReturnType<typeof parseDiffStats> = [];
       let fullDiff = '';
       let diffError = false;
       try {
-        const numstat = await run('git', ['diff', '--numstat', `${baseBranch}..HEAD`], workdir);
+        // Diff against the exact SHA the worktree was created from rather
+        // than a potentially-unrelated base branch ref; otherwise the diff
+        // may include commits that existed on the base before this task ran.
+        const range = `${baseSha}..HEAD`;
+        const numstat = await run('git', ['diff', '--numstat', range], workdir);
         files = parseDiffStats(numstat);
-        fullDiff = await run('git', ['diff', `${baseBranch}..HEAD`], workdir);
+        fullDiff = await run('git', ['diff', range], workdir);
       } catch {
         // Diff failed — don't lose the commit
         diffError = true;
@@ -163,6 +169,12 @@ export const codeTaskTool: ToolDefinition = {
       };
     } finally {
       if (worktreeCreated) {
+        // Pin the commit in the parent repo BEFORE removing the worktree so
+        // it stays reachable after the detached HEAD goes away. Otherwise
+        // `git gc` eventually drops it and the returned hash is useless.
+        if (commit) {
+          try { await preserveCommit(callId, commit); } catch {}
+        }
         try { await removeWorktree(workdir); } catch {}
       }
     }
