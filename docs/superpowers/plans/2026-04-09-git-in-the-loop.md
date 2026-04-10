@@ -694,7 +694,7 @@ git commit -m "feat: add per-call git worktree management with path validation"
 - Create: `packages/tool-code-task/src/diff.ts`
 - Create: `packages/tool-code-task/src/__tests__/diff.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/diff.test.ts`:
 
@@ -753,12 +753,12 @@ describe('summarizeDiff', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/diff.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement diff module**
+- [x] **Step 3: Implement diff module**
 
 Create `packages/tool-code-task/src/diff.ts`:
 
@@ -801,12 +801,12 @@ export function summarizeDiff(files: FileStats[], commit: string): string {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/diff.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/diff.ts packages/tool-code-task/src/__tests__/diff.test.ts
