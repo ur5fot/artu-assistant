@@ -990,7 +990,7 @@ git commit -m "feat: add Claude Agent SDK wrapper with progress streaming"
 - Create: `packages/tool-code-task/src/ralphex.ts`
 - Create: `packages/tool-code-task/src/__tests__/ralphex.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/ralphex.test.ts`:
 
@@ -1120,12 +1120,12 @@ describe('runRalphex', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/ralphex.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement ralphex wrapper**
+- [x] **Step 3: Implement ralphex wrapper**
 
 Create `packages/tool-code-task/src/ralphex.ts`:
 
@@ -1158,19 +1158,19 @@ export function buildPlanContent(task: string, context?: string): string {
 
 ## Task 1: Implement the task
 
-- [ ] **Step 1: Analyze the codebase**
+- [x] **Step 1: Analyze the codebase**
 
 Read relevant files to understand existing patterns.
 
-- [ ] **Step 2: Make the required changes**
+- [x] **Step 2: Make the required changes**
 
 Implement the task. Keep changes minimal and focused.
 
-- [ ] **Step 3: Run tests if they exist**
+- [x] **Step 3: Run tests if they exist**
 
 Run: \`npx vitest run\` in the relevant package.
 
-- [ ] **Step 4: Stage changes**
+- [x] **Step 4: Stage changes**
 
 Run: \`git add -A\`
 (Do not commit — the harness will commit staged changes.)
@@ -1237,12 +1237,12 @@ export async function runRalphex(params: RalphexRunParams): Promise<void> {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/ralphex.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/ralphex.ts packages/tool-code-task/src/__tests__/ralphex.test.ts
