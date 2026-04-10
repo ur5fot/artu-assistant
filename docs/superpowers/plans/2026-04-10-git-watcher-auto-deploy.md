@@ -136,7 +136,7 @@ git commit -m "feat: add shell helper to supervisor package"
 - Create: `packages/supervisor/src/git-watcher.ts`
 - Create: `packages/supervisor/src/git-watcher.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/supervisor/src/git-watcher.test.ts`:
 
@@ -270,12 +270,12 @@ describe('startGitWatcher', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/supervisor && npx vitest run src/git-watcher.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement git watcher**
+- [x] **Step 3: Implement git watcher**
 
 Create `packages/supervisor/src/git-watcher.ts`:
 
@@ -333,12 +333,12 @@ export function startGitWatcher(params: GitWatcherParams): () => void {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/supervisor && npx vitest run src/git-watcher.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/supervisor/src/git-watcher.ts packages/supervisor/src/git-watcher.test.ts
