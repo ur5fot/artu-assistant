@@ -119,7 +119,7 @@ git commit -m "refactor: move ToolDefinition/ToolContext to @r2/shared for Phase
 - Create: `packages/tool-code-task/tsconfig.json`
 - Create: `packages/tool-code-task/src/index.ts` (placeholder)
 
-- [ ] **Step 1: Create package.json**
+- [x] **Step 1: Create package.json**
 
 Create `packages/tool-code-task/package.json`:
 
@@ -145,7 +145,7 @@ Create `packages/tool-code-task/package.json`:
 }
 ```
 
-- [ ] **Step 2: Create tsconfig.json**
+- [x] **Step 2: Create tsconfig.json**
 
 Create `packages/tool-code-task/tsconfig.json`:
 
@@ -160,7 +160,7 @@ Create `packages/tool-code-task/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 3: Create placeholder entry point**
+- [x] **Step 3: Create placeholder entry point**
 
 Create `packages/tool-code-task/src/index.ts`:
 
@@ -184,17 +184,17 @@ export const codeTaskTool: ToolDefinition = {
 export default codeTaskTool;
 ```
 
-- [ ] **Step 4: Install**
+- [x] **Step 4: Install**
 
 Run: `npm install`
 Expected: workspace resolves.
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/tool-code-task/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/tool-code-task/ package.json package-lock.json
