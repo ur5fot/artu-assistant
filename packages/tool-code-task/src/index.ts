@@ -2,7 +2,7 @@ import type { ToolDefinition, ToolContext, ToolResult } from '@r2/shared';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { ensureWorktree, removeWorktree, commitChanges, getStagedFiles, unstageFile, preserveCommit } from './worktree.js';
+import { ensureWorktree, removeWorktree, commitChanges, getStagedFiles, unstageFile, preserveCommit, normalizeWorktreeState } from './worktree.js';
 import { runAgent } from './agent-sdk.js';
 import { runRalphex } from './ralphex.js';
 import { parseDiffStats, truncateDiff, summarizeDiff } from './diff.js';
@@ -120,6 +120,15 @@ export const codeTaskTool: ToolDefinition = {
       } else {
         await runAgent({ workdir, task, context, onProgress, signal });
       }
+
+      // Enforce the "harness owns commits" contract even if the agent
+      // committed anyway: collapse any agent-made commits back into staged
+      // changes so the denylist filter sees everything and the final commit
+      // is the only one that exists. Otherwise an agent commit of a .env
+      // file would slip past filterStagedFiles and become unreachable
+      // history after the worktree is removed.
+      onProgress('Normalizing worktree state...');
+      await normalizeWorktreeState(workdir, baseSha);
 
       onProgress('Filtering files...');
       const blockedFiles = await filterStagedFiles(workdir);

@@ -6,6 +6,7 @@ const mockCommitChanges = vi.fn();
 const mockGetStagedFiles = vi.fn();
 const mockUnstageFile = vi.fn();
 const mockPreserveCommit = vi.fn();
+const mockNormalizeWorktreeState = vi.fn();
 const mockRunAgent = vi.fn();
 const mockRunRalphex = vi.fn();
 const mockRun = vi.fn();
@@ -17,6 +18,7 @@ vi.mock('../worktree.js', () => ({
   getStagedFiles: (...a: any[]) => mockGetStagedFiles(...a),
   unstageFile: (...a: any[]) => mockUnstageFile(...a),
   preserveCommit: (...a: any[]) => mockPreserveCommit(...a),
+  normalizeWorktreeState: (...a: any[]) => mockNormalizeWorktreeState(...a),
 }));
 
 vi.mock('../agent-sdk.js', () => ({ runAgent: (...a: any[]) => mockRunAgent(...a) }));
@@ -40,6 +42,7 @@ describe('codeTaskTool', () => {
     mockRunAgent.mockResolvedValue(undefined);
     mockRunRalphex.mockResolvedValue(undefined);
     mockPreserveCommit.mockResolvedValue(undefined);
+    mockNormalizeWorktreeState.mockResolvedValue(undefined);
     mockRun.mockImplementation((cmd: string, args: string[]) => {
       if (args.includes('--numstat')) return Promise.resolve('5\t2\tsrc/App.tsx');
       return Promise.resolve('diff content');
@@ -138,6 +141,26 @@ describe('codeTaskTool', () => {
     expect(firstPath).not.toBe(secondPath);
     expect(firstPath).toContain('call-a');
     expect(secondPath).toContain('call-b');
+  });
+
+  it('normalizes worktree state before filtering (enforces no-self-commit contract)', async () => {
+    const order: string[] = [];
+    mockNormalizeWorktreeState.mockImplementation(async () => { order.push('normalize'); });
+    mockGetStagedFiles.mockImplementation(async () => { order.push('getStaged'); return []; });
+
+    await codeTaskTool.handler(
+      { task: 'test' },
+      { onProgress: () => {}, meta: { callId: 'c-norm' } },
+    );
+
+    // normalizeWorktreeState MUST run before filterStagedFiles so that any
+    // agent-made commits are collapsed into the staged index and then
+    // subjected to the denylist.
+    expect(order).toEqual(['normalize', 'getStaged']);
+    expect(mockNormalizeWorktreeState).toHaveBeenCalledWith(
+      expect.stringContaining('c-norm'),
+      'basesha1234',
+    );
   });
 
   it('defines preCheck hook delegating to isDestructive', async () => {

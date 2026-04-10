@@ -18,7 +18,7 @@ vi.mock('node:fs', () => ({
   statSync: vi.fn(),
 }));
 
-import { ensureWorktree, removeWorktree, commitChanges, validateWorktreePath, parseRawDiffZ } from '../worktree.js';
+import { ensureWorktree, removeWorktree, commitChanges, validateWorktreePath, parseRawDiffZ, normalizeWorktreeState } from '../worktree.js';
 import fs from 'node:fs';
 
 describe('parseRawDiffZ', () => {
@@ -92,6 +92,8 @@ describe('ensureWorktree', () => {
     mockTryRun.mockReset();
     vi.mocked(fs.existsSync).mockReset();
     process.env.R2_DEV_WORKTREE_PREFIX = '/tmp/r2-dev-';
+    // Pin repo root so getRepoRoot() doesn't shell out to real git during tests.
+    process.env.R2_REPO_ROOT = '/repo';
   });
 
   it('creates worktree when path does not exist', async () => {
@@ -106,6 +108,7 @@ describe('ensureWorktree', () => {
     expect(mockRun).toHaveBeenCalledWith(
       'git',
       ['worktree', 'add', '--detach', '/tmp/r2-dev-abc', 'origin/dev'],
+      '/repo',
     );
     expect(baseSha).toBe('basesha1234');
   });
@@ -123,6 +126,7 @@ describe('ensureWorktree', () => {
     expect(mockRun).toHaveBeenCalledWith(
       'git',
       ['worktree', 'add', '--detach', '/tmp/r2-dev-abc', 'dev'],
+      '/repo',
     );
   });
 
@@ -136,6 +140,7 @@ describe('ensureWorktree', () => {
     expect(mockTryRun).toHaveBeenCalledWith(
       'git',
       ['worktree', 'remove', '--force', '/tmp/r2-dev-abc'],
+      '/repo',
     );
   });
 });
@@ -146,6 +151,7 @@ describe('removeWorktree', () => {
     vi.mocked(fs.existsSync).mockReset();
     vi.mocked(fs.rmSync).mockReset();
     process.env.R2_DEV_WORKTREE_PREFIX = '/tmp/r2-dev-';
+    process.env.R2_REPO_ROOT = '/repo';
   });
 
   it('calls git worktree remove --force', async () => {
@@ -157,6 +163,7 @@ describe('removeWorktree', () => {
     expect(mockTryRun).toHaveBeenCalledWith(
       'git',
       ['worktree', 'remove', '--force', '/tmp/r2-dev-abc'],
+      '/repo',
     );
   });
 
@@ -171,6 +178,39 @@ describe('removeWorktree', () => {
 
   it('rejects unsafe path', async () => {
     await expect(removeWorktree('/')).rejects.toThrow();
+  });
+});
+
+describe('normalizeWorktreeState', () => {
+  beforeEach(() => {
+    mockRun.mockReset();
+    process.env.R2_DEV_WORKTREE_PREFIX = '/tmp/r2-dev-';
+  });
+
+  it('stages everything then soft-resets to baseSha', async () => {
+    mockRun.mockResolvedValue('');
+
+    await normalizeWorktreeState('/tmp/r2-dev-abc', 'basesha1234');
+
+    // Order matters: add -A must happen before reset --soft so unstaged
+    // changes from agent sessions that committed and then edited more files
+    // are also folded into the final staged diff.
+    expect(mockRun).toHaveBeenNthCalledWith(
+      1,
+      'git',
+      ['add', '-A', '--'],
+      '/tmp/r2-dev-abc',
+    );
+    expect(mockRun).toHaveBeenNthCalledWith(
+      2,
+      'git',
+      ['reset', '--soft', 'basesha1234'],
+      '/tmp/r2-dev-abc',
+    );
+  });
+
+  it('rejects unsafe worktree path', async () => {
+    await expect(normalizeWorktreeState('/etc', 'abc')).rejects.toThrow();
   });
 });
 

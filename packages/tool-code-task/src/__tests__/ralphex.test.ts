@@ -108,6 +108,56 @@ describe('runRalphex', () => {
     expect(progress).toContain('line 2');
   });
 
+  it('does not spawn if signal is already aborted before start', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(runRalphex({
+      workdir: os.tmpdir(),
+      task: 'test',
+      onProgress: () => {},
+      requestPlanReview: async () => ({ approved: true }),
+      signal: controller.signal,
+    })).rejects.toThrow(/abort/i);
+
+    expect(mockSpawn).not.toHaveBeenCalled();
+  });
+
+  it('sends SIGTERM on abort and escalates to SIGKILL if child ignores it', async () => {
+    vi.useFakeTimers();
+    const child = new EventEmitter() as any;
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = vi.fn();
+    mockSpawn.mockReturnValue(child);
+
+    const controller = new AbortController();
+
+    const runPromise = runRalphex({
+      workdir: os.tmpdir(),
+      task: 'test',
+      onProgress: () => {},
+      requestPlanReview: async () => ({ approved: true }),
+      signal: controller.signal,
+    });
+
+    // Let plan review resolve and spawn happen.
+    await vi.advanceTimersByTimeAsync(0);
+
+    controller.abort();
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+
+    // Child ignores SIGTERM for longer than the escalation window.
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+
+    // Finally the child exits; promise should reject with the exit error.
+    child.emit('exit', 137);
+    await expect(runPromise).rejects.toThrow();
+
+    vi.useRealTimers();
+  });
+
   it('throws on non-zero exit', async () => {
     mockSpawn.mockReturnValue(makeChild(1));
 

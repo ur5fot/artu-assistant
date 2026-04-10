@@ -63,16 +63,47 @@ export async function runRalphex(params: RalphexRunParams): Promise<void> {
 
   const maxIterations = process.env.R2_RALPHEX_MAX_ITERATIONS || '20';
 
+  // Escalation window for a non-responsive child. If SIGTERM doesn't cause
+  // the child to exit within this many ms, we follow up with SIGKILL so an
+  // abort request can't hang the whole tool call.
+  const KILL_ESCALATION_MS = 5000;
+
   try {
     await new Promise<void>((resolve, reject) => {
+      // Pre-spawn abort guard: if the caller already aborted before we got
+      // here, don't start the child process at all. Without this the child
+      // could outlive the request because the abort event fired before the
+      // listener below was registered.
+      if (params.signal?.aborted) {
+        reject(new Error('ralphex run aborted before start'));
+        return;
+      }
+
       const child = spawn('ralphex', ['--max-iterations', maxIterations, planPath], {
         cwd: params.workdir,
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false,
       });
 
-      const onAbort = () => child.kill('SIGTERM');
-      params.signal?.addEventListener('abort', onAbort, { once: true });
+      let killTimer: NodeJS.Timeout | undefined;
+      const onAbort = () => {
+        try { child.kill('SIGTERM'); } catch {}
+        // If the child ignores SIGTERM (stuck in native code, trapped signal,
+        // etc.), escalate to SIGKILL so the Promise can settle via 'exit'.
+        killTimer = setTimeout(() => {
+          try { child.kill('SIGKILL'); } catch {}
+        }, KILL_ESCALATION_MS);
+        killTimer.unref();
+      };
+
+      // Narrow race: the signal may have flipped to aborted between the
+      // pre-spawn check and now. If so, trigger the kill path immediately
+      // instead of waiting for a 'abort' event that will never fire.
+      if (params.signal?.aborted) {
+        onAbort();
+      } else {
+        params.signal?.addEventListener('abort', onAbort, { once: true });
+      }
 
       let stdoutBuffer = '';
       child.stdout?.on('data', (chunk: Buffer) => {
@@ -91,12 +122,14 @@ export async function runRalphex(params: RalphexRunParams): Promise<void> {
       });
 
       child.on('exit', (code) => {
+        if (killTimer) clearTimeout(killTimer);
         params.signal?.removeEventListener('abort', onAbort);
         if (code === 0) resolve();
         else reject(new Error(`ralphex exited with code ${code}`));
       });
 
       child.on('error', (err) => {
+        if (killTimer) clearTimeout(killTimer);
         params.signal?.removeEventListener('abort', onAbort);
         reject(err);
       });
