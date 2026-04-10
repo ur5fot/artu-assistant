@@ -435,7 +435,7 @@ git commit -m "feat: add regex-based destructive check for code_task"
 - Create: `packages/tool-code-task/src/worktree.ts`
 - Create: `packages/tool-code-task/src/__tests__/worktree.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/worktree.test.ts`:
 
@@ -587,12 +587,12 @@ describe('commitChanges', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/worktree.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement worktree module**
+- [x] **Step 3: Implement worktree module**
 
 Create `packages/tool-code-task/src/worktree.ts`:
 
@@ -674,12 +674,12 @@ export async function commitChanges(path: string, message: string): Promise<stri
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/worktree.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/worktree.ts packages/tool-code-task/src/__tests__/worktree.test.ts
