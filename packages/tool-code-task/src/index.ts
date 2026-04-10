@@ -80,7 +80,13 @@ export const codeTaskTool: ToolDefinition = {
     const context = typeof params.context === 'string' ? params.context : undefined;
     const onProgress = ctx?.onProgress ?? (() => {});
     const signal = ctx?.signal;
-    const callId = ctx?.meta?.callId ?? crypto.randomBytes(4).toString('hex');
+    const rawCallId = ctx?.meta?.callId ?? crypto.randomBytes(4).toString('hex');
+    // Sanitize callId before using it as a filesystem path suffix. block.id
+    // comes from Claude and is not guaranteed to be shell/path-safe; even
+    // though validateWorktreePath rejects `..`/`~`, it allows slashes which
+    // would let a malformed id create nested subdirs under the prefix and
+    // collide with sibling worktrees. Keep only [a-zA-Z0-9_-].
+    const callId = rawCallId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const autoMode = ctx?.meta?.autoMode === true;
 
     const prefix = process.env.R2_DEV_WORKTREE_PREFIX || '/tmp/r2-dev-';
@@ -173,7 +179,18 @@ export const codeTaskTool: ToolDefinition = {
         // it stays reachable after the detached HEAD goes away. Otherwise
         // `git gc` eventually drops it and the returned hash is useless.
         if (commit) {
-          try { await preserveCommit(callId, commit); } catch {}
+          try {
+            await preserveCommit(callId, commit);
+          } catch (err) {
+            // The commit hash was already returned to the caller; if
+            // update-ref fails the commit will eventually be GC'd. Log so
+            // operators can see broken hashes instead of discovering them
+            // via a 404 later.
+            console.error(
+              'preserveCommit failed — returned commit hash may be unreachable after git gc:',
+              err instanceof Error ? err.message : err,
+            );
+          }
         }
         try { await removeWorktree(workdir); } catch {}
       }

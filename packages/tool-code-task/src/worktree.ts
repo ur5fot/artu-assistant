@@ -85,7 +85,9 @@ export async function preserveCommit(callId: string, commitSha: string): Promise
   // Sanitize callId for use in a ref path. Git refuses refs containing ..
   // or control characters; be strict and only allow [a-zA-Z0-9_-].
   const safe = callId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  await tryRun('git', ['update-ref', `refs/r2-dev/${safe}`, commitSha]);
+  // Throw on failure so the caller can log it. tryRun would silently drop
+  // a failed update-ref, leaving the returned commit hash unreachable.
+  await run('git', ['update-ref', `refs/r2-dev/${safe}`, commitSha]);
 }
 
 /**
