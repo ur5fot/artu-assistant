@@ -70,7 +70,12 @@
       "Bash(curl -s -X POST https://r2.cryptofeecalc.com/api/chat -H \"Content-Type: application/json\" -d '{\"messages\":[{\"id\":\"test\",\"role\":\"user\",\"content\":\"привет\",\"timestamp\":1700000000000}]}' --max-time 30)",
       "Bash(curl -s -X POST http://localhost:5176/api/chat -H \"Content-Type: application/json\" -d '{\"messages\":[{\"id\":\"test2\",\"role\":\"user\",\"content\":\"привет\",\"timestamp\":1700000000000}]}' --max-time 30)",
       "Bash(npm view:*)",
-      "Bash(ralphex --max-iterations 50 docs/superpowers/plans/2026-04-09-git-in-the-loop.md)"
+      "Bash(ralphex --max-iterations 50 docs/superpowers/plans/2026-04-09-git-in-the-loop.md)",
+      "Bash(curl -s -X POST http://localhost:5176/api/chat -H \"Content-Type: application/json\" -d '{\"messages\":[{\"id\":\"t1\",\"role\":\"user\",\"content\":\"hi\",\"timestamp\":1700000000000}]}' --max-time 30)",
+      "Bash(curl -s http://localhost:5002/health)",
+      "Bash(curl -s http://localhost:5001/health)",
+      "Bash(chmod +x /Users/dim/code/R2-D2/scripts/ensure-docker.sh)",
+      "Bash(ralphex --max-iterations 50 docs/superpowers/plans/2026-04-10-git-watcher-auto-deploy.md)"
     ],
     "additionalDirectories": [
       "/Users/dim/code/R2-D2",
