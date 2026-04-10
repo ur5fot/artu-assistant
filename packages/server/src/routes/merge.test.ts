@@ -29,10 +29,10 @@ describe('POST /api/merge', () => {
       .mockResolvedValueOnce('') // checkout master
       .mockResolvedValueOnce(''); // pull origin master
     mockTryRun.mockResolvedValueOnce({ ok: true, stdout: '', code: 0 }); // merge
-    mockRun
-      .mockResolvedValueOnce('') // push
-      .mockResolvedValueOnce('abc1234deadbeef') // rev-parse HEAD
-      .mockResolvedValueOnce(' 5 files changed, 30 insertions(+)'); // shortstat
+    mockRun.mockResolvedValueOnce(''); // push
+    mockTryRun
+      .mockResolvedValueOnce({ ok: true, stdout: 'abc1234deadbeef', code: 0 }) // rev-parse HEAD
+      .mockResolvedValueOnce({ ok: true, stdout: ' 5 files changed, 30 insertions(+)', code: 0 }); // shortstat
 
     const res = await request(app).post('/api/merge').send({});
 

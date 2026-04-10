@@ -53,9 +53,17 @@ export function createMergeRouter(): Router {
         return;
       }
 
-      const commit = await run('git', ['rev-parse', 'HEAD'], cwd);
-      const shortstat = await run('git', ['diff', '--shortstat', 'HEAD~1..HEAD'], cwd);
-      const filesChangedMatch = shortstat.match(/(\d+) files? changed/);
+      // Post-push: never fail the response — the deploy already succeeded.
+      const commitResult = await tryRun('git', ['rev-parse', 'HEAD'], cwd);
+      const commit = commitResult.ok ? commitResult.stdout : '';
+      const shortstatResult = await tryRun(
+        'git',
+        ['diff', '--shortstat', 'HEAD~1..HEAD'],
+        cwd,
+      );
+      const filesChangedMatch = shortstatResult.ok
+        ? shortstatResult.stdout.match(/(\d+) files? changed/)
+        : null;
       const filesChanged = filesChangedMatch ? parseInt(filesChangedMatch[1], 10) : 0;
 
       res.json({
