@@ -216,6 +216,11 @@ export async function runToolLoop({
             }
           } catch (err) {
             console.error('preCheck failed:', err instanceof Error ? err.message : err);
+            // Fail closed: a broken preCheck must not silently bypass the
+            // destructive-action gate. Force confirmation and drop any saved
+            // auto-allow rule for this call.
+            destructiveWarning = { reason: 'precheck failed — review manually' };
+            allowed = null;
           }
         }
 
@@ -281,7 +286,21 @@ export async function runToolLoop({
       }
       const durationMs = Date.now() - startTime;
 
-      // Anonymize tool result before logging and sending back to Claude
+      // Split heavy presentational fields off BEFORE PII anonymization so the
+      // full diff (tens of KB from code_task) never gets stringified, sent
+      // through Presidio, or fed back to Claude. The client still receives
+      // fullDiff via the tool_call_result event below.
+      let fullDiffSideChannel: unknown = undefined;
+      if (result.success && result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+        const data = result.data as Record<string, unknown>;
+        if ('fullDiff' in data) {
+          fullDiffSideChannel = data.fullDiff;
+          const { fullDiff: _fd, ...rest } = data;
+          result = { ...result, data: rest };
+        }
+      }
+
+      // Anonymize the (slim) tool result before logging and sending back to Claude
       if (result.data) {
         const anonResult = await piiProxy.anonymize(JSON.stringify(result.data));
         if (anonResult.entities.length > 0) {
@@ -307,23 +326,21 @@ export async function runToolLoop({
         console.error('Audit log write failed:', err instanceof Error ? err.message : err);
       }
 
-      onEvent({ type: 'tool_call_result', id: block.id, result });
-
-      // Strip heavy presentational fields before feeding the result back to
-      // Claude. `fullDiff` (from code_task) can be tens of KB and would blow
-      // the next iteration's context window + waste PII-anonymization work,
-      // while `shortDiff`/`summary`/`files` already tell Claude what changed.
-      // The client still receives fullDiff via the tool_call_result event.
-      let claudeData: unknown = result.data;
-      if (result.success && claudeData && typeof claudeData === 'object' && !Array.isArray(claudeData)) {
-        const { fullDiff: _fd, ...rest } = claudeData as Record<string, unknown>;
-        claudeData = rest;
-      }
+      // Re-attach fullDiff for the client event so the UI can render the full
+      // diff. Claude still receives `result` without fullDiff below.
+      const clientResult =
+        fullDiffSideChannel !== undefined &&
+        result.data &&
+        typeof result.data === 'object' &&
+        !Array.isArray(result.data)
+          ? { ...result, data: { ...(result.data as Record<string, unknown>), fullDiff: fullDiffSideChannel } }
+          : result;
+      onEvent({ type: 'tool_call_result', id: block.id, result: clientResult });
 
       toolResultContents.push({
         type: 'tool_result',
         tool_use_id: block.id,
-        content: JSON.stringify(result.success ? (claudeData ?? '') : (result.error ?? 'Unknown error')),
+        content: JSON.stringify(result.success ? (result.data ?? '') : (result.error ?? 'Unknown error')),
         ...(result.success ? {} : { is_error: true }),
       });
     }

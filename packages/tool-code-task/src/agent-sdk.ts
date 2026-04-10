@@ -29,27 +29,45 @@ function describeToolUse(name: string, input: Record<string, unknown>): string {
 }
 
 export async function runAgent(params: AgentRunParams): Promise<void> {
+  if (params.signal?.aborted) return;
+
   const prompt = buildPrompt(params.task, params.context, params.workdir);
 
-  const stream = query({
-    prompt,
-    options: { cwd: params.workdir },
-  });
+  // Forward the caller's AbortSignal into the Agent SDK so that cancelling
+  // actually stops the in-flight API call. Without this the SDK continues to
+  // stream and burn tokens after the user hits "Stop".
+  const abortController = new AbortController();
+  const onAbort = () => abortController.abort();
+  params.signal?.addEventListener('abort', onAbort, { once: true });
 
-  for await (const message of stream) {
-    if (params.signal?.aborted) break;
-    if ((message as any).type !== 'assistant') continue;
+  try {
+    const stream = query({
+      prompt,
+      options: { cwd: params.workdir, abortController },
+    });
 
-    const content = (message as any).message?.content;
-    if (!Array.isArray(content)) continue;
+    for await (const message of stream) {
+      if (abortController.signal.aborted) break;
+      if ((message as any).type !== 'assistant') continue;
 
-    for (const block of content) {
-      if (block.type === 'text' && typeof block.text === 'string') {
-        const text = block.text.trim();
-        if (text.length > 0) params.onProgress(text.slice(0, 80));
-      } else if (block.type === 'tool_use') {
-        params.onProgress(describeToolUse(block.name, block.input ?? {}));
+      const content = (message as any).message?.content;
+      if (!Array.isArray(content)) continue;
+
+      for (const block of content) {
+        if (block.type === 'text' && typeof block.text === 'string') {
+          const text = block.text.trim();
+          if (text.length > 0) params.onProgress(text.slice(0, 80));
+        } else if (block.type === 'tool_use') {
+          params.onProgress(describeToolUse(block.name, block.input ?? {}));
+        }
       }
     }
+  } catch (err) {
+    // If we aborted, swallow the cancellation error — the caller already
+    // knows why the run ended.
+    if (abortController.signal.aborted) return;
+    throw err;
+  } finally {
+    params.signal?.removeEventListener('abort', onAbort);
   }
 }

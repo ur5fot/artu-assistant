@@ -52,7 +52,10 @@ export async function runRalphex(params: RalphexRunParams): Promise<void> {
   if (!review.approved) {
     throw new Error('Plan rejected by user');
   }
-  const finalPlan = review.editedPlan ?? draftPlan;
+  // Treat an empty/whitespace editedPlan as "user did not edit", falling back
+  // to the draft instead of writing an empty plan file to disk.
+  const edited = review.editedPlan;
+  const finalPlan = edited && edited.trim().length > 0 ? edited : draftPlan;
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2-task-'));
   const planPath = path.join(tmpDir, 'plan.md');
