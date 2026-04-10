@@ -133,7 +133,11 @@ export function parseRawDiffZ(rawZ: string): Array<{ file: string; mode: string 
 
 export async function getStagedFiles(path: string): Promise<Array<{ file: string; mode: string }>> {
   validateWorktreePath(path);
-  const { stdout: rawDiff } = await tryRun('git', ['diff', '--cached', '--raw', '-z'], path);
+  // Use run (throws on failure) instead of tryRun so a transient git error
+  // never silently returns an empty list, which would let the denylist
+  // enforcement in filterStagedFiles be bypassed and commit the staged tree
+  // unchecked. The caller (code_task handler) catches and fails the tool.
+  const rawDiff = await run('git', ['diff', '--cached', '--raw', '-z'], path);
   return parseRawDiffZ(rawDiff);
 }
 

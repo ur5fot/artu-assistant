@@ -122,7 +122,26 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
           } else if (event.type === 'tool_call_result') {
             const tc = assistantToolCalls.find((t) => t.id === event.id);
             if (tc) {
-              tc.result = event.result;
+              // Strip heavy presentational fields (e.g. code_task.fullDiff)
+              // before persisting. tool-loop splits fullDiff out of the
+              // Claude-facing result and re-attaches it for the SSE stream,
+              // but we must not store it in SQLite: (a) it was intentionally
+              // bypassed by PII anonymization, so persisting the raw diff
+              // would leak unmasked secrets; (b) each diff can be tens of KB
+              // and bloats the messages table and history loads.
+              let persistedResult = event.result;
+              if (
+                persistedResult &&
+                persistedResult.success &&
+                persistedResult.data &&
+                typeof persistedResult.data === 'object' &&
+                !Array.isArray(persistedResult.data) &&
+                'fullDiff' in (persistedResult.data as Record<string, unknown>)
+              ) {
+                const { fullDiff: _fd, ...rest } = persistedResult.data as Record<string, unknown>;
+                persistedResult = { ...persistedResult, data: rest };
+              }
+              tc.result = persistedResult;
               tc.status = event.result.success ? 'done' : 'error';
             }
           } else if (event.type === 'pii_masked') {
