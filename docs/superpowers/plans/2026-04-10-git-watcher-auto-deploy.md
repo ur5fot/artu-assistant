@@ -646,7 +646,7 @@ git commit -m "feat: add POST /api/merge endpoint with conflict handling"
 - Create: `packages/tool-code-deploy/tsconfig.json`
 - Create: `packages/tool-code-deploy/src/index.ts` (placeholder)
 
-- [ ] **Step 1: Create package.json**
+- [x] **Step 1: Create package.json**
 
 Create `packages/tool-code-deploy/package.json`:
 
@@ -671,7 +671,7 @@ Create `packages/tool-code-deploy/package.json`:
 }
 ```
 
-- [ ] **Step 2: Create tsconfig.json**
+- [x] **Step 2: Create tsconfig.json**
 
 Create `packages/tool-code-deploy/tsconfig.json`:
 
@@ -686,7 +686,7 @@ Create `packages/tool-code-deploy/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 3: Placeholder entry point**
+- [x] **Step 3: Placeholder entry point**
 
 Create `packages/tool-code-deploy/src/index.ts`:
 
@@ -706,12 +706,12 @@ export const codeDeployTool: ToolDefinition = {
 export default codeDeployTool;
 ```
 
-- [ ] **Step 4: Install and typecheck**
+- [x] **Step 4: Install and typecheck**
 
 Run: `npm install && npx tsc --noEmit -p packages/tool-code-deploy/tsconfig.json`
 Expected: workspace resolves, no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-deploy/ package.json package-lock.json
