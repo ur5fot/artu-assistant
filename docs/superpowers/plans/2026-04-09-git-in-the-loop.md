@@ -328,7 +328,7 @@ git commit -m "feat: add shell helper (execFile argv-form, no shell interpolatio
 - Create: `packages/tool-code-task/src/destructive-check.ts`
 - Create: `packages/tool-code-task/src/__tests__/destructive-check.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/destructive-check.test.ts`:
 
@@ -376,12 +376,12 @@ describe('isDestructive', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/destructive-check.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement destructive check**
+- [x] **Step 3: Implement destructive check**
 
 Create `packages/tool-code-task/src/destructive-check.ts`:
 
@@ -415,12 +415,12 @@ export async function isDestructive(task: string, context?: string): Promise<Des
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/destructive-check.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/destructive-check.ts packages/tool-code-task/src/__tests__/destructive-check.test.ts
