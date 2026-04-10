@@ -2,30 +2,48 @@
 
 ## Цель
 
-R2 модифицирует сам себя через чат. Юзер даёт задачу → R2 вызывает Claude Agent SDK на dev ветке в изолированном worktree → diff показывается в чате → коммит. Для автоматизированных задач — ralphex с review loop.
+R2 модифицирует сам себя через чат. Юзер даёт задачу → R2 вызывает Claude Agent SDK (once mode) или ralphex (auto mode) в изолированном git worktree на dev ветке → показывает diff в чате → коммит. Для auto mode показывается сгенерированный план, который юзер может отредактировать перед запуском.
 
 ## Архитектура
 
-Новый пакет `packages/tool-code-task/` — стандартный R2 tool с `permissionLevel: 'confirm'`. Работает в изолированном git worktree `/tmp/r2-dev`. Интегрируется с существующей системой permission levels, audit log, SSE streaming.
+Новый пакет `packages/tool-code-task/` — стандартный R2 tool с `permissionLevel: 'confirm'`. Использует **worktree per-call** (`/tmp/r2-dev-<callId>`) — каждый вызов создаёт свежий worktree и удаляет его в `finally`. Это решает concurrency, abort cleanup, stale worktree проблемы одним решением.
+
+Types (`ToolDefinition`, `ToolContext`, `PlanReviewResponse`) живут в `@r2/shared` — нет циклической зависимости `tool-code-task ↔ server`.
 
 ```
 User: "добавь dark mode"
   ↓
-Chat Claude вызывает tool code_task({task, context})
+Chat Claude → tool code_task({task, context})
   ↓
-Tool handler:
-  1. Destructive check (Haiku) → {destructive, reason}
-  2. Ensure worktree /tmp/r2-dev on dev branch
-  3. git pull origin dev
-  4. Mode=once: Claude Agent SDK напрямую
-     Mode=auto: ralphex --max-iterations 20 (с review loop)
-  5. git diff master..HEAD → parse files, generate summary
-  6. git add -A && git commit -m "r2: <task>"
-  7. Return ToolResult { summary, files, shortDiff, fullDiff, commit }
+Tool-loop:
+  1. preCheck hook → regex-based destructive check
+  2. If destructive → force confirmation (ignore saved rule)
+  3. Check saved permission rule → if allowed → autoMode=true
+  4. Show PermissionCard (3 buttons: Once / Always / Deny) OR use saved rule
+  5. User: Allow once
+  6. Run handler with ctx = { onProgress, requestPlanReview, signal, meta: {autoMode, callId} }
+     ↓
+     Handler:
+     a. workdir = /tmp/r2-dev-<callId>
+     b. try {
+        c.   ensureWorktree(workdir, 'dev')
+        d.   if autoMode:
+               - Generate draft plan
+               - requestPlanReview(plan) → wait user approve/edit/reject
+               - Write final plan file
+               - Spawn ralphex (argv form) in workdir
+             else:
+               - runAgent via Claude Agent SDK in workdir
+        e.   Filter staged files (denylist: .env, keys, >1MB, symlinks)
+        f.   commitChanges(workdir, safe-escaped message)
+        g.   Parse diff (numstat + full)
+        h.   Return ToolResult
+        } finally {
+          removeWorktree(workdir)
+        }
   ↓
-SSE progress events во время работы → ToolCallCard обновляется
-  ↓
-Chat Claude получает ToolResult, рассказывает юзеру
+SSE events во время работы: tool_progress, tool_plan_review
+ToolCallCard показывает progress/plan-review-card/done с diff
 ```
 
 ## Пакет `@r2/tool-code-task`
@@ -36,16 +54,19 @@ Chat Claude получает ToolResult, рассказывает юзеру
 packages/tool-code-task/
 ├── src/
 │   ├── index.ts              # Tool definition + handler
-│   ├── destructive-check.ts  # Haiku-based safety check
-│   ├── worktree.ts           # Git worktree management
+│   ├── destructive-check.ts  # Regex-based safety check
+│   ├── worktree.ts           # Per-call worktree management
 │   ├── agent-sdk.ts          # Claude Agent SDK wrapper
-│   ├── ralphex.ts            # Ralphex CLI wrapper
-│   └── diff.ts               # git diff parsing + summary
-├── __tests__/
-│   ├── destructive-check.test.ts
-│   ├── worktree.test.ts
-│   ├── agent-sdk.test.ts
-│   └── code-task.test.ts
+│   ├── ralphex.ts            # Ralphex CLI wrapper with plan review
+│   ├── diff.ts               # git diff parsing + summary
+│   ├── shell.ts              # execFile helpers (argv-form, no shell)
+│   └── __tests__/
+│       ├── destructive-check.test.ts
+│       ├── worktree.test.ts
+│       ├── diff.test.ts
+│       ├── agent-sdk.test.ts
+│       ├── ralphex.test.ts
+│       └── code-task.test.ts
 ├── package.json
 └── tsconfig.json
 ```
@@ -55,61 +76,31 @@ packages/tool-code-task/
 ```typescript
 const codeTaskTool: ToolDefinition = {
   name: 'code_task',
-  description: 'Execute a coding task on R2 dev branch. Use for any modification to R2 code itself (bugfix, feature, refactor). Works in isolated git worktree.',
+  description: 'Execute a coding task on R2 dev branch. Use for modifications to R2 source code. Runs Claude Code or ralphex in an isolated git worktree.',
   permissionLevel: 'confirm',
   parameters: {
     type: 'object',
     properties: {
-      task: {
-        type: 'string',
-        description: 'Human-readable task description. Be specific about what to change.',
-      },
-      context: {
-        type: 'string',
-        description: 'Optional: file paths, links, requirements, constraints',
-      },
+      task: { type: 'string', description: 'Specific task description' },
+      context: { type: 'string', description: 'Optional: files, requirements, constraints' },
     },
     required: ['task'],
   },
-  handler: async (params, ctx) => { /* ... */ },
+  preCheck: async (input) => isDestructive(input.task as string, input.context as string | undefined),
+  handler: codeTaskHandler,
 };
 ```
 
-### Handler flow
+## Destructive check (regex-based)
 
-1. Validate params: `task` required, `context` optional
-2. `destructive = await isDestructive(task, context)`
-3. If `destructive.destructive === true` — attach warning to ctx for permission dialog (see Permission flow section)
-4. `await ensureWorktree('/tmp/r2-dev', 'dev')`
-5. `await syncWorktree()` — git pull origin dev
-6. Mode detection: check permission rule for `code_task`
-   - If rule = `auto` (Allow always был нажат ранее) → use **ralphex mode**
-   - Otherwise → use **once mode** (Claude Agent SDK)
-7. Execute — stream progress via `ctx.onProgress(message)`
-8. `const diff = parseDiff('/tmp/r2-dev', 'master..HEAD')`
-9. `await commitChanges('/tmp/r2-dev', `r2: ${task}`)`
-10. Return `ToolResult`:
+### Rationale
 
-```typescript
-{
-  success: true,
-  data: {
-    summary: string,          // "Created 2 files, modified 3, commit abc1234"
-    files: Array<{ path: string; added: number; removed: number }>,
-    shortDiff: string,        // First 50 lines of diff
-    fullDiff: string,         // Complete diff
-    commit: string,           // Full commit hash
-    mode: 'once' | 'ralphex',
-    durationMs: number,
-  },
-  display: {
-    type: 'code',
-    content: shortDiff,
-  }
-}
-```
-
-## Destructive check (Haiku)
+Regex вместо Haiku потому что:
+- **Deterministic** — нет LLM non-determinism
+- **No PII leakage** — не отправляет task/context наружу
+- **Not prompt-injectable** — нет LLM которого можно обмануть
+- **Fast + cheap** — synchronous, без API call
+- **No fail-open risk** — regex либо матчится, либо нет
 
 ### Module `destructive-check.ts`
 
@@ -119,60 +110,110 @@ interface DestructiveCheck {
   reason: string;
 }
 
-export async function isDestructive(task: string, context?: string): Promise<DestructiveCheck>;
+export function isDestructive(task: string, context?: string): Promise<DestructiveCheck>;
 ```
 
-### Implementation
+Returns `Promise` to match `preCheck` hook signature, though impl is synchronous.
 
-- Uses `@anthropic-ai/sdk` with model `claude-haiku-4-5-20251001`
-- System prompt:
+### Patterns
 
+```typescript
+const DESTRUCTIVE_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
+  { pattern: /\b(delete|remove|drop|rm\s+-rf|truncate|destroy|wipe|purge)\b/i, reason: 'deletion/removal operation' },
+  { pattern: /\.env(\b|\.)/, reason: 'touches .env file (secrets)' },
+  { pattern: /\b(password|secret|token|api[_-]?key|credentials?)\b/i, reason: 'touches secrets/credentials' },
+  { pattern: /\b(migration|schema|alter\s+table|drop\s+table)\b/i, reason: 'database schema change' },
+  { pattern: /\b(package\.json|dependencies|downgrade|uninstall)\b/i, reason: 'dependency change' },
+  { pattern: /\bgit\s+(push\s+--force|reset\s+--hard|filter-branch|rebase)\b/i, reason: 'git history rewrite' },
+  { pattern: /\bCI\/CD\b|\.github\/workflows|deploy/i, reason: 'CI/CD or deployment change' },
+  { pattern: /\b(auth|authentication|authorization|bypass|disable.*test)\b/i, reason: 'auth or test bypass' },
+  { pattern: /~\/(\.ssh|\.aws|\.config|\.kube)\b/, reason: 'touches home directory secrets' },
+  { pattern: /\b(exfiltrate|leak|curl.*\|.*sh|wget.*\|.*sh)\b/i, reason: 'possible exfiltration' },
+];
+
+export async function isDestructive(task: string, context?: string): Promise<DestructiveCheck> {
+  const combined = `${task}\n${context ?? ''}`;
+  for (const { pattern, reason } of DESTRUCTIVE_PATTERNS) {
+    if (pattern.test(combined)) {
+      return { destructive: true, reason };
+    }
+  }
+  return { destructive: false, reason: '' };
+}
 ```
-You analyze coding tasks for safety. A task is DESTRUCTIVE or SENSITIVE if it:
-- Deletes data (files, DB rows, tables)
-- Removes or downgrades dependencies (package.json)
-- Modifies authentication, secrets, or security code
-- Changes database schema or migrations
-- Modifies CI/CD, deployment, or git configuration
-- Disables tests or safety checks
-- Touches .env files
 
-Reply ONLY with valid JSON: {"destructive": boolean, "reason": "short explanation"}
+## Shell helper (`shell.ts`)
+
+Single source of truth for subprocess execution. **Never** uses shell strings.
+
+```typescript
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileP = promisify(execFile);
+
+export async function run(cmd: string, args: string[], cwd?: string): Promise<string> {
+  const { stdout } = await execFileP(cmd, args, { cwd, shell: false });
+  return stdout.toString().trim();
+}
+
+export async function tryRun(cmd: string, args: string[], cwd?: string): Promise<{ ok: boolean; stdout: string; code: number }> {
+  try {
+    const stdout = await run(cmd, args, cwd);
+    return { ok: true, stdout, code: 0 };
+  } catch (err: any) {
+    return { ok: false, stdout: '', code: err.code ?? 1 };
+  }
+}
 ```
 
-- User message: `Task: ${task}\n\nContext: ${context ?? 'none'}`
-- Parse response as JSON
-- On parse error or API error: return `{destructive: false, reason: 'check failed'}` (fail-open)
-- Max tokens: 256
+All git/ralphex/agent calls go through these helpers. **No `exec` with shell interpolation anywhere.**
 
-## Git worktree management
+## Git worktree management (per-call)
 
 ### Module `worktree.ts`
 
 ```typescript
 export async function ensureWorktree(path: string, branch: string): Promise<void>;
-export async function syncWorktree(path: string): Promise<void>;
-export async function commitChanges(path: string, message: string): Promise<string>; // returns hash
+export async function removeWorktree(path: string): Promise<void>;
+export async function commitChanges(path: string, message: string): Promise<string>;
+export async function getStagedFiles(path: string): Promise<Array<{ file: string; mode: string }>>;
+export async function unstageFile(path: string, file: string): Promise<void>;
+```
+
+### Path validation
+
+```typescript
+function validateWorktreePath(path: string): void {
+  const prefix = process.env.R2_DEV_WORKTREE_PREFIX || '/tmp/r2-dev-';
+  if (!path.startsWith(prefix)) {
+    throw new Error(`Worktree path must start with ${prefix}`);
+  }
+  if (path.includes('..') || path.includes('~')) {
+    throw new Error('Invalid worktree path');
+  }
+}
 ```
 
 ### ensureWorktree
 
-- Check if `path` exists and is a valid git worktree: `git worktree list --porcelain`
-- If not exists: `git worktree add -B <branch> <path> origin/<branch>`
-- If exists but on wrong branch: `cd <path> && git checkout <branch>`
-- Repo root is determined from R2 server cwd (resolves to project root)
+1. `validateWorktreePath(path)`
+2. If path exists → `removeWorktree(path)` first (handles leftovers from crashes)
+3. `run('git', ['worktree', 'add', '--detach', path, `origin/${branch}`])`
 
-### syncWorktree
+### removeWorktree
 
-- `cd <path> && git fetch origin <branch> && git reset --hard origin/<branch>`
-- Hard reset is safe because worktree is ephemeral
+1. `validateWorktreePath(path)` — guards against `rm -rf /`
+2. `tryRun('git', ['worktree', 'remove', '--force', path])` — ignores errors (might not exist)
+3. As fallback if `git worktree remove` fails: `fs.rmSync(path, { recursive: true, force: true })` (only after path validation)
 
 ### commitChanges
 
-- `cd <path> && git add -A`
-- Check if there are staged changes: `git diff --cached --quiet`
+- `run('git', ['add', '-A'], path)` — but handler filters denylist files BEFORE calling this (see "Commit safety")
+- `tryRun('git', ['diff', '--cached', '--quiet'], path)` — exit 0 = no changes
 - If no changes: return empty string
-- Otherwise: `git commit -m "<message>"` + return commit SHA
+- `run('git', ['commit', '-m', message], path)` — argv form, message is data not code
+- Return `run('git', ['rev-parse', 'HEAD'], path)`
 
 ## Claude Agent SDK wrapper
 
@@ -190,311 +231,411 @@ interface AgentRunParams {
 export async function runAgent(params: AgentRunParams): Promise<void>;
 ```
 
-### Implementation
+### Prompt
 
-- Imports `query` from `@anthropic-ai/claude-agent-sdk`
-- Constructs prompt: `Task: ${task}\n\nContext: ${context ?? 'none'}\n\nWork directly in the current directory. Make all changes needed to complete the task.`
-- Iterates SDK stream: for each message emit `onProgress` with short description
-- Progress mapping:
-  - Text block → emit first 80 chars
-  - Tool use (Edit/Write/Bash) → emit `Editing <file>` / `Writing <file>` / `Running <cmd>`
-  - Tool result → skip
-- Signal propagation: pass `signal` to SDK query options for abort support
+```
+Task: ${task}
+
+Context: ${context ?? 'none'}
+
+Work in the current directory (${cwd}) only. Make all changes needed to complete the task.
+Stage changes with git add. Do not commit — the harness will commit staged changes.
+```
+
+### Progress mapping
+
+```typescript
+function describeToolUse(name: string, input: Record<string, unknown>): string {
+  if (name === 'Edit' || name === 'Write') {
+    return `${name === 'Edit' ? 'Editing' : 'Writing'} ${input.file_path ?? 'file'}`;
+  }
+  if (name === 'Bash') {
+    return `Running: ${String(input.command ?? '').slice(0, 60)}`;
+  }
+  if (name === 'Read') {
+    return `Reading ${input.file_path ?? 'file'}`;
+  }
+  return `Tool: ${name}`;
+}
+```
+
+Iterate SDK stream:
+- `assistant.message.content` → for each block:
+  - `text` → `onProgress(text.slice(0, 80))`
+  - `tool_use` → `onProgress(describeToolUse(block.name, block.input))`
+- Check `params.signal?.aborted` each iteration, break if aborted
 
 ## Ralphex wrapper (auto mode)
 
 ### Module `ralphex.ts`
 
 ```typescript
+export interface PlanReviewResponse {
+  approved: boolean;
+  editedPlan?: string;
+}
+
 interface RalphexRunParams {
   workdir: string;
   task: string;
   context?: string;
   onProgress: (message: string) => void;
-  requestPlanReview: (plan: string) => Promise<{ approved: boolean; editedPlan?: string }>;
+  requestPlanReview: (plan: string) => Promise<PlanReviewResponse>;
   signal?: AbortSignal;
 }
 
 export async function runRalphex(params: RalphexRunParams): Promise<void>;
+export function buildPlanContent(task: string, context?: string): string;
 ```
 
-### Implementation
+(`PlanReviewResponse` is also exported from `@r2/shared` — imported from there to avoid duplication.)
 
-1. **Generate draft plan** via Haiku (or use template if draft fails):
+### Flow
 
-```typescript
-async function generatePlan(task: string, context?: string): Promise<string>
-```
-Haiku is given the task + context + R2 project overview, produces a markdown plan with TDD steps.
-Fallback: template with placeholder task.
+1. `draft = buildPlanContent(task, context)` — deterministic template, no LLM
+2. `review = await requestPlanReview(draft)`
+3. If `!review.approved` → throw `new Error('Plan rejected by user')`
+4. `finalPlan = review.editedPlan ?? draft`
+5. `planPath = fs.mkdtempSync(os.tmpdir() + '/r2-task-') + '/plan.md'` with mode 0600
+6. `fs.writeFileSync(planPath, finalPlan, { mode: 0o600 })`
+7. `try`:
+   - `spawn('ralphex', ['--max-iterations', '20', planPath], { cwd: workdir, stdio: ['ignore', 'pipe', 'pipe'], shell: false })`
+   - Stream stdout/stderr lines via `onProgress(line.slice(0, 120))`
+   - Propagate `signal` via `child.kill('SIGTERM')` on abort
+   - Resolve on `exit code 0`, reject otherwise
+8. `finally`: `fs.rmSync(path.dirname(planPath), { recursive: true, force: true })`
 
-2. **Show plan to user** via `requestPlanReview(plan)`:
-   - Emits SSE `tool_plan_review` event with plan content
-   - Waits for user response via `POST /api/plan-review { callId, approved, editedPlan? }`
-   - User can: approve, edit + approve, or reject
-   - Similar to existing `pendingConfirms` pattern
+### Plan template
 
-3. **If rejected** → throw error "Plan rejected by user"
+```markdown
+# R2 Auto Task
 
-4. **Write plan file** at `/tmp/r2-task-<uuid>.md` (using edited plan if provided)
+**Goal:** ${task}
 
-5. **Spawn** `ralphex --max-iterations 20 <plan-path>` (cwd = workdir)
+**Context:** ${context ?? 'none'}
 
-6. **Tail progress** file, stream new lines via `onProgress`
-
-7. **Wait** for process exit; on non-zero exit throw error
-
-8. **Cleanup**: delete plan file
-
-### New SSE event
-
-```typescript
-| { type: 'tool_plan_review'; id: string; plan: string }
-```
-
-### New API endpoint
-
-`POST /api/plan-review`:
-```json
-{ "callId": "string", "approved": true, "editedPlan": "markdown..." }
-```
-
-Server side: `pendingPlanReviews` Map resolves Promise with user response.
-
-### Integration with tool-loop
-
-Tool-loop passes `requestPlanReview` callback as part of `ToolContext`. In `auto` mode, handler uses ralphex which calls `requestPlanReview` before spawning.
-
-## Progress streaming
-
-### New SSE event type
-
-```typescript
-type SSEEvent = ... | { type: 'tool_progress'; id: string; message: string };
-```
-
-### Integration with tool-loop
-
-Tool handlers receive a context object:
-
-```typescript
-interface ToolContext {
-  onProgress?: (message: string) => void;
-  requestPlanReview?: (plan: string) => Promise<{ approved: boolean; editedPlan?: string }>;
-  signal?: AbortSignal;
-  meta?: { autoMode?: boolean };
-}
-
-type ToolHandler = (params: Record<string, unknown>, ctx?: ToolContext) => Promise<ToolResult>;
-```
-
-In `tool-loop.ts`, when calling handler, pass `ctx` with `onProgress` that emits SSE:
-
-```typescript
-const progressCtx = {
-  onProgress: (message: string) => onEvent({ type: 'tool_progress', id: block.id, message }),
-  signal,
-};
-result = await toolDef.handler(input, progressCtx);
-```
-
-Backwards-compatible: existing tools ignore `ctx` parameter.
-
-## Permission flow (3-button card)
-
-### Updated `PermissionCard.tsx`
-
-For `code_task` tool, render 3 buttons instead of 2:
-
-- **Allow once** (blue `#2A5A8A`) — send `{ callId, allowed: true, remember: false }`
-- **Allow always** (green `#10B981` with ⭐) — send `{ callId, allowed: true, remember: true }`
-- **Deny** (gray border) — send `{ callId, allowed: false, remember: false }`
-
-Detection: `if (toolCall.name === 'code_task')` render 3 buttons, else existing 2-button layout.
-
-### Destructive warning
-
-Tool handler calls `isDestructive()` BEFORE showing confirmation card. If `destructive === true`:
-
-1. Even if saved rule = `auto` exists, ignore it and force confirmation
-2. Emit `tool_confirm_request` with an additional flag `destructiveWarning: { reason: string }`
-
-### Extended SSE event
-
-```typescript
-| { type: 'tool_confirm_request'; toolCall: ToolCall; level: 'confirm' | 'forbidden'; destructiveWarning?: { reason: string } }
-```
-
-### Card styling for destructive
-
-Red border (`2px #DC2626`), background `#FEF2F2`, reason shown above task params:
-
-```
-⚠ Destructive action: <reason>
 ---
-code_task
-Task: "delete all logs"
-[Allow once] [Allow always] [Deny]
+
+## Task 1: Implement the task
+
+- [ ] **Step 1: Analyze the codebase**
+
+Read relevant files to understand existing patterns.
+
+- [ ] **Step 2: Make the required changes**
+
+Implement the task. Keep changes minimal and focused.
+
+- [ ] **Step 3: Run tests if they exist**
+
+Run: `npx vitest run` in the relevant package.
+
+- [ ] **Step 4: Stage changes**
+
+Run: `git add -A`
+(Do not commit — the harness will commit staged changes.)
 ```
 
-### Permission rule check logic (in tool-loop.ts)
+## Commit safety (file denylist)
 
-Current logic for `confirm` level:
+Before committing, handler filters staged files:
+
 ```typescript
-const rule = getPermissionRule(block.name);
-if (rule) allowed = rule.allowed;
+const DENYLIST_PATTERNS = [
+  /(^|\/)\.env(\.|$)/,
+  /\.(key|pem|p12|pfx|asc|gpg)$/,
+  /(^|\/)id_rsa(\.|$)/,
+  /(^|\/)id_ed25519(\.|$)/,
+  /(^|\/)\.ssh\//,
+  /(^|\/)\.aws\//,
+  /(^|\/)\.kube\//,
+];
+
+const MAX_FILE_SIZE = 1024 * 1024; // 1 MB
+const SYMLINK_MODE = '120000';
 ```
 
-Extended logic for `code_task`:
+Flow:
+1. Run agent/ralphex (they do `git add -A` internally)
+2. `getStagedFiles(workdir)` → returns `[{ file, mode }]`
+3. For each staged file:
+   - If `DENYLIST_PATTERNS.some(p => p.test(file))` → unstage + log
+   - If `fs.statSync(path.join(workdir, file)).size > MAX_FILE_SIZE` → unstage + log
+   - If `mode === SYMLINK_MODE` → unstage + log
+4. Collect `blockedFiles: string[]`
+5. Proceed with commit (may be empty if all files blocked → return success with `commit: ''`)
+6. Result includes `blockedFiles` for visibility
+
+## Shared types (`@r2/shared`)
+
+### `types.ts` additions
+
 ```typescript
-if (block.name === 'code_task') {
-  const destructive = await isDestructive(input.task, input.context);
-  if (destructive.destructive) {
-    // Force confirmation even if rule exists
-    allowed = null;
-    confirmContext = { destructiveWarning: { reason: destructive.reason } };
-  } else {
-    const rule = getPermissionRule(block.name);
-    if (rule) allowed = rule.allowed;
-  }
+// Tool definition (moved from server/src/tools/base.ts)
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  permissionLevel: 'auto' | 'confirm' | 'forbidden';
+  parameters: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+  handler: (params: Record<string, unknown>, ctx?: ToolContext) => Promise<ToolResult>;
+  preCheck?: (input: Record<string, unknown>) => Promise<{ destructive: boolean; reason: string }>;
+}
+
+export interface ToolContext {
+  onProgress?: (message: string) => void;
+  requestPlanReview?: (plan: string) => Promise<PlanReviewResponse>;
+  signal?: AbortSignal;
+  meta?: { autoMode?: boolean; callId?: string };
+}
+
+export interface PlanReviewResponse {
+  approved: boolean;
+  editedPlan?: string;
+}
+
+// SSE event additions
+export type SSEEvent =
+  | ... // existing
+  | { type: 'tool_progress'; id: string; message: string }
+  | { type: 'tool_plan_review'; id: string; task: string; plan: string }
+  | { type: 'tool_confirm_request'; toolCall: ToolCall; level: 'confirm' | 'forbidden'; destructiveWarning?: { reason: string } };
+```
+
+`server/src/tools/base.ts` becomes a re-export shim for backwards-compat, or is deleted entirely.
+
+## Tool-loop integration
+
+### Changes
+
+1. **preCheck hook** — tool-loop calls `toolDef.preCheck?.(deanonInput)` before permission check. If destructive, force confirmation.
+2. **autoMode detection** — if saved rule exists AND not destructive, `autoMode = true` (ralphex path)
+3. **Generic** — no hardcoded `if (block.name === 'code_task')`. The `preCheck` hook is the extension point.
+4. **Pending plan reviews** — new `PendingPlanReviews` map parallel to `pendingConfirms`
+
+### New tool-loop helper
+
+```typescript
+function createPlanReviewRequester(
+  callId: string,
+  task: string,
+  onEvent: (event: SSEEvent) => void,
+  pendingPlanReviews: PendingPlanReviews,
+  signal?: AbortSignal,
+): (plan: string) => Promise<PlanReviewResponse> {
+  return (plan: string) => new Promise((resolve) => {
+    if (signal?.aborted) { resolve({ approved: false }); return; }
+    const onAbort = () => { pendingPlanReviews.delete(callId); resolve({ approved: false }); };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    pendingPlanReviews.set(callId, (response) => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve(response);
+    });
+    onEvent({ type: 'tool_plan_review', id: callId, task, plan });
+  });
 }
 ```
 
-Note: destructive check runs in tool-loop BEFORE the handler, because the result affects whether to show card. The handler will not re-run it.
+### Context building (extracted helper)
 
-## UI — Plan review card (auto mode only)
+```typescript
+function buildToolContext(
+  block: ToolUseBlock,
+  task: string,
+  autoMode: boolean,
+  onEvent: (event: SSEEvent) => void,
+  pendingPlanReviews: PendingPlanReviews,
+  signal?: AbortSignal,
+): ToolContext {
+  return {
+    onProgress: (message) => onEvent({ type: 'tool_progress', id: block.id, message }),
+    requestPlanReview: createPlanReviewRequester(block.id, task, onEvent, pendingPlanReviews, signal),
+    signal,
+    meta: { autoMode, callId: block.id },
+  };
+}
+```
 
-When `tool_plan_review` event arrives, client renders `PlanReviewCard`:
+Used in both `allowed` paths (auto handler + confirm-allowed handler) — no duplication.
 
-- Shows generated plan in `<textarea>` (editable)
+### Server route: POST /api/plan-review
+
+```typescript
+// routes/plan-review.ts
+export interface PlanReviewResponse {
+  approved: boolean;
+  editedPlan?: string;
+}
+export type PendingPlanReviews = Map<string, (r: PlanReviewResponse) => void>;
+
+router.post('/plan-review', (req, res) => {
+  const { callId, approved, editedPlan } = req.body;
+  // validate types
+  // resolve pending, delete from map
+  // res.json({ ok: true })
+});
+```
+
+## Client UI
+
+### PermissionCard — 3 buttons for code_task + destructive warning
+
+- For `toolCall.name === 'code_task'`: render 3 buttons — Allow once (blue), Allow always (green ⭐), Deny (gray)
+- Allow always disabled if `destructiveWarning` present
+- Destructive warning: red banner above params with reason
+
+### PlanReviewCard (new component)
+
+```tsx
+interface Props {
+  task: string;
+  plan: string;
+  onRespond: (callId: string, approved: boolean, editedPlan?: string) => Promise<boolean>;
+  callId: string;
+}
+```
+
+- Shows task text
+- `<textarea>` prefilled with plan (editable, min 15 rows)
 - Buttons: **Run plan** (blue), **Cancel** (gray)
-- User can edit plan text before clicking Run
-- On Run → POST `/api/plan-review { callId, approved: true, editedPlan: textarea.value }`
-- On Cancel → POST `/api/plan-review { callId, approved: false }`
+- On Run: `onRespond(callId, true, textareaValue)`
+- On Cancel: `onRespond(callId, false)`
 
-Card replaces `ToolCallCard` while `running` state is active but `tool_plan_review` received. After user responds, card disappears and normal progress stream resumes.
+### useChat additions
 
-### useChat integration
+- New state: `pendingPlanReviews: Map<callId, { task, plan }>`
+- `tool_plan_review` event → add to map
+- `respondToPlanReview(callId, approved, editedPlan?)` → POST `/api/plan-review` → remove from map
+- Handle new SSE events: `tool_progress`, `tool_plan_review`
 
-New state: `pendingPlanReviews: Map<callId, { plan: string }>`. On `tool_plan_review` event add to map. After `respondToPlanReview()` remove from map.
+### MessageBubble
 
-### Message extension
+Renders `PlanReviewCard` if `pendingPlanReviews.get(toolCallId)` is set, otherwise falls through to `PermissionCard` or `ToolCallCard`.
 
-```typescript
-interface ToolCall {
-  ...
-  pendingPlan?: string;  // set by useChat on tool_plan_review
-}
-```
+### ToolCallCard for code_task
 
-## UI — ToolCallCard for code_task
-
-### Running state
-
-Show last progress message in a subtle gray box:
-
-```
-┌──────────────────────────────┐
-│ 🛠 code_task                 │
-│ Task: "добавь dark mode"     │
-│                              │
-│ ⏵ Editing src/App.tsx        │ ← animated dot, updates
-└──────────────────────────────┘
-```
-
-### Done state
-
-```
-┌──────────────────────────────┐
-│ ✓ code_task (2m 14s)         │
-│ Commit: abc1234              │
-│                              │
-│ 📁 3 files changed           │
-│  • src/components/Theme.tsx  │
-│    +45 lines                 │
-│  • src/App.tsx               │
-│    ±12 lines                 │
-│  • src/styles.css            │
-│    +8 lines                  │
-│                              │
-│ [Show diff ▼]                │
-└──────────────────────────────┘
-```
-
-Clicking "Show diff" expands `fullDiff` into a `<pre><code>` block with monospace font.
-
-### Implementation
-
-- `ToolCallCard.tsx` detects `toolCall.name === 'code_task'` and renders specialized layout
-- Reads `result.data.summary`, `files`, `shortDiff`, `fullDiff`, `commit`
-- State for expanded diff: `useState<boolean>(false)`
-
-## Database changes
-
-None. `permission_rules` table already supports `code_task` (`allowed: true` = Allow always).
-
-## Audit log
-
-Existing `logToolCall` automatically logs `code_task` invocations with inputs and results. PII proxy already anonymizes tool inputs, so tasks with PII are safe.
+- **Running**: task + pulsing dot + latest `toolCall.progress` message
+- **Done (green)**: duration, commit hash, mode (once/ralphex), file list with +/-, blocked files warning, Show diff toggle
+- **Error (red)**: error message
 
 ## Configuration
 
-### Env variables (.env.example)
-
 ```bash
-# Phase 3C: Code task
-R2_DEV_WORKTREE=/tmp/r2-dev
+# Phase 3C
+R2_DEV_WORKTREE_PREFIX=/tmp/r2-dev-
 R2_DEV_BRANCH=dev
-CLAUDE_HAIKU_MODEL=claude-haiku-4-5-20251001
+R2_DEV_BASE_BRANCH=master
+R2_RALPHEX_MAX_ITERATIONS=20
 ```
 
-### Dependencies
-
-Add to `packages/tool-code-task/package.json`:
+## Dependencies
 
 ```json
 {
   "dependencies": {
     "@r2/shared": "*",
-    "@anthropic-ai/sdk": "^0.80.0",
     "@anthropic-ai/claude-agent-sdk": "^0.2.98"
   }
 }
 ```
 
+No server dependency — types moved to `@r2/shared`.
+
 ## Testing
 
 ### Unit tests (Vitest)
 
-- `destructive-check.test.ts`: mock Anthropic client, verify JSON parsing, fallback on error
-- `worktree.test.ts`: mock `child_process.exec`, verify git commands, handle existing/missing worktree
-- `diff.test.ts`: parse `git diff` output, generate summary with file stats
-- `agent-sdk.test.ts`: mock `query` from SDK, verify progress callback is invoked for tool_use blocks
-- `ralphex.test.ts`: mock child_process spawn, verify plan file generation, progress tail
-- `code-task.test.ts`: integration of handler flow (mocked git + mocked agent), once vs auto branching
+**destructive-check.test.ts**:
+- Each pattern triggers destructive=true with correct reason
+- Safe task passes (destructive=false)
+- Context is scanned
+- Case insensitivity where applicable
+
+**shell.test.ts**:
+- `run` with mocked execFile, argv passed correctly
+- `tryRun` returns ok=false on error, code captured
+
+**worktree.test.ts**:
+- `validateWorktreePath` rejects `/`, `~`, missing prefix, `..`
+- `ensureWorktree` removes existing then creates fresh
+- `removeWorktree` handles non-existent gracefully
+- `commitChanges` returns empty on no staged changes
+- `commitChanges` uses argv form (no shell)
+- `getStagedFiles` returns file + mode
+
+**diff.test.ts**:
+- parseDiffStats with normal/empty/binary
+- truncateDiff preserves short diffs, marks truncated ones
+- summarizeDiff with multiple files
+
+**agent-sdk.test.ts**:
+- Progress emission for text blocks
+- Progress emission for tool_use (Edit/Write/Bash/Read)
+- Cwd passed to SDK
+- Signal propagation
+
+**ralphex.test.ts**:
+- `buildPlanContent` includes task, context, checkboxes
+- `runRalphex` calls `requestPlanReview` with draft plan
+- Rejected plan throws "rejected"
+- Edited plan is written to file instead of draft
+- Non-zero exit throws
+- Plan file cleanup in finally
+
+**code-task.test.ts** (integration):
+- Requires `task` param
+- Happy path: once mode → agent → commit → result
+- Happy path: auto mode → ralphex → commit → result
+- Auto mode without `requestPlanReview` callback → error
+- Denylist blocks `.env`, returns `blockedFiles`
+- Worktree cleanup on success
+- Worktree cleanup on agent failure
+- Diff parse failure doesn't lose commit
+- Agent makes no changes → success with empty files
+
+**tool-loop.test.ts** additions:
+- `preCheck` hook fires for tool with it defined
+- Destructive warning forces confirmation even when saved rule exists
+- `autoMode = true` when saved rule exists and not destructive
+- `buildToolContext` called with correct arguments
+- Plan review event forwarded to pendingPlanReviews map
+
+**routes/plan-review.test.ts** (new):
+- Validates callId string
+- Validates approved boolean
+- 404 on unknown callId
+- Removes from map before resolve
+- Accepts optional editedPlan
 
 ### Manual / E2E
 
-- "Создай файл hello.md с текстом 'hi'" → confirm card (3 buttons) → Allow once → file created on dev branch, commit hash shown in chat
-- Same task → Allow always → next task runs without card, ralphex mode
-- "Удали все файлы в data/" → destructive warning card with reason (red border), even if auto rule exists
-- "Добавь console.log в src/index.ts" → progress stream shows "Editing src/index.ts"
-- Abort during task (stop button in UI) → worktree cleanup, no partial commit
-
-## Rollout & fallbacks
-
-- If `@anthropic-ai/claude-agent-sdk` unavailable or errors → tool returns `{success: false, error: 'Agent SDK unavailable'}`
-- If worktree creation fails → tool returns error, no partial state
-- If Haiku destructive check fails → `destructive: false` (fail-open, rely on user confirmation)
-- If ralphex not installed (auto mode) → tool returns error with installation hint
+- "Add loading spinner to chat input" → PermissionCard 3 buttons → Allow once → agent edits → diff shown → commit
+- Same task → Allow always → next task goes through ralphex path → PlanReviewCard appears → edit plan → Run → ralphex runs → diff
+- "Delete all audit log entries" → destructive warning (red banner) with reason, Allow always disabled
+- Task that touches .env → denylist blocks, blockedFiles shown in result
+- Abort during task (stop button) → worktree `/tmp/r2-dev-<callId>` removed
+- Two concurrent code_task calls → different worktrees, no conflict
 
 ## What's NOT included
 
-- Merge dev → master (Phase 3D)
-- Auto-deploy after merge / git watcher (Phase 3D)
-- Eval checks before merge (Phase 3E)
-- Chat commands `r2 task` / `r2 deploy` (Phase 3F)
-- Rollback / undo commits
-- Multiple parallel tasks (one task at a time)
-- Worktree cleanup policy (deletion of stale worktrees) — handled manually for now
-- Streaming diff as it's being generated
+### Deferred to Phase 3D
+- Merge dev → master
+- Auto-deploy via git watcher
+- Rollback/undo commits
+
+### Deferred to Phase 3E
+- Eval checks before merge
+
+### Deferred to Phase 3F
+- Chat commands (`r2 task`, `r2 deploy`)
+- Persistent status bar
+
+### Deferred to backlog (defense in depth)
+- sandbox-exec isolation for Agent SDK (current safety: user confirmation + denylist + destructive check)
+- Rate limiting (max N code_task per hour)
+- Signed commit verification
+- Haiku-based destructive check (only if regex proves insufficient)
+- Auto-mode TTL/scope (currently persistent rule is fine for single-user)
