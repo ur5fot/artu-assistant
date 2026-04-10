@@ -28,7 +28,7 @@ describe('codeDeployTool', () => {
     const result = await codeDeployTool.handler({}, { onProgress: () => {} });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:3001/api/merge',
+      'http://127.0.0.1:3001/api/merge',
       expect.objectContaining({ method: 'POST' }),
     );
     expect(result.success).toBe(true);

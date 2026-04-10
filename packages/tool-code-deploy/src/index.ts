@@ -22,11 +22,15 @@ export const codeDeployTool: ToolDefinition = {
     onProgress('Merging dev into master...');
 
     try {
-      const res = await fetch(`http://localhost:${port}/api/merge`, {
+      // Use 127.0.0.1 explicitly: the server binds only to 127.0.0.1, but
+      // `localhost` may resolve to ::1 first on some systems → ECONNREFUSED.
+      // No signal: deploy is destructive and must run to a consistent state
+      // (pushed or rolled back). Client-side abort would leave the server
+      // running the remaining git operations anyway.
+      const res = await fetch(`http://127.0.0.1:${port}/api/merge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
-        signal: ctx?.signal,
       });
 
       let data: any = {};

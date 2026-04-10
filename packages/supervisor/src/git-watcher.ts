@@ -49,7 +49,15 @@ export function startGitWatcher(params: GitWatcherParams): () => void {
       );
 
       if (!storedHash) {
-        storedHash = newHash;
+        // initialize() failed earlier (e.g. transient fetch error). Re-seed
+        // from the LOCAL branch so a "local behind origin" diff is still
+        // detected on the next poll; fall back to origin only if local
+        // rev-parse also fails.
+        try {
+          storedHash = await run('git', ['rev-parse', params.branch], params.repoPath);
+        } catch {
+          storedHash = newHash;
+        }
         return;
       }
       if (newHash === storedHash) return;
