@@ -1610,7 +1610,7 @@ git commit -m "feat: implement code_task handler with denylist and per-call work
 - Modify: `packages/server/src/index.ts`
 - Modify: `packages/server/src/routes/chat.ts`
 
-- [ ] **Step 1: Write failing tests for plan-review route**
+- [x] **Step 1: Write failing tests for plan-review route**
 
 Create `packages/server/src/routes/plan-review.test.ts`:
 
@@ -1674,12 +1674,12 @@ describe('POST /api/plan-review', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/routes/plan-review.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Create plan-review route**
+- [x] **Step 3: Create plan-review route**
 
 Create `packages/server/src/routes/plan-review.ts`:
 
@@ -1724,7 +1724,7 @@ export function createPlanReviewRouter(pendingPlanReviews: PendingPlanReviews): 
 }
 ```
 
-- [ ] **Step 4: Wire pendingPlanReviews in index.ts**
+- [x] **Step 4: Wire pendingPlanReviews in index.ts**
 
 In `packages/server/src/index.ts`, add import near other route imports:
 
@@ -1756,7 +1756,7 @@ Register route after other `/api` routes:
 app.use('/api', createPlanReviewRouter(pendingPlanReviews));
 ```
 
-- [ ] **Step 5: Update chat.ts to forward pendingPlanReviews**
+- [x] **Step 5: Update chat.ts to forward pendingPlanReviews**
 
 In `packages/server/src/routes/chat.ts`, add import:
 
@@ -1806,12 +1806,12 @@ Pass to `runLoop` call inside handler:
       });
 ```
 
-- [ ] **Step 6: Run tests and typecheck**
+- [x] **Step 6: Run tests and typecheck**
 
 Run: `cd packages/server && npx vitest run src/routes/plan-review.test.ts && npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: all tests pass, no type errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/routes/plan-review.ts packages/server/src/routes/plan-review.test.ts packages/server/src/index.ts packages/server/src/routes/chat.ts

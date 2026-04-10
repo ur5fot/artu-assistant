@@ -4,6 +4,7 @@ import type { SSEEvent } from '@r2/shared';
 import type { ToolCall } from '@r2/shared';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { PendingConfirms } from './confirm.js';
+import type { PendingPlanReviews } from './plan-review.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import { saveMessage } from '../db.js';
 import crypto from 'node:crypto';
@@ -45,13 +46,15 @@ interface ChatRouterDeps {
     onEvent: (event: SSEEvent) => void;
     signal?: AbortSignal;
     pendingConfirms: PendingConfirms;
+    pendingPlanReviews: PendingPlanReviews;
     piiProxy: PiiProxy;
   }) => Promise<void>;
   pendingConfirms: PendingConfirms;
+  pendingPlanReviews: PendingPlanReviews;
   piiProxy: PiiProxy;
 }
 
-export function createChatRouter({ runLoop, pendingConfirms, piiProxy }: ChatRouterDeps): Router {
+export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy }: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -108,6 +111,7 @@ export function createChatRouter({ runLoop, pendingConfirms, piiProxy }: ChatRou
         messages: addTimestamps(messages),
         signal: abortController.signal,
         pendingConfirms,
+        pendingPlanReviews,
         piiProxy,
         onEvent: (event: SSEEvent) => {
           // Accumulate assistant data for persistence

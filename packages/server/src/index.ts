@@ -8,6 +8,7 @@ import express from 'express';
 import cors from 'cors';
 import { createChatRouter } from './routes/chat.js';
 import { createConfirmRouter, type PendingConfirms } from './routes/confirm.js';
+import { createPlanReviewRouter, type PendingPlanReviews } from './routes/plan-review.js';
 import { createPermissionsRouter } from './routes/permissions.js';
 import { createPiiRouter } from './routes/pii.js';
 import { createMessagesRouter } from './routes/messages.js';
@@ -72,16 +73,19 @@ if (piiMode === 'disabled') {
 const client = createClaudeClient();
 const registry = await discoverTools();
 const pendingConfirms: PendingConfirms = new Map();
+const pendingPlanReviews: PendingPlanReviews = new Map();
 
 const chatRouter = createChatRouter({
-  runLoop: ({ messages, onEvent, signal, pendingConfirms: pc, piiProxy: pp }) =>
+  runLoop: ({ messages, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: _ppr, piiProxy: pp }) =>
     runToolLoop({ messages, client, registry, onEvent, signal, pendingConfirms: pc, piiProxy: pp }),
   pendingConfirms,
+  pendingPlanReviews,
   piiProxy,
 });
 
 app.use('/api', chatRouter);
 app.use('/api', createConfirmRouter(pendingConfirms));
+app.use('/api', createPlanReviewRouter(pendingPlanReviews));
 app.use('/api', createPermissionsRouter());
 app.use('/api', createMessagesRouter());
 if (piiVault) {
