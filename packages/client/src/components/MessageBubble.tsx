@@ -63,6 +63,7 @@ export function MessageBubble({ message, pendingConfirms, onRespond }: Props) {
               key={tc.id}
               toolCall={tc}
               level={pending.level}
+              destructiveWarning={pending.destructiveWarning}
               onRespond={onRespond}
             />
           );

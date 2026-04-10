@@ -5,6 +5,7 @@ import { connectSSE, type SSEConnection } from '../utils/sse';
 export interface PendingConfirm {
   callId: string;
   level: 'confirm' | 'forbidden';
+  destructiveWarning?: { reason: string };
 }
 
 export function useChat() {
@@ -108,7 +109,11 @@ export function useChat() {
           case 'tool_confirm_request':
             setPendingConfirms((prev) => {
               const next = new Map(prev);
-              next.set(event.toolCall.id, { callId: event.toolCall.id, level: event.level });
+              next.set(event.toolCall.id, {
+                callId: event.toolCall.id,
+                level: event.level,
+                destructiveWarning: event.destructiveWarning,
+              });
               return next;
             });
             // Don't push to toolCalls — tool_call_start already added this tool call.

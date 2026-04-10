@@ -2215,7 +2215,7 @@ git commit -m "feat: integrate preCheck hook, autoMode, and plan review into too
 - Modify: `packages/client/src/hooks/useChat.ts`
 - Modify: `packages/client/src/components/MessageBubble.tsx`
 
-- [ ] **Step 1: Update PendingConfirm type in useChat**
+- [x] **Step 1: Update PendingConfirm type in useChat**
 
 In `packages/client/src/hooks/useChat.ts`:
 
@@ -2257,7 +2257,7 @@ In `tool_confirm_request` case handler, include `destructiveWarning`:
             break;
 ```
 
-- [ ] **Step 2: Update PermissionCard with 3 buttons and destructive banner**
+- [x] **Step 2: Update PermissionCard with 3 buttons and destructive banner**
 
 Replace `packages/client/src/components/PermissionCard.tsx`:
 
@@ -2457,7 +2457,7 @@ export function PermissionCard({ toolCall, level, destructiveWarning, onRespond 
 }
 ```
 
-- [ ] **Step 3: Pass destructiveWarning in MessageBubble**
+- [x] **Step 3: Pass destructiveWarning in MessageBubble**
 
 In `packages/client/src/components/MessageBubble.tsx`, update the PermissionCard render:
 
@@ -2479,12 +2479,12 @@ In `packages/client/src/components/MessageBubble.tsx`, update the PermissionCard
       })}
 ```
 
-- [ ] **Step 4: Typecheck**
+- [x] **Step 4: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/client/src/components/PermissionCard.tsx packages/client/src/hooks/useChat.ts packages/client/src/components/MessageBubble.tsx
