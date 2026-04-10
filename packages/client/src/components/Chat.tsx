@@ -4,7 +4,7 @@ import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 
 export function Chat() {
-  const { messages, loading, error, send, pendingConfirms, respondToConfirm, historyLoaded } = useChat();
+  const { messages, loading, error, send, pendingConfirms, respondToConfirm, pendingPlanReviews, respondToPlanReview, historyLoaded } = useChat();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,7 +27,9 @@ export function Chat() {
             key={m.id}
             message={m}
             pendingConfirms={pendingConfirms}
+            pendingPlanReviews={pendingPlanReviews}
             onRespond={respondToConfirm}
+            onRespondPlanReview={respondToPlanReview}
           />
         ))}
         {loading && (

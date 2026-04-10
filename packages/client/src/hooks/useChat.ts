@@ -5,6 +5,13 @@ import { connectSSE, type SSEConnection } from '../utils/sse';
 export interface PendingConfirm {
   callId: string;
   level: 'confirm' | 'forbidden';
+  destructiveWarning?: { reason: string };
+}
+
+export interface PendingPlanReview {
+  callId: string;
+  task: string;
+  plan: string;
 }
 
 export function useChat() {
@@ -12,6 +19,7 @@ export function useChat() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingConfirms, setPendingConfirms] = useState<Map<string, PendingConfirm>>(new Map());
+  const [pendingPlanReviews, setPendingPlanReviews] = useState<Map<string, PendingPlanReview>>(new Map());
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const connectionRef = useRef<SSEConnection | null>(null);
 
@@ -27,6 +35,7 @@ export function useChat() {
     // Abort any existing connection before starting a new one
     connectionRef.current?.abort();
     setPendingConfirms(new Map());
+    setPendingPlanReviews(new Map());
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -108,7 +117,11 @@ export function useChat() {
           case 'tool_confirm_request':
             setPendingConfirms((prev) => {
               const next = new Map(prev);
-              next.set(event.toolCall.id, { callId: event.toolCall.id, level: event.level });
+              next.set(event.toolCall.id, {
+                callId: event.toolCall.id,
+                level: event.level,
+                destructiveWarning: event.destructiveWarning,
+              });
               return next;
             });
             // Don't push to toolCalls — tool_call_start already added this tool call.
@@ -128,6 +141,48 @@ export function useChat() {
               ];
             });
             break;
+
+          case 'tool_plan_review':
+            setPendingPlanReviews((prev) => {
+              const next = new Map(prev);
+              next.set(event.id, { callId: event.id, task: event.task, plan: event.plan });
+              return next;
+            });
+            setMessages((prev) => {
+              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
+              return [
+                ...base,
+                {
+                  id: assistantId,
+                  role: 'assistant' as const,
+                  content: assistantText,
+                  toolCalls: [...toolCalls],
+                  timestamp: Date.now(),
+                  piiEntities,
+                },
+              ];
+            });
+            break;
+
+          case 'tool_progress': {
+            const tc = toolCalls.find((t) => t.id === event.id);
+            if (tc) tc.progress = event.message;
+            setMessages((prev) => {
+              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
+              return [
+                ...base,
+                {
+                  id: assistantId,
+                  role: 'assistant' as const,
+                  content: assistantText,
+                  toolCalls: [...toolCalls],
+                  timestamp: Date.now(),
+                  piiEntities,
+                },
+              ];
+            });
+            break;
+          }
 
           case 'pii_masked':
             piiEntities = event.entities;
@@ -171,6 +226,7 @@ export function useChat() {
     connectionRef.current?.abort();
     connectionRef.current = null;
     setPendingConfirms(new Map());
+    setPendingPlanReviews(new Map());
     setLoading(false);
     sendingRef.current = false;
   }, []);
@@ -194,6 +250,29 @@ export function useChat() {
       return true;
     } catch (err) {
       console.error('Failed to send confirm response:', err);
+      return false;
+    }
+  }, []);
+
+  const respondToPlanReview = useCallback(async (callId: string, approved: boolean, editedPlan?: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/plan-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callId, approved, editedPlan }),
+      });
+      if (!res.ok) {
+        console.error('Plan review response failed:', res.status, await res.text());
+        return false;
+      }
+      setPendingPlanReviews((prev) => {
+        const next = new Map(prev);
+        next.delete(callId);
+        return next;
+      });
+      return true;
+    } catch (err) {
+      console.error('Failed to send plan review response:', err);
       return false;
     }
   }, []);
@@ -225,5 +304,16 @@ export function useChat() {
       });
   }, []);
 
-  return { messages, loading, error, send, stop, pendingConfirms, respondToConfirm, historyLoaded };
+  return {
+    messages,
+    loading,
+    error,
+    send,
+    stop,
+    pendingConfirms,
+    respondToConfirm,
+    pendingPlanReviews,
+    respondToPlanReview,
+    historyLoaded,
+  };
 }

@@ -4,6 +4,7 @@ import type { SSEEvent } from '@r2/shared';
 import type { ToolCall } from '@r2/shared';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { PendingConfirms } from './confirm.js';
+import type { PendingPlanReviews } from './plan-review.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import { saveMessage } from '../db.js';
 import crypto from 'node:crypto';
@@ -45,13 +46,15 @@ interface ChatRouterDeps {
     onEvent: (event: SSEEvent) => void;
     signal?: AbortSignal;
     pendingConfirms: PendingConfirms;
+    pendingPlanReviews: PendingPlanReviews;
     piiProxy: PiiProxy;
   }) => Promise<void>;
   pendingConfirms: PendingConfirms;
+  pendingPlanReviews: PendingPlanReviews;
   piiProxy: PiiProxy;
 }
 
-export function createChatRouter({ runLoop, pendingConfirms, piiProxy }: ChatRouterDeps): Router {
+export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy }: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -108,6 +111,7 @@ export function createChatRouter({ runLoop, pendingConfirms, piiProxy }: ChatRou
         messages: addTimestamps(messages),
         signal: abortController.signal,
         pendingConfirms,
+        pendingPlanReviews,
         piiProxy,
         onEvent: (event: SSEEvent) => {
           // Accumulate assistant data for persistence
@@ -118,7 +122,26 @@ export function createChatRouter({ runLoop, pendingConfirms, piiProxy }: ChatRou
           } else if (event.type === 'tool_call_result') {
             const tc = assistantToolCalls.find((t) => t.id === event.id);
             if (tc) {
-              tc.result = event.result;
+              // Strip heavy presentational fields (e.g. code_task.fullDiff)
+              // before persisting. tool-loop splits fullDiff out of the
+              // Claude-facing result and re-attaches it for the SSE stream,
+              // but we must not store it in SQLite: (a) it was intentionally
+              // bypassed by PII anonymization, so persisting the raw diff
+              // would leak unmasked secrets; (b) each diff can be tens of KB
+              // and bloats the messages table and history loads.
+              let persistedResult = event.result;
+              if (
+                persistedResult &&
+                persistedResult.success &&
+                persistedResult.data &&
+                typeof persistedResult.data === 'object' &&
+                !Array.isArray(persistedResult.data) &&
+                'fullDiff' in (persistedResult.data as Record<string, unknown>)
+              ) {
+                const { fullDiff: _fd, ...rest } = persistedResult.data as Record<string, unknown>;
+                persistedResult = { ...persistedResult, data: rest };
+              }
+              tc.result = persistedResult;
               tc.status = event.result.success ? 'done' : 'error';
             }
           } else if (event.type === 'pii_masked') {
@@ -151,6 +174,23 @@ export function createChatRouter({ runLoop, pendingConfirms, piiProxy }: ChatRou
       if (!res.writableEnded && !res.destroyed) {
         const message = error instanceof Error ? error.message : 'Internal server error';
         res.write(`data: ${JSON.stringify({ type: 'error', message: sanitizeError(message) })}\n\n`);
+      }
+      // Persist any partial assistant output so history/audit survives a
+      // mid-loop failure. Without this the text and tool calls already
+      // streamed to the client vanish on reload.
+      if (assistantText || assistantToolCalls.length > 0) {
+        try {
+          saveMessage({
+            messageId: assistantId,
+            role: 'assistant',
+            content: assistantText,
+            toolCalls: assistantToolCalls.length > 0 ? assistantToolCalls : undefined,
+            piiEntities: assistantPiiEntities,
+            timestamp: Date.now(),
+          });
+        } catch (err) {
+          console.error('Failed to save partial assistant message:', err instanceof Error ? err.message : err);
+        }
       }
     }
 

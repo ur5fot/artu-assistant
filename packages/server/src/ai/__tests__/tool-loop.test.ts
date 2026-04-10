@@ -825,3 +825,148 @@ describe('Agentic Tool Loop — Audit Logging', () => {
     expect(rows[0].duration_ms).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('Agentic Tool Loop — preCheck and autoMode', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2-precheck-'));
+    initDb(path.join(tmpDir, 'test.db'));
+  });
+
+  afterEach(() => {
+    closeDb();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fires preCheck hook and forces confirmation when destructive', async () => {
+    const client = mockClaudeClient([
+      {
+        content: [{ type: 'tool_use', id: 'call_dest', name: 'danger_tool', input: { task: 'delete stuff' } }],
+        stop_reason: 'tool_use',
+      },
+      { content: [{ type: 'text', text: 'done' }], stop_reason: 'end_turn' },
+    ]);
+
+    const handler = vi.fn(async () => ({ success: true, data: 'x' }));
+    const toolDefs = [{
+      name: 'danger_tool',
+      description: 'Dangerous',
+      permissionLevel: 'confirm' as const,
+      parameters: { type: 'object' as const, properties: {}, required: [] },
+      preCheck: async () => ({ destructive: true, reason: 'test destructive' }),
+      handler,
+    }];
+
+    const registry: any = { register: vi.fn(), get: (n: string) => toolDefs.find((t) => t.name === n), getAll: () => toolDefs };
+
+    const events: SSEEvent[] = [];
+    const pendingConfirms = new Map();
+    const onEvent = (e: SSEEvent) => {
+      events.push(e);
+      if (e.type === 'tool_confirm_request') {
+        const resolve = pendingConfirms.get(e.toolCall.id);
+        if (resolve) {
+          pendingConfirms.delete(e.toolCall.id);
+          resolve({ allowed: true, remember: false });
+        }
+      }
+    };
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'do it' }],
+      client,
+      registry,
+      onEvent,
+      pendingConfirms,
+      piiProxy: { anonymize: async (t: string) => ({ text: t, entities: [] }), deanonymize: async (t: string) => t } as any,
+    });
+
+    const confirmEvent = events.find((e) => e.type === 'tool_confirm_request');
+    expect(confirmEvent).toBeDefined();
+    if (confirmEvent?.type === 'tool_confirm_request') {
+      expect(confirmEvent.destructiveWarning).toEqual({ reason: 'test destructive' });
+    }
+    expect(handler).toHaveBeenCalled();
+  });
+
+  it('autoMode=true when saved rule exists and not destructive', async () => {
+    const { savePermissionRule } = await import('../../db.js');
+    savePermissionRule('auto_tool', true);
+
+    const client = mockClaudeClient([
+      {
+        content: [{ type: 'tool_use', id: 'call_auto', name: 'auto_tool', input: { task: 'safe task' } }],
+        stop_reason: 'tool_use',
+      },
+      { content: [{ type: 'text', text: 'done' }], stop_reason: 'end_turn' },
+    ]);
+
+    let receivedCtx: any = null;
+    const toolDefs = [{
+      name: 'auto_tool',
+      description: 'Auto',
+      permissionLevel: 'confirm' as const,
+      parameters: { type: 'object' as const, properties: {}, required: [] },
+      preCheck: async () => ({ destructive: false, reason: '' }),
+      handler: vi.fn(async (_p: any, ctx: any) => { receivedCtx = ctx; return { success: true, data: 'x' }; }),
+    }];
+
+    const registry: any = { register: vi.fn(), get: (n: string) => toolDefs.find((t) => t.name === n), getAll: () => toolDefs };
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'do it' }],
+      client,
+      registry,
+      onEvent: () => {},
+      piiProxy: { anonymize: async (t: string) => ({ text: t, entities: [] }), deanonymize: async (t: string) => t } as any,
+    });
+
+    expect(receivedCtx?.meta?.autoMode).toBe(true);
+  });
+
+  it('saved rule does NOT apply when destructive', async () => {
+    const { savePermissionRule } = await import('../../db.js');
+    savePermissionRule('danger_tool', true);
+
+    const client = mockClaudeClient([
+      {
+        content: [{ type: 'tool_use', id: 'call_x', name: 'danger_tool', input: { task: 'bad thing' } }],
+        stop_reason: 'tool_use',
+      },
+      { content: [{ type: 'text', text: 'done' }], stop_reason: 'end_turn' },
+    ]);
+
+    const toolDefs = [{
+      name: 'danger_tool',
+      description: 'Dangerous',
+      permissionLevel: 'confirm' as const,
+      parameters: { type: 'object' as const, properties: {}, required: [] },
+      preCheck: async () => ({ destructive: true, reason: 'danger' }),
+      handler: vi.fn(async () => ({ success: true, data: 'x' })),
+    }];
+
+    const registry: any = { register: vi.fn(), get: (n: string) => toolDefs.find((t) => t.name === n), getAll: () => toolDefs };
+
+    const events: SSEEvent[] = [];
+    const pendingConfirms = new Map();
+
+    await runToolLoop({
+      messages: [{ role: 'user', content: 'do it' }],
+      client,
+      registry,
+      onEvent: (e) => {
+        events.push(e);
+        if (e.type === 'tool_confirm_request') {
+          const resolve = pendingConfirms.get(e.toolCall.id);
+          if (resolve) { pendingConfirms.delete(e.toolCall.id); resolve({ allowed: true, remember: false }); }
+        }
+      },
+      pendingConfirms,
+      piiProxy: { anonymize: async (t: string) => ({ text: t, entities: [] }), deanonymize: async (t: string) => t } as any,
+    });
+
+    // Must have shown confirm card despite saved rule
+    expect(events.some((e) => e.type === 'tool_confirm_request')).toBe(true);
+  });
+});

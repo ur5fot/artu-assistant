@@ -4,36 +4,35 @@ import type { ToolCall } from '@r2/shared';
 interface Props {
   toolCall: ToolCall;
   level: 'confirm' | 'forbidden';
+  destructiveWarning?: { reason: string };
   onRespond: (callId: string, allowed: boolean, remember: boolean) => Promise<boolean>;
 }
 
-export function PermissionCard({ toolCall, level, onRespond }: Props) {
+export function PermissionCard({ toolCall, level, destructiveWarning, onRespond }: Props) {
   const [decision, setDecision] = useState<'allowed' | 'denied' | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [remember, setRemember] = useState(false);
   const [pulse, setPulse] = useState(false);
   const responded = decision !== null;
+  const isCodeTask = toolCall.name === 'code_task';
+  const isForbidden = level === 'forbidden' || Boolean(destructiveWarning);
 
-  // Pulse reminder after 60 seconds
   useEffect(() => {
     if (responded) return;
     const timer = setTimeout(() => setPulse(true), 60_000);
     return () => clearTimeout(timer);
   }, [responded]);
 
-  const handleRespond = async (allowed: boolean) => {
+  const handleRespond = async (allowed: boolean, rememberOverride?: boolean) => {
     setSubmitting(true);
     try {
-      const ok = await onRespond(toolCall.id, allowed, remember);
-      if (ok) {
-        setDecision(allowed ? 'allowed' : 'denied');
-      }
+      const shouldRemember = rememberOverride ?? remember;
+      const ok = await onRespond(toolCall.id, allowed, shouldRemember);
+      if (ok) setDecision(allowed ? 'allowed' : 'denied');
     } finally {
       setSubmitting(false);
     }
   };
-
-  const isForbidden = level === 'forbidden';
 
   const cardStyle: React.CSSProperties = {
     background: isForbidden ? '#FEF2F2' : '#f8f8f8',
@@ -72,6 +71,16 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
           </div>
         </div>
 
+        {destructiveWarning && (
+          <div style={{
+            background: '#FEE2E2', border: '1px solid #FCA5A5',
+            borderRadius: 6, padding: 8, marginBottom: 10,
+            fontSize: 12, color: '#991B1B',
+          }}>
+            <strong>⚠ Destructive:</strong> {destructiveWarning.reason}
+          </div>
+        )}
+
         <div style={{
           background: '#fff', border: '1px solid #e5e5e5',
           borderRadius: 8, padding: 10, marginBottom: 12,
@@ -96,6 +105,45 @@ export function PermissionCard({ toolCall, level, onRespond }: Props) {
             color: decision === 'allowed' ? '#059669' : '#DC2626',
           }}>
             {decision === 'allowed' ? '\u2713 Allowed' : '\u2717 Denied'}
+          </div>
+        ) : isCodeTask ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button
+              onClick={() => handleRespond(true, false)}
+              disabled={submitting}
+              style={{
+                padding: 8, borderRadius: 8, border: 'none',
+                background: '#2A5A8A', color: '#fff', fontSize: 13,
+                cursor: submitting ? 'wait' : 'pointer', opacity: submitting ? 0.6 : 1,
+              }}
+            >
+              Allow once
+            </button>
+            <button
+              onClick={() => handleRespond(true, true)}
+              disabled={submitting || Boolean(destructiveWarning)}
+              title={destructiveWarning ? 'Cannot remember destructive actions' : ''}
+              style={{
+                padding: 8, borderRadius: 8, border: 'none',
+                background: '#10B981', color: '#fff', fontSize: 13,
+                cursor: submitting || destructiveWarning ? 'not-allowed' : 'pointer',
+                opacity: submitting || destructiveWarning ? 0.5 : 1,
+              }}
+            >
+              ⭐ Allow always (auto mode with ralphex)
+            </button>
+            <button
+              onClick={() => handleRespond(false)}
+              disabled={submitting}
+              style={{
+                padding: 8, borderRadius: 8,
+                border: '1px solid #ddd', background: '#fff',
+                color: '#666', fontSize: 13,
+                cursor: submitting ? 'wait' : 'pointer', opacity: submitting ? 0.6 : 1,
+              }}
+            >
+              Deny
+            </button>
           </div>
         ) : (
           <>

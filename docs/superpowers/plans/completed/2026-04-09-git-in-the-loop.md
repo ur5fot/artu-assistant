@@ -16,7 +16,7 @@
 - Modify: `packages/shared/src/types.ts`
 - Modify: `packages/server/src/tools/base.ts`
 
-- [ ] **Step 1: Add types to @r2/shared**
+- [x] **Step 1: Add types to @r2/shared**
 
 In `packages/shared/src/types.ts`, append:
 
@@ -75,7 +75,7 @@ export interface ToolCall {
 }
 ```
 
-- [ ] **Step 2: Re-export from server/src/tools/base.ts**
+- [x] **Step 2: Re-export from server/src/tools/base.ts**
 
 Replace `packages/server/src/tools/base.ts` with:
 
@@ -93,17 +93,17 @@ export function toClaudeTool(tool: SharedToolDefinition) {
 }
 ```
 
-- [ ] **Step 3: Typecheck all packages**
+- [x] **Step 3: Typecheck all packages**
 
 Run: `npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Run existing tests**
+- [x] **Step 4: Run existing tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all existing tests pass (types moved but re-exports preserve compatibility).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/shared/src/types.ts packages/server/src/tools/base.ts
@@ -119,7 +119,7 @@ git commit -m "refactor: move ToolDefinition/ToolContext to @r2/shared for Phase
 - Create: `packages/tool-code-task/tsconfig.json`
 - Create: `packages/tool-code-task/src/index.ts` (placeholder)
 
-- [ ] **Step 1: Create package.json**
+- [x] **Step 1: Create package.json**
 
 Create `packages/tool-code-task/package.json`:
 
@@ -145,7 +145,7 @@ Create `packages/tool-code-task/package.json`:
 }
 ```
 
-- [ ] **Step 2: Create tsconfig.json**
+- [x] **Step 2: Create tsconfig.json**
 
 Create `packages/tool-code-task/tsconfig.json`:
 
@@ -160,7 +160,7 @@ Create `packages/tool-code-task/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 3: Create placeholder entry point**
+- [x] **Step 3: Create placeholder entry point**
 
 Create `packages/tool-code-task/src/index.ts`:
 
@@ -184,17 +184,17 @@ export const codeTaskTool: ToolDefinition = {
 export default codeTaskTool;
 ```
 
-- [ ] **Step 4: Install**
+- [x] **Step 4: Install**
 
 Run: `npm install`
 Expected: workspace resolves.
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/tool-code-task/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/tool-code-task/ package.json package-lock.json
@@ -209,7 +209,7 @@ git commit -m "feat: scaffold @r2/tool-code-task package"
 - Create: `packages/tool-code-task/src/shell.ts`
 - Create: `packages/tool-code-task/src/__tests__/shell.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/shell.test.ts`:
 
@@ -274,12 +274,12 @@ describe('shell helpers', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/shell.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement shell helper**
+- [x] **Step 3: Implement shell helper**
 
 Create `packages/tool-code-task/src/shell.ts`:
 
@@ -308,12 +308,12 @@ export async function tryRun(
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/shell.test.ts`
 Expected: all 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/shell.ts packages/tool-code-task/src/__tests__/shell.test.ts
@@ -328,7 +328,7 @@ git commit -m "feat: add shell helper (execFile argv-form, no shell interpolatio
 - Create: `packages/tool-code-task/src/destructive-check.ts`
 - Create: `packages/tool-code-task/src/__tests__/destructive-check.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/destructive-check.test.ts`:
 
@@ -376,12 +376,12 @@ describe('isDestructive', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/destructive-check.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement destructive check**
+- [x] **Step 3: Implement destructive check**
 
 Create `packages/tool-code-task/src/destructive-check.ts`:
 
@@ -415,12 +415,12 @@ export async function isDestructive(task: string, context?: string): Promise<Des
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/destructive-check.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/destructive-check.ts packages/tool-code-task/src/__tests__/destructive-check.test.ts
@@ -435,7 +435,7 @@ git commit -m "feat: add regex-based destructive check for code_task"
 - Create: `packages/tool-code-task/src/worktree.ts`
 - Create: `packages/tool-code-task/src/__tests__/worktree.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/worktree.test.ts`:
 
@@ -587,12 +587,12 @@ describe('commitChanges', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/worktree.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement worktree module**
+- [x] **Step 3: Implement worktree module**
 
 Create `packages/tool-code-task/src/worktree.ts`:
 
@@ -674,12 +674,12 @@ export async function commitChanges(path: string, message: string): Promise<stri
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/worktree.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/worktree.ts packages/tool-code-task/src/__tests__/worktree.test.ts
@@ -694,7 +694,7 @@ git commit -m "feat: add per-call git worktree management with path validation"
 - Create: `packages/tool-code-task/src/diff.ts`
 - Create: `packages/tool-code-task/src/__tests__/diff.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/diff.test.ts`:
 
@@ -753,12 +753,12 @@ describe('summarizeDiff', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/diff.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement diff module**
+- [x] **Step 3: Implement diff module**
 
 Create `packages/tool-code-task/src/diff.ts`:
 
@@ -801,12 +801,12 @@ export function summarizeDiff(files: FileStats[], commit: string): string {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/diff.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/diff.ts packages/tool-code-task/src/__tests__/diff.test.ts
@@ -821,7 +821,7 @@ git commit -m "feat: add diff parsing and summary helpers"
 - Create: `packages/tool-code-task/src/agent-sdk.ts`
 - Create: `packages/tool-code-task/src/__tests__/agent-sdk.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/agent-sdk.test.ts`:
 
@@ -903,12 +903,12 @@ describe('runAgent', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/agent-sdk.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement agent SDK wrapper**
+- [x] **Step 3: Implement agent SDK wrapper**
 
 Create `packages/tool-code-task/src/agent-sdk.ts`:
 
@@ -970,12 +970,12 @@ export async function runAgent(params: AgentRunParams): Promise<void> {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/agent-sdk.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/agent-sdk.ts packages/tool-code-task/src/__tests__/agent-sdk.test.ts
@@ -990,7 +990,7 @@ git commit -m "feat: add Claude Agent SDK wrapper with progress streaming"
 - Create: `packages/tool-code-task/src/ralphex.ts`
 - Create: `packages/tool-code-task/src/__tests__/ralphex.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/ralphex.test.ts`:
 
@@ -1120,12 +1120,12 @@ describe('runRalphex', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/ralphex.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement ralphex wrapper**
+- [x] **Step 3: Implement ralphex wrapper**
 
 Create `packages/tool-code-task/src/ralphex.ts`:
 
@@ -1158,19 +1158,19 @@ export function buildPlanContent(task: string, context?: string): string {
 
 ## Task 1: Implement the task
 
-- [ ] **Step 1: Analyze the codebase**
+- [x] **Step 1: Analyze the codebase**
 
 Read relevant files to understand existing patterns.
 
-- [ ] **Step 2: Make the required changes**
+- [x] **Step 2: Make the required changes**
 
 Implement the task. Keep changes minimal and focused.
 
-- [ ] **Step 3: Run tests if they exist**
+- [x] **Step 3: Run tests if they exist**
 
 Run: \`npx vitest run\` in the relevant package.
 
-- [ ] **Step 4: Stage changes**
+- [x] **Step 4: Stage changes**
 
 Run: \`git add -A\`
 (Do not commit — the harness will commit staged changes.)
@@ -1237,12 +1237,12 @@ export async function runRalphex(params: RalphexRunParams): Promise<void> {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/ralphex.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/ralphex.ts packages/tool-code-task/src/__tests__/ralphex.test.ts
@@ -1257,7 +1257,7 @@ git commit -m "feat: add ralphex wrapper with plan review flow"
 - Modify: `packages/tool-code-task/src/index.ts`
 - Create: `packages/tool-code-task/src/__tests__/code-task.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-task/src/__tests__/code-task.test.ts`:
 
@@ -1409,12 +1409,12 @@ describe('codeTaskTool', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/code-task.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement handler**
+- [x] **Step 3: Implement handler**
 
 Replace `packages/tool-code-task/src/index.ts`:
 
@@ -1588,12 +1588,12 @@ export const codeTaskTool: ToolDefinition = {
 export default codeTaskTool;
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/code-task.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/index.ts packages/tool-code-task/src/__tests__/code-task.test.ts
@@ -1610,7 +1610,7 @@ git commit -m "feat: implement code_task handler with denylist and per-call work
 - Modify: `packages/server/src/index.ts`
 - Modify: `packages/server/src/routes/chat.ts`
 
-- [ ] **Step 1: Write failing tests for plan-review route**
+- [x] **Step 1: Write failing tests for plan-review route**
 
 Create `packages/server/src/routes/plan-review.test.ts`:
 
@@ -1674,12 +1674,12 @@ describe('POST /api/plan-review', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/routes/plan-review.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Create plan-review route**
+- [x] **Step 3: Create plan-review route**
 
 Create `packages/server/src/routes/plan-review.ts`:
 
@@ -1724,7 +1724,7 @@ export function createPlanReviewRouter(pendingPlanReviews: PendingPlanReviews): 
 }
 ```
 
-- [ ] **Step 4: Wire pendingPlanReviews in index.ts**
+- [x] **Step 4: Wire pendingPlanReviews in index.ts**
 
 In `packages/server/src/index.ts`, add import near other route imports:
 
@@ -1756,7 +1756,7 @@ Register route after other `/api` routes:
 app.use('/api', createPlanReviewRouter(pendingPlanReviews));
 ```
 
-- [ ] **Step 5: Update chat.ts to forward pendingPlanReviews**
+- [x] **Step 5: Update chat.ts to forward pendingPlanReviews**
 
 In `packages/server/src/routes/chat.ts`, add import:
 
@@ -1806,12 +1806,12 @@ Pass to `runLoop` call inside handler:
       });
 ```
 
-- [ ] **Step 6: Run tests and typecheck**
+- [x] **Step 6: Run tests and typecheck**
 
 Run: `cd packages/server && npx vitest run src/routes/plan-review.test.ts && npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: all tests pass, no type errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/routes/plan-review.ts packages/server/src/routes/plan-review.test.ts packages/server/src/index.ts packages/server/src/routes/chat.ts
@@ -1825,7 +1825,7 @@ git commit -m "feat: add POST /api/plan-review route and pendingPlanReviews map"
 **Files:**
 - Modify: `packages/server/src/ai/tool-loop.ts`
 
-- [ ] **Step 1: Add imports and extended ToolLoopParams**
+- [x] **Step 1: Add imports and extended ToolLoopParams**
 
 In `packages/server/src/ai/tool-loop.ts`, at the top after existing imports:
 
@@ -1864,7 +1864,7 @@ export async function runToolLoop({
 }: ToolLoopParams): Promise<void> {
 ```
 
-- [ ] **Step 2: Add helper functions**
+- [x] **Step 2: Add helper functions**
 
 Add these helpers after `requestConfirmation`:
 
@@ -1942,7 +1942,7 @@ async function requestConfirmation(
 }
 ```
 
-- [ ] **Step 3: Update confirm/forbidden branch with preCheck + autoMode**
+- [x] **Step 3: Update confirm/forbidden branch with preCheck + autoMode**
 
 Find the `else if (toolDef.permissionLevel === 'confirm' || toolDef.permissionLevel === 'forbidden')` block and replace its body:
 
@@ -2027,7 +2027,7 @@ Find the `else if (toolDef.permissionLevel === 'confirm' || toolDef.permissionLe
       }
 ```
 
-- [ ] **Step 4: Write tool-loop tests for new behavior**
+- [x] **Step 4: Write tool-loop tests for new behavior**
 
 Append to `packages/server/src/ai/__tests__/tool-loop.test.ts`:
 
@@ -2178,7 +2178,7 @@ describe('Agentic Tool Loop — preCheck and autoMode', () => {
 });
 ```
 
-- [ ] **Step 5: Add @r2/tool-code-task to server package**
+- [x] **Step 5: Add @r2/tool-code-task to server package**
 
 Edit `packages/server/package.json` to add dependency:
 
@@ -2194,12 +2194,12 @@ Edit `packages/server/package.json` to add dependency:
 
 Run `npm install`.
 
-- [ ] **Step 6: Run all tests**
+- [x] **Step 6: Run all tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests pass (existing + new).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts packages/server/src/ai/__tests__/tool-loop.test.ts packages/server/package.json package.json package-lock.json
@@ -2215,7 +2215,7 @@ git commit -m "feat: integrate preCheck hook, autoMode, and plan review into too
 - Modify: `packages/client/src/hooks/useChat.ts`
 - Modify: `packages/client/src/components/MessageBubble.tsx`
 
-- [ ] **Step 1: Update PendingConfirm type in useChat**
+- [x] **Step 1: Update PendingConfirm type in useChat**
 
 In `packages/client/src/hooks/useChat.ts`:
 
@@ -2257,7 +2257,7 @@ In `tool_confirm_request` case handler, include `destructiveWarning`:
             break;
 ```
 
-- [ ] **Step 2: Update PermissionCard with 3 buttons and destructive banner**
+- [x] **Step 2: Update PermissionCard with 3 buttons and destructive banner**
 
 Replace `packages/client/src/components/PermissionCard.tsx`:
 
@@ -2457,7 +2457,7 @@ export function PermissionCard({ toolCall, level, destructiveWarning, onRespond 
 }
 ```
 
-- [ ] **Step 3: Pass destructiveWarning in MessageBubble**
+- [x] **Step 3: Pass destructiveWarning in MessageBubble**
 
 In `packages/client/src/components/MessageBubble.tsx`, update the PermissionCard render:
 
@@ -2479,12 +2479,12 @@ In `packages/client/src/components/MessageBubble.tsx`, update the PermissionCard
       })}
 ```
 
-- [ ] **Step 4: Typecheck**
+- [x] **Step 4: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/client/src/components/PermissionCard.tsx packages/client/src/hooks/useChat.ts packages/client/src/components/MessageBubble.tsx
@@ -2500,7 +2500,7 @@ git commit -m "feat: add 3-button PermissionCard for code_task with destructive 
 - Modify: `packages/client/src/hooks/useChat.ts`
 - Modify: `packages/client/src/components/MessageBubble.tsx`
 
-- [ ] **Step 1: Create PlanReviewCard component**
+- [x] **Step 1: Create PlanReviewCard component**
 
 Create `packages/client/src/components/PlanReviewCard.tsx`:
 
@@ -2611,7 +2611,7 @@ export function PlanReviewCard({ callId, task, plan, onRespond }: Props) {
 }
 ```
 
-- [ ] **Step 2: Add pendingPlanReviews + respondToPlanReview to useChat**
+- [x] **Step 2: Add pendingPlanReviews + respondToPlanReview to useChat**
 
 In `packages/client/src/hooks/useChat.ts`:
 
@@ -2728,7 +2728,7 @@ Update return to include new state + callback:
   };
 ```
 
-- [ ] **Step 3: Render PlanReviewCard in MessageBubble**
+- [x] **Step 3: Render PlanReviewCard in MessageBubble**
 
 In `packages/client/src/components/MessageBubble.tsx`, add import:
 
@@ -2781,7 +2781,7 @@ Update toolCalls render to check plan review first:
       })}
 ```
 
-- [ ] **Step 4: Update Chat.tsx to pass new props**
+- [x] **Step 4: Update Chat.tsx to pass new props**
 
 In `packages/client/src/components/Chat.tsx` (or wherever MessageBubble is used), pass new props:
 
@@ -2799,12 +2799,12 @@ const { messages, loading, error, send, stop, pendingConfirms, respondToConfirm,
 />
 ```
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/client/src/components/PlanReviewCard.tsx packages/client/src/hooks/useChat.ts packages/client/src/components/MessageBubble.tsx packages/client/src/components/Chat.tsx
@@ -2818,13 +2818,13 @@ git commit -m "feat: add PlanReviewCard and plan review flow in client"
 **Files:**
 - Modify: `packages/client/src/components/ToolCallCard.tsx`
 
-- [ ] **Step 1: Read existing ToolCallCard to preserve other tool branches**
+- [x] **Step 1: Read existing ToolCallCard to preserve other tool branches**
 
 Run: `cat packages/client/src/components/ToolCallCard.tsx`
 
 Note the existing structure — the new code must preserve non-code_task rendering.
 
-- [ ] **Step 2: Extend ToolCallCard with code_task specialization**
+- [x] **Step 2: Extend ToolCallCard with code_task specialization**
 
 Replace `packages/client/src/components/ToolCallCard.tsx`:
 
@@ -2999,12 +2999,12 @@ function CodeTaskCard({ toolCall }: { toolCall: ToolCall }) {
 }
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/client/src/components/ToolCallCard.tsx
@@ -3018,7 +3018,7 @@ git commit -m "feat: add code_task UI with progress, diff display, and blocked f
 **Files:**
 - Modify: `.env.example`
 
-- [ ] **Step 1: Add new env variables**
+- [x] **Step 1: Add new env variables**
 
 Append to `.env.example`:
 
@@ -3030,35 +3030,35 @@ R2_DEV_BASE_BRANCH=master
 R2_RALPHEX_MAX_ITERATIONS=20
 ```
 
-- [ ] **Step 2: Verify dev branch exists**
+- [x] **Step 2: Verify dev branch exists**
 
 Run: `git rev-parse --verify origin/dev 2>&1 || echo "MISSING"`
 If missing, run: `git branch dev master && git push -u origin dev`
 
-- [ ] **Step 3: Verify tool auto-discovery**
+- [x] **Step 3: Verify tool auto-discovery**
 
 Run: `npm run dev:server` in one terminal and check output
 Expected: `Tool discovered: code_task (tool-code-task)` in startup logs.
 Stop with Ctrl+C after verification.
 
-- [ ] **Step 4: Full typecheck**
+- [x] **Step 4: Full typecheck**
 
 Run: `npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json && npx tsc --noEmit -p packages/tool-code-task/tsconfig.json`
 Expected: no type errors.
 
-- [ ] **Step 5: Run all tests**
+- [x] **Step 5: Run all tests**
 
 Run: `npm test --workspaces --if-present`
 Expected: all tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .env.example
 git commit -m "feat: add Phase 3C env vars"
 ```
 
-- [ ] **Step 7: Final commit**
+- [x] **Step 7: Final commit**
 
 ```bash
 git add -A
