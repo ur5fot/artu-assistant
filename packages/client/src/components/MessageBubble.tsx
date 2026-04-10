@@ -4,12 +4,15 @@ import remarkGfm from 'remark-gfm';
 import { PiiBadge } from './PiiBadge';
 import { ToolCallCard } from './ToolCallCard';
 import { PermissionCard } from './PermissionCard';
-import type { PendingConfirm } from '../hooks/useChat';
+import { PlanReviewCard } from './PlanReviewCard';
+import type { PendingConfirm, PendingPlanReview } from '../hooks/useChat';
 
 interface Props {
   message: Message;
   pendingConfirms: Map<string, PendingConfirm>;
+  pendingPlanReviews: Map<string, PendingPlanReview>;
   onRespond: (callId: string, allowed: boolean, remember: boolean) => Promise<boolean>;
+  onRespondPlanReview: (callId: string, approved: boolean, editedPlan?: string) => Promise<boolean>;
 }
 
 const markdownStyles = `
@@ -44,7 +47,7 @@ const markdownStyles = `
 .r2-markdown hr { border: none; border-top: 1px solid rgba(0,0,0,0.1); margin: 8px 0; }
 `;
 
-export function MessageBubble({ message, pendingConfirms, onRespond }: Props) {
+export function MessageBubble({ message, pendingConfirms, pendingPlanReviews, onRespond, onRespondPlanReview }: Props) {
   const isUser = message.role === 'user';
 
   return (
@@ -56,6 +59,18 @@ export function MessageBubble({ message, pendingConfirms, onRespond }: Props) {
     }}>
       <style>{markdownStyles}</style>
       {message.toolCalls?.map((tc) => {
+        const planReview = pendingPlanReviews.get(tc.id);
+        if (planReview) {
+          return (
+            <PlanReviewCard
+              key={tc.id}
+              callId={planReview.callId}
+              task={planReview.task}
+              plan={planReview.plan}
+              onRespond={onRespondPlanReview}
+            />
+          );
+        }
         const pending = pendingConfirms.get(tc.id);
         if (pending) {
           return (

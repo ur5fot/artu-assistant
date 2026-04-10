@@ -2500,7 +2500,7 @@ git commit -m "feat: add 3-button PermissionCard for code_task with destructive 
 - Modify: `packages/client/src/hooks/useChat.ts`
 - Modify: `packages/client/src/components/MessageBubble.tsx`
 
-- [ ] **Step 1: Create PlanReviewCard component**
+- [x] **Step 1: Create PlanReviewCard component**
 
 Create `packages/client/src/components/PlanReviewCard.tsx`:
 
@@ -2611,7 +2611,7 @@ export function PlanReviewCard({ callId, task, plan, onRespond }: Props) {
 }
 ```
 
-- [ ] **Step 2: Add pendingPlanReviews + respondToPlanReview to useChat**
+- [x] **Step 2: Add pendingPlanReviews + respondToPlanReview to useChat**
 
 In `packages/client/src/hooks/useChat.ts`:
 
@@ -2728,7 +2728,7 @@ Update return to include new state + callback:
   };
 ```
 
-- [ ] **Step 3: Render PlanReviewCard in MessageBubble**
+- [x] **Step 3: Render PlanReviewCard in MessageBubble**
 
 In `packages/client/src/components/MessageBubble.tsx`, add import:
 
@@ -2781,7 +2781,7 @@ Update toolCalls render to check plan review first:
       })}
 ```
 
-- [ ] **Step 4: Update Chat.tsx to pass new props**
+- [x] **Step 4: Update Chat.tsx to pass new props**
 
 In `packages/client/src/components/Chat.tsx` (or wherever MessageBubble is used), pass new props:
 
@@ -2799,12 +2799,12 @@ const { messages, loading, error, send, stop, pendingConfirms, respondToConfirm,
 />
 ```
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/client/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/client/src/components/PlanReviewCard.tsx packages/client/src/hooks/useChat.ts packages/client/src/components/MessageBubble.tsx packages/client/src/components/Chat.tsx
