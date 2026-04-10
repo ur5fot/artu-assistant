@@ -1825,7 +1825,7 @@ git commit -m "feat: add POST /api/plan-review route and pendingPlanReviews map"
 **Files:**
 - Modify: `packages/server/src/ai/tool-loop.ts`
 
-- [ ] **Step 1: Add imports and extended ToolLoopParams**
+- [x] **Step 1: Add imports and extended ToolLoopParams**
 
 In `packages/server/src/ai/tool-loop.ts`, at the top after existing imports:
 
@@ -1864,7 +1864,7 @@ export async function runToolLoop({
 }: ToolLoopParams): Promise<void> {
 ```
 
-- [ ] **Step 2: Add helper functions**
+- [x] **Step 2: Add helper functions**
 
 Add these helpers after `requestConfirmation`:
 
@@ -1942,7 +1942,7 @@ async function requestConfirmation(
 }
 ```
 
-- [ ] **Step 3: Update confirm/forbidden branch with preCheck + autoMode**
+- [x] **Step 3: Update confirm/forbidden branch with preCheck + autoMode**
 
 Find the `else if (toolDef.permissionLevel === 'confirm' || toolDef.permissionLevel === 'forbidden')` block and replace its body:
 
@@ -2027,7 +2027,7 @@ Find the `else if (toolDef.permissionLevel === 'confirm' || toolDef.permissionLe
       }
 ```
 
-- [ ] **Step 4: Write tool-loop tests for new behavior**
+- [x] **Step 4: Write tool-loop tests for new behavior**
 
 Append to `packages/server/src/ai/__tests__/tool-loop.test.ts`:
 
@@ -2178,7 +2178,7 @@ describe('Agentic Tool Loop — preCheck and autoMode', () => {
 });
 ```
 
-- [ ] **Step 5: Add @r2/tool-code-task to server package**
+- [x] **Step 5: Add @r2/tool-code-task to server package**
 
 Edit `packages/server/package.json` to add dependency:
 
@@ -2194,12 +2194,12 @@ Edit `packages/server/package.json` to add dependency:
 
 Run `npm install`.
 
-- [ ] **Step 6: Run all tests**
+- [x] **Step 6: Run all tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests pass (existing + new).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/ai/tool-loop.ts packages/server/src/ai/__tests__/tool-loop.test.ts packages/server/package.json package.json package-lock.json
