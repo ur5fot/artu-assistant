@@ -76,8 +76,8 @@ const pendingConfirms: PendingConfirms = new Map();
 const pendingPlanReviews: PendingPlanReviews = new Map();
 
 const chatRouter = createChatRouter({
-  runLoop: ({ messages, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: _ppr, piiProxy: pp }) =>
-    runToolLoop({ messages, client, registry, onEvent, signal, pendingConfirms: pc, piiProxy: pp }),
+  runLoop: ({ messages, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, piiProxy: pp }) =>
+    runToolLoop({ messages, client, registry, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, piiProxy: pp }),
   pendingConfirms,
   pendingPlanReviews,
   piiProxy,

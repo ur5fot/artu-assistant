@@ -122,16 +122,21 @@ export const codeTaskTool: ToolDefinition = {
       onProgress('Computing diff...');
       let files: ReturnType<typeof parseDiffStats> = [];
       let fullDiff = '';
+      let diffError = false;
       try {
         const numstat = await run('git', ['diff', '--numstat', `${baseBranch}..HEAD`], workdir);
         files = parseDiffStats(numstat);
         fullDiff = await run('git', ['diff', `${baseBranch}..HEAD`], workdir);
       } catch {
         // Diff failed — don't lose the commit
+        diffError = true;
         onProgress('Diff parsing failed, continuing with commit hash only');
       }
 
-      const summary = summarizeDiff(files, commit || 'no-commit');
+      const commitShort = commit ? commit.slice(0, 7) : 'no-commit';
+      const summary = diffError
+        ? `Commit ${commitShort} created; diff unavailable`
+        : summarizeDiff(files, commit || 'no-commit');
       const shortDiff = truncateDiff(fullDiff, 50);
 
       return {
