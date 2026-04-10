@@ -60,6 +60,7 @@ export function startGitWatcher(params: GitWatcherParams): () => void {
 
       await run('git', ['pull', 'origin', params.branch, '--ff-only'], params.repoPath);
       storedHash = newHash;
+      if (stopped) return;
       params.onNewCommit(newHash);
     } catch (err) {
       console.error(

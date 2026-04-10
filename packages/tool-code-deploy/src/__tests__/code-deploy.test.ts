@@ -50,6 +50,34 @@ describe('codeDeployTool', () => {
     expect(result.error).toContain('src/b.ts');
   });
 
+  it('reports non-conflict 409 (e.g. dirty worktree) using server error, not fake conflicts', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'working tree not clean; commit or stash changes before deploying' }),
+    });
+
+    const result = await codeDeployTool.handler({}, { onProgress: () => {} });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('working tree not clean');
+    expect(result.error).not.toContain('Merge conflicts');
+  });
+
+  it('reports 409 deploy-already-in-progress without claiming merge conflicts', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'deploy already in progress' }),
+    });
+
+    const result = await codeDeployTool.handler({}, { onProgress: () => {} });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('deploy already in progress');
+    expect(result.error).not.toContain('Merge conflicts');
+  });
+
   it('returns failure on 500', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,

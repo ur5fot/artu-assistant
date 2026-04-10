@@ -26,6 +26,7 @@ export const codeDeployTool: ToolDefinition = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
+        signal: ctx?.signal,
       });
 
       let data: any = {};
@@ -35,11 +36,10 @@ export const codeDeployTool: ToolDefinition = {
         // ignore JSON parse errors; data stays empty
       }
 
-      if (res.status === 409) {
-        const conflicts = Array.isArray(data.conflicts) ? data.conflicts : [];
+      if (res.status === 409 && Array.isArray(data.conflicts) && data.conflicts.length > 0) {
         return {
           success: false,
-          error: `Merge conflicts in: ${conflicts.join(', ') || 'unknown files'}`,
+          error: `Merge conflicts in: ${data.conflicts.join(', ')}`,
         };
       }
 

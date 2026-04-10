@@ -100,7 +100,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use(errorHandler);
 
-const server = app.listen(PORT, () => {
+const server = app.listen(Number(PORT), '127.0.0.1', () => {
   console.log(`R2 server running on http://localhost:${PORT}`);
   // Signal supervisor that worker is ready (no-op without supervisor)
   process.send?.({ type: 'ready' });
