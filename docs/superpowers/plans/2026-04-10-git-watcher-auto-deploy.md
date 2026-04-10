@@ -18,7 +18,7 @@
 
 Rationale: supervisor cannot import `@r2/tool-code-task` (would create cycle via server → tool-code-task → supervisor once Task 8 lands). Duplicate the minimal helper locally.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/supervisor/src/shell.test.ts`:
 
@@ -81,12 +81,12 @@ describe('supervisor shell helpers', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/supervisor && npx vitest run src/shell.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Create shell helper**
+- [x] **Step 3: Create shell helper**
 
 Create `packages/supervisor/src/shell.ts`:
 
@@ -116,12 +116,12 @@ export async function tryRun(
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/supervisor && npx vitest run src/shell.test.ts`
 Expected: all 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/supervisor/src/shell.ts packages/supervisor/src/shell.test.ts
