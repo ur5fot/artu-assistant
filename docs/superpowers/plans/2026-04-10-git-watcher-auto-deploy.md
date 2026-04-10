@@ -424,7 +424,7 @@ git commit -m "feat: wire git watcher into supervisor"
 - Create: `packages/server/src/routes/merge.test.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/routes/merge.test.ts`:
 
@@ -516,12 +516,12 @@ describe('POST /api/merge', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/routes/merge.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Export run/tryRun from @r2/tool-code-task**
+- [x] **Step 3: Export run/tryRun from @r2/tool-code-task**
 
 In `packages/tool-code-task/src/index.ts`, add re-export at the top of the file (after existing exports):
 
@@ -529,7 +529,7 @@ In `packages/tool-code-task/src/index.ts`, add re-export at the top of the file 
 export { run, tryRun } from './shell.js';
 ```
 
-- [ ] **Step 4: Implement merge route**
+- [x] **Step 4: Implement merge route**
 
 Create `packages/server/src/routes/merge.ts`:
 
@@ -606,7 +606,7 @@ export function createMergeRouter(): Router {
 }
 ```
 
-- [ ] **Step 5: Register route in server index**
+- [x] **Step 5: Register route in server index**
 
 In `packages/server/src/index.ts`, add import:
 
@@ -620,17 +620,17 @@ Register after other `/api` routes (near createPiiRouter):
 app.use('/api', createMergeRouter());
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `cd packages/server && npx vitest run src/routes/merge.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 7: Typecheck**
+- [x] **Step 7: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/tool-code-task/src/index.ts packages/server/src/routes/merge.ts packages/server/src/routes/merge.test.ts packages/server/src/index.ts

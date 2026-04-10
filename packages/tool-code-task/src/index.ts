@@ -10,6 +10,7 @@ import { run } from './shell.js';
 import { isDestructive } from './destructive-check.js';
 
 export { isDestructive } from './destructive-check.js';
+export { run, tryRun } from './shell.js';
 
 const DENYLIST_PATTERNS = [
   /(^|\/)\.env(\.|$)/,
