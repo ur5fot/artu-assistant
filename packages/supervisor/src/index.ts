@@ -87,7 +87,9 @@ if (GIT_POLL_INTERVAL > 0) {
       console.log(
         `[supervisor] New commit on ${GIT_WATCH_BRANCH}: ${hash.slice(0, 7)} — restarting worker`,
       );
-      manager.restart();
+      manager.restart().catch((err) => {
+        console.error('[supervisor] restart() failed:', err instanceof Error ? err.message : err);
+      });
     },
   });
   console.log(

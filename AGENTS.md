@@ -291,8 +291,8 @@ npm start             # Start supervisor (requires prior build)
 
 - **3A) Supervisor + Worker split** ✓ — process manager, auto-restart, WS status
 - **3B) Chat persistence** ✓ — SQLite conversation history, GET /api/messages
-- 3C) Git-in-the-loop — Claude Code CLI on dev branch
-- 3D) Git watcher + auto-deploy — pull + restart on master changes
+- **3C) Git-in-the-loop** ✓ — code_task tool, ralphex on dev worktree
+- **3D) Git watcher + auto-deploy** ✓ — supervisor polls master, code_deploy tool, POST /api/merge
 - 3E) Eval система — test cases, pre-merge checks
 - 3F) Chat commands + UI — r2 task/deploy, status bar, diff view
 
@@ -318,7 +318,28 @@ PII_SERVICE_URL=http://localhost:8080
 R2_SUPERVISOR_PORT=3100
 R2_SHUTDOWN_TIMEOUT=5000
 VITE_SUPERVISOR_WS_URL=ws://localhost:3100  # Client-side, set only for prod
+# Code task (Phase 3C)
+R2_DEV_WORKTREE_PREFIX=/tmp/r2-dev-
+R2_DEV_BRANCH=dev
+R2_DEV_BASE_BRANCH=master
+R2_RALPHEX_MAX_ITERATIONS=20
+# Git watcher + auto-deploy (Phase 3D)
+R2_GIT_POLL_INTERVAL=60000        # ms; 0 disables the watcher
+R2_GIT_WATCH_BRANCH=master
+R2_GIT_REPO_PATH=                 # optional, defaults to repo root
 ```
+
+## Self-deploy flow (Phase 3C+3D)
+
+1. `code_task` spawns ralphex in a dev worktree, commits to `dev`.
+2. User reviews; `code_deploy` (confirm-gated) calls `POST /api/merge`.
+3. Merge endpoint: `fetch` → checkout master → `pull --ff-only` → `merge --no-ff dev` → `push`. On conflicts returns 409 with file list and aborts.
+4. Supervisor git watcher polls `origin/master` every `R2_GIT_POLL_INTERVAL`, sees the new commit, fast-forwards the primary worktree (only if HEAD is on the watched branch), and restarts the worker.
+
+`POST /api/merge` responses:
+- `200 { ok, commit, filesChanged, message }`
+- `409 { error: "merge conflicts", conflicts: string[] }`
+- `500 { error: string }`
 
 ## Git
 
