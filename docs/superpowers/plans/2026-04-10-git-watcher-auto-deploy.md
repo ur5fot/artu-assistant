@@ -928,7 +928,7 @@ git commit -m "feat: implement code_deploy tool"
 **Files:**
 - Modify: `.env.example`
 
-- [ ] **Step 1: Add env vars**
+- [x] **Step 1: Add env vars**
 
 Append to `.env.example`:
 
@@ -939,30 +939,30 @@ R2_GIT_WATCH_BRANCH=master       # branch to watch for external changes
 R2_GIT_REPO_PATH=                # optional, defaults to project root
 ```
 
-- [ ] **Step 2: Verify tool auto-discovery**
+- [x] **Step 2: Verify tool auto-discovery**
 
 Run: `npm run dev:server` in one terminal, check logs
 Expected: `Tool discovered: code_deploy (tool-code-deploy)` in startup logs.
 Stop with Ctrl+C.
 
-- [ ] **Step 3: Full typecheck**
+- [x] **Step 3: Full typecheck**
 
 Run: `npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json && npx tsc --noEmit -p packages/supervisor/tsconfig.json && npx tsc --noEmit -p packages/tool-code-task/tsconfig.json && npx tsc --noEmit -p packages/tool-code-deploy/tsconfig.json`
 Expected: no type errors.
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 Run: `npm test --workspaces --if-present`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .env.example
 git commit -m "feat: add Phase 3D env vars"
 ```
 
-- [ ] **Step 6: Final commit**
+- [x] **Step 6: Final commit**
 
 ```bash
 git add -A
