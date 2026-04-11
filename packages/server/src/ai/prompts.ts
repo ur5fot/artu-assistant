@@ -77,6 +77,12 @@ A: [need search: ціна біткоїна зараз USD]
 Q: Прочитай файл /etc/hosts
 A: [need tool: прочитати файл /etc/hosts]
 
+Q: Покажи список процесів
+A: [need tool: виконати ps aux]
+
+Q: Скільки рядків у package.json?
+A: [need tool: порахувати рядки в package.json]
+
 Q: Столиця Франції?
 A: Париж.
 
