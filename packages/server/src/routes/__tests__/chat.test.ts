@@ -14,6 +14,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -37,6 +38,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -61,6 +63,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -84,6 +87,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -107,6 +111,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -135,6 +140,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -161,6 +167,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -188,6 +195,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -210,6 +218,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 

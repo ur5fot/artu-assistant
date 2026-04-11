@@ -666,7 +666,7 @@ git commit -m "feat: add router orchestrator with Ollama first + Claude fallback
 - Modify: `packages/server/src/index.ts`
 - Modify: `packages/server/src/routes/chat.ts`
 
-- [ ] **Step 1: Update chat.ts to use runChatRequest**
+- [x] **Step 1: Update chat.ts to use runChatRequest**
 
 In `packages/server/src/routes/chat.ts`:
 
@@ -776,7 +776,7 @@ Replace the `runLoop` call inside the handler (lines 109-172) with `runChatReque
 
 Keep the existing catch block + partial-save logic + `res.end()` at the end as-is.
 
-- [ ] **Step 2: Update index.ts to create Ollama client and pass it**
+- [x] **Step 2: Update index.ts to create Ollama client and pass it**
 
 In `packages/server/src/index.ts`:
 
@@ -811,17 +811,17 @@ const chatRouter = createChatRouter({
 });
 ```
 
-- [ ] **Step 3: Run server typecheck**
+- [x] **Step 3: Run server typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Run existing chat tests**
+- [x] **Step 4: Run existing chat tests**
 
 Run: `cd packages/server && npx vitest run src/routes/__tests__/chat.test.ts`
 Expected: all existing tests still pass. If any fail because they passed `runLoop` but not `ollama`, fix the test by adding `ollama: null` to the router deps.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/routes/chat.ts packages/server/src/index.ts

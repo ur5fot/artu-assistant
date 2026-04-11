@@ -14,6 +14,7 @@ import { createPiiRouter } from './routes/pii.js';
 import { createMessagesRouter } from './routes/messages.js';
 import { createMergeRouter } from './routes/merge.js';
 import { createClaudeClient } from './ai/claude.js';
+import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { createRegistry, discoverTools } from './tools/registry.js';
 import { initDb, cleanupAuditLog, closeDb } from './db.js';
@@ -72,6 +73,13 @@ if (piiMode === 'disabled') {
 
 // Setup
 const client = createClaudeClient();
+const localLlmMode = (process.env.LOCAL_LLM_MODE || 'enabled') as 'enabled' | 'disabled';
+const ollama: OllamaClient | null = localLlmMode === 'disabled' ? null : createOllamaClient();
+if (ollama) {
+  console.log('[router] Local LLM enabled via Ollama at', process.env.OLLAMA_URL || 'http://localhost:11434');
+} else {
+  console.log('[router] Local LLM disabled — all chat goes to Claude');
+}
 const registry = createRegistry();
 const pendingConfirms: PendingConfirms = new Map();
 const pendingPlanReviews: PendingPlanReviews = new Map();
@@ -109,6 +117,7 @@ const chatRouter = createChatRouter({
   pendingConfirms,
   pendingPlanReviews,
   piiProxy,
+  ollama,
 });
 
 app.use('/api', chatRouter);

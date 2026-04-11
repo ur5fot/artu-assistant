@@ -6,6 +6,8 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { PendingConfirms } from './confirm.js';
 import type { PendingPlanReviews } from './plan-review.js';
 import type { PiiProxy } from '../pii/proxy.js';
+import type { OllamaClient } from '../ai/ollama.js';
+import { runChatRequest } from '../ai/router.js';
 import { saveMessage } from '../db.js';
 import crypto from 'node:crypto';
 
@@ -45,16 +47,17 @@ interface ChatRouterDeps {
     messages: MessageParam[];
     onEvent: (event: SSEEvent) => void;
     signal?: AbortSignal;
-    pendingConfirms: PendingConfirms;
-    pendingPlanReviews: PendingPlanReviews;
+    pendingConfirms?: PendingConfirms;
+    pendingPlanReviews?: PendingPlanReviews;
     piiProxy: PiiProxy;
   }) => Promise<void>;
   pendingConfirms: PendingConfirms;
   pendingPlanReviews: PendingPlanReviews;
   piiProxy: PiiProxy;
+  ollama: OllamaClient | null;
 }
 
-export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy }: ChatRouterDeps): Router {
+export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy, ollama }: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -107,12 +110,14 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
     const assistantId = crypto.randomUUID();
 
     try {
-      await runLoop({
+      await runChatRequest({
         messages: addTimestamps(messages),
         signal: abortController.signal,
         pendingConfirms,
         pendingPlanReviews,
         piiProxy,
+        ollama,
+        runLoop,
         onEvent: (event: SSEEvent) => {
           // Accumulate assistant data for persistence
           if (event.type === 'text_delta') {
