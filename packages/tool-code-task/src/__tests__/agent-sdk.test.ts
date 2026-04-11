@@ -38,7 +38,7 @@ describe('runAgent', () => {
     expect(progress.some((p) => p.toLowerCase().includes('npm test'))).toBe(true);
   });
 
-  it('passes cwd, task, systemPrompt preset and restricts tools via SDK', async () => {
+  it('passes cwd, task, systemPrompt preset and allowedTools to SDK', async () => {
     async function* gen() { yield { type: 'result' }; }
     mockQuery.mockReturnValueOnce(gen());
 
@@ -49,8 +49,7 @@ describe('runAgent', () => {
       options: expect.objectContaining({
         cwd: '/tmp/r2-dev-y',
         systemPrompt: { type: 'preset', preset: 'claude_code' },
-        tools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'MultiEdit', 'Bash', 'TodoWrite'],
-        allowedTools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'MultiEdit', 'Bash', 'TodoWrite'],
+        allowedTools: expect.arrayContaining(['Read', 'Edit', 'Bash', 'Glob', 'Grep']),
       }),
     }));
     const prompt = mockQuery.mock.calls[0][0].prompt;

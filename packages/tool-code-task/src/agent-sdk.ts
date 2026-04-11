@@ -58,16 +58,6 @@ export async function runAgent(params: AgentRunParams): Promise<void> {
         cwd: params.workdir,
         abortController,
         systemPrompt: { type: 'preset', preset: 'claude_code' },
-        tools: [
-          'Read',
-          'Glob',
-          'Grep',
-          'Edit',
-          'Write',
-          'MultiEdit',
-          'Bash',
-          'TodoWrite',
-        ],
         allowedTools: [
           'Read',
           'Glob',
