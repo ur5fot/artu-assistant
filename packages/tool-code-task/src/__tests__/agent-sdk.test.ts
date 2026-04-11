@@ -49,13 +49,15 @@ describe('runAgent', () => {
       options: expect.objectContaining({
         cwd: '/tmp/r2-dev-y',
         systemPrompt: { type: 'preset', preset: 'claude_code' },
-        allowedTools: expect.arrayContaining(['Read', 'Edit', 'Bash', 'Glob', 'Grep']),
+        allowedTools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'MultiEdit', 'Bash', 'TodoWrite'],
       }),
     }));
     const prompt = mockQuery.mock.calls[0][0].prompt;
     expect(prompt).toContain('use X');
     expect(prompt).toMatch(/AGENTS\.md/);
     expect(prompt).toMatch(/do not.*commit/i);
+    expect(prompt).toMatch(/git push/i);
+    expect(prompt).toMatch(/npm install/i);
     expect(prompt).toMatch(/preserve.*existing props/i);
   });
 
