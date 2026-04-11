@@ -35,14 +35,35 @@ async function anonymizeMessages(
   piiProxy: PiiProxy,
 ): Promise<AnonymizedBatch> {
   const entities: Array<{ type: string; original: string }> = [];
+  const collect = (role: MessageParam['role'], result: { entities: Array<{ type: string; original: string }> }) => {
+    if (role === 'user') {
+      for (const e of result.entities) entities.push({ type: e.type, original: e.original });
+    }
+  };
   const out = await Promise.all(
     messages.map(async (msg) => {
-      if (typeof msg.content !== 'string') return msg;
-      const result = await piiProxy.anonymize(msg.content);
-      if (msg.role === 'user') {
-        for (const e of result.entities) entities.push({ type: e.type, original: e.original });
+      if (typeof msg.content === 'string') {
+        const result = await piiProxy.anonymize(msg.content);
+        collect(msg.role, result);
+        return { role: msg.role, content: result.text } as MessageParam;
       }
-      return { role: msg.role, content: result.text } as MessageParam;
+      if (Array.isArray(msg.content)) {
+        // Router only lets text-only block arrays reach this function; still
+        // guard each block defensively so a future shape change cannot leak
+        // PII past Presidio.
+        const newBlocks = await Promise.all(
+          msg.content.map(async (block: any) => {
+            if (block?.type === 'text' && typeof block.text === 'string') {
+              const result = await piiProxy.anonymize(block.text);
+              collect(msg.role, result);
+              return { ...block, text: result.text };
+            }
+            return block;
+          }),
+        );
+        return { role: msg.role, content: newBlocks } as MessageParam;
+      }
+      return msg;
     }),
   );
   return { messages: out, entities };
@@ -70,8 +91,15 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
   // Ollama only speaks plain text. Any tool_use / tool_result / image block
   // in history means we cannot serialize the turn — skip straight to Claude
   // without a wasted Presidio pass and without a misleading "unreachable" log.
-  const hasNonTextBlocks = params.messages.some((m) => typeof m.content !== 'string');
-  if (hasNonTextBlocks) {
+  // Text-only block arrays are fine: ollama.ts flattens them to a string.
+  const hasUnsupportedContent = params.messages.some((m) => {
+    if (typeof m.content === 'string') return false;
+    if (Array.isArray(m.content)) {
+      return m.content.some((block: any) => block?.type !== 'text');
+    }
+    return true;
+  });
+  if (hasUnsupportedContent) {
     await callClaudeFallback(params);
     return;
   }
@@ -118,6 +146,8 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
   }
 
   const deanonText = await params.piiProxy.deanonymize(ollamaText);
+  if (params.signal?.aborted) return;
   params.onEvent({ type: 'text_delta', content: deanonText });
+  if (params.signal?.aborted) return;
   params.onEvent({ type: 'done' });
 }

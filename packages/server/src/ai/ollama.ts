@@ -75,8 +75,12 @@ export function createOllamaClient(): OllamaClient {
       });
 
       if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Ollama error ${res.status}: ${text.slice(0, 200)}`);
+        // Intentionally do not include the response body — it can echo the
+        // (anonymized) prompt or upstream internals, and this error is
+        // console.warn'd by the router. Cancel the body so undici releases
+        // the socket instead of waiting for GC.
+        await res.body?.cancel().catch(() => {});
+        throw new Error(`Ollama error ${res.status}`);
       }
 
       let data: any;

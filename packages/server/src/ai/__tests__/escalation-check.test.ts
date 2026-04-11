@@ -26,6 +26,18 @@ describe('shouldEscalate', () => {
     expect(shouldEscalate('я должен воспользоваться поиском').escalate).toBe(true);
   });
 
+  it('escalates on Ukrainian tool-need phrases', () => {
+    expect(shouldEscalate('Потрібні зовнішні дані для відповіді').escalate).toBe(true);
+    expect(shouldEscalate('Не можу без доступу до пошуку').escalate).toBe(true);
+    expect(shouldEscalate('Мушу скористатися інструментом').escalate).toBe(true);
+    expect(shouldEscalate('Треба зовнішні дані про погоду').escalate).toBe(true);
+  });
+
+  it('does not escalate on Ukrainian factual answer', () => {
+    expect(shouldEscalate('Два плюс два дорівнює чотири.').escalate).toBe(false);
+    expect(shouldEscalate('Привіт, чим можу допомогти?').escalate).toBe(false);
+  });
+
   it('escalates on bracketed tool markers', () => {
     expect(shouldEscalate('[need search]').escalate).toBe(true);
     expect(shouldEscalate('[need code]').escalate).toBe(true);
