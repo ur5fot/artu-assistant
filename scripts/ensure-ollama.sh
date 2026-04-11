@@ -5,6 +5,10 @@ set -e
 
 OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
 OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5:7b}"
+OLLAMA_PID_FILE="/tmp/r2-ollama.pid"
+
+# Clear stale PID file — we only write it if WE start the daemon this run.
+rm -f "$OLLAMA_PID_FILE"
 
 # Check if ollama binary exists
 if ! command -v ollama >/dev/null 2>&1; then
@@ -19,6 +23,7 @@ else
   echo "Ollama daemon not running, starting in background..."
   # Start ollama serve detached, redirect logs to /tmp
   nohup ollama serve >/tmp/ollama.log 2>&1 &
+  echo $! > "$OLLAMA_PID_FILE"
   # Wait up to 20s for daemon to be ready
   for i in {1..20}; do
     if curl -s -f "${OLLAMA_URL}/api/tags" >/dev/null 2>&1; then
