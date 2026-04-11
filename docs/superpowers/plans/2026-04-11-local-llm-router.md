@@ -373,7 +373,7 @@ git commit -m "feat: add escalation-check heuristics for Ollama responses"
 - Create: `packages/server/src/ai/router.ts`
 - Create: `packages/server/src/ai/__tests__/router.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/ai/__tests__/router.test.ts`:
 
@@ -539,12 +539,12 @@ describe('runChatRequest', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/router.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement router**
+- [x] **Step 3: Implement router**
 
 Create `packages/server/src/ai/router.ts`:
 
@@ -646,12 +646,12 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/router.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/ai/router.ts packages/server/src/ai/__tests__/router.test.ts
