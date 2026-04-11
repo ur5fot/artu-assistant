@@ -195,17 +195,17 @@ git commit -m "chore: ignore .claude/settings.json (auto-updated by IDE)"
 **Files:**
 - All modified files
 
-- [ ] **Step 1: Typecheck all packages**
+- [x] **Step 1: Typecheck all packages**
 
 Run: `npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json && npx tsc --noEmit -p packages/supervisor/tsconfig.json && npx tsc --noEmit -p packages/tool-code-task/tsconfig.json && npx tsc --noEmit -p packages/tool-code-deploy/tsconfig.json`
 Expected: no type errors.
 
-- [ ] **Step 2: Run all tests**
+- [x] **Step 2: Run all tests**
 
 Run: `npm test --workspaces --if-present`
 Expected: all tests PASS, including the updated `agent-sdk.test.ts`.
 
-- [ ] **Step 3: Confirm final git status is clean**
+- [x] **Step 3: Confirm final git status is clean**
 
 Run: `git status --short`
 Expected: empty output (all changes committed).
