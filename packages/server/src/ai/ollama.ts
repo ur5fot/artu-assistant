@@ -2,6 +2,7 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 
 interface OllamaChatParams {
   messages: MessageParam[];
+  system?: string;
   signal?: AbortSignal;
 }
 
@@ -44,18 +45,29 @@ export function createOllamaClient(): OllamaClient {
     async chat(params: OllamaChatParams): Promise<OllamaChatResult> {
       const url = process.env.OLLAMA_URL || 'http://localhost:11434';
       const model = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
+      const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) || 15000;
+
+      const ollamaMessages = params.messages.map(toOllamaMessage);
+      if (params.system) {
+        ollamaMessages.unshift({ role: 'system', content: params.system });
+      }
 
       const body = JSON.stringify({
         model,
         stream: false,
-        messages: params.messages.map(toOllamaMessage),
+        messages: ollamaMessages,
       });
+
+      const timeoutSignal = AbortSignal.timeout(timeoutMs);
+      const signal = params.signal
+        ? AbortSignal.any([params.signal, timeoutSignal])
+        : timeoutSignal;
 
       const res = await fetch(`${url}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body,
-        signal: params.signal,
+        signal,
       });
 
       if (!res.ok) {

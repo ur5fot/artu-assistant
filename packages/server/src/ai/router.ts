@@ -5,6 +5,7 @@ import type { PendingPlanReviews } from '../routes/plan-review.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import type { OllamaClient } from './ollama.js';
 import { shouldEscalate } from './escalation-check.js';
+import { getSystemPrompt } from './prompts.js';
 
 export interface RunChatRequestParams {
   messages: MessageParam[];
@@ -61,10 +62,13 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     const anonymized = await anonymizeMessages(params.messages, params.piiProxy);
     const result = await params.ollama.chat({
       messages: anonymized,
+      system: getSystemPrompt(),
       signal: params.signal,
     });
     ollamaText = result.text;
   } catch (err) {
+    // Client aborted — do not waste a Claude call on a dead connection.
+    if (params.signal?.aborted) return;
     console.warn(
       '[router] Ollama unreachable, falling back to Claude:',
       err instanceof Error ? err.message : err,

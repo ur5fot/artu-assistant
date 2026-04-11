@@ -337,6 +337,11 @@ R2_GIT_REPO_PATH=                 # optional, defaults to repo root
 EVAL_CONCURRENCY=3                # parallel eval runs
 EVALS_PATH=./data/evals.json      # behavior evals store
 CLAUDE_HAIKU_MODEL=claude-haiku-4-5-20251001  # evaluator model
+# Local LLM router (Phase 4G)
+LOCAL_LLM_MODE=enabled            # enabled | disabled
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:7b
+OLLAMA_TIMEOUT_MS=15000
 ```
 
 ## Self-deploy flow (Phase 3C+3D)

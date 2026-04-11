@@ -95,10 +95,11 @@ describe('OllamaClient.chat', () => {
       signal: controller.signal,
     });
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ signal: controller.signal }),
-    );
+    const passedSignal = mockFetch.mock.calls[0][1].signal as AbortSignal;
+    expect(passedSignal).toBeInstanceOf(AbortSignal);
+    expect(passedSignal.aborted).toBe(false);
+    controller.abort();
+    expect(passedSignal.aborted).toBe(true);
   });
 
   it('uses OLLAMA_URL and OLLAMA_MODEL from env', async () => {
