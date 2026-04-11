@@ -72,9 +72,15 @@ export async function evaluate(input: EvaluatorInput): Promise<EvaluatorResult> 
     return { passed: false, reason: 'evaluator returned no text' };
   }
 
+  const raw = textBlock.text.trim();
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  const candidate = fenced ? fenced[1].trim() : raw;
+  const objectMatch = candidate.match(/\{[\s\S]*\}/);
+  const jsonText = objectMatch ? objectMatch[0] : candidate;
+
   let parsed: any;
   try {
-    parsed = JSON.parse(textBlock.text);
+    parsed = JSON.parse(jsonText);
   } catch {
     return { passed: false, reason: 'evaluator returned invalid JSON' };
   }

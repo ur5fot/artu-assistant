@@ -79,6 +79,38 @@ describe('evaluate', () => {
     expect(result.reason).toContain('API');
   });
 
+  it('extracts JSON from markdown code fences', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: '```json\n{"passed": true, "reason": "ok"}\n```' }],
+    });
+
+    const result = await evaluate({
+      input: 'hi',
+      expected: 'greeting',
+      actualText: 'hello',
+      actualToolCalls: [],
+      toolUseExpected: null,
+    });
+
+    expect(result).toEqual({ passed: true, reason: 'ok' });
+  });
+
+  it('extracts JSON object from preamble text', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'Here is my response: {"passed": false, "reason": "wrong"}' }],
+    });
+
+    const result = await evaluate({
+      input: 'hi',
+      expected: 'greeting',
+      actualText: 'hello',
+      actualToolCalls: [],
+      toolUseExpected: null,
+    });
+
+    expect(result).toEqual({ passed: false, reason: 'wrong' });
+  });
+
   it('fail-closed on invalid JSON', async () => {
     mockCreate.mockResolvedValueOnce({
       content: [{ type: 'text', text: 'not json' }],
