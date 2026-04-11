@@ -11,7 +11,18 @@ export interface AgentRunParams {
 function buildPrompt(task: string, context?: string, cwd?: string): string {
   const parts = [`Task: ${task}`];
   if (context) parts.push(`\nContext: ${context}`);
-  parts.push(`\nWork in the current directory (${cwd ?? '.'}) only. Make all changes needed to complete the task. Stage changes with git add. Do not commit — the harness will commit staged changes.`);
+  parts.push(
+    `\nYou are working inside an isolated git worktree of the R2-D2 project itself. ` +
+    `Read AGENTS.md in the current directory first to understand the repo layout, packages, and conventions before making changes. ` +
+    `Explore relevant files (Glob/Grep/Read) to find existing patterns, then implement the change. ` +
+    `When modifying existing components, preserve all existing props and behavior — only add what the task asks for.`,
+  );
+  parts.push(
+    `\nWork in the current directory (${cwd ?? '.'}) only. Make all changes needed to complete the task. ` +
+    `Stage changes with \`git add\`. Do NOT run \`git commit\`, \`git push\`, \`git reset\`, \`git checkout\`, or \`git worktree\` — the harness commits staged changes. ` +
+    `Do NOT run \`npm install\`, \`pnpm install\`, or any package manager install/update commands. ` +
+    `You may run build/test/lint commands to verify your changes.`,
+  );
   return parts.join('\n');
 }
 
@@ -43,7 +54,21 @@ export async function runAgent(params: AgentRunParams): Promise<void> {
   try {
     const stream = query({
       prompt,
-      options: { cwd: params.workdir, abortController },
+      options: {
+        cwd: params.workdir,
+        abortController,
+        systemPrompt: { type: 'preset', preset: 'claude_code' },
+        allowedTools: [
+          'Read',
+          'Glob',
+          'Grep',
+          'Edit',
+          'Write',
+          'MultiEdit',
+          'Bash',
+          'TodoWrite',
+        ],
+      },
     });
 
     for await (const message of stream) {

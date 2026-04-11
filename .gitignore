@@ -11,3 +11,6 @@ dist/
 # ralphex progress logs
 .ralphex/progress/
 .superpowers/
+
+# Claude Code local settings (auto-updated by IDE, not meaningful for R2)
+.claude/settings.json
