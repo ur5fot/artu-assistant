@@ -259,7 +259,7 @@ git commit -m "feat: add Ollama client for native /api/chat"
 - Create: `packages/server/src/ai/escalation-check.ts`
 - Create: `packages/server/src/ai/__tests__/escalation-check.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/ai/__tests__/escalation-check.test.ts`:
 
@@ -315,12 +315,12 @@ describe('shouldEscalate', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/escalation-check.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement escalation check**
+- [x] **Step 3: Implement escalation check**
 
 Create `packages/server/src/ai/escalation-check.ts`:
 
@@ -353,12 +353,12 @@ export function shouldEscalate(text: string): EscalationDecision {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/escalation-check.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/ai/escalation-check.ts packages/server/src/ai/__tests__/escalation-check.test.ts
