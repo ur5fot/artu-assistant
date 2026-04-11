@@ -130,10 +130,31 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
 
   if (decision.escalate) {
     if (params.signal?.aborted) return;
+    // Synthesize a pseudo tool call so the escalation is visible in the UI.
+    // A bare tool_progress event would be dropped by the client handler,
+    // which only applies progress to an existing toolCalls entry.
+    const escalationMessage = `Escalating to Claude (${decision.reason})`;
+    params.onEvent({
+      type: 'tool_call_start',
+      toolCall: {
+        id: 'router',
+        name: 'router',
+        input: { reason: decision.reason },
+        status: 'running',
+      },
+    });
     params.onEvent({
       type: 'tool_progress',
       id: 'router',
-      message: `Escalating to Claude (${decision.reason})`,
+      message: escalationMessage,
+    });
+    params.onEvent({
+      type: 'tool_call_result',
+      id: 'router',
+      result: {
+        success: true,
+        display: { type: 'text', content: escalationMessage },
+      },
     });
     // pii_masked is intentionally not emitted here — tool-loop will
     // re-anonymize from the original messages and emit its own event.

@@ -93,6 +93,18 @@ describe('runChatRequest', () => {
     const progress = events.find((e) => e.type === 'tool_progress');
     expect(progress).toBeDefined();
     expect((progress as any).message).toMatch(/Claude|escalat/i);
+    // Synthesized router tool call must wrap the progress event so the UI
+    // can render the escalation notice (bare tool_progress is dropped).
+    const startIdx = events.findIndex(
+      (e) => e.type === 'tool_call_start' && (e as any).toolCall.id === 'router',
+    );
+    const progressIdx = events.findIndex((e) => e.type === 'tool_progress');
+    const resultIdx = events.findIndex(
+      (e) => e.type === 'tool_call_result' && (e as any).id === 'router',
+    );
+    expect(startIdx).toBeGreaterThanOrEqual(0);
+    expect(resultIdx).toBeGreaterThan(progressIdx);
+    expect(startIdx).toBeLessThan(progressIdx);
     expect(events.some((e) => e.type === 'text_delta' && (e as any).content === 'claude-answer')).toBe(true);
   });
 
