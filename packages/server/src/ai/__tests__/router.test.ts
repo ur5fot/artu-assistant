@@ -134,6 +134,60 @@ describe('runChatRequest', () => {
     expect(fakeRunLoop).toHaveBeenCalled();
   });
 
+  it('messages with non-text content blocks skip Ollama and go straight to Claude', async () => {
+    const fakeOllama = { chat: vi.fn() };
+    const piiProxy = {
+      anonymize: vi.fn(async (t: string) => ({ text: t, entities: [] })),
+      deanonymize: vi.fn(async (t: string) => t),
+    };
+    const fakeRunLoop = vi.fn(async ({ onEvent }) => {
+      onEvent({ type: 'done' });
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await runChatRequest({
+      messages: [
+        { role: 'user', content: 'start' },
+        { role: 'assistant', content: [{ type: 'text', text: 'ok' }, { type: 'tool_use', id: 't1', name: 'bash', input: {} }] },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'done' }] },
+      ] as any,
+      onEvent: () => {},
+      runLoop: fakeRunLoop as any,
+      ollama: fakeOllama as any,
+      piiProxy: piiProxy as any,
+    });
+
+    expect(fakeOllama.chat).not.toHaveBeenCalled();
+    expect(piiProxy.anonymize).not.toHaveBeenCalled();
+    expect(fakeRunLoop).toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('escalation path does not emit router-level pii_masked (tool-loop handles it)', async () => {
+    const piiProxy = {
+      anonymize: vi.fn(async (t: string) => ({ text: t.replace('Dima', '<PERSON:1>'), entities: [{ type: 'PERSON', original: 'Dima' }] })),
+      deanonymize: vi.fn(async (t: string) => t),
+    };
+    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'I need to use web search' }) };
+    const fakeRunLoop = vi.fn(async ({ onEvent }) => {
+      onEvent({ type: 'pii_masked', entities: [{ type: 'PERSON', original: 'Dima' }] });
+      onEvent({ type: 'done' });
+    });
+
+    const events: SSEEvent[] = [];
+    await runChatRequest({
+      messages: [{ role: 'user', content: 'weather for Dima' }],
+      onEvent: (e) => events.push(e),
+      runLoop: fakeRunLoop as any,
+      ollama: fakeOllama as any,
+      piiProxy: piiProxy as any,
+    });
+
+    const piiEvents = events.filter((e) => e.type === 'pii_masked');
+    expect(piiEvents).toHaveLength(1);
+  });
+
   it('applies PII anonymize to messages before Ollama and deanonymize to response', async () => {
     const piiProxy = {
       anonymize: vi.fn(async (t: string) => ({ text: t.replace('Dima', '<PERSON:1>'), entities: [] })),

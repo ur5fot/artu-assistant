@@ -67,6 +67,15 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     return;
   }
 
+  // Ollama only speaks plain text. Any tool_use / tool_result / image block
+  // in history means we cannot serialize the turn — skip straight to Claude
+  // without a wasted Presidio pass and without a misleading "unreachable" log.
+  const hasNonTextBlocks = params.messages.some((m) => typeof m.content !== 'string');
+  if (hasNonTextBlocks) {
+    await callClaudeFallback(params);
+    return;
+  }
+
   let ollamaText: string | null = null;
   let piiEntities: Array<{ type: string; original: string }> = [];
   try {
@@ -89,10 +98,6 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     return;
   }
 
-  if (piiEntities.length > 0) {
-    params.onEvent({ type: 'pii_masked', entities: piiEntities });
-  }
-
   const decision = shouldEscalate(ollamaText);
 
   if (decision.escalate) {
@@ -102,8 +107,14 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
       id: 'router',
       message: `Escalating to Claude (${decision.reason})`,
     });
+    // pii_masked is intentionally not emitted here — tool-loop will
+    // re-anonymize from the original messages and emit its own event.
     await callClaudeFallback(params);
     return;
+  }
+
+  if (piiEntities.length > 0) {
+    params.onEvent({ type: 'pii_masked', entities: piiEntities });
   }
 
   const deanonText = await params.piiProxy.deanonymize(ollamaText);
