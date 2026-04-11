@@ -2,6 +2,14 @@
   "name": "@r2/server",
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./evals/runner.js": "./src/evals/runner.ts",
+    "./evals/store.js": "./src/evals/store.ts",
+    "./evals/evaluator.js": "./src/evals/evaluator.ts",
+    "./tools/base.js": "./src/tools/base.ts",
+    "./tools/registry.js": "./src/tools/registry.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",

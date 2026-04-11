@@ -16,7 +16,7 @@
 - Create: `packages/server/src/evals/store.ts`
 - Create: `packages/server/src/evals/store.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/evals/store.test.ts`:
 
@@ -124,12 +124,12 @@ describe('eval store', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/evals/store.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement store module**
+- [x] **Step 3: Implement store module**
 
 Create `packages/server/src/evals/store.ts`:
 
@@ -186,12 +186,12 @@ export async function saveEval(newEval: Eval): Promise<void> {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/evals/store.test.ts`
 Expected: all 7 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/evals/store.ts packages/server/src/evals/store.test.ts
@@ -206,7 +206,7 @@ git commit -m "feat: add eval store with atomic JSON persistence"
 - Create: `packages/server/src/evals/evaluator.ts`
 - Create: `packages/server/src/evals/evaluator.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/evals/evaluator.test.ts`:
 
@@ -348,12 +348,12 @@ describe('evaluate', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/evals/evaluator.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement evaluator**
+- [x] **Step 3: Implement evaluator**
 
 Create `packages/server/src/evals/evaluator.ts`:
 
@@ -439,12 +439,12 @@ export async function evaluate(input: EvaluatorInput): Promise<EvaluatorResult> 
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/evals/evaluator.test.ts`
 Expected: all 7 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/evals/evaluator.ts packages/server/src/evals/evaluator.test.ts
@@ -459,7 +459,7 @@ git commit -m "feat: add semantic Haiku evaluator with fail-closed error handlin
 - Create: `packages/server/src/evals/runner.ts`
 - Create: `packages/server/src/evals/runner.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/evals/runner.test.ts`:
 
@@ -638,12 +638,12 @@ describe('runAllEvals', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/evals/runner.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement runner**
+- [x] **Step 3: Implement runner**
 
 Create `packages/server/src/evals/runner.ts`:
 
@@ -769,12 +769,12 @@ export async function runAllEvals(
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/evals/runner.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/evals/runner.ts packages/server/src/evals/runner.test.ts
@@ -790,7 +790,7 @@ git commit -m "feat: add eval runner with concurrency control"
 - Modify: `packages/server/src/tools/registry.ts`
 - Modify: `packages/server/src/tools/__tests__/registry.test.ts` (create if not exists)
 
-- [ ] **Step 1: Add ToolDeps type to base.ts**
+- [x] **Step 1: Add ToolDeps type to base.ts**
 
 In `packages/server/src/tools/base.ts`, add after existing re-exports:
 
@@ -824,7 +824,7 @@ export type ToolFactory = (deps: ToolDeps) => ToolDefinition | ToolDefinition[];
 
 (Keep existing `export type { ToolDefinition, ToolContext, PlanReviewResponse } from '@r2/shared';` and `toClaudeTool` function as-is.)
 
-- [ ] **Step 2: Write failing test for registry factory support**
+- [x] **Step 2: Write failing test for registry factory support**
 
 Create or extend `packages/server/src/tools/__tests__/registry.test.ts`:
 
@@ -955,12 +955,12 @@ describe('discoverTools with factory support', () => {
 });
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `cd packages/server && npx vitest run src/tools/__tests__/registry.test.ts`
 Expected: FAIL — `discoverTools` signature mismatch or factory not supported.
 
-- [ ] **Step 4: Refactor registry.ts to support factories**
+- [x] **Step 4: Refactor registry.ts to support factories**
 
 Replace `packages/server/src/tools/registry.ts` with:
 
@@ -1073,12 +1073,12 @@ export async function discoverTools(
 }
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cd packages/server && npx vitest run src/tools/__tests__/registry.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 6: Update index.ts to create registry first, then discover with deps**
+- [x] **Step 6: Update index.ts to create registry first, then discover with deps**
 
 In `packages/server/src/index.ts`, replace the tool discovery block (around line 74-77):
 
@@ -1112,12 +1112,12 @@ await discoverTools(registry, {
 });
 ```
 
-- [ ] **Step 7: Full server typecheck and tests**
+- [x] **Step 7: Full server typecheck and tests**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json && cd packages/server && npx vitest run`
 Expected: no type errors, all tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/server/src/tools/base.ts packages/server/src/tools/registry.ts packages/server/src/tools/__tests__/registry.test.ts packages/server/src/index.ts
@@ -1134,7 +1134,7 @@ git commit -m "feat: add createTool factory pattern to tool registry"
 - Create: `packages/tool-eval-add/src/index.ts`
 - Create: `packages/tool-eval-add/src/__tests__/eval-add.test.ts`
 
-- [ ] **Step 1: Scaffold package**
+- [x] **Step 1: Scaffold package**
 
 Create `packages/tool-eval-add/package.json`:
 
@@ -1172,7 +1172,7 @@ Create `packages/tool-eval-add/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 2: Write failing tests**
+- [x] **Step 2: Write failing tests**
 
 Create `packages/tool-eval-add/src/__tests__/eval-add.test.ts`:
 
@@ -1268,12 +1268,12 @@ describe('evalAddTool', () => {
 });
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `cd packages/tool-eval-add && npm install && npx vitest run`
 Expected: FAIL — module not found.
 
-- [ ] **Step 4: Implement tool**
+- [x] **Step 4: Implement tool**
 
 Create `packages/tool-eval-add/src/index.ts`:
 
@@ -1375,12 +1375,12 @@ export const evalAddTool: ToolDefinition = {
 export default evalAddTool;
 ```
 
-- [ ] **Step 5: Install and run tests**
+- [x] **Step 5: Install and run tests**
 
 Run: `npm install && cd packages/tool-eval-add && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/tool-eval-add/ package.json package-lock.json
@@ -1397,7 +1397,7 @@ git commit -m "feat: add @r2/tool-eval-add — save behavior evals from chat"
 - Create: `packages/tool-eval-run/src/index.ts`
 - Create: `packages/tool-eval-run/src/__tests__/eval-run.test.ts`
 
-- [ ] **Step 1: Scaffold package**
+- [x] **Step 1: Scaffold package**
 
 Create `packages/tool-eval-run/package.json`:
 
@@ -1436,7 +1436,7 @@ Create `packages/tool-eval-run/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 2: Write failing tests**
+- [x] **Step 2: Write failing tests**
 
 Create `packages/tool-eval-run/src/__tests__/eval-run.test.ts`:
 
@@ -1539,12 +1539,12 @@ describe('eval_run tool', () => {
 });
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `cd packages/tool-eval-run && npm install && npx vitest run`
 Expected: FAIL — module not found.
 
-- [ ] **Step 4: Implement tool**
+- [x] **Step 4: Implement tool**
 
 Create `packages/tool-eval-run/src/index.ts`:
 
@@ -1602,12 +1602,12 @@ export function createTool(deps: ToolDeps): ToolDefinition {
 }
 ```
 
-- [ ] **Step 5: Install and run tests**
+- [x] **Step 5: Install and run tests**
 
 Run: `npm install && cd packages/tool-eval-run && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/tool-eval-run/ package.json package-lock.json
@@ -1623,7 +1623,7 @@ git commit -m "feat: add @r2/tool-eval-run — run all evals via createTool fact
 - Modify: `packages/tool-code-deploy/src/index.ts`
 - Modify: `packages/tool-code-deploy/src/__tests__/code-deploy.test.ts`
 
-- [ ] **Step 1: Add @r2/server dep to package.json**
+- [x] **Step 1: Add @r2/server dep to package.json**
 
 In `packages/tool-code-deploy/package.json`, add to dependencies:
 
@@ -1634,7 +1634,7 @@ In `packages/tool-code-deploy/package.json`, add to dependencies:
 }
 ```
 
-- [ ] **Step 2: Update tests to cover factory + pre-merge evals**
+- [x] **Step 2: Update tests to cover factory + pre-merge evals**
 
 Replace `packages/tool-code-deploy/src/__tests__/code-deploy.test.ts`:
 
@@ -1760,12 +1760,12 @@ describe('code_deploy tool', () => {
 });
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-deploy && npx vitest run`
 Expected: FAIL — `createTool` not exported.
 
-- [ ] **Step 4: Rewrite tool with factory**
+- [x] **Step 4: Rewrite tool with factory**
 
 Replace `packages/tool-code-deploy/src/index.ts`:
 
@@ -1880,12 +1880,12 @@ export function createTool(deps: ToolDeps): ToolDefinition {
 
 (Note: no `export default` — this is a factory-only package now.)
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `npm install && cd packages/tool-code-deploy && npx vitest run`
 Expected: all 7 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/tool-code-deploy/ package.json package-lock.json
@@ -1899,7 +1899,7 @@ git commit -m "feat: refactor code_deploy to factory with pre-merge eval gate"
 **Files:**
 - Modify: `.env.example`
 
-- [ ] **Step 1: Append env variables**
+- [x] **Step 1: Append env variables**
 
 Append to `.env.example`:
 
@@ -1909,7 +1909,7 @@ EVAL_CONCURRENCY=3
 EVALS_PATH=./data/evals.json
 ```
 
-- [ ] **Step 2: Full typecheck across all packages**
+- [x] **Step 2: Full typecheck across all packages**
 
 Run:
 ```bash
@@ -1924,12 +1924,12 @@ npx tsc --noEmit -p packages/tool-eval-run/tsconfig.json
 ```
 Expected: no type errors.
 
-- [ ] **Step 3: Run all tests**
+- [x] **Step 3: Run all tests**
 
 Run: `npm test --workspaces --if-present`
 Expected: all tests PASS.
 
-- [ ] **Step 4: Verify tools auto-discover**
+- [x] **Step 4: Verify tools auto-discover**
 
 Run: `npm run dev:server` in one terminal, watch logs for:
 - `Tool discovered: eval_add (tool-eval-add)`
@@ -1939,7 +1939,7 @@ Run: `npm run dev:server` in one terminal, watch logs for:
 
 Stop with Ctrl+C after verification.
 
-- [ ] **Step 5: Commit env and final marker**
+- [x] **Step 5: Commit env and final marker**
 
 ```bash
 git add .env.example

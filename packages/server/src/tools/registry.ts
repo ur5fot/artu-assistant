@@ -1,4 +1,5 @@
-import type { ToolDefinition } from './base.js';
+import type { ToolDefinition } from '@r2/shared';
+import type { ToolDeps } from './base.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -30,8 +31,12 @@ export function createRegistry(): ToolRegistry {
   };
 }
 
-export async function discoverTools(packagesDir?: string): Promise<ToolRegistry> {
-  const registry = createRegistry();
+export async function discoverTools(
+  registry?: ToolRegistry,
+  deps?: ToolDeps,
+  packagesDir?: string,
+): Promise<ToolRegistry> {
+  const reg = registry ?? createRegistry();
   const thisDir = path.dirname(fileURLToPath(import.meta.url));
   const dir = packagesDir ?? path.resolve(thisDir, '..', '..', '..');
 
@@ -44,7 +49,7 @@ export async function discoverTools(packagesDir?: string): Promise<ToolRegistry>
       err instanceof Error ? err.message : err,
     );
     console.warn('WARNING: No tools were discovered. The assistant will not be able to use any tools.');
-    return registry;
+    return reg;
   }
 
   for (const entry of entries) {
@@ -65,13 +70,25 @@ export async function discoverTools(packagesDir?: string): Promise<ToolRegistry>
           throw new Error(`Cannot resolve ${toolPackageName}`);
         }
       }
-      const exported = mod.default;
 
-      const toRegister: ToolDefinition[] = Array.isArray(exported) ? exported : [exported];
+      let toRegister: ToolDefinition[] = [];
+
+      if (typeof mod.createTool === 'function') {
+        if (!deps) {
+          console.warn(
+            `WARNING: Tool package ${entry} exports createTool factory but no deps were provided; skipping.`,
+          );
+          continue;
+        }
+        const result = mod.createTool(deps);
+        toRegister = Array.isArray(result) ? result : [result];
+      } else if (mod.default) {
+        toRegister = Array.isArray(mod.default) ? mod.default : [mod.default];
+      }
 
       for (const tool of toRegister) {
         if (tool && typeof tool.name === 'string' && typeof tool.handler === 'function') {
-          registry.register(tool);
+          reg.register(tool);
           console.log(`  Tool discovered: ${tool.name} (${entry})`);
         }
       }
@@ -80,11 +97,11 @@ export async function discoverTools(packagesDir?: string): Promise<ToolRegistry>
     }
   }
 
-  const toolCount = registry.getAll().length;
+  const toolCount = reg.getAll().length;
   if (toolCount === 0) {
     console.warn('WARNING: No tools were discovered. The assistant will not be able to use any tools.');
   } else {
     console.log(`Tools loaded: ${toolCount}`);
   }
-  return registry;
+  return reg;
 }

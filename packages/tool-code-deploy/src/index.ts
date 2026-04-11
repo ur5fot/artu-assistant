@@ -1,80 +1,107 @@
 import type { ToolDefinition, ToolResult, ToolContext } from '@r2/shared';
+import type { ToolDeps } from '@r2/server/tools/base.js';
+import { runAllEvals, type EvalResult } from '@r2/server/evals/runner.js';
 
-export const codeDeployTool: ToolDefinition = {
-  name: 'code_deploy',
-  description: 'Deploy changes from dev branch to master. Merges dev into master and pushes. Use after code_task is complete and user has reviewed the changes. Always requires confirmation.',
-  permissionLevel: 'confirm',
-  parameters: {
-    type: 'object',
-    properties: {},
-    required: [],
-  },
+export function createTool(deps: ToolDeps): ToolDefinition {
+  return {
+    name: 'code_deploy',
+    description: 'Deploy changes from dev branch to master. Runs pre-merge evals, then merges dev into master and pushes. Use after code_task is complete and user has reviewed the changes. Always requires confirmation.',
+    permissionLevel: 'confirm',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
 
-  preCheck: async () => ({
-    destructive: true,
-    reason: 'deploys to production master branch',
-  }),
+    preCheck: async () => ({
+      destructive: true,
+      reason: 'deploys to production master branch',
+    }),
 
-  async handler(_params: Record<string, unknown>, ctx?: ToolContext): Promise<ToolResult> {
-    const onProgress = ctx?.onProgress ?? (() => {});
-    const port = process.env.PORT || '3001';
+    async handler(_params: Record<string, unknown>, ctx?: ToolContext): Promise<ToolResult> {
+      const onProgress = ctx?.onProgress ?? (() => {});
+      const port = process.env.PORT || '3001';
 
-    onProgress('Merging dev into master...');
+      onProgress('Running pre-merge evals...');
 
-    try {
-      // Use 127.0.0.1 explicitly: the server binds only to 127.0.0.1, but
-      // `localhost` may resolve to ::1 first on some systems → ECONNREFUSED.
-      // No signal: deploy is destructive and must run to a consistent state
-      // (pushed or rolled back). Client-side abort would leave the server
-      // running the remaining git operations anyway.
-      const res = await fetch(`http://127.0.0.1:${port}/api/merge`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      let data: any = {};
+      let evalsResult;
       try {
-        data = await res.json();
-      } catch {
-        // ignore JSON parse errors; data stays empty
-      }
-
-      if (res.status === 409 && Array.isArray(data.conflicts) && data.conflicts.length > 0) {
+        evalsResult = await runAllEvals(deps.runLoop, {
+          concurrency: parseInt(process.env.EVAL_CONCURRENCY || '3', 10),
+          onProgress,
+          signal: ctx?.signal,
+          piiProxy: deps.piiProxy,
+        });
+      } catch (err) {
         return {
           success: false,
-          error: `Merge conflicts in: ${data.conflicts.join(', ')}`,
+          error: `Eval run failed: ${err instanceof Error ? err.message : 'unknown'}`,
         };
       }
 
-      if (!res.ok) {
+      if (evalsResult.failed > 0) {
+        const failedList = evalsResult.results
+          .filter((r: EvalResult) => !r.passed)
+          .map((r: EvalResult) => `  - ${r.evalId}: ${r.reason}`)
+          .join('\n');
         return {
           success: false,
-          error: data.error || `Merge failed with status ${res.status}`,
+          error: `Merge blocked: ${evalsResult.failed} evals failed\n${failedList}`,
+          data: evalsResult,
         };
       }
 
-      onProgress(`Deployed ${String(data.commit || '').slice(0, 7)}`);
+      onProgress(`${evalsResult.passed} evals passed, merging...`);
 
-      return {
-        success: true,
-        data: {
-          commit: data.commit,
-          filesChanged: data.filesChanged,
-          summary: data.message,
-        },
-        display: {
-          type: 'text',
-          content: `✓ ${data.message}\n\nSupervisor will restart the worker within 60 seconds.`,
-        },
-      };
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'deploy request failed',
-      };
-    }
-  },
-};
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/api/merge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
 
-export default codeDeployTool;
+        let data: any = {};
+        try {
+          data = await res.json();
+        } catch {
+          // ignore
+        }
+
+        if (res.status === 409 && Array.isArray(data.conflicts) && data.conflicts.length > 0) {
+          return {
+            success: false,
+            error: `Merge conflicts in: ${data.conflicts.join(', ')}`,
+          };
+        }
+
+        if (!res.ok) {
+          return {
+            success: false,
+            error: data.error || `Merge failed with status ${res.status}`,
+          };
+        }
+
+        onProgress(`Deployed ${String(data.commit || '').slice(0, 7)}`);
+
+        return {
+          success: true,
+          data: {
+            commit: data.commit,
+            filesChanged: data.filesChanged,
+            summary: data.message,
+            evalsPassed: evalsResult.passed,
+          },
+          display: {
+            type: 'text',
+            content: `✓ ${data.message}\n\n${evalsResult.passed} evals passed.\nSupervisor will restart the worker within 60 seconds.`,
+          },
+        };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'deploy request failed',
+        };
+      }
+    },
+  };
+}

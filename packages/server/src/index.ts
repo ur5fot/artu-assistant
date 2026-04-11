@@ -15,7 +15,7 @@ import { createMessagesRouter } from './routes/messages.js';
 import { createMergeRouter } from './routes/merge.js';
 import { createClaudeClient } from './ai/claude.js';
 import { runToolLoop } from './ai/tool-loop.js';
-import { discoverTools } from './tools/registry.js';
+import { createRegistry, discoverTools } from './tools/registry.js';
 import { initDb, cleanupAuditLog, closeDb } from './db.js';
 import { errorHandler } from './errors.js';
 import { createPiiProxy, createPassthroughProxy } from './pii/proxy.js';
@@ -72,9 +72,36 @@ if (piiMode === 'disabled') {
 
 // Setup
 const client = createClaudeClient();
-const registry = await discoverTools();
+const registry = createRegistry();
 const pendingConfirms: PendingConfirms = new Map();
 const pendingPlanReviews: PendingPlanReviews = new Map();
+
+// Bound runLoop closure — tool factories use this for recursive agent calls
+const runLoopFn = (params: {
+  messages: any;
+  onEvent: (event: any) => void;
+  signal?: AbortSignal;
+  pendingConfirms?: PendingConfirms;
+  pendingPlanReviews?: PendingPlanReviews;
+}) =>
+  runToolLoop({
+    messages: params.messages,
+    client,
+    registry,
+    onEvent: params.onEvent,
+    signal: params.signal,
+    pendingConfirms: params.pendingConfirms,
+    pendingPlanReviews: params.pendingPlanReviews,
+    piiProxy,
+  });
+
+// Now discover tools with deps (fills registry in-place)
+await discoverTools(registry, {
+  runLoop: runLoopFn,
+  client,
+  registry,
+  piiProxy,
+});
 
 const chatRouter = createChatRouter({
   runLoop: ({ messages, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, piiProxy: pp }) =>

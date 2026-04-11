@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRegistry, discoverTools } from '../registry.js';
 import type { ToolDefinition } from '../base.js';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const mockTool: ToolDefinition = {
@@ -46,7 +47,7 @@ describe('discoverTools', () => {
     const hasWebSearch = fs.existsSync(path.join(packagesDir, 'tool-web-search'));
     if (!hasWebSearch) return; // skip if not in full repo context
 
-    const registry = await discoverTools(packagesDir);
+    const registry = await discoverTools(undefined, undefined, packagesDir);
     const tools = registry.getAll();
     expect(tools.length).toBeGreaterThanOrEqual(1);
     expect(tools.some((t) => t.name === 'web_search')).toBe(true);
@@ -54,7 +55,7 @@ describe('discoverTools', () => {
 
   it('returns empty registry when no tool packages exist', async () => {
     // Pass a directory with no tool-* packages
-    const registry = await discoverTools('/tmp/nonexistent-dir-r2-test');
+    const registry = await discoverTools(undefined, undefined, '/tmp/nonexistent-dir-r2-test');
     expect(registry.getAll()).toHaveLength(0);
   });
 
@@ -86,7 +87,7 @@ describe('discoverTools', () => {
     `);
 
     try {
-      const registry = await discoverTools(tmpDir);
+      const registry = await discoverTools(undefined, undefined, tmpDir);
       expect(registry.getAll()).toHaveLength(2);
       expect(registry.get('tool_a')).toBeDefined();
       expect(registry.get('tool_b')).toBeDefined();
@@ -103,10 +104,99 @@ describe('discoverTools', () => {
 
     // discoverTools scans for tool-* dirs then imports @r2/<name> via Node resolution
     // Since @r2/tool-broken is not an installed package, the import fails gracefully
-    const registry = await discoverTools(tmpDir);
+    const registry = await discoverTools(undefined, undefined, tmpDir);
     expect(registry.getAll()).toHaveLength(0);
 
     // Cleanup
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+describe('discoverTools with factory support', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2-registry-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  async function createFakeToolPackage(name: string, exportCode: string) {
+    const pkgDir = path.join(tmpDir, name);
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+      name: `@r2/${name}`,
+      main: 'index.mjs',
+    }));
+    fs.writeFileSync(path.join(pkgDir, 'index.mjs'), exportCode);
+  }
+
+  it('loads default export (backward compatibility)', async () => {
+    await createFakeToolPackage('tool-echo', `
+      export default {
+        name: 'echo',
+        description: 'echoes',
+        permissionLevel: 'auto',
+        parameters: { type: 'object', properties: {} },
+        handler: async () => ({ success: true }),
+      };
+    `);
+
+    const registry = createRegistry();
+    await discoverTools(registry, undefined, tmpDir);
+
+    expect(registry.get('echo')).toBeDefined();
+  });
+
+  it('loads createTool factory when deps provided', async () => {
+    await createFakeToolPackage('tool-di', `
+      export function createTool(deps) {
+        return {
+          name: 'di_tool',
+          description: 'needs deps',
+          permissionLevel: 'auto',
+          parameters: { type: 'object', properties: {} },
+          handler: async () => ({ success: true, data: { hasRunLoop: typeof deps.runLoop === 'function' } }),
+        };
+      }
+    `);
+
+    const registry = createRegistry();
+    const deps = {
+      runLoop: async () => {},
+      client: {} as any,
+      registry,
+      piiProxy: {} as any,
+    };
+    await discoverTools(registry, deps, tmpDir);
+
+    expect(registry.get('di_tool')).toBeDefined();
+    const result = await registry.get('di_tool')!.handler({});
+    expect((result.data as any).hasRunLoop).toBe(true);
+  });
+
+  it('skips factory packages when deps missing', async () => {
+    await createFakeToolPackage('tool-di-only', `
+      export function createTool(deps) {
+        return {
+          name: 'di_only',
+          description: 'deps required',
+          permissionLevel: 'auto',
+          parameters: { type: 'object', properties: {} },
+          handler: async () => ({ success: true }),
+        };
+      }
+    `);
+
+    const registry = createRegistry();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await discoverTools(registry, undefined, tmpDir);
+
+    expect(registry.get('di_only')).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('di-only'));
+    warnSpy.mockRestore();
   });
 });
