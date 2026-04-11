@@ -790,7 +790,7 @@ git commit -m "feat: add eval runner with concurrency control"
 - Modify: `packages/server/src/tools/registry.ts`
 - Modify: `packages/server/src/tools/__tests__/registry.test.ts` (create if not exists)
 
-- [ ] **Step 1: Add ToolDeps type to base.ts**
+- [x] **Step 1: Add ToolDeps type to base.ts**
 
 In `packages/server/src/tools/base.ts`, add after existing re-exports:
 
@@ -824,7 +824,7 @@ export type ToolFactory = (deps: ToolDeps) => ToolDefinition | ToolDefinition[];
 
 (Keep existing `export type { ToolDefinition, ToolContext, PlanReviewResponse } from '@r2/shared';` and `toClaudeTool` function as-is.)
 
-- [ ] **Step 2: Write failing test for registry factory support**
+- [x] **Step 2: Write failing test for registry factory support**
 
 Create or extend `packages/server/src/tools/__tests__/registry.test.ts`:
 
@@ -955,12 +955,12 @@ describe('discoverTools with factory support', () => {
 });
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `cd packages/server && npx vitest run src/tools/__tests__/registry.test.ts`
 Expected: FAIL — `discoverTools` signature mismatch or factory not supported.
 
-- [ ] **Step 4: Refactor registry.ts to support factories**
+- [x] **Step 4: Refactor registry.ts to support factories**
 
 Replace `packages/server/src/tools/registry.ts` with:
 
@@ -1073,12 +1073,12 @@ export async function discoverTools(
 }
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cd packages/server && npx vitest run src/tools/__tests__/registry.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 6: Update index.ts to create registry first, then discover with deps**
+- [x] **Step 6: Update index.ts to create registry first, then discover with deps**
 
 In `packages/server/src/index.ts`, replace the tool discovery block (around line 74-77):
 
@@ -1112,12 +1112,12 @@ await discoverTools(registry, {
 });
 ```
 
-- [ ] **Step 7: Full server typecheck and tests**
+- [x] **Step 7: Full server typecheck and tests**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json && cd packages/server && npx vitest run`
 Expected: no type errors, all tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/server/src/tools/base.ts packages/server/src/tools/registry.ts packages/server/src/tools/__tests__/registry.test.ts packages/server/src/index.ts
