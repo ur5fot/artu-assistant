@@ -6,6 +6,8 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { PendingConfirms } from './confirm.js';
 import type { PendingPlanReviews } from './plan-review.js';
 import type { PiiProxy } from '../pii/proxy.js';
+import type { OllamaClient } from '../ai/ollama.js';
+import { runChatRequest } from '../ai/router.js';
 import { saveMessage } from '../db.js';
 import crypto from 'node:crypto';
 
@@ -45,16 +47,17 @@ interface ChatRouterDeps {
     messages: MessageParam[];
     onEvent: (event: SSEEvent) => void;
     signal?: AbortSignal;
-    pendingConfirms: PendingConfirms;
-    pendingPlanReviews: PendingPlanReviews;
+    pendingConfirms?: PendingConfirms;
+    pendingPlanReviews?: PendingPlanReviews;
     piiProxy: PiiProxy;
   }) => Promise<void>;
   pendingConfirms: PendingConfirms;
   pendingPlanReviews: PendingPlanReviews;
   piiProxy: PiiProxy;
+  ollama: OllamaClient | null;
 }
 
-export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy }: ChatRouterDeps): Router {
+export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy, ollama }: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -107,18 +110,27 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
     const assistantId = crypto.randomUUID();
 
     try {
-      await runLoop({
+      await runChatRequest({
         messages: addTimestamps(messages),
         signal: abortController.signal,
         pendingConfirms,
         pendingPlanReviews,
         piiProxy,
+        ollama,
+        runLoop,
         onEvent: (event: SSEEvent) => {
           // Accumulate assistant data for persistence
           if (event.type === 'text_delta') {
             assistantText += event.content;
           } else if (event.type === 'tool_call_start') {
-            assistantToolCalls.push(event.toolCall);
+            // Skip the synthetic "router" pseudo tool call emitted by the
+            // local-LLM router purely to surface an escalation notice in the
+            // UI. It is not a real tool invocation and must not be persisted
+            // to SQLite — otherwise every escalated turn leaves a fake
+            // "router" entry in history on reload.
+            if (event.toolCall.id !== 'router') {
+              assistantToolCalls.push(event.toolCall);
+            }
           } else if (event.type === 'tool_call_result') {
             const tc = assistantToolCalls.find((t) => t.id === event.id);
             if (tc) {

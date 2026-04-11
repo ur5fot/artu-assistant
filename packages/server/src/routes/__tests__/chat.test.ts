@@ -1,8 +1,20 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createChatRouter } from '../chat.js';
 import { createPassthroughProxy } from '../../pii/proxy.js';
+
+const savedMessages: any[] = [];
+vi.mock('../../db.js', () => ({
+  saveMessage: (params: any) => {
+    savedMessages.push(params);
+  },
+  initDb: () => {},
+}));
+
+beforeEach(() => {
+  savedMessages.length = 0;
+});
 
 describe('POST /api/chat', () => {
   it('returns 400 when messages not provided', async () => {
@@ -14,6 +26,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -37,6 +50,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -61,6 +75,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -84,6 +99,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -107,6 +123,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -135,6 +152,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -161,6 +179,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -188,6 +207,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
@@ -197,6 +217,53 @@ describe('POST /api/chat', () => {
       .expect(200);
 
     expect(receivedMessages[0].content).toBe('Hello');
+  });
+
+  it('does not persist synthetic "router" pseudo tool call from escalation', async () => {
+    const app = express();
+    app.use(express.json());
+
+    const router = createChatRouter({
+      runLoop: async ({ onEvent }) => {
+        onEvent({
+          type: 'tool_call_start',
+          toolCall: {
+            id: 'router',
+            name: 'router',
+            input: { reason: 'low_confidence' },
+            status: 'running',
+          },
+        });
+        onEvent({ type: 'tool_progress', id: 'router', message: 'Escalating to Claude' });
+        onEvent({
+          type: 'tool_call_result',
+          id: 'router',
+          result: { success: true, display: { type: 'text', content: 'Escalating' } },
+        });
+        onEvent({ type: 'text_delta', content: 'Hello from Claude' });
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+    });
+    app.use('/api', router);
+
+    const res = await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: 'Hi' }] })
+      .expect(200);
+
+    // Synthetic router events are still forwarded to SSE for live UI visibility
+    expect(res.text).toContain('"id":"router"');
+    expect(res.text).toContain('Hello from Claude');
+
+    // But the assistant save must NOT contain the synthetic router tool call
+    const assistantSave = savedMessages.find((m) => m.role === 'assistant');
+    expect(assistantSave).toBeDefined();
+    expect(assistantSave.content).toBe('Hello from Claude');
+    expect(assistantSave.toolCalls).toBeUndefined();
   });
 
   it('sanitizes errors containing API key patterns', async () => {
@@ -210,6 +277,7 @@ describe('POST /api/chat', () => {
       pendingConfirms: new Map(),
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
+      ollama: null,
     });
     app.use('/api', router);
 
