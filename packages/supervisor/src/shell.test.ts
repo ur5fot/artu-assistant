@@ -4,8 +4,7 @@ const mockExecFile = vi.fn();
 vi.mock('node:child_process', () => ({
   execFile: (cmd: string, args: string[], opts: any, cb: any) => {
     const callback = typeof opts === 'function' ? opts : cb;
-    const options = typeof opts === 'function' ? {} : opts;
-    const result = mockExecFile(cmd, args, options);
+    const result = mockExecFile(cmd, args, opts);
     if (result instanceof Error) {
       callback(result);
     } else {
@@ -14,31 +13,31 @@ vi.mock('node:child_process', () => ({
   },
 }));
 
-import { run, tryRun } from '../shell.js';
+import { run, tryRun } from './shell.js';
 
-describe('shell helpers', () => {
+describe('supervisor shell helpers', () => {
   beforeEach(() => {
     mockExecFile.mockReset();
   });
 
-  it('run executes with argv form', async () => {
-    mockExecFile.mockReturnValueOnce('output\n');
-    const result = await run('git', ['status', '--porcelain']);
-    expect(result).toBe('output');
+  it('run uses argv form with shell: false', async () => {
+    mockExecFile.mockReturnValueOnce('hash\n');
+    const result = await run('git', ['rev-parse', 'HEAD']);
+    expect(result).toBe('hash');
     expect(mockExecFile).toHaveBeenCalledWith(
       'git',
-      ['status', '--porcelain'],
+      ['rev-parse', 'HEAD'],
       expect.objectContaining({ shell: false }),
     );
   });
 
   it('run passes cwd', async () => {
     mockExecFile.mockReturnValueOnce('');
-    await run('git', ['status'], '/tmp/test');
+    await run('git', ['status'], '/repo');
     expect(mockExecFile).toHaveBeenCalledWith(
       'git',
       ['status'],
-      expect.objectContaining({ cwd: '/tmp/test', shell: false }),
+      expect.objectContaining({ cwd: '/repo', shell: false }),
     );
   });
 
@@ -49,8 +48,7 @@ describe('shell helpers', () => {
   });
 
   it('tryRun returns ok=false on error', async () => {
-    const err = Object.assign(new Error('boom'), { code: 2 });
-    mockExecFile.mockReturnValueOnce(err);
+    mockExecFile.mockReturnValueOnce(Object.assign(new Error('boom'), { code: 2 }));
     const result = await tryRun('git', ['show']);
     expect(result.ok).toBe(false);
     expect(result.code).toBe(2);

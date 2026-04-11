@@ -12,6 +12,7 @@ import { createPlanReviewRouter, type PendingPlanReviews } from './routes/plan-r
 import { createPermissionsRouter } from './routes/permissions.js';
 import { createPiiRouter } from './routes/pii.js';
 import { createMessagesRouter } from './routes/messages.js';
+import { createMergeRouter } from './routes/merge.js';
 import { createClaudeClient } from './ai/claude.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { discoverTools } from './tools/registry.js';
@@ -88,6 +89,7 @@ app.use('/api', createConfirmRouter(pendingConfirms));
 app.use('/api', createPlanReviewRouter(pendingPlanReviews));
 app.use('/api', createPermissionsRouter());
 app.use('/api', createMessagesRouter());
+app.use('/api', createMergeRouter());
 if (piiVault) {
   app.use('/api', createPiiRouter(piiVault));
 }
@@ -98,7 +100,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use(errorHandler);
 
-const server = app.listen(PORT, () => {
+const server = app.listen(Number(PORT), '127.0.0.1', () => {
   console.log(`R2 server running on http://localhost:${PORT}`);
   // Signal supervisor that worker is ready (no-op without supervisor)
   process.send?.({ type: 'ready' });

@@ -18,7 +18,7 @@
 
 Rationale: supervisor cannot import `@r2/tool-code-task` (would create cycle via server → tool-code-task → supervisor once Task 8 lands). Duplicate the minimal helper locally.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/supervisor/src/shell.test.ts`:
 
@@ -81,12 +81,12 @@ describe('supervisor shell helpers', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/supervisor && npx vitest run src/shell.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Create shell helper**
+- [x] **Step 3: Create shell helper**
 
 Create `packages/supervisor/src/shell.ts`:
 
@@ -116,12 +116,12 @@ export async function tryRun(
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/supervisor && npx vitest run src/shell.test.ts`
 Expected: all 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/supervisor/src/shell.ts packages/supervisor/src/shell.test.ts
@@ -136,7 +136,7 @@ git commit -m "feat: add shell helper to supervisor package"
 - Create: `packages/supervisor/src/git-watcher.ts`
 - Create: `packages/supervisor/src/git-watcher.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/supervisor/src/git-watcher.test.ts`:
 
@@ -270,12 +270,12 @@ describe('startGitWatcher', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/supervisor && npx vitest run src/git-watcher.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement git watcher**
+- [x] **Step 3: Implement git watcher**
 
 Create `packages/supervisor/src/git-watcher.ts`:
 
@@ -333,12 +333,12 @@ export function startGitWatcher(params: GitWatcherParams): () => void {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/supervisor && npx vitest run src/git-watcher.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/supervisor/src/git-watcher.ts packages/supervisor/src/git-watcher.test.ts
@@ -352,7 +352,7 @@ git commit -m "feat: add git watcher with polling loop"
 **Files:**
 - Modify: `packages/supervisor/src/index.ts`
 
-- [ ] **Step 1: Add git watcher to supervisor entry**
+- [x] **Step 1: Add git watcher to supervisor entry**
 
 In `packages/supervisor/src/index.ts`, add import:
 
@@ -398,17 +398,17 @@ function shutdown(signal: string) {
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/supervisor/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 3: Run existing supervisor tests**
+- [x] **Step 3: Run existing supervisor tests**
 
 Run: `cd packages/supervisor && npx vitest run`
 Expected: all existing tests PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/supervisor/src/index.ts
@@ -424,7 +424,7 @@ git commit -m "feat: wire git watcher into supervisor"
 - Create: `packages/server/src/routes/merge.test.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/routes/merge.test.ts`:
 
@@ -516,12 +516,12 @@ describe('POST /api/merge', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/routes/merge.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Export run/tryRun from @r2/tool-code-task**
+- [x] **Step 3: Export run/tryRun from @r2/tool-code-task**
 
 In `packages/tool-code-task/src/index.ts`, add re-export at the top of the file (after existing exports):
 
@@ -529,7 +529,7 @@ In `packages/tool-code-task/src/index.ts`, add re-export at the top of the file 
 export { run, tryRun } from './shell.js';
 ```
 
-- [ ] **Step 4: Implement merge route**
+- [x] **Step 4: Implement merge route**
 
 Create `packages/server/src/routes/merge.ts`:
 
@@ -606,7 +606,7 @@ export function createMergeRouter(): Router {
 }
 ```
 
-- [ ] **Step 5: Register route in server index**
+- [x] **Step 5: Register route in server index**
 
 In `packages/server/src/index.ts`, add import:
 
@@ -620,17 +620,17 @@ Register after other `/api` routes (near createPiiRouter):
 app.use('/api', createMergeRouter());
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `cd packages/server && npx vitest run src/routes/merge.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 7: Typecheck**
+- [x] **Step 7: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/tool-code-task/src/index.ts packages/server/src/routes/merge.ts packages/server/src/routes/merge.test.ts packages/server/src/index.ts
@@ -646,7 +646,7 @@ git commit -m "feat: add POST /api/merge endpoint with conflict handling"
 - Create: `packages/tool-code-deploy/tsconfig.json`
 - Create: `packages/tool-code-deploy/src/index.ts` (placeholder)
 
-- [ ] **Step 1: Create package.json**
+- [x] **Step 1: Create package.json**
 
 Create `packages/tool-code-deploy/package.json`:
 
@@ -671,7 +671,7 @@ Create `packages/tool-code-deploy/package.json`:
 }
 ```
 
-- [ ] **Step 2: Create tsconfig.json**
+- [x] **Step 2: Create tsconfig.json**
 
 Create `packages/tool-code-deploy/tsconfig.json`:
 
@@ -686,7 +686,7 @@ Create `packages/tool-code-deploy/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 3: Placeholder entry point**
+- [x] **Step 3: Placeholder entry point**
 
 Create `packages/tool-code-deploy/src/index.ts`:
 
@@ -706,12 +706,12 @@ export const codeDeployTool: ToolDefinition = {
 export default codeDeployTool;
 ```
 
-- [ ] **Step 4: Install and typecheck**
+- [x] **Step 4: Install and typecheck**
 
 Run: `npm install && npx tsc --noEmit -p packages/tool-code-deploy/tsconfig.json`
 Expected: workspace resolves, no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-deploy/ package.json package-lock.json
@@ -726,7 +726,7 @@ git commit -m "feat: scaffold @r2/tool-code-deploy package"
 - Modify: `packages/tool-code-deploy/src/index.ts`
 - Create: `packages/tool-code-deploy/src/__tests__/code-deploy.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/tool-code-deploy/src/__tests__/code-deploy.test.ts`:
 
@@ -821,12 +821,12 @@ describe('codeDeployTool', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-deploy && npx vitest run`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement code_deploy tool**
+- [x] **Step 3: Implement code_deploy tool**
 
 Replace `packages/tool-code-deploy/src/index.ts`:
 
@@ -909,12 +909,12 @@ export const codeDeployTool: ToolDefinition = {
 export default codeDeployTool;
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/tool-code-deploy && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-deploy/src/index.ts packages/tool-code-deploy/src/__tests__/code-deploy.test.ts
@@ -928,7 +928,7 @@ git commit -m "feat: implement code_deploy tool"
 **Files:**
 - Modify: `.env.example`
 
-- [ ] **Step 1: Add env vars**
+- [x] **Step 1: Add env vars**
 
 Append to `.env.example`:
 
@@ -939,30 +939,30 @@ R2_GIT_WATCH_BRANCH=master       # branch to watch for external changes
 R2_GIT_REPO_PATH=                # optional, defaults to project root
 ```
 
-- [ ] **Step 2: Verify tool auto-discovery**
+- [x] **Step 2: Verify tool auto-discovery**
 
 Run: `npm run dev:server` in one terminal, check logs
 Expected: `Tool discovered: code_deploy (tool-code-deploy)` in startup logs.
 Stop with Ctrl+C.
 
-- [ ] **Step 3: Full typecheck**
+- [x] **Step 3: Full typecheck**
 
 Run: `npx tsc --noEmit -p packages/shared/tsconfig.json && npx tsc --noEmit -p packages/server/tsconfig.json && npx tsc --noEmit -p packages/client/tsconfig.json && npx tsc --noEmit -p packages/supervisor/tsconfig.json && npx tsc --noEmit -p packages/tool-code-task/tsconfig.json && npx tsc --noEmit -p packages/tool-code-deploy/tsconfig.json`
 Expected: no type errors.
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 Run: `npm test --workspaces --if-present`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .env.example
 git commit -m "feat: add Phase 3D env vars"
 ```
 
-- [ ] **Step 6: Final commit**
+- [x] **Step 6: Final commit**
 
 ```bash
 git add -A
