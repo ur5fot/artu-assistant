@@ -162,12 +162,12 @@ git commit -m "test: assert systemPrompt preset, allowedTools, and prompt guardr
 **Files:**
 - Modify: `.gitignore`
 
-- [ ] **Step 1: Read current `.gitignore`**
+- [x] **Step 1: Read current `.gitignore`**
 
 Run: `cat .gitignore`
 Expected: standard ignore file with `node_modules/`, `data/`, `.env`, `dist/`, `*.db`, `*.enc`, `*.tsbuildinfo`, `.ralphex/progress/`, `.superpowers/`.
 
-- [ ] **Step 2: Append the Claude settings entry**
+- [x] **Step 2: Append the Claude settings entry**
 
 Append to `.gitignore`:
 
@@ -176,12 +176,12 @@ Append to `.gitignore`:
 .claude/settings.json
 ```
 
-- [ ] **Step 3: Remove the file from git index without deleting it locally**
+- [x] **Step 3: Remove the file from git index without deleting it locally**
 
 Run: `git rm --cached .claude/settings.json`
 Expected: output `rm '.claude/settings.json'`. The local file stays on disk because of `--cached`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .gitignore
