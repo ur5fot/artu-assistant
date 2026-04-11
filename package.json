@@ -5,9 +5,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "./scripts/ensure-docker.sh && docker compose up -d && concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:tunnel": "./scripts/ensure-docker.sh && docker compose up -d && concurrently \"npm run dev:server\" \"VITE_HOST=true npm run dev:client\" \"sleep 5 && npm run tunnel\"",
-    "dev:named": "./scripts/ensure-docker.sh && docker compose up -d && concurrently \"npm run dev:server\" \"VITE_HOST=true npm run dev:client\" \"cloudflared tunnel run\"",
+    "dev": "./scripts/ensure-docker.sh && docker compose up -d && ./scripts/ensure-ollama.sh && concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:tunnel": "./scripts/ensure-docker.sh && docker compose up -d && ./scripts/ensure-ollama.sh && concurrently \"npm run dev:server\" \"VITE_HOST=true npm run dev:client\" \"sleep 5 && npm run tunnel\"",
+    "dev:named": "./scripts/ensure-docker.sh && docker compose up -d && ./scripts/ensure-ollama.sh && concurrently \"npm run dev:server\" \"VITE_HOST=true npm run dev:client\" \"cloudflared tunnel run\"",
     "dev:server": "npm run dev -w @r2/server",
     "dev:client": "npm run dev -w @r2/client",
     "tunnel": "echo '' > /tmp/r2-cf.yml && cloudflared tunnel --config /tmp/r2-cf.yml --url http://127.0.0.1:$(node -e \"require('dotenv').config({path:'.env'});console.log(process.env.CLIENT_PORT||5173)\")",
