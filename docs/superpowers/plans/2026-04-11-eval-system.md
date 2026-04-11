@@ -16,7 +16,7 @@
 - Create: `packages/server/src/evals/store.ts`
 - Create: `packages/server/src/evals/store.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/evals/store.test.ts`:
 
@@ -124,12 +124,12 @@ describe('eval store', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/evals/store.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement store module**
+- [x] **Step 3: Implement store module**
 
 Create `packages/server/src/evals/store.ts`:
 
@@ -186,12 +186,12 @@ export async function saveEval(newEval: Eval): Promise<void> {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/evals/store.test.ts`
 Expected: all 7 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/evals/store.ts packages/server/src/evals/store.test.ts
