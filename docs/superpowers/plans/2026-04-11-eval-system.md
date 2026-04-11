@@ -459,7 +459,7 @@ git commit -m "feat: add semantic Haiku evaluator with fail-closed error handlin
 - Create: `packages/server/src/evals/runner.ts`
 - Create: `packages/server/src/evals/runner.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/evals/runner.test.ts`:
 
@@ -638,12 +638,12 @@ describe('runAllEvals', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/evals/runner.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement runner**
+- [x] **Step 3: Implement runner**
 
 Create `packages/server/src/evals/runner.ts`:
 
@@ -769,12 +769,12 @@ export async function runAllEvals(
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/evals/runner.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/evals/runner.ts packages/server/src/evals/runner.test.ts
