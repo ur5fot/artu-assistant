@@ -44,6 +44,12 @@ describe('shouldEscalate', () => {
     expect(shouldEscalate('[need file]').escalate).toBe(true);
   });
 
+  it('escalates on bracketed markers with arguments', () => {
+    expect(shouldEscalate('[need search: погода Одеса завтра]').escalate).toBe(true);
+    expect(shouldEscalate('[need tool: прочитати /etc/hosts]').escalate).toBe(true);
+    expect(shouldEscalate('[need search: bitcoin price USD]').escalate).toBe(true);
+  });
+
   it('does not escalate on plain factual answer', () => {
     expect(shouldEscalate('The answer is 4.').escalate).toBe(false);
     expect(shouldEscalate('Hello, how can I help you today?').escalate).toBe(false);
