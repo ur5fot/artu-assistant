@@ -38,12 +38,12 @@ The `preset: 'claude_code'` option makes the SDK auto-load `AGENTS.md` / `CLAUDE
 **Files:**
 - Modify: `packages/tool-code-task/src/agent-sdk.ts`
 
-- [ ] **Step 1: Read the current file to understand existing structure**
+- [x] **Step 1: Read the current file to understand existing structure**
 
 Run: `cat packages/tool-code-task/src/agent-sdk.ts`
 Expected: file has `buildPrompt()` and `runAgent()` functions; `query()` is called with `{ prompt, options: { cwd, abortController } }`.
 
-- [ ] **Step 2: Replace `buildPrompt` function**
+- [x] **Step 2: Replace `buildPrompt` function**
 
 Open `packages/tool-code-task/src/agent-sdk.ts` and replace the `buildPrompt` function (currently around lines 11-16) with:
 
@@ -67,7 +67,7 @@ function buildPrompt(task: string, context?: string, cwd?: string): string {
 }
 ```
 
-- [ ] **Step 3: Update the `query()` call inside `runAgent`**
+- [x] **Step 3: Update the `query()` call inside `runAgent`**
 
 Find the `query()` invocation (currently `const stream = query({ prompt, options: { cwd: params.workdir, abortController } });`) and replace with:
 
@@ -92,12 +92,12 @@ Find the `query()` invocation (currently `const stream = query({ prompt, options
     });
 ```
 
-- [ ] **Step 4: Typecheck**
+- [x] **Step 4: Typecheck**
 
 Run: `npx tsc --noEmit -p packages/tool-code-task/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-code-task/src/agent-sdk.ts
