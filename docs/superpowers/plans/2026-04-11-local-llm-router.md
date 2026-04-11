@@ -16,7 +16,7 @@
 - Create: `packages/server/src/ai/ollama.ts`
 - Create: `packages/server/src/ai/__tests__/ollama.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/ai/__tests__/ollama.test.ts`:
 
@@ -144,12 +144,12 @@ describe('OllamaClient.chat', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/ollama.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement Ollama client**
+- [x] **Step 3: Implement Ollama client**
 
 Create `packages/server/src/ai/ollama.ts`:
 
@@ -239,12 +239,12 @@ export function createOllamaClient(): OllamaClient {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/ollama.test.ts`
 Expected: all 6 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/ai/ollama.ts packages/server/src/ai/__tests__/ollama.test.ts
