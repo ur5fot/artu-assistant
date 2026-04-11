@@ -62,6 +62,36 @@ describe('runSingleEval', () => {
     expect(mockEvaluate).not.toHaveBeenCalled();
   });
 
+  it('passes auto-deny pendingConfirms/pendingPlanReviews so confirms never hang', async () => {
+    mockEvaluate.mockResolvedValueOnce({ passed: false, reason: 'denied' });
+
+    let confirmResolved = false;
+    let planResolved = false;
+    const fakeRunLoop = vi.fn(async ({ onEvent, pendingConfirms, pendingPlanReviews }) => {
+      // Simulate runToolLoop registering handlers the way requestConfirmation does.
+      await new Promise<void>((resolve) => {
+        pendingConfirms.set('call-1', (r: any) => {
+          confirmResolved = r.allowed === false;
+          resolve();
+        });
+      });
+      await new Promise<void>((resolve) => {
+        pendingPlanReviews.set('call-2', (r: any) => {
+          planResolved = r.approved === false;
+          resolve();
+        });
+      });
+      onEvent({ type: 'done' });
+    });
+
+    const e: Eval = { id: 'ec', input: 'x', expected: 'y', toolUseExpected: null, createdAt: '2026-04-11T00:00:00Z' };
+    const result = await runSingleEval(e, fakeRunLoop as any);
+
+    expect(confirmResolved).toBe(true);
+    expect(planResolved).toBe(true);
+    expect(result.evalId).toBe('ec');
+  });
+
   it('forwards toolUseExpected to evaluator', async () => {
     mockEvaluate.mockResolvedValueOnce({ passed: true, reason: 'ok' });
     const fakeRunLoop = vi.fn(async ({ onEvent }) => {

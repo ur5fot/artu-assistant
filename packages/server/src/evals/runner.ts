@@ -1,7 +1,10 @@
-import type { SSEEvent } from '@r2/shared';
+import type { SSEEvent, PlanReviewResponse } from '@r2/shared';
 import type { Eval } from './store.js';
 import { loadEvals } from './store.js';
 import { evaluate } from './evaluator.js';
+import type { RunLoopFn } from '../tools/base.js';
+import type { PendingConfirms, ConfirmResponse } from '../routes/confirm.js';
+import type { PendingPlanReviews } from '../routes/plan-review.js';
 
 export interface EvalResult {
   evalId: string;
@@ -24,11 +27,24 @@ export interface RunAllResult {
   results: EvalResult[];
 }
 
-type RunLoopFn = (params: {
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-  onEvent: (event: SSEEvent) => void;
-  signal?: AbortSignal;
-}) => Promise<void>;
+// Auto-deny Maps for eval runs: when runToolLoop registers a confirm or
+// plan-review handler, resolve it immediately as denied. Without this,
+// an eval that invokes a confirm-level tool (code_task, code_deploy,
+// eval_add, eval_run) would deadlock — there is no UI listening for
+// confirmation events during an automated eval gate.
+class AutoDenyConfirms extends Map<string, (r: ConfirmResponse) => void> {
+  override set(key: string, fn: (r: ConfirmResponse) => void): this {
+    fn({ allowed: false, remember: false });
+    return this;
+  }
+}
+
+class AutoDenyPlanReviews extends Map<string, (r: PlanReviewResponse) => void> {
+  override set(key: string, fn: (r: PlanReviewResponse) => void): this {
+    fn({ approved: false });
+    return this;
+  }
+}
 
 export async function runSingleEval(
   target: Eval,
@@ -46,11 +62,16 @@ export async function runSingleEval(
     }
   };
 
+  const pendingConfirms: PendingConfirms = new AutoDenyConfirms();
+  const pendingPlanReviews: PendingPlanReviews = new AutoDenyPlanReviews();
+
   try {
     await runLoop({
       messages: [{ role: 'user', content: target.input }],
       onEvent,
       signal,
+      pendingConfirms,
+      pendingPlanReviews,
     });
   } catch (err) {
     return {

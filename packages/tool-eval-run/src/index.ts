@@ -26,7 +26,7 @@ export function createTool(deps: ToolDeps): ToolDefinition {
       onProgress('Loading evals...');
 
       try {
-        const { passed, failed, results } = await runAllEvals(deps.runLoop as any, {
+        const { passed, failed, results } = await runAllEvals(deps.runLoop, {
           concurrency: parseInt(process.env.EVAL_CONCURRENCY || '3', 10),
           onProgress,
           signal: ctx?.signal,
