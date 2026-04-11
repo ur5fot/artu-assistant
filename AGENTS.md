@@ -298,6 +298,12 @@ npm start             # Start supervisor (requires prior build)
 
 ## Phase 4 — CRM Integration
 
+- **4G) Local LLM router** ✓ — Ollama as first attempt for chat, Claude as fallback
+  - `packages/server/src/ai/ollama.ts` — native /api/chat client
+  - `packages/server/src/ai/router.ts` — runChatRequest orchestrator
+  - `packages/server/src/ai/escalation-check.ts` — regex heuristics for escalation
+  - LOCAL_LLM_MODE=disabled kills router; ollama unreachable → silent fallback
+  - Default model: qwen2.5:7b (~5 GB RAM). Run `ollama serve` + `ollama pull qwen2.5:7b` before use.
 - Справки, рапорти
 - RAG по юридической базе
 - Генерация документов .docx
@@ -331,6 +337,11 @@ R2_GIT_REPO_PATH=                 # optional, defaults to repo root
 EVAL_CONCURRENCY=3                # parallel eval runs
 EVALS_PATH=./data/evals.json      # behavior evals store
 CLAUDE_HAIKU_MODEL=claude-haiku-4-5-20251001  # evaluator model
+# Local LLM router (Phase 4G)
+LOCAL_LLM_MODE=enabled            # enabled | disabled
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:7b
+OLLAMA_TIMEOUT_MS=15000
 ```
 
 ## Self-deploy flow (Phase 3C+3D)

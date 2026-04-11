@@ -16,7 +16,7 @@
 - Create: `packages/server/src/ai/ollama.ts`
 - Create: `packages/server/src/ai/__tests__/ollama.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/ai/__tests__/ollama.test.ts`:
 
@@ -144,12 +144,12 @@ describe('OllamaClient.chat', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/ollama.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement Ollama client**
+- [x] **Step 3: Implement Ollama client**
 
 Create `packages/server/src/ai/ollama.ts`:
 
@@ -239,12 +239,12 @@ export function createOllamaClient(): OllamaClient {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/ollama.test.ts`
 Expected: all 6 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/ai/ollama.ts packages/server/src/ai/__tests__/ollama.test.ts
@@ -259,7 +259,7 @@ git commit -m "feat: add Ollama client for native /api/chat"
 - Create: `packages/server/src/ai/escalation-check.ts`
 - Create: `packages/server/src/ai/__tests__/escalation-check.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/ai/__tests__/escalation-check.test.ts`:
 
@@ -315,12 +315,12 @@ describe('shouldEscalate', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/escalation-check.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement escalation check**
+- [x] **Step 3: Implement escalation check**
 
 Create `packages/server/src/ai/escalation-check.ts`:
 
@@ -353,12 +353,12 @@ export function shouldEscalate(text: string): EscalationDecision {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/escalation-check.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/ai/escalation-check.ts packages/server/src/ai/__tests__/escalation-check.test.ts
@@ -373,7 +373,7 @@ git commit -m "feat: add escalation-check heuristics for Ollama responses"
 - Create: `packages/server/src/ai/router.ts`
 - Create: `packages/server/src/ai/__tests__/router.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/ai/__tests__/router.test.ts`:
 
@@ -539,12 +539,12 @@ describe('runChatRequest', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/router.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement router**
+- [x] **Step 3: Implement router**
 
 Create `packages/server/src/ai/router.ts`:
 
@@ -646,12 +646,12 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/ai/__tests__/router.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/ai/router.ts packages/server/src/ai/__tests__/router.test.ts
@@ -666,7 +666,7 @@ git commit -m "feat: add router orchestrator with Ollama first + Claude fallback
 - Modify: `packages/server/src/index.ts`
 - Modify: `packages/server/src/routes/chat.ts`
 
-- [ ] **Step 1: Update chat.ts to use runChatRequest**
+- [x] **Step 1: Update chat.ts to use runChatRequest**
 
 In `packages/server/src/routes/chat.ts`:
 
@@ -776,7 +776,7 @@ Replace the `runLoop` call inside the handler (lines 109-172) with `runChatReque
 
 Keep the existing catch block + partial-save logic + `res.end()` at the end as-is.
 
-- [ ] **Step 2: Update index.ts to create Ollama client and pass it**
+- [x] **Step 2: Update index.ts to create Ollama client and pass it**
 
 In `packages/server/src/index.ts`:
 
@@ -811,17 +811,17 @@ const chatRouter = createChatRouter({
 });
 ```
 
-- [ ] **Step 3: Run server typecheck**
+- [x] **Step 3: Run server typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Run existing chat tests**
+- [x] **Step 4: Run existing chat tests**
 
 Run: `cd packages/server && npx vitest run src/routes/__tests__/chat.test.ts`
 Expected: all existing tests still pass. If any fail because they passed `runLoop` but not `ollama`, fix the test by adding `ollama: null` to the router deps.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/routes/chat.ts packages/server/src/index.ts
@@ -836,7 +836,7 @@ git commit -m "feat: wire router into chat route with Ollama client injection"
 - Modify: `.env.example`
 - Modify: `AGENTS.md`
 
-- [ ] **Step 1: Append env variables**
+- [x] **Step 1: Append env variables**
 
 Append to `.env.example`:
 
@@ -847,7 +847,7 @@ OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b
 ```
 
-- [ ] **Step 2: Update AGENTS.md Phase 4 section**
+- [x] **Step 2: Update AGENTS.md Phase 4 section**
 
 In `AGENTS.md`, find the `## Phase 4` section and add a Phase 4G entry:
 
@@ -870,7 +870,7 @@ If a Phase 4 section does not already exist, append:
 
 (only add if missing)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .env.example AGENTS.md
@@ -884,7 +884,7 @@ git commit -m "docs: document Phase 4G local LLM router env and architecture"
 **Files:**
 - All modified files
 
-- [ ] **Step 1: Full typecheck**
+- [x] **Step 1: Full typecheck**
 
 Run:
 ```bash
@@ -899,12 +899,12 @@ npx tsc --noEmit -p packages/tool-eval-run/tsconfig.json
 ```
 Expected: no type errors.
 
-- [ ] **Step 2: Run all tests**
+- [x] **Step 2: Run all tests**
 
 Run: `npm test --workspaces --if-present`
 Expected: all tests PASS. Critically: existing chat.test.ts, tool-loop tests, eval tests all still pass (they use mocks that never touch Ollama).
 
-- [ ] **Step 3: Startup smoke**
+- [x] **Step 3: Startup smoke**
 
 Run: `npm run dev:server` in one terminal, watch logs for:
 - `[router] Local LLM enabled via Ollama at http://localhost:11434` (or `disabled` message)
@@ -912,7 +912,7 @@ Run: `npm run dev:server` in one terminal, watch logs for:
 
 Stop with Ctrl+C after verification.
 
-- [ ] **Step 4: Final commit**
+- [x] **Step 4: Final commit**
 
 ```bash
 git add -A
