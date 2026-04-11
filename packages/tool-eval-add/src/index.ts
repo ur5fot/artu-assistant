@@ -1,35 +1,6 @@
 import type { ToolDefinition, ToolResult } from '@r2/shared';
-import fs from 'node:fs';
-import path from 'node:path';
+import { loadEvals, saveEval } from '@r2/server/evals/store.js';
 import crypto from 'node:crypto';
-
-function getEvalsPath(): string {
-  return process.env.EVALS_PATH || path.resolve(process.cwd(), 'data', 'evals.json');
-}
-
-function loadList(): any[] {
-  const filePath = getEvalsPath();
-  if (!fs.existsSync(filePath)) return [];
-  const raw = fs.readFileSync(filePath, 'utf8');
-  if (raw.trim().length === 0) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeList(list: any[]): void {
-  const filePath = getEvalsPath();
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  const tmpPath = `${filePath}.tmp`;
-  fs.writeFileSync(tmpPath, JSON.stringify(list, null, 2));
-  fs.renameSync(tmpPath, filePath);
-}
 
 export const evalAddTool: ToolDefinition = {
   name: 'eval_add',
@@ -71,16 +42,15 @@ export const evalAddTool: ToolDefinition = {
     };
 
     try {
-      const list = loadList();
-      list.push(newEval);
-      writeList(list);
+      await saveEval(newEval);
+      const total = (await loadEvals()).length;
 
       return {
         success: true,
-        data: { id: newEval.id, totalEvals: list.length },
+        data: { id: newEval.id, totalEvals: total },
         display: {
           type: 'text',
-          content: `Saved eval "${newEval.id}". Total evals: ${list.length}.`,
+          content: `Saved eval "${newEval.id}". Total evals: ${total}.`,
         },
       };
     } catch (err) {

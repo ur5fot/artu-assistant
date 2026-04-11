@@ -86,4 +86,14 @@ describe('evalAddTool', () => {
     await evalAddTool.handler({ input: 'q', expected: 'e' });
     expect(fs.existsSync(`${evalsPath}.tmp`)).toBe(false);
   });
+
+  it('throws on corrupt JSON instead of silently overwriting existing file', async () => {
+    fs.writeFileSync(evalsPath, '{not valid json');
+
+    const result = await evalAddTool.handler({ input: 'q', expected: 'e' });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/parse|JSON/i);
+    expect(fs.readFileSync(evalsPath, 'utf8')).toBe('{not valid json');
+  });
 });

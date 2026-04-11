@@ -293,7 +293,7 @@ npm start             # Start supervisor (requires prior build)
 - **3B) Chat persistence** ✓ — SQLite conversation history, GET /api/messages
 - **3C) Git-in-the-loop** ✓ — code_task tool, ralphex on dev worktree
 - **3D) Git watcher + auto-deploy** ✓ — supervisor polls master, code_deploy tool, POST /api/merge
-- 3E) Eval система — test cases, pre-merge checks
+- **3E) Eval система** ✓ — LLM-judge evaluator (Haiku), parallel runner, pre-merge gate in `code_deploy`, `eval_add`/`eval_run` tools, store at `data/evals.json`
 - 3F) Chat commands + UI — r2 task/deploy, status bar, diff view
 
 ## Phase 4 — CRM Integration
@@ -327,6 +327,10 @@ R2_RALPHEX_MAX_ITERATIONS=20
 R2_GIT_POLL_INTERVAL=60000        # ms; 0 disables the watcher
 R2_GIT_WATCH_BRANCH=master
 R2_GIT_REPO_PATH=                 # optional, defaults to repo root
+# Eval system (Phase 3E)
+EVAL_CONCURRENCY=3                # parallel eval runs
+EVALS_PATH=./data/evals.json      # behavior evals store
+CLAUDE_HAIKU_MODEL=claude-haiku-4-5-20251001  # evaluator model
 ```
 
 ## Self-deploy flow (Phase 3C+3D)

@@ -105,7 +105,10 @@ export async function runAllEvals(
   }
 
   const results: EvalResult[] = new Array(evals.length);
-  const concurrency = Math.max(1, options.concurrency);
+  const concurrency =
+    Number.isFinite(options.concurrency) && options.concurrency >= 1
+      ? Math.floor(options.concurrency)
+      : 1;
 
   await withLimit(evals, concurrency, async (target, i) => {
     options.onProgress?.(`Running eval ${i + 1}/${evals.length}: ${target.id}`);

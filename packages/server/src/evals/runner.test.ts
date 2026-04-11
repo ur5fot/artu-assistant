@@ -142,6 +142,22 @@ describe('runAllEvals', () => {
     expect(progress.some((p) => p.includes('2/2'))).toBe(true);
   });
 
+  it('treats NaN concurrency as 1 (never silently skips evals)', async () => {
+    fs.writeFileSync(process.env.EVALS_PATH!, JSON.stringify([
+      { id: 'a', input: 'q', expected: 'e', toolUseExpected: null, createdAt: '2026-04-11T00:00:00Z' },
+      { id: 'b', input: 'q', expected: 'e', toolUseExpected: null, createdAt: '2026-04-11T00:00:01Z' },
+    ]));
+
+    mockEvaluate.mockResolvedValue({ passed: true, reason: 'ok' });
+    const fakeRunLoop = vi.fn(async ({ onEvent }) => { onEvent({ type: 'done' }); });
+
+    const result = await runAllEvals(fakeRunLoop as any, { concurrency: NaN });
+
+    expect(result.passed).toBe(2);
+    expect(result.failed).toBe(0);
+    expect(fakeRunLoop).toHaveBeenCalledTimes(2);
+  });
+
   it('respects concurrency limit', async () => {
     fs.writeFileSync(process.env.EVALS_PATH!, JSON.stringify(
       Array.from({ length: 5 }, (_, i) => ({
