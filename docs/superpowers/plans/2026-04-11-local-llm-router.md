@@ -884,7 +884,7 @@ git commit -m "docs: document Phase 4G local LLM router env and architecture"
 **Files:**
 - All modified files
 
-- [ ] **Step 1: Full typecheck**
+- [x] **Step 1: Full typecheck**
 
 Run:
 ```bash
@@ -899,12 +899,12 @@ npx tsc --noEmit -p packages/tool-eval-run/tsconfig.json
 ```
 Expected: no type errors.
 
-- [ ] **Step 2: Run all tests**
+- [x] **Step 2: Run all tests**
 
 Run: `npm test --workspaces --if-present`
 Expected: all tests PASS. Critically: existing chat.test.ts, tool-loop tests, eval tests all still pass (they use mocks that never touch Ollama).
 
-- [ ] **Step 3: Startup smoke**
+- [x] **Step 3: Startup smoke**
 
 Run: `npm run dev:server` in one terminal, watch logs for:
 - `[router] Local LLM enabled via Ollama at http://localhost:11434` (or `disabled` message)
@@ -912,7 +912,7 @@ Run: `npm run dev:server` in one terminal, watch logs for:
 
 Stop with Ctrl+C after verification.
 
-- [ ] **Step 4: Final commit**
+- [x] **Step 4: Final commit**
 
 ```bash
 git add -A
