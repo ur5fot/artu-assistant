@@ -206,7 +206,7 @@ git commit -m "feat: add eval store with atomic JSON persistence"
 - Create: `packages/server/src/evals/evaluator.ts`
 - Create: `packages/server/src/evals/evaluator.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/evals/evaluator.test.ts`:
 
@@ -348,12 +348,12 @@ describe('evaluate', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/evals/evaluator.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement evaluator**
+- [x] **Step 3: Implement evaluator**
 
 Create `packages/server/src/evals/evaluator.ts`:
 
@@ -439,12 +439,12 @@ export async function evaluate(input: EvaluatorInput): Promise<EvaluatorResult> 
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd packages/server && npx vitest run src/evals/evaluator.test.ts`
 Expected: all 7 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/evals/evaluator.ts packages/server/src/evals/evaluator.test.ts
