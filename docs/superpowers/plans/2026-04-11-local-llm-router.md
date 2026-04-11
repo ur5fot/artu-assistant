@@ -836,7 +836,7 @@ git commit -m "feat: wire router into chat route with Ollama client injection"
 - Modify: `.env.example`
 - Modify: `AGENTS.md`
 
-- [ ] **Step 1: Append env variables**
+- [x] **Step 1: Append env variables**
 
 Append to `.env.example`:
 
@@ -847,7 +847,7 @@ OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b
 ```
 
-- [ ] **Step 2: Update AGENTS.md Phase 4 section**
+- [x] **Step 2: Update AGENTS.md Phase 4 section**
 
 In `AGENTS.md`, find the `## Phase 4` section and add a Phase 4G entry:
 
@@ -870,7 +870,7 @@ If a Phase 4 section does not already exist, append:
 
 (only add if missing)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .env.example AGENTS.md

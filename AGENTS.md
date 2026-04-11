@@ -298,6 +298,12 @@ npm start             # Start supervisor (requires prior build)
 
 ## Phase 4 — CRM Integration
 
+- **4G) Local LLM router** ✓ — Ollama as first attempt for chat, Claude as fallback
+  - `packages/server/src/ai/ollama.ts` — native /api/chat client
+  - `packages/server/src/ai/router.ts` — runChatRequest orchestrator
+  - `packages/server/src/ai/escalation-check.ts` — regex heuristics for escalation
+  - LOCAL_LLM_MODE=disabled kills router; ollama unreachable → silent fallback
+  - Default model: qwen2.5:7b (~5 GB RAM). Run `ollama serve` + `ollama pull qwen2.5:7b` before use.
 - Справки, рапорти
 - RAG по юридической базе
 - Генерация документов .docx
