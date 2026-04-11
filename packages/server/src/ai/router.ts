@@ -5,7 +5,7 @@ import type { PendingPlanReviews } from '../routes/plan-review.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import type { OllamaClient } from './ollama.js';
 import { shouldEscalate } from './escalation-check.js';
-import { getSystemPrompt } from './prompts.js';
+import { getLocalSystemPrompt } from './prompts.js';
 
 export interface RunChatRequestParams {
   messages: MessageParam[];
@@ -83,7 +83,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     piiEntities = anonymized.entities;
     const result = await params.ollama.chat({
       messages: anonymized.messages,
-      system: getSystemPrompt(),
+      system: getLocalSystemPrompt(),
       signal: params.signal,
     });
     ollamaText = result.text;
