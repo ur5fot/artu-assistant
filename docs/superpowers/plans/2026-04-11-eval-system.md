@@ -1899,7 +1899,7 @@ git commit -m "feat: refactor code_deploy to factory with pre-merge eval gate"
 **Files:**
 - Modify: `.env.example`
 
-- [ ] **Step 1: Append env variables**
+- [x] **Step 1: Append env variables**
 
 Append to `.env.example`:
 
@@ -1909,7 +1909,7 @@ EVAL_CONCURRENCY=3
 EVALS_PATH=./data/evals.json
 ```
 
-- [ ] **Step 2: Full typecheck across all packages**
+- [x] **Step 2: Full typecheck across all packages**
 
 Run:
 ```bash
@@ -1924,12 +1924,12 @@ npx tsc --noEmit -p packages/tool-eval-run/tsconfig.json
 ```
 Expected: no type errors.
 
-- [ ] **Step 3: Run all tests**
+- [x] **Step 3: Run all tests**
 
 Run: `npm test --workspaces --if-present`
 Expected: all tests PASS.
 
-- [ ] **Step 4: Verify tools auto-discover**
+- [x] **Step 4: Verify tools auto-discover**
 
 Run: `npm run dev:server` in one terminal, watch logs for:
 - `Tool discovered: eval_add (tool-eval-add)`
@@ -1939,7 +1939,7 @@ Run: `npm run dev:server` in one terminal, watch logs for:
 
 Stop with Ctrl+C after verification.
 
-- [ ] **Step 5: Commit env and final marker**
+- [x] **Step 5: Commit env and final marker**
 
 ```bash
 git add .env.example
