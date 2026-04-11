@@ -30,6 +30,7 @@ export function createTool(deps: ToolDeps): ToolDefinition {
           concurrency: parseInt(process.env.EVAL_CONCURRENCY || '3', 10),
           onProgress,
           signal: ctx?.signal,
+          piiProxy: deps.piiProxy,
         });
 
         return {

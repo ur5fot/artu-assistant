@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 export interface Eval {
   id: string;
@@ -12,6 +13,9 @@ export interface Eval {
 function getEvalsPath(): string {
   return process.env.EVALS_PATH || path.resolve(process.cwd(), 'data', 'evals.json');
 }
+
+// Serialize all saveEval calls against concurrent overwrites
+let writeChain: Promise<void> = Promise.resolve();
 
 export async function loadEvals(): Promise<Eval[]> {
   const filePath = getEvalsPath();
@@ -37,16 +41,22 @@ export async function loadEvals(): Promise<Eval[]> {
 }
 
 export async function saveEval(newEval: Eval): Promise<void> {
-  const filePath = getEvalsPath();
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+  const run = async () => {
+    const filePath = getEvalsPath();
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
 
-  const list = await loadEvals();
-  list.push(newEval);
+    const list = await loadEvals();
+    list.push(newEval);
 
-  const tmpPath = `${filePath}.tmp`;
-  fs.writeFileSync(tmpPath, JSON.stringify(list, null, 2));
-  fs.renameSync(tmpPath, filePath);
+    const tmpPath = `${filePath}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(list, null, 2));
+    fs.renameSync(tmpPath, filePath);
+  };
+
+  const next = writeChain.then(run, run);
+  writeChain = next.catch(() => {});
+  return next;
 }

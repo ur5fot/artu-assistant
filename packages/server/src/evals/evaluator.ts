@@ -1,5 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 
+function sanitizeEvaluatorError(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes('anthropic') || lower.includes('sk-ant-') || lower.includes('api key')) {
+    return 'evaluator API unavailable';
+  }
+  return message;
+}
+
 export interface EvaluatorInput {
   input: string;
   expected: string;
@@ -31,7 +39,7 @@ export async function evaluate(input: EvaluatorInput): Promise<EvaluatorResult> 
   try {
     client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   } catch (err) {
-    return { passed: false, reason: `evaluator API error: ${err instanceof Error ? err.message : 'init failed'}` };
+    return { passed: false, reason: `evaluator API error: ${sanitizeEvaluatorError(err instanceof Error ? err.message : 'init failed')}` };
   }
 
   const model = process.env.CLAUDE_HAIKU_MODEL || 'claude-haiku-4-5-20251001';
@@ -55,7 +63,7 @@ export async function evaluate(input: EvaluatorInput): Promise<EvaluatorResult> 
   } catch (err) {
     return {
       passed: false,
-      reason: `evaluator API error: ${err instanceof Error ? err.message : 'unknown'}`,
+      reason: `evaluator API error: ${sanitizeEvaluatorError(err instanceof Error ? err.message : 'unknown')}`,
     };
   }
 
