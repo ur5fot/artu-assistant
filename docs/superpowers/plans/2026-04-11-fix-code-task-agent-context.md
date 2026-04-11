@@ -111,12 +111,12 @@ git commit -m "feat: pass claude_code preset and allowedTools to agent SDK"
 **Files:**
 - Modify: `packages/tool-code-task/src/__tests__/agent-sdk.test.ts`
 
-- [ ] **Step 1: Read existing test file**
+- [x] **Step 1: Read existing test file**
 
 Run: `cat packages/tool-code-task/src/__tests__/agent-sdk.test.ts`
 Expected: file has `describe('runAgent')` block with 4 tests. The third test is named `'passes cwd and task to SDK'` and asserts that `mockQuery` was called with `{ prompt, options: { cwd } }`.
 
-- [ ] **Step 2: Replace the "passes cwd and task to SDK" test**
+- [x] **Step 2: Replace the "passes cwd and task to SDK" test**
 
 Locate the `it('passes cwd and task to SDK', async () => {...})` block and replace it with:
 
@@ -143,12 +143,12 @@ Locate the `it('passes cwd and task to SDK', async () => {...})` block and repla
   });
 ```
 
-- [ ] **Step 3: Run the updated test**
+- [x] **Step 3: Run the updated test**
 
 Run: `cd packages/tool-code-task && npx vitest run src/__tests__/agent-sdk.test.ts`
 Expected: all 4 tests PASS (updated test + 3 unchanged).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/tool-code-task/src/__tests__/agent-sdk.test.ts
