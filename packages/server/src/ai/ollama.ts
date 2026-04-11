@@ -24,12 +24,16 @@ function toOllamaMessage(msg: MessageParam): OllamaMessage {
   if (typeof msg.content === 'string') {
     content = msg.content;
   } else if (Array.isArray(msg.content)) {
+    // Refuse non-text blocks (tool_use / tool_result / image) — silently
+    // dropping them would feed Ollama an empty or corrupted turn. The
+    // router's catch will fall back to Claude, which actually understands
+    // these blocks.
+    const hasNonText = msg.content.some((block: any) => block?.type !== 'text');
+    if (hasNonText) {
+      throw new Error('Ollama cannot handle non-text content blocks');
+    }
     content = msg.content
-      .map((block: any) => {
-        if (block.type === 'text' && typeof block.text === 'string') return block.text;
-        return '';
-      })
-      .filter(Boolean)
+      .map((block: any) => (typeof block.text === 'string' ? block.text : ''))
       .join('\n');
   } else {
     content = '';

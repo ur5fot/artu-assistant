@@ -25,17 +25,27 @@ export interface RunChatRequestParams {
   }) => Promise<void>;
 }
 
-function anonymizeMessages(
+interface AnonymizedBatch {
+  messages: MessageParam[];
+  entities: Array<{ type: string; original: string }>;
+}
+
+async function anonymizeMessages(
   messages: MessageParam[],
   piiProxy: PiiProxy,
-): Promise<MessageParam[]> {
-  return Promise.all(
+): Promise<AnonymizedBatch> {
+  const entities: Array<{ type: string; original: string }> = [];
+  const out = await Promise.all(
     messages.map(async (msg) => {
       if (typeof msg.content !== 'string') return msg;
       const result = await piiProxy.anonymize(msg.content);
-      return { role: msg.role, content: result.text };
+      if (msg.role === 'user') {
+        for (const e of result.entities) entities.push({ type: e.type, original: e.original });
+      }
+      return { role: msg.role, content: result.text } as MessageParam;
     }),
   );
+  return { messages: out, entities };
 }
 
 async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
@@ -58,10 +68,12 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
   }
 
   let ollamaText: string | null = null;
+  let piiEntities: Array<{ type: string; original: string }> = [];
   try {
     const anonymized = await anonymizeMessages(params.messages, params.piiProxy);
+    piiEntities = anonymized.entities;
     const result = await params.ollama.chat({
-      messages: anonymized,
+      messages: anonymized.messages,
       system: getSystemPrompt(),
       signal: params.signal,
     });
@@ -77,9 +89,14 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     return;
   }
 
+  if (piiEntities.length > 0) {
+    params.onEvent({ type: 'pii_masked', entities: piiEntities });
+  }
+
   const decision = shouldEscalate(ollamaText);
 
   if (decision.escalate) {
+    if (params.signal?.aborted) return;
     params.onEvent({
       type: 'tool_progress',
       id: 'router',
