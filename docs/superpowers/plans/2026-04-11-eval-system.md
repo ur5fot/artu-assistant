@@ -1134,7 +1134,7 @@ git commit -m "feat: add createTool factory pattern to tool registry"
 - Create: `packages/tool-eval-add/src/index.ts`
 - Create: `packages/tool-eval-add/src/__tests__/eval-add.test.ts`
 
-- [ ] **Step 1: Scaffold package**
+- [x] **Step 1: Scaffold package**
 
 Create `packages/tool-eval-add/package.json`:
 
@@ -1172,7 +1172,7 @@ Create `packages/tool-eval-add/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 2: Write failing tests**
+- [x] **Step 2: Write failing tests**
 
 Create `packages/tool-eval-add/src/__tests__/eval-add.test.ts`:
 
@@ -1268,12 +1268,12 @@ describe('evalAddTool', () => {
 });
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `cd packages/tool-eval-add && npm install && npx vitest run`
 Expected: FAIL — module not found.
 
-- [ ] **Step 4: Implement tool**
+- [x] **Step 4: Implement tool**
 
 Create `packages/tool-eval-add/src/index.ts`:
 
@@ -1375,12 +1375,12 @@ export const evalAddTool: ToolDefinition = {
 export default evalAddTool;
 ```
 
-- [ ] **Step 5: Install and run tests**
+- [x] **Step 5: Install and run tests**
 
 Run: `npm install && cd packages/tool-eval-add && npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/tool-eval-add/ package.json package-lock.json
