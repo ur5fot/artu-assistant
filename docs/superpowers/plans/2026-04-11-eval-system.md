@@ -1623,7 +1623,7 @@ git commit -m "feat: add @r2/tool-eval-run — run all evals via createTool fact
 - Modify: `packages/tool-code-deploy/src/index.ts`
 - Modify: `packages/tool-code-deploy/src/__tests__/code-deploy.test.ts`
 
-- [ ] **Step 1: Add @r2/server dep to package.json**
+- [x] **Step 1: Add @r2/server dep to package.json**
 
 In `packages/tool-code-deploy/package.json`, add to dependencies:
 
@@ -1634,7 +1634,7 @@ In `packages/tool-code-deploy/package.json`, add to dependencies:
 }
 ```
 
-- [ ] **Step 2: Update tests to cover factory + pre-merge evals**
+- [x] **Step 2: Update tests to cover factory + pre-merge evals**
 
 Replace `packages/tool-code-deploy/src/__tests__/code-deploy.test.ts`:
 
@@ -1760,12 +1760,12 @@ describe('code_deploy tool', () => {
 });
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `cd packages/tool-code-deploy && npx vitest run`
 Expected: FAIL — `createTool` not exported.
 
-- [ ] **Step 4: Rewrite tool with factory**
+- [x] **Step 4: Rewrite tool with factory**
 
 Replace `packages/tool-code-deploy/src/index.ts`:
 
@@ -1880,12 +1880,12 @@ export function createTool(deps: ToolDeps): ToolDefinition {
 
 (Note: no `export default` — this is a factory-only package now.)
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `npm install && cd packages/tool-code-deploy && npx vitest run`
 Expected: all 7 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/tool-code-deploy/ package.json package-lock.json
