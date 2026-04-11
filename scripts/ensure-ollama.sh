@@ -33,15 +33,30 @@ else
   fi
 fi
 
+warmup_model() {
+  # Preload the model into memory so the first real chat request doesn't
+  # hit a cold start (qwen2.5:7b takes 30-60s to load the first time).
+  # Use keep_alive: -1 to pin the model until the daemon is restarted.
+  echo "Warming up ${OLLAMA_MODEL} (loading into memory)..."
+  curl -s -X POST "${OLLAMA_URL}/api/generate" \
+    -H "Content-Type: application/json" \
+    -d "{\"model\":\"${OLLAMA_MODEL}\",\"prompt\":\"\",\"stream\":false,\"keep_alive\":-1}" \
+    --max-time 120 >/dev/null 2>&1 &
+  WARMUP_PID=$!
+  echo "Warmup started in background (pid ${WARMUP_PID}); model will be ready in ~30-60s"
+}
+
 # Check if model is already pulled
 if ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep -q "^${OLLAMA_MODEL}$"; then
   echo "Ollama model ${OLLAMA_MODEL} already available"
+  warmup_model
   exit 0
 fi
 
 echo "Pulling Ollama model ${OLLAMA_MODEL} (this may take several minutes)..."
 if ollama pull "${OLLAMA_MODEL}"; then
   echo "Ollama model ${OLLAMA_MODEL} ready"
+  warmup_model
 else
   echo "Failed to pull ${OLLAMA_MODEL}; router will fall back to Claude" >&2
 fi
