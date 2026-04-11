@@ -123,7 +123,14 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
           if (event.type === 'text_delta') {
             assistantText += event.content;
           } else if (event.type === 'tool_call_start') {
-            assistantToolCalls.push(event.toolCall);
+            // Skip the synthetic "router" pseudo tool call emitted by the
+            // local-LLM router purely to surface an escalation notice in the
+            // UI. It is not a real tool invocation and must not be persisted
+            // to SQLite — otherwise every escalated turn leaves a fake
+            // "router" entry in history on reload.
+            if (event.toolCall.id !== 'router') {
+              assistantToolCalls.push(event.toolCall);
+            }
           } else if (event.type === 'tool_call_result') {
             const tc = assistantToolCalls.find((t) => t.id === event.id);
             if (tc) {
