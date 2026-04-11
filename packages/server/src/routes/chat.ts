@@ -107,6 +107,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
     let assistantText = '';
     const assistantToolCalls: ToolCall[] = [];
     let assistantPiiEntities: Array<{ type: string; original: string }> | undefined;
+    let assistantSource: 'ollama' | 'claude' | undefined;
     const assistantId = crypto.randomUUID();
 
     try {
@@ -158,6 +159,9 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
             }
           } else if (event.type === 'pii_masked') {
             assistantPiiEntities = event.entities;
+          } else if (event.type === 'assistant_source') {
+            // Router claims the turn; escalation will overwrite ollama with claude
+            assistantSource = event.source;
           } else if (event.type === 'done') {
             // Save assistant message on completion
             if (assistantText || assistantToolCalls.length > 0) {
@@ -169,6 +173,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
                   toolCalls: assistantToolCalls.length > 0 ? assistantToolCalls : undefined,
                   piiEntities: assistantPiiEntities,
                   timestamp: Date.now(),
+                  source: assistantSource,
                 });
               } catch (err) {
                 console.error('Failed to save assistant message:', err instanceof Error ? err.message : err);
@@ -199,6 +204,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
             toolCalls: assistantToolCalls.length > 0 ? assistantToolCalls : undefined,
             piiEntities: assistantPiiEntities,
             timestamp: Date.now(),
+            source: assistantSource,
           });
         } catch (err) {
           console.error('Failed to save partial assistant message:', err instanceof Error ? err.message : err);

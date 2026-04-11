@@ -67,6 +67,12 @@ export function initDb(dbPath?: string): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+
+  // Migration: add `source` column if missing
+  const cols = db.prepare("PRAGMA table_info(chat_messages)").all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === 'source')) {
+    db.exec(`ALTER TABLE chat_messages ADD COLUMN source TEXT`);
+  }
 }
 
 export function getDb(): Database.Database {
@@ -131,13 +137,14 @@ interface SaveMessageParams {
   toolCalls?: ToolCall[];
   piiEntities?: Array<{ type: string; original: string }>;
   timestamp: number;
+  source?: 'ollama' | 'claude';
 }
 
 export function saveMessage(params: SaveMessageParams): void {
   const d = getDb();
   d.prepare(
-    `INSERT OR IGNORE INTO chat_messages (message_id, role, content, tool_calls, pii_entities, timestamp)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT OR IGNORE INTO chat_messages (message_id, role, content, tool_calls, pii_entities, timestamp, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(
     params.messageId,
     params.role,
@@ -145,6 +152,7 @@ export function saveMessage(params: SaveMessageParams): void {
     params.toolCalls ? JSON.stringify(params.toolCalls) : null,
     params.piiEntities ? JSON.stringify(params.piiEntities) : null,
     params.timestamp,
+    params.source ?? null,
   );
 }
 
@@ -155,10 +163,11 @@ export function getMessages(): Array<{
   toolCalls?: ToolCall[];
   piiEntities?: Array<{ type: string; original: string }>;
   timestamp: number;
+  source?: 'ollama' | 'claude';
 }> {
   const d = getDb();
   const rows = d.prepare(
-    'SELECT message_id, role, content, tool_calls, pii_entities, timestamp FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC'
+    'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC'
   ).all() as Array<{
     message_id: string;
     role: string;
@@ -166,6 +175,7 @@ export function getMessages(): Array<{
     tool_calls: string | null;
     pii_entities: string | null;
     timestamp: number;
+    source: string | null;
   }>;
 
   return rows.map((row) => ({
@@ -175,6 +185,7 @@ export function getMessages(): Array<{
     toolCalls: row.tool_calls ? JSON.parse(row.tool_calls) : undefined,
     piiEntities: row.pii_entities ? JSON.parse(row.pii_entities) : undefined,
     timestamp: row.timestamp,
+    source: row.source === 'ollama' || row.source === 'claude' ? row.source : undefined,
   }));
 }
 

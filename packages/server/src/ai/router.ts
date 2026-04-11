@@ -70,6 +70,9 @@ async function anonymizeMessages(
 }
 
 async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
+  if (!params.signal?.aborted) {
+    params.onEvent({ type: 'assistant_source', source: 'claude' });
+  }
   await params.runLoop({
     messages: params.messages,
     onEvent: params.onEvent,
@@ -168,6 +171,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
 
   const deanonText = await params.piiProxy.deanonymize(ollamaText);
   if (params.signal?.aborted) return;
+  params.onEvent({ type: 'assistant_source', source: 'ollama' });
   params.onEvent({ type: 'text_delta', content: deanonText });
   if (params.signal?.aborted) return;
   params.onEvent({ type: 'done' });

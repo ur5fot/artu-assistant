@@ -110,6 +110,19 @@ export function MessageBubble({ message, pendingConfirms, pendingPlanReviews, on
           )}
         </div>
       )}
+      {!isUser && message.source && (
+        <div style={{
+          fontSize: 10,
+          color: '#888',
+          marginTop: 2,
+          paddingLeft: 4,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+        }}>
+          {message.source === 'ollama' ? '🦙 Ollama' : '✨ Claude'}
+        </div>
+      )}
       {message.timestamp > 0 && (
         <div style={{
           fontSize: 11,
