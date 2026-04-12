@@ -340,6 +340,15 @@ npm start             # Start supervisor (requires prior build)
 - PII gateway (Presidio Python microservice + Docker)
   - Anonymize перед Claude API, de-anonymize перед юзером
   - Encrypted vault (AES-256) для маппинга токенов
+
+### Multilingual PII Detection
+
+Presidio analyzer is built from a custom Docker image in `presidio/` with spaCy models for en, ru, and uk. Controlled via:
+- `PII_LANGUAGES=en,ru,uk` — which languages to query (each is one parallel HTTP call)
+- `presidio/Dockerfile` — base image version and spaCy model versions
+- `presidio/multilang.yaml` — NLP engine configuration loaded by Presidio at startup
+
+First `docker compose up` takes longer because the analyzer image builds locally (~3-5 min).
 - Permission dialog в UI (confirm level tools)
 - ~~Audit log (SQLite таблица: who, what, when, result)~~ ✓ Phase 2A
 - ~~Tool registry: авто-обнаружение tools из packages/tool-*/~~ ✓ Phase 2A

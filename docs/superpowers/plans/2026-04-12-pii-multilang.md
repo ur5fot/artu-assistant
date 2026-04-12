@@ -532,17 +532,17 @@ git commit -m "feat: read PII_LANGUAGES env var for multi-language analysis"
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Full build**
+- [x] **Step 1: Full build**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build`
 Expected: PASS — all packages compile
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
 
 Run: `cd /Users/dim/code/R2-D2 && npm test`
 Expected: All tests pass
 
-- [ ] **Step 3: Start services and verify multilingual PII detection**
+- [x] **Step 3: Start services and verify multilingual PII detection**
 
 Run: `cd /Users/dim/code/R2-D2 && docker compose up -d presidio-analyzer presidio-anonymizer`
 
@@ -554,7 +554,7 @@ Expected: Array with at least EMAIL_ADDRESS entity; may also include PERSON (Д�
 Run: `curl -s -X POST http://localhost:5002/analyze -H "Content-Type: application/json" -d '{"text":"Мене звати Діма","language":"uk","entities":["PERSON"]}' | python3 -m json.tool`
 Expected: Array, may include PERSON entity
 
-- [ ] **Step 4: Start server and test mixed-language chat**
+- [x] **Step 4: Start server and test mixed-language chat**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run dev`
 
@@ -568,7 +568,7 @@ Verify:
 - Email is masked (EMAIL_ADDRESS from en engine)
 - If PERSON detection works for Ukrainian spaCy model, Діма is also masked
 
-- [ ] **Step 5: Update AGENTS.md documentation**
+- [x] **Step 5: Update AGENTS.md documentation**
 
 In `/Users/dim/code/R2-D2/AGENTS.md`, add a note about the custom Presidio image.
 
@@ -585,7 +585,7 @@ Presidio analyzer is built from a custom Docker image in `presidio/` with spaCy 
 First `docker compose up` takes longer because the analyzer image builds locally (~3-5 min).
 ```
 
-- [ ] **Step 6: Commit final docs**
+- [x] **Step 6: Commit final docs**
 
 ```bash
 git add AGENTS.md
