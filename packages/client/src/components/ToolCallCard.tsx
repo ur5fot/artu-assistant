@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ToolCall } from '@r2/shared';
+import { DiffView } from './DiffView';
 
 interface Props {
   toolCall: ToolCall;
@@ -153,13 +154,7 @@ function CodeTaskCard({ toolCall }: { toolCall: ToolCall }) {
             {showFullDiff ? 'Hide diff ▲' : 'Show diff ▼'}
           </button>
           {showFullDiff && (
-            <pre style={{
-              background: '#1e293b', color: '#e2e8f0',
-              padding: 10, borderRadius: 6, fontSize: 11,
-              overflowX: 'auto', maxHeight: 400, margin: 0,
-            }}>
-              <code>{data.fullDiff ?? data.shortDiff}</code>
-            </pre>
+            <DiffView diff={data.fullDiff ?? data.shortDiff ?? ''} />
           )}
         </div>
       )}

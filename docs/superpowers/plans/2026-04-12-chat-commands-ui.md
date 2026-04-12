@@ -363,12 +363,12 @@ git commit -m "feat: intercept slash commands in chat route"
 - Modify: `packages/client/src/theme.css`
 - Modify: `packages/client/package.json`
 
-- [ ] **Step 1: Install diff2html**
+- [x] **Step 1: Install diff2html**
 
 Run: `cd /Users/dim/code/R2-D2 && npm install diff2html -w packages/client`
 Expected: package added to client dependencies
 
-- [ ] **Step 2: Create DiffView component**
+- [x] **Step 2: Create DiffView component**
 
 Create `packages/client/src/components/DiffView.tsx`:
 
@@ -400,7 +400,7 @@ export function DiffView({ diff }: Props) {
 }
 ```
 
-- [ ] **Step 3: Add dark theme overrides for diff2html**
+- [x] **Step 3: Add dark theme overrides for diff2html**
 
 In `packages/client/src/theme.css`, add at the end:
 
@@ -479,7 +479,7 @@ In `packages/client/src/theme.css`, add at the end:
 /* Light theme: also use dark diff (code blocks are always dark in R2) */
 ```
 
-- [ ] **Step 4: Replace raw diff in ToolCallCard**
+- [x] **Step 4: Replace raw diff in ToolCallCard**
 
 In `packages/client/src/components/ToolCallCard.tsx`, add import at top:
 
@@ -508,12 +508,12 @@ Replace the diff rendering block (lines 144-165) — the entire `{(data.shortDif
       )}
 ```
 
-- [ ] **Step 5: Build client to verify**
+- [x] **Step 5: Build client to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/client`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/client/package.json packages/client/src/components/DiffView.tsx packages/client/src/components/ToolCallCard.tsx packages/client/src/theme.css package-lock.json

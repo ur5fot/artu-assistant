@@ -122,3 +122,73 @@ input::placeholder {
   0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
   50% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.3); }
 }
+
+/* Diff view overrides */
+.r2-diff-view .d2h-wrapper {
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.r2-diff-view .d2h-file-header {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-bottom: 1px solid #334155;
+  padding: 6px 10px;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+}
+
+.r2-diff-view .d2h-file-stats {
+  font-size: 11px;
+}
+
+.r2-diff-view .d2h-file-stats .d2h-lines-added { color: #86efac; }
+.r2-diff-view .d2h-file-stats .d2h-lines-deleted { color: #fca5a5; }
+
+.r2-diff-view .d2h-code-linenumber,
+.r2-diff-view .d2h-code-line-ctn {
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+}
+
+.r2-diff-view .d2h-code-linenumber {
+  color: #475569;
+  background: #1e293b;
+  border-right: 1px solid #334155;
+}
+
+.r2-diff-view .d2h-code-line {
+  padding: 0;
+}
+
+.r2-diff-view .d2h-del {
+  background: #3b1111;
+  border-color: #5c1d1d;
+}
+.r2-diff-view .d2h-del .d2h-code-line-ctn { color: #fca5a5; }
+
+.r2-diff-view .d2h-ins {
+  background: #0b3d1a;
+  border-color: #14532d;
+}
+.r2-diff-view .d2h-ins .d2h-code-line-ctn { color: #86efac; }
+
+.r2-diff-view .d2h-cntx {
+  background: #1e293b;
+  border-color: #334155;
+}
+.r2-diff-view .d2h-cntx .d2h-code-line-ctn { color: #94a3b8; }
+
+.r2-diff-view .d2h-info {
+  background: #1e293b;
+  color: #64748b;
+  border-color: #334155;
+}
+
+.r2-diff-view .d2h-file-diff {
+  border: none;
+}
+
+.r2-diff-view .d2h-diff-table {
+  font-size: 11px;
+}
