@@ -4,11 +4,10 @@ export interface EscalationDecision {
 }
 
 const TRIGGER_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
-  { pattern: /\bI\s+(need\s+to|cannot|can'?t)\b[^.]*?\b(tool|web\s+search|search|access)\b/i, reason: 'requires tool (english)' },
-  { pattern: /\blet\s+me\s+(search|look\s+up|find)\b/i, reason: 'requires tool (english)' },
-  { pattern: /(я\s+не\s+могу|мне\s+нужно|я\s+должен)[^.]*?(поиск|инструмент|tool|доступ)/i, reason: 'requires tool (russian)' },
-  { pattern: /(потріб\w*|не\s+можу|мушу|треба)[^.]*?(зовнішн\w*|пошук\w*|інструмент\w*|доступ\w*|дан(?:і|их|ими))/i, reason: 'requires tool (ukrainian)' },
-  { pattern: /\[need\s+(search|code|file|tool)\b[^\]]*\]/i, reason: 'bracket marker' },
+  { pattern: /\bI\s+(need\s+to|cannot|can'?t)\b[^.]*?\b(tool|access)\b/i, reason: 'requires tool (english)' },
+  { pattern: /(я\s+не\s+могу|мне\s+нужно|я\s+должен)[^.]*?(инструмент|tool|доступ)/i, reason: 'requires tool (russian)' },
+  { pattern: /(потріб\w*|не\s+можу|мушу|треба)[^.]*?(зовнішн\w*|інструмент\w*|доступ\w*)/i, reason: 'requires tool (ukrainian)' },
+  { pattern: /\[need\s+(code|tool)\b[^\]]*\]/i, reason: 'bracket marker' },
 ];
 
 export function shouldEscalate(text: string): EscalationDecision {

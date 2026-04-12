@@ -1077,7 +1077,7 @@ git commit -m "feat: update Ollama prompt for native tool calling"
 **Files:**
 - Modify: `packages/server/src/ai/escalation-check.ts`
 
-- [ ] **Step 1: Remove search-specific triggers, keep tool/code markers**
+- [x] **Step 1: Remove search-specific triggers, keep tool/code markers**
 
 Now that Ollama can search natively, the `[need search: ...]` marker should no longer trigger escalation. Update `TRIGGER_PATTERNS` in `packages/server/src/ai/escalation-check.ts`:
 
@@ -1097,12 +1097,12 @@ Key changes:
 - Removed `search|file` from bracket marker pattern (Ollama handles these natively now)
 - Removed `let me search/look up/find` pattern entirely
 
-- [ ] **Step 2: Build to verify**
+- [x] **Step 2: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/ai/escalation-check.ts
