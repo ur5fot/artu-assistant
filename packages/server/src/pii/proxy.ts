@@ -29,6 +29,7 @@ export function createPiiProxy(config: PiiProxyConfig): PiiProxy {
     anonymizerUrl: config.anonymizerUrl,
     entityTypes: config.entityTypes,
     languages: config.languages,
+    partialFailure: config.mode === 'required' ? 'throw' : 'tolerate',
   });
 
   return {

@@ -26,6 +26,7 @@ interface PresidioClientConfig {
   anonymizerUrl: string;
   entityTypes: string[];
   languages: string[];
+  partialFailure?: 'throw' | 'tolerate';
 }
 
 const TIMEOUT_MS = 5000;
@@ -35,12 +36,17 @@ export class PresidioClient {
   private anonymizerUrl: string;
   private entityTypes: string[];
   private languages: string[];
+  private partialFailure: 'throw' | 'tolerate';
 
   constructor(config: PresidioClientConfig) {
+    if (config.languages.length === 0) {
+      throw new Error('PresidioClient requires at least one language');
+    }
     this.analyzerUrl = config.analyzerUrl;
     this.anonymizerUrl = config.anonymizerUrl;
     this.entityTypes = config.entityTypes;
     this.languages = config.languages;
+    this.partialFailure = config.partialFailure ?? 'throw';
   }
 
   async analyze(text: string): Promise<AnalyzerResult[]> {
@@ -77,7 +83,10 @@ export class PresidioClient {
         );
       }
     });
-    if (rejections.length === this.languages.length) {
+    const shouldThrow =
+      rejections.length > 0 &&
+      (this.partialFailure === 'throw' || rejections.length === this.languages.length);
+    if (shouldThrow) {
       throw rejections[0] instanceof Error ? rejections[0] : new Error(String(rejections[0]));
     }
     return dedupeByScore(fulfilled);
