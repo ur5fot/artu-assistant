@@ -85,7 +85,7 @@ describe('runChatRequest', () => {
   });
 
   it('Ollama success + escalate phrase calls runToolLoop after progress event', async () => {
-    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'I need to use web search' }) };
+    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'I need to use a tool for this' }) };
     const fakeRunLoop = vi.fn(async ({ onEvent }) => {
       onEvent({ type: 'text_delta', content: 'claude-answer' });
       onEvent({ type: 'done' });
@@ -272,7 +272,7 @@ describe('runChatRequest', () => {
       anonymize: vi.fn(async (t: string) => ({ text: t.replace('Dima', '<PERSON:1>'), entities: [{ type: 'PERSON', original: 'Dima' }] })),
       deanonymize: vi.fn(async (t: string) => t),
     };
-    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'I need to use web search' }) };
+    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'I need to use a tool for this' }) };
     const fakeRunLoop = vi.fn(async ({ onEvent }) => {
       onEvent({ type: 'pii_masked', entities: [{ type: 'PERSON', original: 'Dima' }] });
       onEvent({ type: 'done' });

@@ -1115,12 +1115,12 @@ git commit -m "feat: narrow escalation triggers — Ollama handles search/files 
 
 **Files:** none (manual testing)
 
-- [ ] **Step 1: Build entire project**
+- [x] **Step 1: Build entire project**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build`
 Expected: PASS — all packages compile
 
-- [ ] **Step 2: Start the server and test Ollama tool calling**
+- [x] **Step 2: Start the server and test Ollama tool calling**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run dev`
 
@@ -1130,10 +1130,10 @@ Test scenarios in the chat UI:
 3. Ask "Напиши функцію на Python" — Ollama should escalate to Claude (code_task is Claude-only)
 4. Ask "Столиця Франції?" — Ollama answers from memory, no tools
 
-- [ ] **Step 3: Verify tool permissions work with Ollama**
+- [x] **Step 3: Verify tool permissions work with Ollama**
 
 Test `file_write` via Ollama — should trigger confirmation dialog same as with Claude.
 
-- [ ] **Step 4: Verify escalation still works**
+- [x] **Step 4: Verify escalation still works**
 
 Confirm that when Ollama emits `[need tool: ...]` for Claude-only tasks, the escalation happens and Claude takes over.

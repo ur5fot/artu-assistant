@@ -13,17 +13,24 @@ describe('shouldEscalate', () => {
   });
 
   it('escalates on English tool-need phrases', () => {
-    expect(shouldEscalate('I need to use web search for this').escalate).toBe(true);
     expect(shouldEscalate('I cannot answer without a tool').escalate).toBe(true);
     expect(shouldEscalate("I can't do that without code access").escalate).toBe(true);
-    expect(shouldEscalate('Let me search for that').escalate).toBe(true);
-    expect(shouldEscalate('Let me look up the current weather').escalate).toBe(true);
+    expect(shouldEscalate('I need to use a tool for this').escalate).toBe(true);
+  });
+
+  it('does not escalate on search phrases (Ollama handles natively)', () => {
+    expect(shouldEscalate('I need to use web search for this').escalate).toBe(false);
+    expect(shouldEscalate('Let me search for that').escalate).toBe(false);
+    expect(shouldEscalate('Let me look up the current weather').escalate).toBe(false);
   });
 
   it('escalates on Russian tool-need phrases', () => {
-    expect(shouldEscalate('я не могу без доступа к поиску').escalate).toBe(true);
     expect(shouldEscalate('мне нужно использовать инструмент').escalate).toBe(true);
-    expect(shouldEscalate('я должен воспользоваться поиском').escalate).toBe(true);
+  });
+
+  it('does not escalate on Russian search phrases (Ollama handles natively)', () => {
+    expect(shouldEscalate('я должен воспользоваться поиском').escalate).toBe(false);
+    expect(shouldEscalate('мне нужно найти в интернете').escalate).toBe(false);
   });
 
   it('escalates on Ukrainian tool-need phrases', () => {
@@ -39,15 +46,15 @@ describe('shouldEscalate', () => {
   });
 
   it('escalates on bracketed tool markers', () => {
-    expect(shouldEscalate('[need search]').escalate).toBe(true);
     expect(shouldEscalate('[need code]').escalate).toBe(true);
-    expect(shouldEscalate('[need file]').escalate).toBe(true);
+    expect(shouldEscalate('[need tool: прочитати /etc/hosts]').escalate).toBe(true);
   });
 
-  it('escalates on bracketed markers with arguments', () => {
-    expect(shouldEscalate('[need search: погода Одеса завтра]').escalate).toBe(true);
-    expect(shouldEscalate('[need tool: прочитати /etc/hosts]').escalate).toBe(true);
-    expect(shouldEscalate('[need search: bitcoin price USD]').escalate).toBe(true);
+  it('does not escalate on bracketed search/file markers (Ollama handles natively)', () => {
+    expect(shouldEscalate('[need search]').escalate).toBe(false);
+    expect(shouldEscalate('[need file]').escalate).toBe(false);
+    expect(shouldEscalate('[need search: погода Одеса завтра]').escalate).toBe(false);
+    expect(shouldEscalate('[need search: bitcoin price USD]').escalate).toBe(false);
   });
 
   it('does not escalate on plain factual answer', () => {
