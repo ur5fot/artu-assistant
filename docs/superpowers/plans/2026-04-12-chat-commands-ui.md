@@ -665,7 +665,7 @@ git commit -m "feat: add bottom status bar with LLM source and response time"
 - Modify: `packages/client/src/components/Chat.tsx`
 - Modify: `packages/client/src/components/ChatInput.tsx`
 
-- [ ] **Step 1: Create CommandPalette component**
+- [x] **Step 1: Create CommandPalette component**
 
 Create `packages/client/src/components/CommandPalette.tsx`:
 
@@ -802,7 +802,7 @@ export function CommandPalette({ open, onClose, onSelect }: Props) {
 }
 ```
 
-- [ ] **Step 2: Update ChatInput to detect `/` and expose input control**
+- [x] **Step 2: Update ChatInput to detect `/` and expose input control**
 
 In `packages/client/src/components/ChatInput.tsx`, update the props and add palette trigger:
 
@@ -892,7 +892,7 @@ export function ChatInput({ onSend, disabled, onSlashTyped, inputValue, onInputC
 }
 ```
 
-- [ ] **Step 3: Integrate CommandPalette into Chat**
+- [x] **Step 3: Integrate CommandPalette into Chat**
 
 In `packages/client/src/components/Chat.tsx`, update to full integration:
 
@@ -1004,12 +1004,12 @@ export function Chat() {
 }
 ```
 
-- [ ] **Step 4: Build to verify**
+- [x] **Step 4: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/client`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/client/src/components/CommandPalette.tsx packages/client/src/components/ChatInput.tsx packages/client/src/components/Chat.tsx
