@@ -14,6 +14,7 @@ function mockRegistry(tools: Record<string, (params: any) => any> = {}): ToolReg
     name,
     description: `Mock ${name}`,
     permissionLevel: 'auto' as const,
+    provider: 'all' as const,
     parameters: { type: 'object' as const, properties: {}, required: [] },
     handler: async (params: Record<string, unknown>) => handler(params),
   }));
@@ -261,6 +262,7 @@ describe('Agentic Tool Loop', () => {
       name: 'write_file',
       description: 'Write a file',
       permissionLevel: 'confirm' as const,
+      provider: 'all' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       handler: vi.fn(async () => ({ success: true, data: 'written' })),
     }];
@@ -317,6 +319,7 @@ describe('Agentic Tool Loop', () => {
       name: 'write_file',
       description: 'Write a file',
       permissionLevel: 'confirm' as const,
+      provider: 'all' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       handler: vi.fn(async () => ({ success: true, data: 'written' })),
     }];
@@ -384,6 +387,7 @@ describe('Agentic Tool Loop', () => {
       name: 'write_file',
       description: 'Write a file',
       permissionLevel: 'confirm' as const,
+      provider: 'all' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       handler: vi.fn(async () => ({ success: true, data: 'written' })),
     }];
@@ -433,6 +437,7 @@ describe('Agentic Tool Loop', () => {
       name: 'dangerous',
       description: 'Dangerous tool',
       permissionLevel: 'forbidden' as const,
+      provider: 'all' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       handler: vi.fn(async () => ({ success: true, data: 'done' })),
     }];
@@ -546,6 +551,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       name: 'write_file',
       description: 'Write a file',
       permissionLevel: 'confirm' as const,
+      provider: 'all' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       handler: vi.fn(async () => ({ success: true, data: 'written' })),
     }];
@@ -596,6 +602,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       name: 'write_file',
       description: 'Write a file',
       permissionLevel: 'confirm' as const,
+      provider: 'all' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       handler: vi.fn(async () => ({ success: true, data: 'written' })),
     }];
@@ -650,6 +657,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       name: 'dangerous',
       description: 'Dangerous tool',
       permissionLevel: 'forbidden' as const,
+      provider: 'all' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       handler: vi.fn(async () => ({ success: true, data: 'done' })),
     }];
@@ -704,6 +712,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       name: 'write_file',
       description: 'Write a file',
       permissionLevel: 'confirm' as const,
+      provider: 'all' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       handler: vi.fn(async () => ({ success: true, data: 'written' })),
     }];
@@ -853,6 +862,7 @@ describe('Agentic Tool Loop — preCheck and autoMode', () => {
       name: 'danger_tool',
       description: 'Dangerous',
       permissionLevel: 'confirm' as const,
+      provider: 'all' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       preCheck: async () => ({ destructive: true, reason: 'test destructive' }),
       handler,
@@ -907,6 +917,7 @@ describe('Agentic Tool Loop — preCheck and autoMode', () => {
       name: 'auto_tool',
       description: 'Auto',
       permissionLevel: 'confirm' as const,
+      provider: 'all' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       preCheck: async () => ({ destructive: false, reason: '' }),
       handler: vi.fn(async (_p: any, ctx: any) => { receivedCtx = ctx; return { success: true, data: 'x' }; }),
@@ -941,6 +952,7 @@ describe('Agentic Tool Loop — preCheck and autoMode', () => {
       name: 'danger_tool',
       description: 'Dangerous',
       permissionLevel: 'confirm' as const,
+      provider: 'all' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       preCheck: async () => ({ destructive: true, reason: 'danger' }),
       handler: vi.fn(async () => ({ success: true, data: 'x' })),

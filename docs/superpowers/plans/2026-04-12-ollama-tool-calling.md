@@ -56,7 +56,7 @@ git commit -m "feat: add provider field to ToolDefinition"
 - Modify: `packages/tool-files/src/index.ts:5-104`
 - Modify: `packages/tool-code-task/src/index.ts` (find the ToolDefinition object)
 
-- [ ] **Step 1: Add `provider: 'all'` to web_search tool**
+- [x] **Step 1: Add `provider: 'all'` to web_search tool**
 
 In `packages/tool-web-search/src/index.ts`, add `provider` after `permissionLevel`:
 
@@ -69,7 +69,7 @@ export const webSearchTool = {
   // ... rest unchanged
 ```
 
-- [ ] **Step 2: Add `provider: 'all'` to all file tools**
+- [x] **Step 2: Add `provider: 'all'` to all file tools**
 
 In `packages/tool-files/src/index.ts`, add `provider: 'all' as const` after `permissionLevel` on each of the 5 tool objects (`file_read`, `file_write`, `file_list`, `file_delete`, `file_move`).
 
@@ -85,7 +85,7 @@ Example for `file_read`:
 
 Repeat for all 5 tools.
 
-- [ ] **Step 3: Add `provider: 'claude'` to code_task tool**
+- [x] **Step 3: Add `provider: 'claude'` to code_task tool**
 
 In `packages/tool-code-task/src/index.ts`, find the tool definition object and add:
 
@@ -95,12 +95,12 @@ provider: 'claude' as const,
 
 after `permissionLevel`.
 
-- [ ] **Step 4: Build all packages to verify**
+- [x] **Step 4: Build all packages to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build`
 Expected: PASS — all packages compile.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-web-search/src/index.ts packages/tool-files/src/index.ts packages/tool-code-task/src/index.ts

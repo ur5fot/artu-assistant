@@ -7,6 +7,7 @@ const tools = [
     name: 'file_read',
     description: 'Read the contents of a text file. Returns the file content as a string. Only works within the allowed directory.',
     permissionLevel: 'auto' as const,
+    provider: 'all' as const,
     parameters: {
       type: 'object' as const,
       properties: {
@@ -25,6 +26,7 @@ const tools = [
     name: 'file_write',
     description: 'Write content to a file. Creates the file if it does not exist, overwrites if it does. Creates intermediate directories as needed.',
     permissionLevel: 'confirm' as const,
+    provider: 'all' as const,
     parameters: {
       type: 'object' as const,
       properties: {
@@ -47,6 +49,7 @@ const tools = [
     name: 'file_list',
     description: 'List files and directories. Returns an array of entries with name and type (file/directory). Use recursive: true to include nested contents (max 1000 entries).',
     permissionLevel: 'auto' as const,
+    provider: 'all' as const,
     parameters: {
       type: 'object' as const,
       properties: {
@@ -65,6 +68,7 @@ const tools = [
     name: 'file_delete',
     description: 'Delete a file. Cannot delete directories.',
     permissionLevel: 'confirm' as const,
+    provider: 'all' as const,
     parameters: {
       type: 'object' as const,
       properties: {
@@ -83,6 +87,7 @@ const tools = [
     name: 'file_move',
     description: 'Move or rename a file. Creates intermediate directories for the destination if needed.',
     permissionLevel: 'confirm' as const,
+    provider: 'all' as const,
     parameters: {
       type: 'object' as const,
       properties: {

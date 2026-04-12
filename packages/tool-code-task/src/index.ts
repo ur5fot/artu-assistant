@@ -58,6 +58,7 @@ export const codeTaskTool: ToolDefinition = {
   name: 'code_task',
   description: 'Execute a coding task on R2 dev branch. Use for modifications to R2 source code itself. Runs Claude Code or ralphex in an isolated git worktree.',
   permissionLevel: 'confirm',
+  provider: 'claude',
   parameters: {
     type: 'object',
     properties: {

@@ -10,6 +10,7 @@ const mockTool: ToolDefinition = {
   name: 'test_tool',
   description: 'A test tool',
   permissionLevel: 'auto',
+  provider: 'all',
   parameters: {
     type: 'object',
     properties: { query: { type: 'string' } },
