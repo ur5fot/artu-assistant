@@ -157,7 +157,7 @@ git commit -m "feat: add getForProvider filter to tool registry"
 - Create: `packages/server/src/ai/tool-helpers.ts`
 - Modify: `packages/server/src/ai/tool-loop.ts:37-103,196-349`
 
-- [ ] **Step 1: Create tool-helpers.ts with shared functions**
+- [x] **Step 1: Create tool-helpers.ts with shared functions**
 
 Create `packages/server/src/ai/tool-helpers.ts`:
 
@@ -390,7 +390,7 @@ export async function executeToolWithPermission(params: {
 }
 ```
 
-- [ ] **Step 2: Refactor tool-loop.ts to use shared helpers**
+- [x] **Step 2: Refactor tool-loop.ts to use shared helpers**
 
 In `packages/server/src/ai/tool-loop.ts`:
 
@@ -447,12 +447,12 @@ import { requestConfirmation, buildToolContext, executeToolWithPermission, deano
 
 4. Remove now-unused imports: `logToolCall`, `getPermissionRule`, `savePermissionRule` from `../db.js`. Remove `ConfirmResponse`, `PendingConfirms` type usage if no longer needed locally (they're still needed for the `pendingConfirms` param). Remove `createPlanReviewRequester` import from local scope. Keep `PendingPlanReviews` import since it's in ToolLoopParams.
 
-- [ ] **Step 3: Build to verify**
+- [x] **Step 3: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/ai/tool-helpers.ts packages/server/src/ai/tool-loop.ts
