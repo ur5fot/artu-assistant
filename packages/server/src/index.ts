@@ -67,6 +67,13 @@ if (piiMode === 'disabled') {
   if (languages.length === 0) {
     throw new Error('PII_LANGUAGES must contain at least one language code');
   }
+  const supportedLanguages = new Set(['en', 'ru', 'uk']);
+  const invalidLanguages = languages.filter((l) => !supportedLanguages.has(l));
+  if (invalidLanguages.length > 0) {
+    throw new Error(
+      `PII_LANGUAGES contains unsupported codes: ${invalidLanguages.join(', ')}. Supported: en, ru, uk`,
+    );
+  }
   piiProxy = createPiiProxy({
     encryptionKey,
     analyzerUrl: process.env.PRESIDIO_ANALYZER_URL || 'http://localhost:5002',
