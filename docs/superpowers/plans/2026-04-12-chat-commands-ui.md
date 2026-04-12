@@ -1022,17 +1022,17 @@ git commit -m "feat: add command palette with Cmd+K and slash trigger"
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Full build**
+- [x] **Step 1: Full build**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build`
 Expected: PASS — all packages compile
 
-- [ ] **Step 2: Run existing tests**
+- [x] **Step 2: Run existing tests**
 
 Run: `cd /Users/dim/code/R2-D2 && npm test`
 Expected: All tests pass
 
-- [ ] **Step 3: Manual smoke test**
+- [x] **Step 3: Manual smoke test**
 
 Start dev server: `cd /Users/dim/code/R2-D2 && npm run dev`
 
