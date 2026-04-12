@@ -16,6 +16,7 @@ export function createTool(deps: ToolDeps): ToolDefinition {
     name: 'eval_run',
     description: 'Run all behavior evals against the current R2. Returns pass/fail summary with details. Use when user asks to check regressions or before deploying.',
     permissionLevel: 'confirm',
+    provider: 'claude' as const,
     parameters: {
       type: 'object',
       properties: {},

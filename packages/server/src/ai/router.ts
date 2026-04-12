@@ -165,25 +165,45 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     }
     params.onEvent({ type: 'assistant_source', source: 'ollama' });
 
-    const loopResult = await runOllamaToolLoop({
-      messages: anonymized.messages,
-      ollama: params.ollama!,
-      tools: ollamaTools,
-      system: getLocalSystemPrompt(),
-      onEvent: params.onEvent,
-      signal: params.signal,
-      pendingConfirms: params.pendingConfirms ?? new Map(),
-      pendingPlanReviews: params.pendingPlanReviews ?? new Map(),
-      piiProxy: params.piiProxy,
-      initialToolCalls: ollamaToolCalls,
-    });
+    let loopResult: { escalate: boolean; reason: string };
+    try {
+      loopResult = await runOllamaToolLoop({
+        messages: anonymized.messages,
+        ollama: params.ollama!,
+        tools: ollamaTools,
+        system: getLocalSystemPrompt(),
+        onEvent: params.onEvent,
+        signal: params.signal,
+        pendingConfirms: params.pendingConfirms ?? new Map(),
+        pendingPlanReviews: params.pendingPlanReviews ?? new Map(),
+        piiProxy: params.piiProxy,
+        initialToolCalls: ollamaToolCalls,
+      });
+    } catch (err) {
+      if (params.signal?.aborted) return;
+      // Do NOT fall back to Claude here — some tools may have already
+      // executed inside the loop.  Replaying from the original messages
+      // would risk duplicate side-effects (writes, deploys, etc.).
+      console.error(
+        '[router] Ollama tool-loop failed (not falling back — tools may have executed):',
+        err instanceof Error ? err.message : err,
+      );
+      params.onEvent({
+        type: 'text_delta',
+        content: 'An error occurred during tool execution. Please try again.',
+      });
+      params.onEvent({ type: 'done' });
+      return;
+    }
 
     if (loopResult.escalate) {
       await emitEscalationAndFallback(params, loopResult.reason);
       return;
     }
 
-    params.onEvent({ type: 'done' });
+    if (!params.signal?.aborted) {
+      params.onEvent({ type: 'done' });
+    }
     return;
   }
 

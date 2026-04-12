@@ -207,9 +207,16 @@ export async function executeToolWithPermission(params: {
     }
   }
 
-  // Audit log
+  // Audit log — anonymize input before writing to avoid PII at rest
   try {
-    logToolCall({ toolName: toolDef.name, input, result, success: result.success, durationMs });
+    const anonInput = await piiProxy.anonymize(JSON.stringify(input));
+    let logInput: Record<string, unknown>;
+    try {
+      logInput = JSON.parse(anonInput.text) as Record<string, unknown>;
+    } catch {
+      logInput = { _raw: anonInput.text };
+    }
+    logToolCall({ toolName: toolDef.name, input: logInput, result, success: result.success, durationMs });
   } catch (err) {
     console.error('Audit log write failed:', err instanceof Error ? err.message : err);
   }

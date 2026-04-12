@@ -54,6 +54,7 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
   const loopMessages: OllamaLoopMessage[] = [...params.messages];
   let iterations = 0;
   let pendingToolCalls: OllamaToolCall[] | undefined = params.initialToolCalls;
+  let toolsExecuted = false;
 
   while (iterations < MAX_ITERATIONS) {
     if (signal?.aborted) return { escalate: false, reason: '' };
@@ -83,9 +84,14 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
 
     // No tool calls — check for escalation or return text
     if (!toolCalls) {
-      const decision = shouldEscalate(text);
-      if (decision.escalate) {
-        return { escalate: true, reason: decision.reason };
+      // Only escalate if no tools were executed yet — otherwise Claude
+      // would replay already-executed tools from the original messages,
+      // risking duplicate side-effects (writes, deploys, etc.).
+      if (!toolsExecuted) {
+        const decision = shouldEscalate(text);
+        if (decision.escalate) {
+          return { escalate: true, reason: decision.reason };
+        }
       }
 
       // Deanonymize and emit final text
@@ -134,6 +140,8 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
       const resultContent = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent);
       toolResults.push({ call: tc, content: resultContent });
     }
+
+    toolsExecuted = true;
 
     // Add assistant message with tool_calls + individual tool results to history.
     // Ollama expects the assistant turn to carry the tool_calls array, and each

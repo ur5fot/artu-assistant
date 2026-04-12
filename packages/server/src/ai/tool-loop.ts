@@ -31,7 +31,8 @@ export async function runToolLoop({
   pendingPlanReviews = new Map(),
   piiProxy,
 }: ToolLoopParams): Promise<void> {
-  const allTools = registry.getAll();
+  const allTools = registry.getForProvider('claude');
+  const allowedToolMap = new Map(allTools.map((t) => [t.name, t]));
   const tools: Tool[] = allTools.map(toClaudeTool) as Tool[];
   let currentMessages: MessageParam[] = [...messages];
   let iterations = 0;
@@ -105,7 +106,7 @@ export async function runToolLoop({
 
       const deanonInput = await deanonDeep(block.input, piiProxy) as Record<string, unknown>;
 
-      const toolDef = registry.get(block.name);
+      const toolDef = allowedToolMap.get(block.name);
       if (!toolDef) {
         const toolCall: ToolCall = { id: block.id, name: block.name, input: deanonInput, status: 'running' };
         onEvent({ type: 'tool_call_start', toolCall });

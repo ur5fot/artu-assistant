@@ -877,7 +877,7 @@ describe('Agentic Tool Loop — preCheck and autoMode', () => {
       handler,
     }];
 
-    const registry: any = { register: vi.fn(), get: (n: string) => toolDefs.find((t) => t.name === n), getAll: () => toolDefs };
+    const registry: any = { register: vi.fn(), get: (n: string) => toolDefs.find((t) => t.name === n), getAll: () => toolDefs, getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all') };
 
     const events: SSEEvent[] = [];
     const pendingConfirms = new Map();
@@ -932,7 +932,7 @@ describe('Agentic Tool Loop — preCheck and autoMode', () => {
       handler: vi.fn(async (_p: any, ctx: any) => { receivedCtx = ctx; return { success: true, data: 'x' }; }),
     }];
 
-    const registry: any = { register: vi.fn(), get: (n: string) => toolDefs.find((t) => t.name === n), getAll: () => toolDefs };
+    const registry: any = { register: vi.fn(), get: (n: string) => toolDefs.find((t) => t.name === n), getAll: () => toolDefs, getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all') };
 
     await runToolLoop({
       messages: [{ role: 'user', content: 'do it' }],
@@ -967,7 +967,7 @@ describe('Agentic Tool Loop — preCheck and autoMode', () => {
       handler: vi.fn(async () => ({ success: true, data: 'x' })),
     }];
 
-    const registry: any = { register: vi.fn(), get: (n: string) => toolDefs.find((t) => t.name === n), getAll: () => toolDefs };
+    const registry: any = { register: vi.fn(), get: (n: string) => toolDefs.find((t) => t.name === n), getAll: () => toolDefs, getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all') };
 
     const events: SSEEvent[] = [];
     const pendingConfirms = new Map();
