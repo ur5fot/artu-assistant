@@ -21,14 +21,18 @@ export function useChat() {
   const [pendingConfirms, setPendingConfirms] = useState<Map<string, PendingConfirm>>(new Map());
   const [pendingPlanReviews, setPendingPlanReviews] = useState<Map<string, PendingPlanReview>>(new Map());
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [lastResponseTime, setLastResponseTime] = useState<number | null>(null);
+  const [lastSource, setLastSource] = useState<'ollama' | 'claude' | null>(null);
   const connectionRef = useRef<SSEConnection | null>(null);
 
   const sendingRef = useRef(false);
+  const sendStartRef = useRef<number>(0);
 
   const send = useCallback((text: string) => {
     if (!text.trim() || sendingRef.current || !historyLoaded) return;
 
     sendingRef.current = true;
+    sendStartRef.current = Date.now();
     setError(null);
     setLoading(true);
 
@@ -193,6 +197,7 @@ export function useChat() {
 
           case 'assistant_source':
             source = event.source;
+            setLastSource(event.source);
             setMessages((prev) => {
               const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
               return [
@@ -236,6 +241,7 @@ export function useChat() {
             break;
 
           case 'done':
+            setLastResponseTime((Date.now() - sendStartRef.current) / 1000);
             setLoading(false);
             sendingRef.current = false;
             break;
@@ -342,5 +348,7 @@ export function useChat() {
     pendingPlanReviews,
     respondToPlanReview,
     historyLoaded,
+    lastResponseTime,
+    lastSource,
   };
 }

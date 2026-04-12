@@ -529,7 +529,7 @@ git commit -m "feat: add colored unified diff view with diff2html"
 - Modify: `packages/client/src/components/Chat.tsx`
 - Modify: `packages/client/src/hooks/useChat.ts:238-241`
 
-- [ ] **Step 1: Add response time tracking to useChat**
+- [x] **Step 1: Add response time tracking to useChat**
 
 In `packages/client/src/hooks/useChat.ts`, add new state:
 
@@ -584,7 +584,7 @@ Update the return object (line 334) to include new values:
   };
 ```
 
-- [ ] **Step 2: Create StatusBar component**
+- [x] **Step 2: Create StatusBar component**
 
 Create `packages/client/src/components/StatusBar.tsx`:
 
@@ -619,7 +619,7 @@ export function StatusBar({ source, messageCount, responseTime }: Props) {
 }
 ```
 
-- [ ] **Step 3: Integrate StatusBar into Chat**
+- [x] **Step 3: Integrate StatusBar into Chat**
 
 In `packages/client/src/components/Chat.tsx`, add import:
 
@@ -644,12 +644,12 @@ Add StatusBar after ChatInput (line 47):
       />
 ```
 
-- [ ] **Step 4: Build to verify**
+- [x] **Step 4: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/client`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/client/src/components/StatusBar.tsx packages/client/src/components/Chat.tsx packages/client/src/hooks/useChat.ts

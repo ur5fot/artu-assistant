@@ -2,9 +2,10 @@ import { useRef, useEffect } from 'react';
 import { useChat } from '../hooks/useChat';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
+import { StatusBar } from './StatusBar';
 
 export function Chat() {
-  const { messages, loading, error, send, pendingConfirms, respondToConfirm, pendingPlanReviews, respondToPlanReview, historyLoaded } = useChat();
+  const { messages, loading, error, send, pendingConfirms, respondToConfirm, pendingPlanReviews, respondToPlanReview, historyLoaded, lastResponseTime, lastSource } = useChat();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,6 +46,11 @@ export function Chat() {
         <div ref={bottomRef} />
       </div>
       <ChatInput onSend={send} disabled={loading || !historyLoaded} />
+      <StatusBar
+        source={lastSource}
+        messageCount={messages.length}
+        responseTime={lastResponseTime}
+      />
     </>
   );
 }
