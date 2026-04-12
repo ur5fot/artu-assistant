@@ -92,12 +92,18 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
         if (decision.escalate) {
           return { escalate: true, reason: decision.reason };
         }
+      } else {
+        // Strip escalation markers from text — we can't escalate after tools
+        // executed, so don't leak raw markers like [need tool: ...] to the user.
+        text = text.replace(/\[need\s+(?:code|tool)\b[^\]]*\]/gi, '').trim();
       }
 
       // Deanonymize and emit final text
       const deanonText = await piiProxy.deanonymize(text);
       if (signal?.aborted) return { escalate: false, reason: '' };
-      onEvent({ type: 'text_delta', content: deanonText });
+      if (deanonText) {
+        onEvent({ type: 'text_delta', content: deanonText });
+      }
       return { escalate: false, reason: '' };
     }
 
