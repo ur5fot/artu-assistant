@@ -236,6 +236,7 @@ export function useChat() {
 
           case 'error':
             setError(event.message);
+            setLastResponseTime(null);
             setLoading(false);
             sendingRef.current = false;
             break;
@@ -249,6 +250,7 @@ export function useChat() {
       },
       onError: (err) => {
         setError(err.message);
+        setLastResponseTime(null);
         setLoading(false);
         sendingRef.current = false;
       },

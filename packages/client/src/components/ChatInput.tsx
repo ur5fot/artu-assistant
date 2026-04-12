@@ -1,35 +1,28 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import { useRef, useEffect, type KeyboardEvent } from 'react';
 
 interface Props {
   onSend: (text: string) => void;
   disabled: boolean;
   onSlashTyped?: () => void;
-  inputValue?: string;
-  onInputChange?: (value: string) => void;
+  inputValue: string;
+  onInputChange: (value: string) => void;
 }
 
 export function ChatInput({ onSend, disabled, onSlashTyped, inputValue, onInputChange }: Props) {
-  const [localInput, setLocalInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Support controlled mode from parent (for command palette injection)
-  const input = inputValue !== undefined ? inputValue : localInput;
-  const setInput = (v: string) => {
-    if (onInputChange) onInputChange(v);
-    else setLocalInput(v);
-  };
-
-  // Focus input when inputValue changes externally (command selected)
+  // Focus input when command palette injects a value
+  const prevValueRef = useRef(inputValue);
   useEffect(() => {
-    if (inputValue !== undefined) {
+    if (inputValue !== prevValueRef.current && inputValue.startsWith('/')) {
       inputRef.current?.focus();
     }
+    prevValueRef.current = inputValue;
   }, [inputValue]);
 
   const handleSend = () => {
-    if (!input.trim() || disabled) return;
-    onSend(input);
-    setInput('');
+    if (!inputValue.trim() || disabled) return;
+    onSend(inputValue);
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -41,7 +34,7 @@ export function ChatInput({ onSend, disabled, onSlashTyped, inputValue, onInputC
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    setInput(val);
+    onInputChange(val);
     // If user just typed `/` as the first character, open palette
     if (val === '/' && onSlashTyped) {
       onSlashTyped();
@@ -57,7 +50,7 @@ export function ChatInput({ onSend, disabled, onSlashTyped, inputValue, onInputC
     }}>
       <input
         ref={inputRef}
-        value={input}
+        value={inputValue}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder="Message R2..."
@@ -70,12 +63,12 @@ export function ChatInput({ onSend, disabled, onSlashTyped, inputValue, onInputC
       />
       <button
         onClick={handleSend}
-        disabled={disabled || !input.trim()}
+        disabled={disabled || !inputValue.trim()}
         style={{
           padding: '10px 20px', borderRadius: 10, border: 'none',
           background: 'var(--primary)', color: 'var(--primary-text)', fontSize: 14,
           cursor: disabled ? 'not-allowed' : 'pointer',
-          opacity: disabled || !input.trim() ? 0.5 : 1,
+          opacity: disabled || !inputValue.trim() ? 0.5 : 1,
         }}
       >Send</button>
     </div>

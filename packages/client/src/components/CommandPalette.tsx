@@ -21,7 +21,10 @@ export function CommandPalette({ open, onClose, onSelect }: Props) {
 
   useEffect(() => {
     fetch('/api/commands')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(setCommands)
       .catch((err) => console.error('Failed to load commands:', err));
   }, []);

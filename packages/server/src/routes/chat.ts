@@ -82,7 +82,22 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
       return;
     }
 
-    // Check if the latest user message is a slash command
+    // Save the original user message to DB before any rewriting
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'user') {
+      try {
+        saveMessage({
+          messageId: lastMsg.id || crypto.randomUUID(),
+          role: 'user',
+          content: lastMsg.content,
+          timestamp: lastMsg.timestamp || Date.now(),
+        });
+      } catch (err) {
+        console.error('Failed to save user message:', err instanceof Error ? err.message : err);
+      }
+    }
+
+    // Check if the latest user message is a slash command and rewrite for LLM
     const lastUserMsg = messages[messages.length - 1];
     if (lastUserMsg?.role === 'user' && typeof lastUserMsg.content === 'string') {
       const match = lastUserMsg.content.match(/^\/(\S+)\s*(.*)/s);
@@ -113,21 +128,6 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
           messages = rewritten;
         }
         // If command not found, fall through — send as normal message to LLM
-      }
-    }
-
-    // Save the latest user message to DB
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg && lastMsg.role === 'user') {
-      try {
-        saveMessage({
-          messageId: lastMsg.id || crypto.randomUUID(),
-          role: 'user',
-          content: lastMsg.content,
-          timestamp: lastMsg.timestamp || Date.now(),
-        });
-      } catch (err) {
-        console.error('Failed to save user message:', err instanceof Error ? err.message : err);
       }
     }
 

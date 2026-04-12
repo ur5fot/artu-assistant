@@ -10,6 +10,8 @@ function fakeRegistry() {
     get: vi.fn(),
     getAll: vi.fn().mockReturnValue([]),
     getForProvider: vi.fn().mockReturnValue([]),
+    getCommands: vi.fn().mockReturnValue([]),
+    getByCommandName: vi.fn().mockReturnValue(undefined),
   };
 }
 
