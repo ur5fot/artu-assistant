@@ -15,7 +15,7 @@
 **Files:**
 - Modify: `packages/shared/src/types.ts:42-54`
 
-- [ ] **Step 1: Add command field to ToolDefinition interface**
+- [x] **Step 1: Add command field to ToolDefinition interface**
 
 In `packages/shared/src/types.ts`, add `command` after `preCheck`:
 
@@ -44,12 +44,12 @@ export interface ToolDefinition {
 }
 ```
 
-- [ ] **Step 2: Build shared to verify**
+- [x] **Step 2: Build shared to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/shared`
 Expected: PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/shared/src/types.ts

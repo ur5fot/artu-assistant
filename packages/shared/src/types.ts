@@ -51,6 +51,15 @@ export interface ToolDefinition {
   };
   handler: (params: Record<string, unknown>, ctx?: ToolContext) => Promise<ToolResult>;
   preCheck?: (input: Record<string, unknown>) => Promise<{ destructive: boolean; reason: string }>;
+  command?: {
+    name: string;
+    description: string;
+    params?: Array<{
+      name: string;
+      required: boolean;
+      description?: string;
+    }>;
+  };
 }
 
 export type SSEEvent =
