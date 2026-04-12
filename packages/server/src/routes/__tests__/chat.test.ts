@@ -321,7 +321,7 @@ describe('POST /api/chat', () => {
 
     expect(reg.getByCommandName).toHaveBeenCalledWith('пошук');
     expect(receivedMessages[0].content).toContain('Use tool "web_search"');
-    expect(receivedMessages[0].content).toContain('query: hello world');
+    expect(receivedMessages[0].content).toContain('"query":"hello world"');
   });
 
   it('rewrites slash command with optional params', async () => {
@@ -358,7 +358,85 @@ describe('POST /api/chat', () => {
       .expect(200);
 
     expect(receivedMessages[0].content).toContain('Use tool "file_list"');
-    expect(receivedMessages[0].content).toContain('path: src');
+    expect(receivedMessages[0].content).toContain('"path":"src"');
+  });
+
+  it('rewrites slash command with multiple required params', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue({
+      name: 'file_move',
+      provider: 'all',
+      command: {
+        name: 'перемістити',
+        params: [
+          { name: 'source', required: true },
+          { name: 'destination', required: true },
+        ],
+      },
+    });
+
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/перемістити old.txt new path/file.txt' }] })
+      .expect(200);
+
+    expect(receivedMessages[0].content).toContain('Use tool "file_move"');
+    expect(receivedMessages[0].content).toContain('"source":"old.txt"');
+    expect(receivedMessages[0].content).toContain('"destination":"new path/file.txt"');
+  });
+
+  it('sets forceProvider for claude-only tools', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue({
+      name: 'code_task',
+      provider: 'claude',
+      command: {
+        name: 'задача',
+        params: [{ name: 'task', required: true }],
+      },
+    });
+
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/задача fix the bug' }] })
+      .expect(200);
+
+    expect(receivedMessages[0].content).toContain('Use tool "code_task"');
+    expect(receivedMessages[0].content).toContain('"task":"fix the bug"');
   });
 
   it('passes unknown slash command through as normal message', async () => {

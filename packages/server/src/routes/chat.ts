@@ -133,10 +133,10 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
           // Rewrite user message to instruct LLM to use the specific tool
           const rewritten = messages.map((m: any, i: number) => {
             if (i === messages.length - 1) {
-              const paramDesc = Object.entries(params).map(([k, v]) => `${k}: ${v}`).join(', ');
+              const paramDesc = Object.keys(params).length > 0 ? JSON.stringify(params) : 'none';
               return {
                 ...m,
-                content: `[User used command /${commandName}] Use tool "${toolDef.name}" with parameters: ${paramDesc || 'none'}. Execute the tool and respond with the result.`,
+                content: `[User used command /${commandName}] Use tool "${toolDef.name}" with parameters: ${paramDesc}. Execute the tool and respond with the result.`,
               };
             }
             return m;

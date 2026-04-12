@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 interface CommandDef {
   name: string;
@@ -37,10 +37,10 @@ export function CommandPalette({ open, onClose, onSelect }: Props) {
     }
   }, [open]);
 
-  const filtered = commands.filter((c) =>
+  const filtered = useMemo(() => commands.filter((c) =>
     c.name.toLowerCase().includes(filter.toLowerCase()) ||
     c.description.toLowerCase().includes(filter.toLowerCase()),
-  );
+  ), [commands, filter]);
 
   useEffect(() => {
     setSelectedIndex(0);

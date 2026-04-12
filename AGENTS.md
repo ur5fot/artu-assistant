@@ -213,6 +213,29 @@ data: { "type": "done" }
 ]
 ```
 
+**Available Commands:**
+
+| Command | Tool | Description |
+|---------|------|-------------|
+| /пошук | web_search | Пошук в інтернеті |
+| /читати | file_read | Прочитати файл |
+| /записати | file_write | Записати у файл |
+| /файли | file_list | Список файлів |
+| /видалити | file_delete | Видалити файл |
+| /перемістити | file_move | Перемістити файл |
+| /задача | code_task | Запустити задачу програмування |
+| /деплой | code_deploy | Задеплоїти зміни в продакшн |
+| /евал | eval_add | Додати поведінковий тест |
+| /тести | eval_run | Запустити всі поведінкові тести |
+
+### Keyboard Shortcuts (UI)
+
+- **Cmd+K** (macOS) / **Ctrl+K** (Linux/Windows) — open command palette
+- **/** (in empty input) — open command palette
+- **Arrow Up/Down** — navigate commands in palette
+- **Enter** — execute selected command
+- **Escape** — close palette
+
 ### GET /api/health
 
 **Response:** `{ "status": "R2 online", "timestamp": "ISO8601" }`

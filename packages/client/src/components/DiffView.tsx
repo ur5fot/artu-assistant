@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { html, Diff2HtmlConfig } from 'diff2html';
+import DOMPurify from 'dompurify';
 import 'diff2html/bundles/css/diff2html.min.css';
 
 interface Props {
@@ -14,7 +15,7 @@ const config: Diff2HtmlConfig = {
 };
 
 export function DiffView({ diff }: Props) {
-  const rendered = useMemo(() => html(diff, config), [diff]);
+  const rendered = useMemo(() => DOMPurify.sanitize(html(diff, config)), [diff]);
 
   return (
     <div
