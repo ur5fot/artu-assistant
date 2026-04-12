@@ -87,6 +87,21 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
   });
 }
 
+async function emitEscalationAndFallback(params: RunChatRequestParams, reason: string): Promise<void> {
+  const escalationMessage = `Escalating to Claude (${reason})`;
+  params.onEvent({
+    type: 'tool_call_start',
+    toolCall: { id: 'router', name: 'router', input: { reason }, status: 'running' },
+  });
+  params.onEvent({ type: 'tool_progress', id: 'router', message: escalationMessage });
+  params.onEvent({
+    type: 'tool_call_result',
+    id: 'router',
+    result: { success: true, display: { type: 'text', content: escalationMessage } },
+  });
+  await callClaudeFallback(params);
+}
+
 export async function runChatRequest(params: RunChatRequestParams): Promise<void> {
   const mode = process.env.LOCAL_LLM_MODE || 'enabled';
 
@@ -114,12 +129,12 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
   let ollamaText: string | null = null;
   let ollamaToolCalls: import('./ollama.js').OllamaToolCall[] | undefined;
   let piiEntities: Array<{ type: string; original: string }> = [];
+  let anonymized: AnonymizedBatch = { messages: [], entities: [] };
+  const ollamaTools = params.registry.getForProvider('ollama');
   try {
-    const anonymized = await anonymizeMessages(params.messages, params.piiProxy);
+    anonymized = await anonymizeMessages(params.messages, params.piiProxy);
     piiEntities = anonymized.entities;
 
-    // Get tools available to Ollama
-    const ollamaTools = params.registry.getForProvider('ollama');
     const ollamaToolDefs = ollamaTools.map(toOllamaToolDef);
 
     const result = await params.ollama.chat({
@@ -150,9 +165,6 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     }
     params.onEvent({ type: 'assistant_source', source: 'ollama' });
 
-    const anonymized = await anonymizeMessages(params.messages, params.piiProxy);
-    const ollamaTools = params.registry.getForProvider('ollama');
-
     const loopResult = await runOllamaToolLoop({
       messages: anonymized.messages,
       ollama: params.ollama!,
@@ -163,22 +175,11 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
       pendingConfirms: params.pendingConfirms ?? new Map(),
       pendingPlanReviews: params.pendingPlanReviews ?? new Map(),
       piiProxy: params.piiProxy,
+      initialToolCalls: ollamaToolCalls,
     });
 
     if (loopResult.escalate) {
-      // Ollama tool-loop decided to escalate — hand off to Claude
-      const escalationMessage = `Escalating to Claude (${loopResult.reason})`;
-      params.onEvent({
-        type: 'tool_call_start',
-        toolCall: { id: 'router', name: 'router', input: { reason: loopResult.reason }, status: 'running' },
-      });
-      params.onEvent({ type: 'tool_progress', id: 'router', message: escalationMessage });
-      params.onEvent({
-        type: 'tool_call_result',
-        id: 'router',
-        result: { success: true, display: { type: 'text', content: escalationMessage } },
-      });
-      await callClaudeFallback(params);
+      emitEscalationAndFallback(params, loopResult.reason);
       return;
     }
 
@@ -191,18 +192,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
 
   if (decision.escalate) {
     if (params.signal?.aborted) return;
-    const escalationMessage = `Escalating to Claude (${decision.reason})`;
-    params.onEvent({
-      type: 'tool_call_start',
-      toolCall: { id: 'router', name: 'router', input: { reason: decision.reason }, status: 'running' },
-    });
-    params.onEvent({ type: 'tool_progress', id: 'router', message: escalationMessage });
-    params.onEvent({
-      type: 'tool_call_result',
-      id: 'router',
-      result: { success: true, display: { type: 'text', content: escalationMessage } },
-    });
-    await callClaudeFallback(params);
+    emitEscalationAndFallback(params, decision.reason);
     return;
   }
 

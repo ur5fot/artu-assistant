@@ -21,6 +21,8 @@ interface OllamaToolLoopParams {
   pendingConfirms: PendingConfirms;
   pendingPlanReviews: PendingPlanReviews;
   piiProxy: PiiProxy;
+  /** Tool calls from the initial Ollama response — avoids a redundant chat() call. */
+  initialToolCalls?: OllamaToolCall[];
 }
 
 interface OllamaToolLoopResult {
@@ -51,36 +53,52 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
   // a different format for tool result messages.
   const loopMessages: OllamaLoopMessage[] = [...params.messages];
   let iterations = 0;
+  let pendingToolCalls: OllamaToolCall[] | undefined = params.initialToolCalls;
 
   while (iterations < MAX_ITERATIONS) {
     if (signal?.aborted) return { escalate: false, reason: '' };
     iterations++;
 
-    const result = await ollama.chat({
-      messages: loopMessages as MessageParam[],
-      system,
-      signal,
-      tools: ollamaTools,
-    });
+    let toolCalls: OllamaToolCall[] | undefined;
+    let text: string;
 
-    if (signal?.aborted) return { escalate: false, reason: '' };
+    if (pendingToolCalls) {
+      // Use tool calls from initial response (first iteration) — avoids
+      // a redundant ollama.chat() call.
+      toolCalls = pendingToolCalls;
+      text = '';
+      pendingToolCalls = undefined;
+    } else {
+      const result = await ollama.chat({
+        messages: loopMessages as MessageParam[],
+        system,
+        signal,
+        tools: ollamaTools,
+      });
+
+      if (signal?.aborted) return { escalate: false, reason: '' };
+      toolCalls = result.toolCalls;
+      text = result.text;
+    }
 
     // No tool calls — check for escalation or return text
-    if (!result.toolCalls) {
-      const decision = shouldEscalate(result.text);
+    if (!toolCalls) {
+      const decision = shouldEscalate(text);
       if (decision.escalate) {
         return { escalate: true, reason: decision.reason };
       }
 
       // Deanonymize and emit final text
-      const deanonText = await piiProxy.deanonymize(result.text);
+      const deanonText = await piiProxy.deanonymize(text);
       if (signal?.aborted) return { escalate: false, reason: '' };
       onEvent({ type: 'text_delta', content: deanonText });
       return { escalate: false, reason: '' };
     }
 
-    // Execute each tool call
-    for (const tc of result.toolCalls) {
+    // Execute each tool call and collect results for Ollama history
+    const toolResults: Array<{ call: OllamaToolCall; content: string }> = [];
+
+    for (const tc of toolCalls) {
       if (signal?.aborted) return { escalate: false, reason: '' };
 
       const toolDef = toolMap.get(tc.function.name);
@@ -93,10 +111,7 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
         });
         const errorResult = { success: false as const, error: `Unknown tool: ${tc.function.name}` };
         onEvent({ type: 'tool_call_result', id: blockId, result: errorResult });
-        loopMessages.push(
-          { role: 'assistant', content: `Calling tool: ${tc.function.name}` } as MessageParam,
-          { role: 'tool', content: JSON.stringify(errorResult) },
-        );
+        toolResults.push({ call: tc, content: JSON.stringify(errorResult) });
         continue;
       }
 
@@ -115,11 +130,20 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
         signal,
       });
 
-      // Add assistant tool call + tool result to history for next iteration
-      loopMessages.push(
-        { role: 'assistant', content: `Calling tool: ${toolDef.name}` } as MessageParam,
-        { role: 'tool', content: JSON.stringify(toolResult.success ? (toolResult.data ?? '') : (toolResult.error ?? 'Unknown error')) },
-      );
+      const resultContent = JSON.stringify(toolResult.success ? (toolResult.data ?? '') : (toolResult.error ?? 'Unknown error'));
+      toolResults.push({ call: tc, content: resultContent });
+    }
+
+    // Add assistant message with tool_calls + individual tool results to history.
+    // Ollama expects the assistant turn to carry the tool_calls array, and each
+    // tool result as a separate { role: 'tool' } message.
+    loopMessages.push({
+      role: 'assistant',
+      content: '',
+      tool_calls: toolCalls,
+    } as unknown as MessageParam);
+    for (const tr of toolResults) {
+      loopMessages.push({ role: 'tool', content: tr.content });
     }
   }
 

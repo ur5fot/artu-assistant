@@ -56,8 +56,13 @@ r2/
 │   │   │   │   └── chat.ts           # POST /api/chat → SSE stream
 │   │   │   ├── ai/
 │   │   │   │   ├── claude.ts         # Claude API client wrapper
-│   │   │   │   ├── prompts.ts        # System prompt
-│   │   │   │   └── tool-loop.ts      # Agentic loop с tool execution
+│   │   │   │   ├── prompts.ts        # System prompts (Claude + Ollama)
+│   │   │   │   ├── tool-loop.ts      # Claude agentic loop с tool execution
+│   │   │   │   ├── tool-helpers.ts   # Shared tool-execution helpers (permissions, audit, PII)
+│   │   │   │   ├── ollama.ts         # Ollama REST API client with native tool calling
+│   │   │   │   ├── ollama-tool-loop.ts # Ollama tool-loop (search, files natively)
+│   │   │   │   ├── router.ts         # Ollama-first router with Claude fallback
+│   │   │   │   └── escalation-check.ts # Regex heuristics for Ollama→Claude escalation
 │   │   │   ├── tools/
 │   │   │   │   ├── registry.ts       # Авто-загрузка и регистрация tools
 │   │   │   │   └── base.ts           # ToolDefinition interface
@@ -136,12 +141,13 @@ interface ToolDefinition {
   name: string;
   description: string;                              // для Claude
   permissionLevel: 'auto' | 'confirm' | 'forbidden';
+  provider: 'ollama' | 'claude' | 'all';            // which AI engine can use this tool
   parameters: {                                     // JSON Schema
     type: 'object';
     properties: Record<string, unknown>;
     required?: string[];
   };
-  handler: (params: Record<string, unknown>) => Promise<ToolResult>;
+  handler: (params: Record<string, unknown>, ctx?: ToolContext) => Promise<ToolResult>;
 }
 
 // Конвертация в формат Claude API
@@ -299,9 +305,13 @@ npm start             # Start supervisor (requires prior build)
 ## Phase 4 — CRM Integration
 
 - **4G) Local LLM router** ✓ — Ollama as first attempt for chat, Claude as fallback
-  - `packages/server/src/ai/ollama.ts` — native /api/chat client
+  - `packages/server/src/ai/ollama.ts` — native /api/chat client with tool calling support
+  - `packages/server/src/ai/ollama-tool-loop.ts` — tool-loop for Ollama (max 10 iterations)
+  - `packages/server/src/ai/tool-helpers.ts` — shared tool-execution helpers (permissions, audit, PII)
   - `packages/server/src/ai/router.ts` — runChatRequest orchestrator
   - `packages/server/src/ai/escalation-check.ts` — regex heuristics for escalation
+  - ToolDefinition has `provider: 'ollama' | 'claude' | 'all'` — controls which engine sees which tools
+  - Ollama handles `web_search` and file tools natively; escalates only for `code_task` (claude-only)
   - LOCAL_LLM_MODE=disabled kills router; ollama unreachable → silent fallback
   - Default model: qwen2.5:7b (~5 GB RAM). Run `ollama serve` + `ollama pull qwen2.5:7b` before use.
 - Справки, рапорти

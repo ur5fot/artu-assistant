@@ -39,9 +39,20 @@ export interface OllamaClient {
 interface OllamaMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
+  tool_calls?: OllamaToolCall[];
 }
 
-function toOllamaMessage(msg: MessageParam): OllamaMessage {
+function toOllamaMessage(msg: MessageParam | { role: string; content: string; tool_calls?: OllamaToolCall[] }): OllamaMessage {
+  // Tool result messages and assistant messages with tool_calls come from
+  // the ollama-tool-loop and should be passed through directly.
+  const anyMsg = msg as any;
+  if (anyMsg.role === 'tool') {
+    return { role: 'tool', content: typeof anyMsg.content === 'string' ? anyMsg.content : '' };
+  }
+  if (anyMsg.role === 'assistant' && anyMsg.tool_calls) {
+    return { role: 'assistant', content: anyMsg.content ?? '', tool_calls: anyMsg.tool_calls };
+  }
+
   let content: string;
   if (typeof msg.content === 'string') {
     content = msg.content;
