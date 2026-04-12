@@ -27,6 +27,57 @@ function addTimestamps(messages: Array<{ role: string; content: string; timestam
   }));
 }
 
+function parseCommandArgs(input: string): string[] {
+  // Shell-like tokenizer: splits on whitespace, supports "double" and 'single' quotes.
+  // Tracks `hasToken` separately from `current` so an empty quoted string ("") still
+  // emits a token — otherwise `/cmd path ""` would silently drop the empty arg and
+  // fail required-param validation even though the user passed a valid empty value.
+  const tokens: string[] = [];
+  let current = '';
+  let hasToken = false;
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (quote) {
+      if (ch === quote) { quote = null; continue; }
+      current += ch;
+      hasToken = true;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      hasToken = true;
+    } else if (/\s/.test(ch)) {
+      if (hasToken) { tokens.push(current); current = ''; hasToken = false; }
+    } else {
+      current += ch;
+      hasToken = true;
+    }
+  }
+  if (hasToken) tokens.push(current);
+  return tokens;
+}
+
+function sendSlashCommandError(res: Response, message: string, assistantId: string): void {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+  const deltaEvent: SSEEvent = { type: 'text_delta', content: message };
+  res.write(`data: ${JSON.stringify(deltaEvent)}\n\n`);
+  const doneEvent: SSEEvent = { type: 'done' };
+  res.write(`data: ${JSON.stringify(doneEvent)}\n\n`);
+  res.end();
+  try {
+    saveMessage({
+      messageId: assistantId,
+      role: 'assistant',
+      content: message,
+      timestamp: Date.now(),
+    });
+  } catch (err) {
+    console.error('Failed to save slash-command error message:', err instanceof Error ? err.message : err);
+  }
+}
+
 function sanitizeError(message: string): string {
   // Strip potentially sensitive details (API keys, internal paths, upstream provider info)
   const lower = message.toLowerCase();
@@ -111,9 +162,43 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
           const requiredParams = (toolDef.command?.params ?? []).filter((p) => p.required);
           const trimmedArgs = argsStr.trim();
 
+          // Validation: required params must be provided. Fail fast instead of
+          // letting the LLM infer values from prior context (could trigger unintended
+          // destructive tool calls such as delete/move/write).
+          if (requiredParams.length >= 1 && !trimmedArgs) {
+            const usage = requiredParams.map((p) => `<${p.name}>`).join(' ');
+            const errId = crypto.randomUUID();
+            sendSlashCommandError(
+              res,
+              `Команда /${commandName} потребує параметри. Використання: /${commandName} ${usage}`,
+              errId,
+            );
+            return;
+          }
+
           if (requiredParams.length === 1 && trimmedArgs) {
             // Single required param: entire args string is the value
             params[requiredParams[0].name] = trimmedArgs;
+          } else if (requiredParams.length >= 2 && trimmedArgs) {
+            // Multi-param: deterministic shell-like parsing (supports quoted values).
+            // First N-1 tokens map to first N-1 required params; the remainder joins
+            // into the last param (so file paths with spaces still work unquoted).
+            const tokens = parseCommandArgs(trimmedArgs);
+            if (tokens.length < requiredParams.length) {
+              const usage = requiredParams.map((p) => `<${p.name}>`).join(' ');
+              const errId = crypto.randomUUID();
+              sendSlashCommandError(
+                res,
+                `Команда /${commandName} потребує ${requiredParams.length} параметри. Використання: /${commandName} ${usage}`,
+                errId,
+              );
+              return;
+            }
+            for (let i = 0; i < requiredParams.length - 1; i++) {
+              params[requiredParams[i].name] = tokens[i];
+            }
+            const lastName = requiredParams[requiredParams.length - 1].name;
+            params[lastName] = tokens.slice(requiredParams.length - 1).join(' ');
           } else if (requiredParams.length === 0 && trimmedArgs) {
             // No required params but user provided args: pass as-is for optional params
             const optionalParams = (toolDef.command?.params ?? []).filter((p) => !p.required);
@@ -121,20 +206,12 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
               params[optionalParams[0].name] = trimmedArgs;
             }
           }
-          // For 2+ required params, don't attempt to split -- let the LLM parse from raw text
 
           // Rewrite user message to instruct LLM to use the specific tool
           const rewritten = messages.map((m: any, i: number) => {
             if (i === messages.length - 1) {
-              let instruction: string;
-              if (requiredParams.length >= 2 && trimmedArgs) {
-                // Multi-param: let LLM parse the raw user text into correct params
-                const paramList = requiredParams.map((p) => `${p.name} (${p.description || p.name})`).join(', ');
-                instruction = `[User used command /${commandName}] Use tool "${toolDef.name}". Parse the user input into parameters (${paramList}): "${trimmedArgs}". Execute the tool and respond with the result.`;
-              } else {
-                const paramDesc = Object.keys(params).length > 0 ? JSON.stringify(params) : 'none';
-                instruction = `[User used command /${commandName}] Use tool "${toolDef.name}" with parameters: ${paramDesc}. Execute the tool and respond with the result.`;
-              }
+              const paramDesc = Object.keys(params).length > 0 ? JSON.stringify(params) : 'none';
+              const instruction = `[User used command /${commandName}] Use tool "${toolDef.name}" with parameters: ${paramDesc}. Execute the tool and respond with the result.`;
               return { ...m, content: instruction };
             }
             return m;

@@ -1,4 +1,8 @@
-import { useRef, useEffect, type KeyboardEvent } from 'react';
+import { useRef, useEffect, useImperativeHandle, forwardRef, type KeyboardEvent } from 'react';
+
+export interface ChatInputHandle {
+  focus: () => void;
+}
 
 interface Props {
   onSend: (text: string) => void;
@@ -8,8 +12,15 @@ interface Props {
   onInputChange: (value: string) => void;
 }
 
-export function ChatInput({ onSend, disabled, onSlashTyped, inputValue, onInputChange }: Props) {
+export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
+  { onSend, disabled, onSlashTyped, inputValue, onInputChange },
+  ref,
+) {
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+  }), []);
 
   // Focus input when command palette injects a value
   const prevValueRef = useRef(inputValue);
@@ -73,4 +84,4 @@ export function ChatInput({ onSend, disabled, onSlashTyped, inputValue, onInputC
       >Send</button>
     </div>
   );
-}
+});

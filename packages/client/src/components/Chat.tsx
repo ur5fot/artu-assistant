@@ -1,15 +1,22 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useChat } from '../hooks/useChat';
 import { MessageBubble } from './MessageBubble';
-import { ChatInput } from './ChatInput';
+import { ChatInput, type ChatInputHandle } from './ChatInput';
 import { StatusBar } from './StatusBar';
 import { CommandPalette } from './CommandPalette';
 
 export function Chat() {
   const { messages, loading, error, send, pendingConfirms, respondToConfirm, pendingPlanReviews, respondToPlanReview, historyLoaded, lastResponseTime, lastSource } = useChat();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<ChatInputHandle>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
+
+  const closePalette = useCallback(() => {
+    setPaletteOpen(false);
+    // Restore focus so typing continues without an extra click after Escape/backdrop dismiss.
+    setTimeout(() => chatInputRef.current?.focus(), 0);
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -28,9 +35,10 @@ export function Chat() {
   }, [loading]);
 
   const handleSlashTyped = useCallback(() => {
+    // Open palette as an overlay; keep the '/' in the input so users can dismiss
+    // palette (Escape) and continue typing a command manually.
     if (!loading) {
       setPaletteOpen(true);
-      setInputValue('');
     }
   }, [loading]);
 
@@ -84,6 +92,7 @@ export function Chat() {
         <div ref={bottomRef} />
       </div>
       <ChatInput
+        ref={chatInputRef}
         onSend={handleSend}
         disabled={loading || !historyLoaded}
         onSlashTyped={handleSlashTyped}
@@ -97,7 +106,7 @@ export function Chat() {
       />
       <CommandPalette
         open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
+        onClose={closePalette}
         onSelect={handleCommandSelect}
       />
     </>

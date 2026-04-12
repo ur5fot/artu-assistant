@@ -361,7 +361,42 @@ describe('POST /api/chat', () => {
     expect(receivedMessages[0].content).toContain('"path":"src"');
   });
 
-  it('rewrites slash command with multiple required params using LLM parsing', async () => {
+  it('returns error when required slash-command args are missing', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let runLoopCalled = false;
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue({
+      name: 'file_delete',
+      provider: 'all',
+      command: {
+        name: 'видалити',
+        params: [{ name: 'path', required: true, description: 'Шлях до файлу' }],
+      },
+    });
+
+    const router = createChatRouter({
+      runLoop: async () => { runLoopCalled = true; },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+    });
+    app.use('/api', router);
+
+    const res = await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/видалити' }] })
+      .expect(200);
+
+    expect(runLoopCalled).toBe(false);
+    expect(res.text).toContain('потребує параметри');
+    expect(res.text).toContain('<path>');
+  });
+
+  it('rewrites slash command with multiple required params via deterministic parsing', async () => {
     const app = express();
     app.use(express.json());
 
@@ -398,9 +433,9 @@ describe('POST /api/chat', () => {
       .expect(200);
 
     expect(receivedMessages[0].content).toContain('Use tool "file_move"');
-    // Multi-param commands delegate parsing to LLM with raw user text
-    expect(receivedMessages[0].content).toContain('Parse the user input into parameters');
-    expect(receivedMessages[0].content).toContain('old.txt new path/file.txt');
+    // Deterministic parser: first token → source, remainder joined → destination
+    expect(receivedMessages[0].content).toContain('"source":"old.txt"');
+    expect(receivedMessages[0].content).toContain('"destination":"new path/file.txt"');
   });
 
   it('sets forceProvider for claude-only tools', async () => {
