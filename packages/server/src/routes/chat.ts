@@ -109,7 +109,19 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
           const params: Record<string, unknown> = {};
           const requiredParams = toolDef.command?.params?.filter((p) => p.required) ?? [];
           if (requiredParams.length > 0 && argsStr.trim()) {
-            params[requiredParams[0].name] = argsStr.trim();
+            if (requiredParams.length === 1) {
+              params[requiredParams[0].name] = argsStr.trim();
+            } else {
+              // Split args by whitespace: first N-1 params get one word each, last param gets the rest
+              const parts = argsStr.trim().split(/\s+/);
+              for (let i = 0; i < requiredParams.length; i++) {
+                if (i < requiredParams.length - 1) {
+                  params[requiredParams[i].name] = parts[i] ?? '';
+                } else {
+                  params[requiredParams[i].name] = parts.slice(i).join(' ');
+                }
+              }
+            }
           }
 
           // Rewrite user message to instruct LLM to use the specific tool

@@ -51,7 +51,7 @@ export function CommandPalette({ open, onClose, onSelect }: Props) {
       onClose();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setSelectedIndex((i) => filtered.length > 0 ? Math.min(i + 1, filtered.length - 1) : 0);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex((i) => Math.max(i - 1, 0));

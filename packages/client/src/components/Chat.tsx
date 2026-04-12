@@ -20,7 +20,7 @@ export function Chat() {
     const handler = (e: globalThis.KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        if (!loading) setPaletteOpen(true);
+        if (!loading) setPaletteOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handler);
