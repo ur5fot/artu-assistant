@@ -46,6 +46,7 @@ describe('PiiProxy', () => {
       analyzerUrl: 'http://localhost:5002',
       anonymizerUrl: 'http://localhost:5001',
       entityTypes: ['EMAIL_ADDRESS'],
+      languages: ['en'],
       mode: 'required',
     });
 
@@ -70,6 +71,7 @@ describe('PiiProxy', () => {
       analyzerUrl: 'http://localhost:5002',
       anonymizerUrl: 'http://localhost:5001',
       entityTypes: ['EMAIL_ADDRESS'],
+      languages: ['en'],
       mode: 'required',
     });
 
@@ -93,6 +95,7 @@ describe('PiiProxy', () => {
       analyzerUrl: 'http://localhost:5002',
       anonymizerUrl: 'http://localhost:5001',
       entityTypes: ['EMAIL_ADDRESS'],
+      languages: ['en'],
       mode: 'required',
     });
 
@@ -112,6 +115,7 @@ describe('PiiProxy', () => {
       analyzerUrl: 'http://localhost:5002',
       anonymizerUrl: 'http://localhost:5001',
       entityTypes: ['EMAIL_ADDRESS'],
+      languages: ['en'],
       mode: 'optional',
     });
 
@@ -131,6 +135,7 @@ describe('PiiProxy', () => {
       analyzerUrl: 'http://localhost:5002',
       anonymizerUrl: 'http://localhost:5001',
       entityTypes: ['EMAIL_ADDRESS'],
+      languages: ['en'],
       mode: 'required',
     });
 
@@ -163,6 +168,7 @@ describe('PiiProxy', () => {
       analyzerUrl: 'http://localhost:5002',
       anonymizerUrl: 'http://localhost:5001',
       entityTypes: ['EMAIL_ADDRESS'],
+      languages: ['en'],
       mode: 'required',
     });
 

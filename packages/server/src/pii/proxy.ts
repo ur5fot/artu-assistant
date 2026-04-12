@@ -16,6 +16,7 @@ interface PiiProxyConfig {
   analyzerUrl: string;
   anonymizerUrl: string;
   entityTypes: string[];
+  languages: string[];
   mode: 'required' | 'optional';
 }
 
@@ -27,6 +28,7 @@ export function createPiiProxy(config: PiiProxyConfig): PiiProxy {
     analyzerUrl: config.analyzerUrl,
     anonymizerUrl: config.anonymizerUrl,
     entityTypes: config.entityTypes,
+    languages: config.languages,
   });
 
   return {

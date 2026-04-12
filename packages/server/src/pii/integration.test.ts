@@ -40,6 +40,7 @@ describe('PII Pipeline Integration', () => {
       analyzerUrl: 'http://localhost:5002',
       anonymizerUrl: 'http://localhost:5001',
       entityTypes: ['EMAIL_ADDRESS', 'PHONE_NUMBER'],
+      languages: ['en'],
       mode: 'required',
     });
 
@@ -74,6 +75,7 @@ describe('PII Pipeline Integration', () => {
       analyzerUrl: 'http://localhost:5002',
       anonymizerUrl: 'http://localhost:5001',
       entityTypes: ['EMAIL_ADDRESS'],
+      languages: ['en'],
       mode: 'required',
     });
 
@@ -104,6 +106,7 @@ describe('PII Pipeline Integration', () => {
       analyzerUrl: 'http://localhost:5002',
       anonymizerUrl: 'http://localhost:5001',
       entityTypes: ['EMAIL_ADDRESS'],
+      languages: ['en'],
       mode: 'required',
     });
 
@@ -128,6 +131,7 @@ describe('PII Pipeline Integration', () => {
       analyzerUrl: 'http://localhost:5002',
       anonymizerUrl: 'http://localhost:5001',
       entityTypes: ['EMAIL_ADDRESS'],
+      languages: ['en'],
       mode: 'required',
     });
 

@@ -412,7 +412,7 @@ git commit -m "feat: PresidioClient supports parallel multi-language analyze"
 - Modify: `packages/server/src/pii/proxy.ts`
 - Modify: `packages/server/src/pii/proxy.test.ts`
 
-- [ ] **Step 1: Add languages to PiiProxyConfig**
+- [x] **Step 1: Add languages to PiiProxyConfig**
 
 In `/Users/dim/code/R2-D2/packages/server/src/pii/proxy.ts`, update the `PiiProxyConfig` interface and the `createPiiProxy` implementation:
 
@@ -438,7 +438,7 @@ And in `createPiiProxy`, update the PresidioClient instantiation (around line 26
   });
 ```
 
-- [ ] **Step 2: Update proxy.test.ts createPiiProxy call sites**
+- [x] **Step 2: Update proxy.test.ts createPiiProxy call sites**
 
 In `/Users/dim/code/R2-D2/packages/server/src/pii/proxy.test.ts`, add `languages: ['en']` to every `createPiiProxy({...})` call. There are 6 call sites at lines 44, 68, 91, 110, 129, 161. Each object literal needs an extra line:
 
@@ -455,7 +455,7 @@ In `/Users/dim/code/R2-D2/packages/server/src/pii/proxy.test.ts`, add `languages
 
 Apply the `languages: ['en'],` addition to all 6 sites. Use Edit tool to add it after `entityTypes: [...],` on each config.
 
-- [ ] **Step 3: Update integration.test.ts createPiiProxy call sites**
+- [x] **Step 3: Update integration.test.ts createPiiProxy call sites**
 
 In `/Users/dim/code/R2-D2/packages/server/src/pii/integration.test.ts`, find all `createPiiProxy({...})` calls and add `languages: ['en'],` after `entityTypes: [...],` on each.
 
@@ -464,12 +464,12 @@ Expected: list of line numbers
 
 Add `languages: ['en'],` to each config.
 
-- [ ] **Step 4: Run PII tests**
+- [x] **Step 4: Run PII tests**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/pii/`
 Expected: PASS — all tests
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/pii/proxy.ts packages/server/src/pii/proxy.test.ts packages/server/src/pii/integration.test.ts
