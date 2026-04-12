@@ -16,11 +16,11 @@
 - Create: `presidio/Dockerfile`
 - Create: `presidio/multilang.yaml`
 
-- [ ] **Step 1: Create presidio directory**
+- [x] **Step 1: Create presidio directory**
 
 Run: `mkdir -p /Users/dim/code/R2-D2/presidio`
 
-- [ ] **Step 2: Write Dockerfile**
+- [x] **Step 2: Write Dockerfile**
 
 Create `/Users/dim/code/R2-D2/presidio/Dockerfile`:
 
@@ -34,7 +34,7 @@ RUN pip install --no-cache-dir \
 COPY multilang.yaml /usr/bin/presidio-analyzer/conf/default.yaml
 ```
 
-- [ ] **Step 3: Write multilang.yaml**
+- [x] **Step 3: Write multilang.yaml**
 
 Create `/Users/dim/code/R2-D2/presidio/multilang.yaml`:
 
@@ -49,7 +49,7 @@ models:
     model_name: uk_core_news_sm
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /Users/dim/code/R2-D2

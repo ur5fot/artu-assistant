@@ -1,0 +1,8 @@
+nlp_engine_name: spacy
+models:
+  - lang_code: en
+    model_name: en_core_web_sm
+  - lang_code: ru
+    model_name: ru_core_news_sm
+  - lang_code: uk
+    model_name: uk_core_news_sm
