@@ -63,8 +63,24 @@ export class PresidioClient {
       return res.json() as Promise<AnalyzerResult[]>;
     });
 
-    const results = await Promise.all(requests);
-    return dedupeByScore(results.flat());
+    const settled = await Promise.allSettled(requests);
+    const fulfilled: AnalyzerResult[] = [];
+    const rejections: unknown[] = [];
+    settled.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        fulfilled.push(...result.value);
+      } else {
+        rejections.push(result.reason);
+        console.warn(
+          `Presidio analyzer failed for language=${this.languages[i]}:`,
+          result.reason instanceof Error ? result.reason.message : result.reason,
+        );
+      }
+    });
+    if (rejections.length === this.languages.length) {
+      throw rejections[0] instanceof Error ? rejections[0] : new Error(String(rejections[0]));
+    }
+    return dedupeByScore(fulfilled);
   }
 
   async anonymize(

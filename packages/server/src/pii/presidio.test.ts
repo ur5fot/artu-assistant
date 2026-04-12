@@ -137,7 +137,7 @@ describe('PresidioClient', () => {
     await expect(client.analyze('test')).rejects.toThrow('Presidio analyzer error: 500');
   });
 
-  it('throws if any language request fails', async () => {
+  it('returns partial results when some languages fail', async () => {
     const multiClient = new PresidioClient({
       analyzerUrl: 'http://localhost:5002',
       anonymizerUrl: 'http://localhost:5001',
@@ -146,7 +146,26 @@ describe('PresidioClient', () => {
     });
 
     mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => [] })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ entity_type: 'PERSON', start: 0, end: 4, score: 0.9 }],
+      })
+      .mockResolvedValueOnce({ ok: false, status: 500, text: async () => 'error' });
+
+    const results = await multiClient.analyze('test');
+    expect(results).toEqual([{ entity_type: 'PERSON', start: 0, end: 4, score: 0.9 }]);
+  });
+
+  it('throws only when all language requests fail', async () => {
+    const multiClient = new PresidioClient({
+      analyzerUrl: 'http://localhost:5002',
+      anonymizerUrl: 'http://localhost:5001',
+      entityTypes: ['PERSON'],
+      languages: ['en', 'ru'],
+    });
+
+    mockFetch
+      .mockResolvedValueOnce({ ok: false, status: 500, text: async () => 'error' })
       .mockResolvedValueOnce({ ok: false, status: 500, text: async () => 'error' });
 
     await expect(multiClient.analyze('test')).rejects.toThrow('Presidio analyzer error: 500');
