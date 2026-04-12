@@ -635,7 +635,7 @@ git commit -m "feat: add native tool calling support to Ollama client"
 **Files:**
 - Create: `packages/server/src/ai/ollama-tool-loop.ts`
 
-- [ ] **Step 1: Create the Ollama tool-loop**
+- [x] **Step 1: Create the Ollama tool-loop**
 
 Create `packages/server/src/ai/ollama-tool-loop.ts`:
 
@@ -772,12 +772,12 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
 
 ```
 
-- [ ] **Step 2: Build to verify**
+- [x] **Step 2: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/ai/ollama-tool-loop.ts
