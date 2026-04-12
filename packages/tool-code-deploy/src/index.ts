@@ -8,6 +8,10 @@ export function createTool(deps: ToolDeps): ToolDefinition {
     description: 'Deploy changes from dev branch to master. Runs pre-merge evals, then merges dev into master and pushes. Use after code_task is complete and user has reviewed the changes. Always requires confirmation.',
     permissionLevel: 'confirm',
     provider: 'claude' as const,
+    command: {
+      name: 'деплой',
+      description: 'Задеплоїти зміни в продакшн',
+    },
     parameters: {
       type: 'object',
       properties: {},

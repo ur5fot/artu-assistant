@@ -7,6 +7,14 @@ export const evalAddTool: ToolDefinition = {
   description: 'Save a new behavior eval for R2. Use when user says "this is wrong, should be X", or explicitly asks to remember correct behavior. Persists to data/evals.json for pre-merge regression checks.',
   permissionLevel: 'confirm',
   provider: 'claude' as const,
+  command: {
+    name: 'евал',
+    description: 'Додати поведінковий тест',
+    params: [
+      { name: 'input', required: true, description: 'Повідомлення юзера' },
+      { name: 'expected', required: true, description: 'Очікувана поведінка' },
+    ],
+  },
   parameters: {
     type: 'object',
     properties: {

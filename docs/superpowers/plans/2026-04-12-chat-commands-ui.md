@@ -68,7 +68,7 @@ git commit -m "feat: add command field to ToolDefinition"
 - Modify: `packages/tool-eval-add/src/index.ts`
 - Modify: `packages/tool-eval-run/src/index.ts`
 
-- [ ] **Step 1: Add command to web_search**
+- [x] **Step 1: Add command to web_search**
 
 In `packages/tool-web-search/src/index.ts`, add after `provider`:
 
@@ -80,7 +80,7 @@ In `packages/tool-web-search/src/index.ts`, add after `provider`:
   },
 ```
 
-- [ ] **Step 2: Add command to file tools**
+- [x] **Step 2: Add command to file tools**
 
 In `packages/tool-files/src/index.ts`, add command to each tool:
 
@@ -135,7 +135,7 @@ For `file_move`:
     },
 ```
 
-- [ ] **Step 3: Add command to code_task**
+- [x] **Step 3: Add command to code_task**
 
 In `packages/tool-code-task/src/index.ts`, find the tool definition object and add:
 
@@ -147,7 +147,7 @@ In `packages/tool-code-task/src/index.ts`, find the tool definition object and a
     },
 ```
 
-- [ ] **Step 4: Add command to code_deploy**
+- [x] **Step 4: Add command to code_deploy**
 
 In `packages/tool-code-deploy/src/index.ts`, add inside the returned object:
 
@@ -158,7 +158,7 @@ In `packages/tool-code-deploy/src/index.ts`, add inside the returned object:
     },
 ```
 
-- [ ] **Step 5: Add command to eval_add**
+- [x] **Step 5: Add command to eval_add**
 
 In `packages/tool-eval-add/src/index.ts`, add:
 
@@ -173,7 +173,7 @@ In `packages/tool-eval-add/src/index.ts`, add:
   },
 ```
 
-- [ ] **Step 6: Add command to eval_run**
+- [x] **Step 6: Add command to eval_run**
 
 In `packages/tool-eval-run/src/index.ts`, add inside the returned object:
 
@@ -184,12 +184,12 @@ In `packages/tool-eval-run/src/index.ts`, add inside the returned object:
     },
 ```
 
-- [ ] **Step 7: Build all to verify**
+- [x] **Step 7: Build all to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build`
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/tool-web-search/src/index.ts packages/tool-files/src/index.ts packages/tool-code-task/src/index.ts packages/tool-code-deploy/src/index.ts packages/tool-eval-add/src/index.ts packages/tool-eval-run/src/index.ts

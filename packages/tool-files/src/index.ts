@@ -8,6 +8,11 @@ const tools = [
     description: 'Read the contents of a text file. Returns the file content as a string. Only works within the allowed directory.',
     permissionLevel: 'auto' as const,
     provider: 'all' as const,
+    command: {
+      name: 'читати',
+      description: 'Прочитати файл',
+      params: [{ name: 'path', required: true, description: 'Шлях до файлу' }],
+    },
     parameters: {
       type: 'object' as const,
       properties: {
@@ -27,6 +32,14 @@ const tools = [
     description: 'Write content to a file. Creates the file if it does not exist, overwrites if it does. Creates intermediate directories as needed.',
     permissionLevel: 'confirm' as const,
     provider: 'all' as const,
+    command: {
+      name: 'записати',
+      description: 'Записати у файл',
+      params: [
+        { name: 'path', required: true, description: 'Шлях до файлу' },
+        { name: 'content', required: true, description: 'Вміст файлу' },
+      ],
+    },
     parameters: {
       type: 'object' as const,
       properties: {
@@ -50,6 +63,11 @@ const tools = [
     description: 'List files and directories. Returns an array of entries with name and type (file/directory). Use recursive: true to include nested contents (max 1000 entries).',
     permissionLevel: 'auto' as const,
     provider: 'all' as const,
+    command: {
+      name: 'файли',
+      description: 'Список файлів',
+      params: [{ name: 'path', required: false, description: 'Шлях до папки' }],
+    },
     parameters: {
       type: 'object' as const,
       properties: {
@@ -69,6 +87,11 @@ const tools = [
     description: 'Delete a file. Cannot delete directories.',
     permissionLevel: 'confirm' as const,
     provider: 'all' as const,
+    command: {
+      name: 'видалити',
+      description: 'Видалити файл',
+      params: [{ name: 'path', required: true, description: 'Шлях до файлу' }],
+    },
     parameters: {
       type: 'object' as const,
       properties: {
@@ -88,6 +111,14 @@ const tools = [
     description: 'Move or rename a file. Creates intermediate directories for the destination if needed.',
     permissionLevel: 'confirm' as const,
     provider: 'all' as const,
+    command: {
+      name: 'перемістити',
+      description: 'Перемістити файл',
+      params: [
+        { name: 'source', required: true, description: 'Поточний шлях' },
+        { name: 'destination', required: true, description: 'Новий шлях' },
+      ],
+    },
     parameters: {
       type: 'object' as const,
       properties: {

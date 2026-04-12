@@ -19,6 +19,11 @@ export const webSearchTool = {
   description: 'Search the web using SearXNG. Use when you need current information, facts, or answers not in your training data.',
   permissionLevel: 'auto' as const,
   provider: 'all' as const,
+  command: {
+    name: 'пошук',
+    description: 'Пошук в інтернеті',
+    params: [{ name: 'query', required: true, description: 'Пошуковий запит' }],
+  },
   parameters: {
     type: 'object' as const,
     properties: {
