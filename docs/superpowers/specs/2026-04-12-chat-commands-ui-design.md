@@ -14,16 +14,28 @@ Response format:
 ```json
 [
   {
-    "name": "task",
+    "name": "задача",
     "tool": "code_task",
-    "description": "Run a code task",
-    "params": [{ "name": "task", "required": true, "description": "Task description" }]
+    "description": "Запустити задачу програмування",
+    "params": [{ "name": "task", "required": true, "description": "Опис задачі" }]
   },
   {
-    "name": "deploy",
+    "name": "деплой",
     "tool": "code_deploy",
-    "description": "Deploy changes to production",
+    "description": "Задеплоїти зміни в продакшн",
     "params": []
+  },
+  {
+    "name": "пошук",
+    "tool": "web_search",
+    "description": "Пошук в інтернеті",
+    "params": [{ "name": "query", "required": true, "description": "Пошуковий запит" }]
+  },
+  {
+    "name": "файли",
+    "tool": "file_list",
+    "description": "Список файлів",
+    "params": [{ "name": "path", "required": false, "description": "Шлях до папки" }]
   }
 ]
 ```
@@ -48,7 +60,7 @@ Tools without `command` are invisible in the palette but still available to LLMs
 
 When a user message starts with `/`, the chat route intercepts it before sending to the LLM:
 
-1. Parse command name and arguments from the message text (e.g. `/search weather Odesa` → command: "search", args: "weather Odesa")
+1. Parse command name and arguments from the message text (e.g. `/пошук погода Одеса` → command: "пошук", args: "погода Одеса")
 2. Look up command in registry by name
 3. Map args to tool parameters (positional: first required param gets the rest of the string)
 4. Call the tool directly via tool-loop (so permissions, audit, PII all work as normal)
@@ -146,7 +158,7 @@ Currently in ToolCallCard, code_task results show a raw text diff in a dark mono
 
 - **Unknown command:** `/foo bar` where "foo" is not a registered command → send as normal message to LLM
 - **Empty command:** just `/` → open palette, don't send
-- **Command with no args when args required:** `/task` with no description → LLM asks for clarification
+- **Command with no args when args required:** `/задача` with no description → LLM asks for clarification
 - **Palette during loading:** disable palette while response is streaming
 - **Diff with binary files:** diff2html handles binary file markers gracefully
 - **No messages yet:** status bar shows "Ollama" (default) + "0 messages" + no response time
