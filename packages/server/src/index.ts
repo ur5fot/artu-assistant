@@ -13,6 +13,7 @@ import { createPermissionsRouter } from './routes/permissions.js';
 import { createPiiRouter } from './routes/pii.js';
 import { createMessagesRouter } from './routes/messages.js';
 import { createMergeRouter } from './routes/merge.js';
+import { createCommandsRouter } from './routes/commands.js';
 import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
@@ -127,6 +128,7 @@ app.use('/api', createPlanReviewRouter(pendingPlanReviews));
 app.use('/api', createPermissionsRouter());
 app.use('/api', createMessagesRouter());
 app.use('/api', createMergeRouter());
+app.use('/api', createCommandsRouter(registry));
 if (piiVault) {
   app.use('/api', createPiiRouter(piiVault));
 }

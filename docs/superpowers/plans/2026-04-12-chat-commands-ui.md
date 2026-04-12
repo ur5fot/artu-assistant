@@ -205,7 +205,7 @@ git commit -m "feat: add Ukrainian slash commands to all tools"
 - Create: `packages/server/src/routes/commands.ts`
 - Modify: `packages/server/src/index.ts:124`
 
-- [ ] **Step 1: Add getCommands to ToolRegistry**
+- [x] **Step 1: Add getCommands to ToolRegistry**
 
 In `packages/server/src/tools/registry.ts`, update the interface and implementation:
 
@@ -239,7 +239,7 @@ In `createRegistry()`, add the methods:
     },
 ```
 
-- [ ] **Step 2: Create commands route**
+- [x] **Step 2: Create commands route**
 
 Create `packages/server/src/routes/commands.ts`:
 
@@ -258,7 +258,7 @@ export function createCommandsRouter(registry: ToolRegistry): Router {
 }
 ```
 
-- [ ] **Step 3: Register commands route in index.ts**
+- [x] **Step 3: Register commands route in index.ts**
 
 In `packages/server/src/index.ts`, add import:
 
@@ -272,12 +272,12 @@ Add after the existing `app.use('/api', ...)` lines (after line 129):
 app.use('/api', createCommandsRouter(registry));
 ```
 
-- [ ] **Step 4: Build to verify**
+- [x] **Step 4: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/tools/registry.ts packages/server/src/routes/commands.ts packages/server/src/index.ts

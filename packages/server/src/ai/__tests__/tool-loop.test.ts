@@ -24,6 +24,8 @@ function mockRegistry(tools: Record<string, (params: any) => any> = {}): ToolReg
     get: (name: string) => toolDefs.find((t) => t.name === name),
     getAll: () => toolDefs,
     getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
+    getCommands: () => [],
+    getByCommandName: () => undefined,
   };
 }
 
@@ -273,6 +275,8 @@ describe('Agentic Tool Loop', () => {
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
       getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
+      getCommands: () => [],
+      getByCommandName: () => undefined,
     };
 
     const events: SSEEvent[] = [];
@@ -331,6 +335,8 @@ describe('Agentic Tool Loop', () => {
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
       getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
+      getCommands: () => [],
+      getByCommandName: () => undefined,
     };
 
     const events: SSEEvent[] = [];
@@ -400,6 +406,8 @@ describe('Agentic Tool Loop', () => {
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
       getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
+      getCommands: () => [],
+      getByCommandName: () => undefined,
     };
 
     const events: SSEEvent[] = [];
@@ -451,6 +459,8 @@ describe('Agentic Tool Loop', () => {
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
       getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
+      getCommands: () => [],
+      getByCommandName: () => undefined,
     };
 
     const events: SSEEvent[] = [];
@@ -566,6 +576,8 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
       getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
+      getCommands: () => [],
+      getByCommandName: () => undefined,
     };
 
     const events: SSEEvent[] = [];
@@ -618,6 +630,8 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
       getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
+      getCommands: () => [],
+      getByCommandName: () => undefined,
     };
 
     const pendingConfirms = new Map();
@@ -674,6 +688,8 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
       getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
+      getCommands: () => [],
+      getByCommandName: () => undefined,
     };
 
     const pendingConfirms = new Map();
@@ -730,6 +746,8 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
       getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
+      getCommands: () => [],
+      getByCommandName: () => undefined,
     };
 
     const events: SSEEvent[] = [];
