@@ -130,7 +130,8 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
         signal,
       });
 
-      const resultContent = JSON.stringify(toolResult.success ? (toolResult.data ?? '') : (toolResult.error ?? 'Unknown error'));
+      const rawContent = toolResult.success ? (toolResult.data ?? '') : (toolResult.error ?? 'Unknown error');
+      const resultContent = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent);
       toolResults.push({ call: tc, content: resultContent });
     }
 

@@ -179,7 +179,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     });
 
     if (loopResult.escalate) {
-      emitEscalationAndFallback(params, loopResult.reason);
+      await emitEscalationAndFallback(params, loopResult.reason);
       return;
     }
 
@@ -192,7 +192,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
 
   if (decision.escalate) {
     if (params.signal?.aborted) return;
-    emitEscalationAndFallback(params, decision.reason);
+    await emitEscalationAndFallback(params, decision.reason);
     return;
   }
 
