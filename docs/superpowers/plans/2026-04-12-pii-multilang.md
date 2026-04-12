@@ -484,7 +484,7 @@ git commit -m "feat: PiiProxy accepts languages in config"
 - Modify: `packages/server/src/index.ts`
 - Modify: `.env.example`
 
-- [ ] **Step 1: Read PII_LANGUAGES env var and pass to createPiiProxy**
+- [x] **Step 1: Read PII_LANGUAGES env var and pass to createPiiProxy**
 
 In `/Users/dim/code/R2-D2/packages/server/src/index.ts`, find the block starting at line 65 (where `entityTypes` is read) and update:
 
@@ -501,7 +501,7 @@ In `/Users/dim/code/R2-D2/packages/server/src/index.ts`, find the block starting
   });
 ```
 
-- [ ] **Step 2: Update .env.example**
+- [x] **Step 2: Update .env.example**
 
 In `/Users/dim/code/R2-D2/.env.example`, add a new line after `PII_ENTITY_TYPES=...`:
 
@@ -514,12 +514,12 @@ PII_LANGUAGES=en,ru,uk
 
 Place it in the PII section, near `PII_ENTITY_TYPES`.
 
-- [ ] **Step 3: Build server**
+- [x] **Step 3: Build server**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/index.ts .env.example

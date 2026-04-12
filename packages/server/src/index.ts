@@ -63,11 +63,13 @@ if (piiMode === 'disabled') {
   piiVault = new PiiVault(encryptionKey);
   piiVault.clearExpired();
   const entityTypes = (process.env.PII_ENTITY_TYPES || 'EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,IBAN_CODE').split(',');
+  const languages = (process.env.PII_LANGUAGES || 'en,ru,uk').split(',').map((s) => s.trim()).filter(Boolean);
   piiProxy = createPiiProxy({
     encryptionKey,
     analyzerUrl: process.env.PRESIDIO_ANALYZER_URL || 'http://localhost:5002',
     anonymizerUrl: process.env.PRESIDIO_ANONYMIZER_URL || 'http://localhost:5001',
     entityTypes,
+    languages,
     mode: piiMode,
   });
 }
