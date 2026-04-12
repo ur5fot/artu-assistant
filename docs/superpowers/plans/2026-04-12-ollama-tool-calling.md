@@ -466,7 +466,7 @@ git commit -m "refactor: extract shared tool-execution helpers from tool-loop"
 **Files:**
 - Modify: `packages/server/src/ai/ollama.ts`
 
-- [ ] **Step 1: Add tool types and update chat interface**
+- [x] **Step 1: Add tool types and update chat interface**
 
 In `packages/server/src/ai/ollama.ts`, update the interfaces:
 
@@ -510,7 +510,7 @@ export interface OllamaClient {
 }
 ```
 
-- [ ] **Step 2: Update toOllamaMessage to handle tool-result messages**
+- [x] **Step 2: Update toOllamaMessage to handle tool-result messages**
 
 Add support for tool role messages in the conversion. After the existing `toOllamaMessage` function, the `chat()` method needs to handle tool results. Update `toOllamaMessage` to also accept tool-result messages:
 
@@ -542,7 +542,7 @@ function toOllamaMessage(msg: MessageParam): OllamaMessage {
 }
 ```
 
-- [ ] **Step 3: Update chat() to pass tools and parse tool_calls from response**
+- [x] **Step 3: Update chat() to pass tools and parse tool_calls from response**
 
 In the `chat()` method, update the request body and response parsing:
 
@@ -599,7 +599,7 @@ In the `chat()` method, update the request body and response parsing:
 
 Note: `text` now defaults to `''` instead of throwing when missing, because tool-calling responses may have no content.
 
-- [ ] **Step 4: Add helper to convert ToolDefinition to Ollama format**
+- [x] **Step 4: Add helper to convert ToolDefinition to Ollama format**
 
 Add an exported helper function at the bottom of the file:
 
@@ -616,12 +616,12 @@ export function toOllamaToolDef(tool: { name: string; description: string; param
 }
 ```
 
-- [ ] **Step 5: Build to verify**
+- [x] **Step 5: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/ai/ollama.ts

@@ -1,13 +1,35 @@
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 
+export interface OllamaToolCall {
+  function: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
+}
+
+interface OllamaToolDef {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: 'object';
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
+  };
+}
+
 interface OllamaChatParams {
   messages: MessageParam[];
   system?: string;
   signal?: AbortSignal;
+  tools?: OllamaToolDef[];
 }
 
 interface OllamaChatResult {
   text: string;
+  toolCalls?: OllamaToolCall[];
 }
 
 export interface OllamaClient {
@@ -15,7 +37,7 @@ export interface OllamaClient {
 }
 
 interface OllamaMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
 }
 
@@ -56,11 +78,14 @@ export function createOllamaClient(): OllamaClient {
         ollamaMessages.unshift({ role: 'system', content: params.system });
       }
 
-      const body = JSON.stringify({
+      const body: Record<string, unknown> = {
         model,
         stream: false,
         messages: ollamaMessages,
-      });
+      };
+      if (params.tools && params.tools.length > 0) {
+        body.tools = params.tools;
+      }
 
       const timeoutSignal = AbortSignal.timeout(timeoutMs);
       const signal = params.signal
@@ -70,7 +95,7 @@ export function createOllamaClient(): OllamaClient {
       const res = await fetch(`${url}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body,
+        body: JSON.stringify(body),
         signal,
       });
 
@@ -90,12 +115,21 @@ export function createOllamaClient(): OllamaClient {
         throw new Error(`Ollama returned invalid JSON: ${err instanceof Error ? err.message : 'parse error'}`);
       }
 
-      const text = data?.message?.content;
-      if (typeof text !== 'string') {
-        throw new Error('Ollama response missing message.content');
-      }
+      const text = data?.message?.content ?? '';
+      const toolCalls: OllamaToolCall[] | undefined = data?.message?.tool_calls;
 
-      return { text };
+      return { text, toolCalls: toolCalls?.length ? toolCalls : undefined };
+    },
+  };
+}
+
+export function toOllamaToolDef(tool: { name: string; description: string; parameters: { type: 'object'; properties: Record<string, unknown>; required?: string[] } }): OllamaToolDef {
+  return {
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
     },
   };
 }
