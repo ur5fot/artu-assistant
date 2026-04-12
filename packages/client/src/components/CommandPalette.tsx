@@ -20,6 +20,11 @@ export function CommandPalette({ open, onClose, onSelect }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!open) return;
+    setFilter('');
+    setSelectedIndex(0);
+    setTimeout(() => inputRef.current?.focus(), 50);
+
     fetch('/api/commands')
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -27,14 +32,6 @@ export function CommandPalette({ open, onClose, onSelect }: Props) {
       })
       .then(setCommands)
       .catch((err) => console.error('Failed to load commands:', err));
-  }, []);
-
-  useEffect(() => {
-    if (open) {
-      setFilter('');
-      setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
   }, [open]);
 
   const filtered = useMemo(() => commands.filter((c) =>
