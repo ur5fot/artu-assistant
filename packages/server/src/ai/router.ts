@@ -19,6 +19,7 @@ export interface RunChatRequestParams {
   piiProxy: PiiProxy;
   ollama: OllamaClient | null;
   registry: ToolRegistry;
+  forceProvider?: 'claude';
   runLoop: (params: {
     messages: MessageParam[];
     onEvent: (event: SSEEvent) => void;
@@ -105,7 +106,7 @@ async function emitEscalationAndFallback(params: RunChatRequestParams, reason: s
 export async function runChatRequest(params: RunChatRequestParams): Promise<void> {
   const mode = process.env.LOCAL_LLM_MODE || 'enabled';
 
-  if (mode === 'disabled' || params.ollama === null) {
+  if (mode === 'disabled' || params.ollama === null || params.forceProvider === 'claude') {
     await callClaudeFallback(params);
     return;
   }

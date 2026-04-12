@@ -37,6 +37,50 @@ describe('Tool Registry', () => {
     registry.register(mockTool);
     expect(() => registry.register(mockTool)).toThrow('already registered');
   });
+
+  it('prevents duplicate command names', () => {
+    const registry = createRegistry();
+    registry.register({
+      ...mockTool,
+      name: 'tool_a',
+      command: { name: 'пошук', description: 'Search' },
+    });
+    expect(() =>
+      registry.register({
+        ...mockTool,
+        name: 'tool_b',
+        command: { name: 'пошук', description: 'Another search' },
+      }),
+    ).toThrow('Command "/пошук" already registered by tool "tool_a"');
+  });
+
+  it('returns commands list from getCommands()', () => {
+    const registry = createRegistry();
+    registry.register({
+      ...mockTool,
+      name: 'web_search',
+      command: { name: 'пошук', description: 'Пошук в інтернеті', params: [{ name: 'query', required: true }] },
+    });
+    registry.register({ ...mockTool, name: 'plain_tool' });
+
+    const cmds = registry.getCommands();
+    expect(cmds).toHaveLength(1);
+    expect(cmds[0].name).toBe('пошук');
+    expect(cmds[0].tool).toBe('web_search');
+  });
+
+  it('looks up tool by command name', () => {
+    const registry = createRegistry();
+    const tool = {
+      ...mockTool,
+      name: 'web_search',
+      command: { name: 'пошук', description: 'Search' },
+    };
+    registry.register(tool);
+
+    expect(registry.getByCommandName('пошук')).toBe(tool);
+    expect(registry.getByCommandName('nonexistent')).toBeUndefined();
+  });
 });
 
 describe('discoverTools', () => {

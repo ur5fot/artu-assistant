@@ -286,6 +286,110 @@ describe('POST /api/chat', () => {
     expect(assistantSave.toolCalls).toBeUndefined();
   });
 
+  it('rewrites slash command with single required param', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue({
+      name: 'web_search',
+      provider: 'all',
+      command: {
+        name: 'пошук',
+        params: [{ name: 'query', required: true }],
+      },
+    });
+
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/пошук hello world' }] })
+      .expect(200);
+
+    expect(reg.getByCommandName).toHaveBeenCalledWith('пошук');
+    expect(receivedMessages[0].content).toContain('Use tool "web_search"');
+    expect(receivedMessages[0].content).toContain('query: hello world');
+  });
+
+  it('rewrites slash command with optional params', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue({
+      name: 'file_list',
+      provider: 'all',
+      command: {
+        name: 'файли',
+        params: [{ name: 'path', required: false }],
+      },
+    });
+
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/файли src' }] })
+      .expect(200);
+
+    expect(receivedMessages[0].content).toContain('Use tool "file_list"');
+    expect(receivedMessages[0].content).toContain('path: src');
+  });
+
+  it('passes unknown slash command through as normal message', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const reg = fakeRegistry();
+
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/unknown test' }] })
+      .expect(200);
+
+    // Should not be rewritten — passed through as-is
+    expect(receivedMessages[0].content).toBe('/unknown test');
+  });
+
   it('sanitizes errors containing API key patterns', async () => {
     const app = express();
     app.use(express.json());

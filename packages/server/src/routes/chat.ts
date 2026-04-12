@@ -98,6 +98,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
     }
 
     // Check if the latest user message is a slash command and rewrite for LLM
+    let forceProvider: 'claude' | undefined;
     const lastUserMsg = messages[messages.length - 1];
     if (lastUserMsg?.role === 'user' && typeof lastUserMsg.content === 'string') {
       const match = lastUserMsg.content.match(/^\/(\S+)\s*(.*)/s);
@@ -105,20 +106,25 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         const [, commandName, argsStr] = match;
         const toolDef = registry.getByCommandName(commandName);
         if (toolDef) {
-          // Map positional args to tool parameters
+          // Map positional args to tool parameters (required first, then optional)
           const params: Record<string, unknown> = {};
-          const requiredParams = toolDef.command?.params?.filter((p) => p.required) ?? [];
-          if (requiredParams.length > 0 && argsStr.trim()) {
-            if (requiredParams.length === 1) {
-              params[requiredParams[0].name] = argsStr.trim();
+          const allParams = toolDef.command?.params ?? [];
+          const orderedParams = [
+            ...allParams.filter((p) => p.required),
+            ...allParams.filter((p) => !p.required),
+          ];
+          if (orderedParams.length > 0 && argsStr.trim()) {
+            if (orderedParams.length === 1) {
+              params[orderedParams[0].name] = argsStr.trim();
             } else {
               // Split args by whitespace: first N-1 params get one word each, last param gets the rest
               const parts = argsStr.trim().split(/\s+/);
-              for (let i = 0; i < requiredParams.length; i++) {
-                if (i < requiredParams.length - 1) {
-                  params[requiredParams[i].name] = parts[i] ?? '';
+              for (let i = 0; i < orderedParams.length; i++) {
+                if (i >= parts.length) break;
+                if (i < orderedParams.length - 1) {
+                  params[orderedParams[i].name] = parts[i] ?? '';
                 } else {
-                  params[requiredParams[i].name] = parts.slice(i).join(' ');
+                  params[orderedParams[i].name] = parts.slice(i).join(' ');
                 }
               }
             }
@@ -135,6 +141,11 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
             }
             return m;
           });
+
+          // Force Claude for claude-only tools (skip Ollama which can't call them)
+          if (toolDef.provider === 'claude') {
+            forceProvider = 'claude';
+          }
 
           // Replace messages with rewritten version for the rest of the handler
           messages = rewritten;
@@ -167,6 +178,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         piiProxy,
         ollama,
         registry,
+        forceProvider,
         runLoop,
         onEvent: (event: SSEEvent) => {
           // Accumulate assistant data for persistence

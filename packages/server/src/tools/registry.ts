@@ -21,6 +21,12 @@ export function createRegistry(): ToolRegistry {
       if (tools.has(tool.name)) {
         throw new Error(`Tool "${tool.name}" already registered`);
       }
+      if (tool.command) {
+        const existing = [...tools.values()].find((t) => t.command?.name === tool.command!.name);
+        if (existing) {
+          throw new Error(`Command "/${tool.command.name}" already registered by tool "${existing.name}"`);
+        }
+      }
       tools.set(tool.name, tool);
     },
 
