@@ -110,7 +110,7 @@ git commit -m "feat: build custom multilingual Presidio analyzer locally"
 - Modify: `packages/server/src/pii/presidio.ts`
 - Modify: `packages/server/src/pii/presidio.test.ts`
 
-- [ ] **Step 1: Write failing test for multi-language analyze**
+- [x] **Step 1: Write failing test for multi-language analyze**
 
 Replace the test file content of `/Users/dim/code/R2-D2/packages/server/src/pii/presidio.test.ts` with:
 
@@ -276,12 +276,12 @@ describe('PresidioClient', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/pii/presidio.test.ts`
 Expected: FAIL — tests reference `languages` field which doesn't exist yet.
 
-- [ ] **Step 3: Update PresidioClient to accept and use languages**
+- [x] **Step 3: Update PresidioClient to accept and use languages**
 
 Replace `/Users/dim/code/R2-D2/packages/server/src/pii/presidio.ts` with:
 
@@ -392,12 +392,12 @@ function dedupeByScore(results: AnalyzerResult[]): AnalyzerResult[] {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/pii/presidio.test.ts`
 Expected: PASS — all 7 tests
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/pii/presidio.ts packages/server/src/pii/presidio.test.ts

@@ -25,6 +25,7 @@ interface PresidioClientConfig {
   analyzerUrl: string;
   anonymizerUrl: string;
   entityTypes: string[];
+  languages: string[];
 }
 
 const TIMEOUT_MS = 5000;
@@ -33,30 +34,37 @@ export class PresidioClient {
   private analyzerUrl: string;
   private anonymizerUrl: string;
   private entityTypes: string[];
+  private languages: string[];
 
   constructor(config: PresidioClientConfig) {
     this.analyzerUrl = config.analyzerUrl;
     this.anonymizerUrl = config.anonymizerUrl;
     this.entityTypes = config.entityTypes;
+    this.languages = config.languages;
   }
 
   async analyze(text: string): Promise<AnalyzerResult[]> {
-    const res = await fetch(`${this.analyzerUrl}/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text,
-        language: 'en',
-        entities: this.entityTypes,
-      }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+    const requests = this.languages.map(async (language) => {
+      const res = await fetch(`${this.analyzerUrl}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          language,
+          entities: this.entityTypes,
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Presidio analyzer error: ${res.status}`);
+      }
+
+      return res.json() as Promise<AnalyzerResult[]>;
     });
 
-    if (!res.ok) {
-      throw new Error(`Presidio analyzer error: ${res.status}`);
-    }
-
-    return res.json();
+    const results = await Promise.all(requests);
+    return dedupeByScore(results.flat());
   }
 
   async anonymize(
@@ -81,4 +89,16 @@ export class PresidioClient {
 
     return res.json();
   }
+}
+
+function dedupeByScore(results: AnalyzerResult[]): AnalyzerResult[] {
+  const byKey = new Map<string, AnalyzerResult>();
+  for (const r of results) {
+    const key = `${r.entity_type}:${r.start}:${r.end}`;
+    const existing = byKey.get(key);
+    if (!existing || r.score > existing.score) {
+      byKey.set(key, r);
+    }
+  }
+  return [...byKey.values()];
 }
