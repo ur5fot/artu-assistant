@@ -114,7 +114,7 @@ git commit -m "feat: set provider on all tool packages"
 **Files:**
 - Modify: `packages/server/src/tools/registry.ts:7-31`
 
-- [ ] **Step 1: Add getForProvider method to ToolRegistry interface and implementation**
+- [x] **Step 1: Add getForProvider method to ToolRegistry interface and implementation**
 
 In `packages/server/src/tools/registry.ts`, update the interface and implementation:
 
@@ -137,12 +137,12 @@ In `createRegistry()`, add the method:
     },
 ```
 
-- [ ] **Step 2: Build to verify**
+- [x] **Step 2: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/tools/registry.ts

@@ -8,6 +8,7 @@ export interface ToolRegistry {
   register(tool: ToolDefinition): void;
   get(name: string): ToolDefinition | undefined;
   getAll(): ToolDefinition[];
+  getForProvider(provider: 'ollama' | 'claude'): ToolDefinition[];
 }
 
 export function createRegistry(): ToolRegistry {
@@ -27,6 +28,12 @@ export function createRegistry(): ToolRegistry {
 
     getAll(): ToolDefinition[] {
       return [...tools.values()];
+    },
+
+    getForProvider(provider: 'ollama' | 'claude'): ToolDefinition[] {
+      return [...tools.values()].filter(
+        (t) => t.provider === provider || t.provider === 'all',
+      );
     },
   };
 }

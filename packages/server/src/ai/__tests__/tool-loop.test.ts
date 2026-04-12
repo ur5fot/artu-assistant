@@ -23,6 +23,7 @@ function mockRegistry(tools: Record<string, (params: any) => any> = {}): ToolReg
     register: vi.fn(),
     get: (name: string) => toolDefs.find((t) => t.name === name),
     getAll: () => toolDefs,
+    getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
   };
 }
 
@@ -271,6 +272,7 @@ describe('Agentic Tool Loop', () => {
       register: vi.fn(),
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
+      getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
     };
 
     const events: SSEEvent[] = [];
@@ -328,6 +330,7 @@ describe('Agentic Tool Loop', () => {
       register: vi.fn(),
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
+      getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
     };
 
     const events: SSEEvent[] = [];
@@ -396,6 +399,7 @@ describe('Agentic Tool Loop', () => {
       register: vi.fn(),
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
+      getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
     };
 
     const events: SSEEvent[] = [];
@@ -446,6 +450,7 @@ describe('Agentic Tool Loop', () => {
       register: vi.fn(),
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
+      getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
     };
 
     const events: SSEEvent[] = [];
@@ -560,6 +565,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       register: vi.fn(),
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
+      getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
     };
 
     const events: SSEEvent[] = [];
@@ -611,6 +617,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       register: vi.fn(),
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
+      getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
     };
 
     const pendingConfirms = new Map();
@@ -666,6 +673,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       register: vi.fn(),
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
+      getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
     };
 
     const pendingConfirms = new Map();
@@ -721,6 +729,7 @@ describe('Agentic Tool Loop — Permission Rules', () => {
       register: vi.fn(),
       get: (name: string) => toolDefs.find((t) => t.name === name),
       getAll: () => toolDefs,
+      getForProvider: (provider: 'ollama' | 'claude') => toolDefs.filter((t) => (t.provider as string) === provider || t.provider === 'all'),
     };
 
     const events: SSEEvent[] = [];
