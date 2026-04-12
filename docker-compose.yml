@@ -11,7 +11,7 @@ services:
       - SEARXNG_BASE_URL=http://localhost:8888
 
   presidio-analyzer:
-    image: mcr.microsoft.com/presidio-analyzer:latest
+    build: ./presidio
     container_name: r2-presidio-analyzer
     ports:
       - "127.0.0.1:5002:3000"

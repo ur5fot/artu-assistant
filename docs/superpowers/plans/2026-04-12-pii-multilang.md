@@ -64,7 +64,7 @@ git commit -m "feat: add custom Presidio analyzer Dockerfile with ru/uk spaCy mo
 **Files:**
 - Modify: `docker-compose.yml:13-18`
 
-- [ ] **Step 1: Replace image with build**
+- [x] **Step 1: Replace image with build**
 
 In `/Users/dim/code/R2-D2/docker-compose.yml`, replace lines 13-18:
 
@@ -79,12 +79,12 @@ In `/Users/dim/code/R2-D2/docker-compose.yml`, replace lines 13-18:
 
 Keep `presidio-anonymizer` unchanged.
 
-- [ ] **Step 2: Build the new image**
+- [x] **Step 2: Build the new image**
 
 Run: `cd /Users/dim/code/R2-D2 && docker compose build presidio-analyzer`
 Expected: Build completes successfully (may take 3-5 minutes for spaCy model downloads)
 
-- [ ] **Step 3: Start analyzer and verify all three languages are loaded**
+- [x] **Step 3: Start analyzer and verify all three languages are loaded**
 
 Run: `cd /Users/dim/code/R2-D2 && docker compose up -d presidio-analyzer && sleep 10 && curl -s -X POST http://localhost:5002/analyze -H "Content-Type: application/json" -d '{"text":"Меня зовут Дима","language":"ru","entities":["PERSON"]}'`
 Expected: JSON response with PERSON entity found, not an error about language not supported.
@@ -95,7 +95,7 @@ Expected: JSON response with PERSON entity found.
 Run: `curl -s -X POST http://localhost:5002/analyze -H "Content-Type: application/json" -d '{"text":"My name is Dima","language":"en","entities":["PERSON"]}'`
 Expected: JSON response with PERSON entity found.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docker-compose.yml
