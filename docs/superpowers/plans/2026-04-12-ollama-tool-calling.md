@@ -15,7 +15,7 @@
 **Files:**
 - Modify: `packages/shared/src/types.ts:42-53`
 
-- [ ] **Step 1: Add provider to ToolDefinition interface**
+- [x] **Step 1: Add provider to ToolDefinition interface**
 
 In `packages/shared/src/types.ts`, add the `provider` field to `ToolDefinition`:
 
@@ -35,12 +35,12 @@ export interface ToolDefinition {
 }
 ```
 
-- [ ] **Step 2: Build to verify types compile**
+- [x] **Step 2: Build to verify types compile**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/shared`
 Expected: Compilation errors in tool packages that don't have `provider` yet — that's fine, we fix them in the next task.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/shared/src/types.ts

@@ -43,6 +43,7 @@ export interface ToolDefinition {
   name: string;
   description: string;
   permissionLevel: 'auto' | 'confirm' | 'forbidden';
+  provider: 'ollama' | 'claude' | 'all';
   parameters: {
     type: 'object';
     properties: Record<string, unknown>;
