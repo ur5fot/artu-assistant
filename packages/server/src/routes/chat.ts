@@ -7,6 +7,7 @@ import type { PendingConfirms } from './confirm.js';
 import type { PendingPlanReviews } from './plan-review.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import type { OllamaClient } from '../ai/ollama.js';
+import type { ToolRegistry } from '../tools/registry.js';
 import { runChatRequest } from '../ai/router.js';
 import { saveMessage } from '../db.js';
 import crypto from 'node:crypto';
@@ -55,9 +56,10 @@ interface ChatRouterDeps {
   pendingPlanReviews: PendingPlanReviews;
   piiProxy: PiiProxy;
   ollama: OllamaClient | null;
+  registry: ToolRegistry;
 }
 
-export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy, ollama }: ChatRouterDeps): Router {
+export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy, ollama, registry }: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -118,6 +120,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         pendingPlanReviews,
         piiProxy,
         ollama,
+        registry,
         runLoop,
         onEvent: (event: SSEEvent) => {
           // Accumulate assistant data for persistence

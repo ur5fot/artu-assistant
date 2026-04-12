@@ -2,6 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SSEEvent } from '@r2/shared';
 import { runChatRequest } from '../router.js';
 
+function fakeRegistry() {
+  return {
+    register: vi.fn(),
+    get: vi.fn(),
+    getAll: vi.fn().mockReturnValue([]),
+    getForProvider: vi.fn().mockReturnValue([]),
+  };
+}
+
 describe('runChatRequest', () => {
   beforeEach(() => {
     delete process.env.LOCAL_LLM_MODE;
@@ -30,6 +39,7 @@ describe('runChatRequest', () => {
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
       piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
     });
 
     expect(fakeOllama.chat).not.toHaveBeenCalled();
@@ -48,6 +58,7 @@ describe('runChatRequest', () => {
       runLoop: fakeRunLoop as any,
       ollama: null,
       piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
     });
 
     expect(fakeRunLoop).toHaveBeenCalled();
@@ -64,6 +75,7 @@ describe('runChatRequest', () => {
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
       piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
     });
 
     expect(fakeOllama.chat).toHaveBeenCalled();
@@ -86,6 +98,7 @@ describe('runChatRequest', () => {
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
       piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
     });
 
     expect(fakeOllama.chat).toHaveBeenCalled();
@@ -123,6 +136,7 @@ describe('runChatRequest', () => {
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
       piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
     });
 
     expect(fakeRunLoop).toHaveBeenCalled();
@@ -141,6 +155,7 @@ describe('runChatRequest', () => {
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
       piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
     });
 
     expect(fakeRunLoop).toHaveBeenCalled();
@@ -167,6 +182,7 @@ describe('runChatRequest', () => {
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
       piiProxy: piiProxy as any,
+      registry: fakeRegistry() as any,
     });
 
     expect(fakeOllama.chat).not.toHaveBeenCalled();
@@ -188,6 +204,7 @@ describe('runChatRequest', () => {
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
       piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
     });
 
     expect(fakeOllama.chat).toHaveBeenCalled();
@@ -213,6 +230,7 @@ describe('runChatRequest', () => {
       runLoop: vi.fn() as any,
       ollama: fakeOllama as any,
       piiProxy: piiProxy as any,
+      registry: fakeRegistry() as any,
     });
 
     expect(piiProxy.anonymize).toHaveBeenCalledWith('say hi to Dima');
@@ -242,6 +260,7 @@ describe('runChatRequest', () => {
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
       piiProxy: piiProxy as any,
+      registry: fakeRegistry() as any,
     });
 
     expect(events.some((e) => e.type === 'text_delta')).toBe(false);
@@ -266,6 +285,7 @@ describe('runChatRequest', () => {
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
       piiProxy: piiProxy as any,
+      registry: fakeRegistry() as any,
     });
 
     const piiEvents = events.filter((e) => e.type === 'pii_masked');
@@ -286,6 +306,7 @@ describe('runChatRequest', () => {
       runLoop: vi.fn() as any,
       ollama: fakeOllama as any,
       piiProxy: piiProxy as any,
+      registry: fakeRegistry() as any,
     });
 
     expect(piiProxy.anonymize).toHaveBeenCalled();

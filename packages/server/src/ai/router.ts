@@ -4,8 +4,11 @@ import type { PendingConfirms } from '../routes/confirm.js';
 import type { PendingPlanReviews } from '../routes/plan-review.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import type { OllamaClient } from './ollama.js';
+import type { ToolRegistry } from '../tools/registry.js';
 import { shouldEscalate } from './escalation-check.js';
 import { getLocalSystemPrompt } from './prompts.js';
+import { toOllamaToolDef } from './ollama.js';
+import { runOllamaToolLoop } from './ollama-tool-loop.js';
 
 export interface RunChatRequestParams {
   messages: MessageParam[];
@@ -15,6 +18,7 @@ export interface RunChatRequestParams {
   pendingPlanReviews?: PendingPlanReviews;
   piiProxy: PiiProxy;
   ollama: OllamaClient | null;
+  registry: ToolRegistry;
   runLoop: (params: {
     messages: MessageParam[];
     onEvent: (event: SSEEvent) => void;
@@ -108,16 +112,24 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
   }
 
   let ollamaText: string | null = null;
+  let ollamaToolCalls: import('./ollama.js').OllamaToolCall[] | undefined;
   let piiEntities: Array<{ type: string; original: string }> = [];
   try {
     const anonymized = await anonymizeMessages(params.messages, params.piiProxy);
     piiEntities = anonymized.entities;
+
+    // Get tools available to Ollama
+    const ollamaTools = params.registry.getForProvider('ollama');
+    const ollamaToolDefs = ollamaTools.map(toOllamaToolDef);
+
     const result = await params.ollama.chat({
       messages: anonymized.messages,
       system: getLocalSystemPrompt(),
       signal: params.signal,
+      tools: ollamaToolDefs.length > 0 ? ollamaToolDefs : undefined,
     });
     ollamaText = result.text;
+    ollamaToolCalls = result.toolCalls;
   } catch (err) {
     // Client aborted — do not waste a Claude call on a dead connection.
     if (params.signal?.aborted) return;
@@ -129,38 +141,67 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     return;
   }
 
-  const decision = shouldEscalate(ollamaText);
+  // If Ollama called tools, run the Ollama tool-loop
+  if (ollamaToolCalls) {
+    if (params.signal?.aborted) return;
+
+    if (piiEntities.length > 0) {
+      params.onEvent({ type: 'pii_masked', entities: piiEntities });
+    }
+    params.onEvent({ type: 'assistant_source', source: 'ollama' });
+
+    const anonymized = await anonymizeMessages(params.messages, params.piiProxy);
+    const ollamaTools = params.registry.getForProvider('ollama');
+
+    const loopResult = await runOllamaToolLoop({
+      messages: anonymized.messages,
+      ollama: params.ollama!,
+      tools: ollamaTools,
+      system: getLocalSystemPrompt(),
+      onEvent: params.onEvent,
+      signal: params.signal,
+      pendingConfirms: params.pendingConfirms ?? new Map(),
+      pendingPlanReviews: params.pendingPlanReviews ?? new Map(),
+      piiProxy: params.piiProxy,
+    });
+
+    if (loopResult.escalate) {
+      // Ollama tool-loop decided to escalate — hand off to Claude
+      const escalationMessage = `Escalating to Claude (${loopResult.reason})`;
+      params.onEvent({
+        type: 'tool_call_start',
+        toolCall: { id: 'router', name: 'router', input: { reason: loopResult.reason }, status: 'running' },
+      });
+      params.onEvent({ type: 'tool_progress', id: 'router', message: escalationMessage });
+      params.onEvent({
+        type: 'tool_call_result',
+        id: 'router',
+        result: { success: true, display: { type: 'text', content: escalationMessage } },
+      });
+      await callClaudeFallback(params);
+      return;
+    }
+
+    params.onEvent({ type: 'done' });
+    return;
+  }
+
+  // Text-only response — check for escalation markers
+  const decision = shouldEscalate(ollamaText!);
 
   if (decision.escalate) {
     if (params.signal?.aborted) return;
-    // Synthesize a pseudo tool call so the escalation is visible in the UI.
-    // A bare tool_progress event would be dropped by the client handler,
-    // which only applies progress to an existing toolCalls entry.
     const escalationMessage = `Escalating to Claude (${decision.reason})`;
     params.onEvent({
       type: 'tool_call_start',
-      toolCall: {
-        id: 'router',
-        name: 'router',
-        input: { reason: decision.reason },
-        status: 'running',
-      },
+      toolCall: { id: 'router', name: 'router', input: { reason: decision.reason }, status: 'running' },
     });
-    params.onEvent({
-      type: 'tool_progress',
-      id: 'router',
-      message: escalationMessage,
-    });
+    params.onEvent({ type: 'tool_progress', id: 'router', message: escalationMessage });
     params.onEvent({
       type: 'tool_call_result',
       id: 'router',
-      result: {
-        success: true,
-        display: { type: 'text', content: escalationMessage },
-      },
+      result: { success: true, display: { type: 'text', content: escalationMessage } },
     });
-    // pii_masked is intentionally not emitted here — tool-loop will
-    // re-anonymize from the original messages and emit its own event.
     await callClaudeFallback(params);
     return;
   }
@@ -169,7 +210,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     params.onEvent({ type: 'pii_masked', entities: piiEntities });
   }
 
-  const deanonText = await params.piiProxy.deanonymize(ollamaText);
+  const deanonText = await params.piiProxy.deanonymize(ollamaText!);
   if (params.signal?.aborted) return;
   params.onEvent({ type: 'assistant_source', source: 'ollama' });
   params.onEvent({ type: 'text_delta', content: deanonText });

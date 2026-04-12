@@ -118,6 +118,7 @@ const chatRouter = createChatRouter({
   pendingPlanReviews,
   piiProxy,
   ollama,
+  registry,
 });
 
 app.use('/api', chatRouter);

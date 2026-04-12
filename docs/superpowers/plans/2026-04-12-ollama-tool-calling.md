@@ -791,7 +791,7 @@ git commit -m "feat: add Ollama tool-loop for native tool calling"
 **Files:**
 - Modify: `packages/server/src/ai/router.ts`
 
-- [ ] **Step 1: Add registry and tool-loop imports to RunChatRequestParams**
+- [x] **Step 1: Add registry and tool-loop imports to RunChatRequestParams**
 
 In `packages/server/src/ai/router.ts`, update imports and params:
 
@@ -828,7 +828,7 @@ export interface RunChatRequestParams {
 }
 ```
 
-- [ ] **Step 2: Update runChatRequest to pass tools to Ollama and handle tool_calls**
+- [x] **Step 2: Update runChatRequest to pass tools to Ollama and handle tool_calls**
 
 Replace the Ollama call section in `runChatRequest` (lines 110-130) with:
 
@@ -863,7 +863,7 @@ Replace the Ollama call section in `runChatRequest` (lines 110-130) with:
   }
 ```
 
-- [ ] **Step 3: Add tool_calls handling branch before escalation check**
+- [x] **Step 3: Add tool_calls handling branch before escalation check**
 
 After the Ollama call, replace the escalation check section (lines 132-177) with:
 
@@ -945,12 +945,12 @@ After the Ollama call, replace the escalation check section (lines 132-177) with
   params.onEvent({ type: 'done' });
 ```
 
-- [ ] **Step 4: Build to verify**
+- [x] **Step 4: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: Compilation error — `registry` is not yet passed to `runChatRequest` from chat.ts and index.ts. We fix this in the next step.
 
-- [ ] **Step 5: Update chat.ts to pass registry**
+- [x] **Step 5: Update chat.ts to pass registry**
 
 In `packages/server/src/routes/chat.ts`, update `ChatRouterDeps` interface to include `registry`:
 
@@ -996,7 +996,7 @@ And pass `registry` to `runChatRequest`:
           // ... existing event handler unchanged
 ```
 
-- [ ] **Step 6: Update index.ts to pass registry to chatRouter**
+- [x] **Step 6: Update index.ts to pass registry to chatRouter**
 
 In `packages/server/src/index.ts`, update the `createChatRouter` call (line 114):
 
@@ -1012,12 +1012,12 @@ const chatRouter = createChatRouter({
 });
 ```
 
-- [ ] **Step 7: Build to verify**
+- [x] **Step 7: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build`
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/server/src/ai/router.ts packages/server/src/routes/chat.ts packages/server/src/index.ts

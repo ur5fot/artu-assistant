@@ -4,6 +4,15 @@ import request from 'supertest';
 import { createChatRouter } from '../chat.js';
 import { createPassthroughProxy } from '../../pii/proxy.js';
 
+function fakeRegistry() {
+  return {
+    register: vi.fn(),
+    get: vi.fn(),
+    getAll: vi.fn().mockReturnValue([]),
+    getForProvider: vi.fn().mockReturnValue([]),
+  };
+}
+
 const savedMessages: any[] = [];
 vi.mock('../../db.js', () => ({
   saveMessage: (params: any) => {
@@ -27,6 +36,7 @@ describe('POST /api/chat', () => {
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
       ollama: null,
+      registry: fakeRegistry() as any,
     });
     app.use('/api', router);
 
@@ -51,6 +61,7 @@ describe('POST /api/chat', () => {
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
       ollama: null,
+      registry: fakeRegistry() as any,
     });
     app.use('/api', router);
 
@@ -76,6 +87,7 @@ describe('POST /api/chat', () => {
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
       ollama: null,
+      registry: fakeRegistry() as any,
     });
     app.use('/api', router);
 
@@ -100,6 +112,7 @@ describe('POST /api/chat', () => {
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
       ollama: null,
+      registry: fakeRegistry() as any,
     });
     app.use('/api', router);
 
@@ -124,6 +137,7 @@ describe('POST /api/chat', () => {
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
       ollama: null,
+      registry: fakeRegistry() as any,
     });
     app.use('/api', router);
 
@@ -153,6 +167,7 @@ describe('POST /api/chat', () => {
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
       ollama: null,
+      registry: fakeRegistry() as any,
     });
     app.use('/api', router);
 
@@ -180,6 +195,7 @@ describe('POST /api/chat', () => {
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
       ollama: null,
+      registry: fakeRegistry() as any,
     });
     app.use('/api', router);
 
@@ -208,6 +224,7 @@ describe('POST /api/chat', () => {
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
       ollama: null,
+      registry: fakeRegistry() as any,
     });
     app.use('/api', router);
 
@@ -247,6 +264,7 @@ describe('POST /api/chat', () => {
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
       ollama: null,
+      registry: fakeRegistry() as any,
     });
     app.use('/api', router);
 
@@ -278,6 +296,7 @@ describe('POST /api/chat', () => {
       pendingPlanReviews: new Map(),
       piiProxy: createPassthroughProxy(),
       ollama: null,
+      registry: fakeRegistry() as any,
     });
     app.use('/api', router);
 
