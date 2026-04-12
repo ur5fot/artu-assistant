@@ -157,6 +157,6 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
   }
 
   // Max iterations — emit warning
-  onEvent({ type: 'text_delta', content: 'Досягнуто максимальну кількість ітерацій tools.' });
+  onEvent({ type: 'text_delta', content: 'Reached maximum number of tool iterations.' });
   return { escalate: false, reason: '' };
 }
