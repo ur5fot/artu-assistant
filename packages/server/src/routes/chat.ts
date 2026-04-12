@@ -63,7 +63,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
-    const { messages } = req.body;
+    let { messages } = req.body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       res.status(400).json({ error: 'messages[] required' });
@@ -80,6 +80,40 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
     if (!valid) {
       res.status(400).json({ error: 'Each message must have role (user|assistant) and content (string)' });
       return;
+    }
+
+    // Check if the latest user message is a slash command
+    const lastUserMsg = messages[messages.length - 1];
+    if (lastUserMsg?.role === 'user' && typeof lastUserMsg.content === 'string') {
+      const match = lastUserMsg.content.match(/^\/(\S+)\s*(.*)/s);
+      if (match) {
+        const [, commandName, argsStr] = match;
+        const toolDef = registry.getByCommandName(commandName);
+        if (toolDef) {
+          // Map positional args to tool parameters
+          const params: Record<string, unknown> = {};
+          const requiredParams = toolDef.command?.params?.filter((p) => p.required) ?? [];
+          if (requiredParams.length > 0 && argsStr.trim()) {
+            params[requiredParams[0].name] = argsStr.trim();
+          }
+
+          // Rewrite user message to instruct LLM to use the specific tool
+          const rewritten = messages.map((m: any, i: number) => {
+            if (i === messages.length - 1) {
+              const paramDesc = Object.entries(params).map(([k, v]) => `${k}: ${v}`).join(', ');
+              return {
+                ...m,
+                content: `[User used command /${commandName}] Use tool "${toolDef.name}" with parameters: ${paramDesc || 'none'}. Execute the tool and respond with the result.`,
+              };
+            }
+            return m;
+          });
+
+          // Replace messages with rewritten version for the rest of the handler
+          messages = rewritten;
+        }
+        // If command not found, fall through — send as normal message to LLM
+      }
     }
 
     // Save the latest user message to DB

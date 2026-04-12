@@ -291,7 +291,7 @@ git commit -m "feat: add /api/commands endpoint from tool registry"
 **Files:**
 - Modify: `packages/server/src/routes/chat.ts:62-72`
 
-- [ ] **Step 1: Add command parsing and dispatch**
+- [x] **Step 1: Add command parsing and dispatch**
 
 In `packages/server/src/routes/chat.ts`, add the import:
 
@@ -341,12 +341,12 @@ Inside the `router.post('/chat', ...)` handler, after message validation (after 
 
 This approach rewrites the user message to instruct the LLM to call the specific tool, keeping the existing tool-loop flow intact (permissions, audit, PII all work as normal).
 
-- [ ] **Step 2: Build to verify**
+- [x] **Step 2: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/routes/chat.ts
