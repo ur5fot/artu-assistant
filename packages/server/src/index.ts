@@ -64,6 +64,9 @@ if (piiMode === 'disabled') {
   piiVault.clearExpired();
   const entityTypes = (process.env.PII_ENTITY_TYPES || 'EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,IBAN_CODE').split(',');
   const languages = (process.env.PII_LANGUAGES || 'en,ru,uk').split(',').map((s) => s.trim()).filter(Boolean);
+  if (languages.length === 0) {
+    throw new Error('PII_LANGUAGES must contain at least one language code');
+  }
   piiProxy = createPiiProxy({
     encryptionKey,
     analyzerUrl: process.env.PRESIDIO_ANALYZER_URL || 'http://localhost:5002',
