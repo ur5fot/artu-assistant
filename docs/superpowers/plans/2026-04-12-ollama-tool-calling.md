@@ -1031,7 +1031,7 @@ git commit -m "feat: integrate Ollama tool calling into router"
 **Files:**
 - Modify: `packages/server/src/ai/prompts.ts:41-94`
 
-- [ ] **Step 1: Update getLocalSystemPrompt**
+- [x] **Step 1: Update getLocalSystemPrompt**
 
 Replace the `getLocalSystemPrompt()` function in `packages/server/src/ai/prompts.ts`:
 
@@ -1058,12 +1058,12 @@ ${BASE_RULES}
 }
 ```
 
-- [ ] **Step 2: Build to verify**
+- [x] **Step 2: Build to verify**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/ai/prompts.ts
