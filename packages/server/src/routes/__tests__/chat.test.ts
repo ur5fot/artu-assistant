@@ -361,7 +361,7 @@ describe('POST /api/chat', () => {
     expect(receivedMessages[0].content).toContain('"path":"src"');
   });
 
-  it('rewrites slash command with multiple required params', async () => {
+  it('rewrites slash command with multiple required params using LLM parsing', async () => {
     const app = express();
     app.use(express.json());
 
@@ -373,8 +373,8 @@ describe('POST /api/chat', () => {
       command: {
         name: 'перемістити',
         params: [
-          { name: 'source', required: true },
-          { name: 'destination', required: true },
+          { name: 'source', required: true, description: 'Поточний шлях' },
+          { name: 'destination', required: true, description: 'Новий шлях' },
         ],
       },
     });
@@ -398,8 +398,9 @@ describe('POST /api/chat', () => {
       .expect(200);
 
     expect(receivedMessages[0].content).toContain('Use tool "file_move"');
-    expect(receivedMessages[0].content).toContain('"source":"old.txt"');
-    expect(receivedMessages[0].content).toContain('"destination":"new path/file.txt"');
+    // Multi-param commands delegate parsing to LLM with raw user text
+    expect(receivedMessages[0].content).toContain('Parse the user input into parameters');
+    expect(receivedMessages[0].content).toContain('old.txt new path/file.txt');
   });
 
   it('sets forceProvider for claude-only tools', async () => {

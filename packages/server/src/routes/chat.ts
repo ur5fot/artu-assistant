@@ -106,38 +106,36 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         const [, commandName, argsStr] = match;
         const toolDef = registry.getByCommandName(commandName);
         if (toolDef) {
-          // Map positional args to tool parameters (required first, then optional)
+          // Map positional args to tool parameters
           const params: Record<string, unknown> = {};
-          const allParams = toolDef.command?.params ?? [];
-          const orderedParams = [
-            ...allParams.filter((p) => p.required),
-            ...allParams.filter((p) => !p.required),
-          ];
-          if (orderedParams.length > 0 && argsStr.trim()) {
-            if (orderedParams.length === 1) {
-              params[orderedParams[0].name] = argsStr.trim();
-            } else {
-              // Split args by whitespace: first N-1 params get one word each, last param gets the rest
-              const parts = argsStr.trim().split(/\s+/);
-              for (let i = 0; i < orderedParams.length; i++) {
-                if (i >= parts.length) break;
-                if (i < orderedParams.length - 1) {
-                  params[orderedParams[i].name] = parts[i] ?? '';
-                } else {
-                  params[orderedParams[i].name] = parts.slice(i).join(' ');
-                }
-              }
+          const requiredParams = (toolDef.command?.params ?? []).filter((p) => p.required);
+          const trimmedArgs = argsStr.trim();
+
+          if (requiredParams.length === 1 && trimmedArgs) {
+            // Single required param: entire args string is the value
+            params[requiredParams[0].name] = trimmedArgs;
+          } else if (requiredParams.length === 0 && trimmedArgs) {
+            // No required params but user provided args: pass as-is for optional params
+            const optionalParams = (toolDef.command?.params ?? []).filter((p) => !p.required);
+            if (optionalParams.length > 0) {
+              params[optionalParams[0].name] = trimmedArgs;
             }
           }
+          // For 2+ required params, don't attempt to split -- let the LLM parse from raw text
 
           // Rewrite user message to instruct LLM to use the specific tool
           const rewritten = messages.map((m: any, i: number) => {
             if (i === messages.length - 1) {
-              const paramDesc = Object.keys(params).length > 0 ? JSON.stringify(params) : 'none';
-              return {
-                ...m,
-                content: `[User used command /${commandName}] Use tool "${toolDef.name}" with parameters: ${paramDesc}. Execute the tool and respond with the result.`,
-              };
+              let instruction: string;
+              if (requiredParams.length >= 2 && trimmedArgs) {
+                // Multi-param: let LLM parse the raw user text into correct params
+                const paramList = requiredParams.map((p) => `${p.name} (${p.description || p.name})`).join(', ');
+                instruction = `[User used command /${commandName}] Use tool "${toolDef.name}". Parse the user input into parameters (${paramList}): "${trimmedArgs}". Execute the tool and respond with the result.`;
+              } else {
+                const paramDesc = Object.keys(params).length > 0 ? JSON.stringify(params) : 'none';
+                instruction = `[User used command /${commandName}] Use tool "${toolDef.name}" with parameters: ${paramDesc}. Execute the tool and respond with the result.`;
+              }
+              return { ...m, content: instruction };
             }
             return m;
           });
