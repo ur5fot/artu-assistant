@@ -156,8 +156,8 @@
 
 ### Task 11: [Final] Оновити документацію
 
-- [ ] оновити `AGENTS.md` з новими slash-командами (`/запам'ятай`, `/забудь`) і поясненням importance/decay
-- [ ] оновити `.env.example` — додати `CHAT_CONTEXT_BUDGET_CHARS=60000`
+- [x] оновити `AGENTS.md` з новими slash-командами (`/запам'ятай`, `/забудь`) і поясненням importance/decay
+- [x] оновити `.env.example` — додати `CHAT_CONTEXT_BUDGET_CHARS=60000`
 
 ## Technical Details
 

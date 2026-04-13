@@ -372,17 +372,31 @@ First `docker compose up` takes longer because the analyzer image builds locally
 
 R2 remembers past conversations via a local vector database. Every chat turn is embedded with `nomic-embed-text` (via Ollama) and stored in sqlite-vec tables inside `data/r2.db`. Ollama also extracts structured facts about the user (`user.location`, `user.phone`, etc.) with versioning — when a fact changes, the old one is marked superseded and history is preserved.
 
-Setup requires an extra Ollama model pull: `ollama pull nomic-embed-text`. Memory is implemented in `packages/server/src/memory/` and exposed via the `@r2/tool-memory` workspace package (`memory_search` tool, `/память` slash command). Slash-command invocations and tool results are intentionally NOT indexed: the former is a dispatcher, not user content; the latter bypasses the PII proxy and could leak secrets.
+Setup requires an extra Ollama model pull: `ollama pull nomic-embed-text`. Memory is implemented in `packages/server/src/memory/` and exposed via the `@r2/tool-memory` workspace package. Slash-command invocations and tool results are intentionally NOT indexed: the former is a dispatcher, not user content; the latter bypasses the PII proxy and could leak secrets.
+
+Slash commands:
+- `/память <query>` — semantic search across stored memories (`memory_search` tool).
+- `/запам'ятай <text>` — store a fact with `importance=10` (protected from decay). Supports `key: value` syntax; otherwise stored as `user.note.<id>`.
+- `/забудь <key or text>` — marks a fact as `forgotten=1` (raw history preserved). Works by exact key or via search fallback.
+
+Importance + decay:
+- Facts have `importance` (1 = auto-extractor default, 10 = explicit `/запам'ятай` or keyword-triggered). Keywords: `важливо`, `запам'ятай`, `запомни`, `не забудь`, `don't forget`, `important`.
+- Ranking uses `importance * exp(-age / halflife)` with a 30-day half-life. `importance=10` facts survive decay indefinitely; low-importance stale facts sink out of the context prefix (but stay in DB).
+- Duplicate keys are deduped on save: new fact supersedes the old via `superseded_by`, inheriting `MAX(new.importance, old.importance)`.
+- Recalled facts are emitted as an SSE `memory_recalled` event and rendered in the UI as a "🧠 Згадав: …" card with inline 🗑 per fact (click → `/забудь`).
 
 Read path has two channels:
-- **Auto-retrieval**: before every LLM call, router injects relevant memories into the system prompt (top 10 entries + all active facts, ≤2000 tokens).
+- **Auto-retrieval**: before every LLM call, router injects ranked memories into the system prompt (decay-weighted facts + top entries, ≤2000 tokens).
 - **Tool**: `memory_search` lets the model dig deeper on demand. Available to both Ollama and Claude.
+
+Chat history sent to the LLM is truncated to `CHAT_CONTEXT_BUDGET_CHARS` (default 60000 ≈ 15k tokens), keeping SYSTEM + latest user turn and walking back from the end. Raw messages remain in DB.
 
 Configuration via env vars:
 - `MEMORY_ENABLED=true` — kill switch
 - `MEMORY_EMBED_MODEL=nomic-embed-text` — embedding model
 - `MEMORY_EXTRACT_MODEL=qwen2.5:7b` — fact extractor model
 - `MEMORY_MAX_CONTEXT_TOKENS=2000` — budget for auto-retrieval prefix
+- `CHAT_CONTEXT_BUDGET_CHARS=60000` — messages[] char budget for LLM calls
 
 Memory starts empty on first deploy — pre-existing `chat_messages` are NOT re-indexed.
 
