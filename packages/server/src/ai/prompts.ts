@@ -4,7 +4,8 @@ function appendOverlay(base: string, model: 'claude' | 'ollama'): string {
   let overlay: string | null = null;
   try {
     overlay = getOverlay(model);
-  } catch {
+  } catch (err) {
+    console.warn('prompt overlay read failed:', err instanceof Error ? err.message : err);
     return base;
   }
   if (!overlay || !overlay.trim()) return base;

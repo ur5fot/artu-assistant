@@ -82,11 +82,18 @@ r2/
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   │
-│   └── tool-web-search/      # Каждый tool — отдельный npm package (tool-*)
+│   ├── tool-web-search/      # Каждый tool — отдельный npm package (tool-*)
+│   │   ├── src/
+│   │   │   └── index.ts
+│   │   ├── __tests__/
+│   │   │   └── web-search.test.ts
+│   │   └── package.json
+│   │
+│   └── tool-prompt-overlay/  # /клод-промпт, /лама-промпт — overlay над system prompt
 │       ├── src/
 │       │   └── index.ts
 │       ├── __tests__/
-│       │   └── web-search.test.ts
+│       │   └── index.test.ts
 │       └── package.json
 │
 │   # Будущие tools добавляются как packages/tool-{name}/

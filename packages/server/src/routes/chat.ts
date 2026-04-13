@@ -172,7 +172,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
           let remainingArgs = argsStr;
           const declaredFlags = toolDef.command?.flags ?? [];
           for (const flag of declaredFlags) {
-            const re = new RegExp(`(^|\\s)${flag.token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`);
+            const re = new RegExp(`(^|\\s)${flag.token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`, 'g');
             if (re.test(remainingArgs)) {
               params[flag.param] = true;
               remainingArgs = remainingArgs.replace(re, ' ');
