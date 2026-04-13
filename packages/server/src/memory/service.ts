@@ -52,7 +52,7 @@ function sanitizeForMemoryBlock(text: string): string {
   return text
     .replace(/=+\s*ПАМ['’ʼ`´]ЯТЬ\s+R2[^\n]*/gi, '[memory-header]')
     .replace(/=+\s*КОНЕЦ\s+ПАМ['’ʼ`´]ЯТІ\s*=+/gi, '[memory-footer]')
-    .replace(/[\r\n]+/g, ' ');
+    .replace(/[\r\n\u2028\u2029\u0085]+/g, ' ');
 }
 
 export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
