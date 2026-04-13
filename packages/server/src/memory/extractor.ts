@@ -21,21 +21,37 @@ export function hasImportanceKeyword(text: string): boolean {
 const EXTRACT_PROMPT_HEADER = `Витягни стійкі факти про юзера з наступного діалогу у форматі JSON масиву:
 [{"key": "user.location", "value": "Одеса"}, ...]
 
-Використовуй канонічні ключі з цього списку коли можливо:
+ФОРМАТ КЛЮЧА: \`subject.attribute\` (або \`subject.attribute.subattr\`).
+- subject — одне з: \`user\`, \`project\`, \`assistant\`, \`task\`
+- attribute — snake_case, lowercase, тільки [a-z0-9_]
+- завжди має містити крапку
+
+Канонічні ключі з цього списку — коли можливо:
 - user.location — де юзер живе
 - user.phone — номер телефону
 - user.email — email
-- user.preferences.<topic> — уподобання (food, music, work, ...)
 - user.name — як юзера звати
+- user.preferences.<topic> — уподобання (food, music, work, ...)
+- user.wife, user.family.<member> — родина
 - task.deadline.<project> — дедлайни
 - project.<name>.status — стан проектів
 
 Правила:
 - Витягуй ТІЛЬКИ стійкі факти про юзера, не тимчасові стани
 - Не вигадуй факти яких немає в діалозі
+- Ключ — ЗАВЖДИ \`subject.attribute\`, lowercase, snake_case
 - Якщо фактів немає — поверни []
 
 Відповідь має бути ТІЛЬКИ JSON масив, без коментарів.`;
+
+// Normalizes LLM-emitted keys into canonical `subject.attribute` form so supersede
+// detection collapses drifted variants. Lowercase + spaces→_ + default `user.`
+// prefix when the model forgets the subject namespace.
+export function normalizeKey(raw: string): string {
+  let k = raw.trim().toLowerCase().replace(/\s+/g, '_');
+  if (!k.includes('.')) k = `user.${k}`;
+  return k;
+}
 
 // Walks the LLM response with a small state machine to return the first
 // balanced JSON array. A naive `/\[[\s\S]*\]/` is greedy and breaks when the
@@ -126,7 +142,7 @@ R2: ${assistantText}
       typeof (item as any).key === 'string' &&
       typeof (item as any).value === 'string'
     ) {
-      const key = (item as any).key as string;
+      const key = normalizeKey((item as any).key as string);
       let value = (item as any).value as string;
       if (!KEY_RE.test(key)) continue;
       value = value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();

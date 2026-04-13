@@ -97,11 +97,11 @@
 
 ### Task 5: Нормалізація ключів у форматі subject.attribute
 
-- [ ] оновити LLM-prompt в `extractor.ts` — додати приклади і вимогу: «ключ має формат `subject.attribute`, де subject = `user`, `project`, `assistant` etc, attribute — snake_case»
-- [ ] додати post-validation: якщо LLM повернув ключ без крапки → додати префікс `user.` за замовчуванням
-- [ ] також — lowercase і replace spaces → `_`
-- [ ] тести у `memory/__tests__/extractor.test.ts` — перевірити що prompt включає правило, mock LLM returns різні формати → всі нормалізуються
-- [ ] `npm test`
+- [x] оновити LLM-prompt в `extractor.ts` — додати приклади і вимогу: «ключ має формат `subject.attribute`, де subject = `user`, `project`, `assistant` etc, attribute — snake_case»
+- [x] додати post-validation: якщо LLM повернув ключ без крапки → додати префікс `user.` за замовчуванням
+- [x] також — lowercase і replace spaces → `_`
+- [x] тести у `memory/__tests__/extractor.test.ts` — перевірити що prompt включає правило, mock LLM returns різні формати → всі нормалізуються
+- [x] `npm test`
 
 ### Task 6: Ранжування у buildContextPrefix з importance + decay
 

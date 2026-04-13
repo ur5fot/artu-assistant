@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { extractFacts, hasImportanceKeyword, IMPORTANT_BOOST_VALUE } from '../extractor.js';
+import { extractFacts, hasImportanceKeyword, normalizeKey, IMPORTANT_BOOST_VALUE } from '../extractor.js';
 
 describe('extractFacts', () => {
   it('calls Ollama chat and parses JSON array', async () => {
@@ -46,17 +46,17 @@ describe('extractFacts', () => {
     expect(facts).toEqual([{ key: 'user.name', value: 'Діма', importance: 1 }]);
   });
 
-  it('rejects keys that violate the canonical lowercase schema', async () => {
-    // Memory-poisoning guard: mixed-case / punctuation keys are dropped so
-    // `User.Location` and `user.location` can't coexist as separate facts,
-    // and crafted keys with spaces/semicolons cannot slip through.
+  it('normalizes drifted keys and rejects unsalvageable punctuation', async () => {
+    // Normalization collapses case / whitespace drift and defaults the
+    // `user.` namespace so supersede detection sees one canonical key.
+    // Punctuation that can't be mapped (e.g. `;`) still fails the guard.
     const mockOllama = {
       chat: vi.fn().mockResolvedValue({
         text: JSON.stringify([
           { key: 'User.Location', value: 'Kyiv' },
-          { key: 'user name', value: 'x' },
-          { key: 'user.name;drop', value: 'x' },
-          { key: 'user.name', value: 'Діма' },
+          { key: 'Name', value: 'Діма' },
+          { key: 'user wife', value: 'Марина' },
+          { key: 'user.name;drop', value: 'bad' },
         ]),
       }),
     };
@@ -65,7 +65,11 @@ describe('extractFacts', () => {
       assistantMessage: 'y',
       model: 'qwen2.5:7b',
     });
-    expect(facts).toEqual([{ key: 'user.name', value: 'Діма', importance: 1 }]);
+    expect(facts).toEqual([
+      { key: 'user.location', value: 'Kyiv', importance: 1 },
+      { key: 'user.name', value: 'Діма', importance: 1 },
+      { key: 'user.user_wife', value: 'Марина', importance: 1 },
+    ]);
   });
 
   it('strips control characters and truncates values over 500 chars', async () => {
@@ -136,6 +140,27 @@ describe('extractFacts', () => {
       model: 'qwen2.5:7b',
     });
     expect(facts[0].importance).toBe(1);
+  });
+});
+
+describe('normalizeKey', () => {
+  it('lowercases and preserves canonical keys', () => {
+    expect(normalizeKey('user.location')).toBe('user.location');
+    expect(normalizeKey('User.Location')).toBe('user.location');
+  });
+
+  it('replaces whitespace with underscore', () => {
+    expect(normalizeKey('project.r2 status')).toBe('project.r2_status');
+    expect(normalizeKey('user.full  name')).toBe('user.full_name');
+  });
+
+  it('defaults missing subject namespace to user.', () => {
+    expect(normalizeKey('name')).toBe('user.name');
+    expect(normalizeKey('Wife')).toBe('user.wife');
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(normalizeKey('  user.name  ')).toBe('user.name');
   });
 });
 
