@@ -71,11 +71,11 @@
 
 ### Task 2: Дедуп при збереженні (superseded_by)
 
-- [ ] у `packages/server/src/memory/service.ts` (або `db.ts`, де написана логіка збереження fact) перед `INSERT` перевіряти `SELECT id FROM memory_facts WHERE key = ? AND superseded_by IS NULL AND forgotten = 0`
-- [ ] якщо є — `UPDATE memory_facts SET superseded_by = ? WHERE id = <old>` де `?` — id нового rowу
-- [ ] переконатися що importance успадковується: `new.importance = MAX(new.importance, old.importance)` (не втрачати user-помічені факти при автоперезапису)
-- [ ] тести: save same-key двічі → старий superseded, новий активний; importance не знижується; різні ключі живуть незалежно
-- [ ] `npm test`
+- [x] у `packages/server/src/memory/service.ts` (або `db.ts`, де написана логіка збереження fact) перед `INSERT` перевіряти `SELECT id FROM memory_facts WHERE key = ? AND superseded_by IS NULL AND forgotten = 0`
+- [x] якщо є — `UPDATE memory_facts SET superseded_by = ? WHERE id = <old>` де `?` — id нового rowу
+- [x] переконатися що importance успадковується: `new.importance = MAX(new.importance, old.importance)` (не втрачати user-помічені факти при автоперезапису)
+- [x] тести: save same-key двічі → старий superseded, новий активний; importance не знижується; різні ключі живуть незалежно
+- [x] `npm test`
 
 ### Task 3: Slash `/запам'ятай` — memory_remember tool
 
