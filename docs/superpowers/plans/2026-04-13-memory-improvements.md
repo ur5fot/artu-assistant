@@ -105,16 +105,16 @@
 
 ### Task 6: Ранжування у buildContextPrefix з importance + decay
 
-- [ ] у `packages/server/src/memory/service.ts:172-218` змінити fact retrieval:
+- [x] у `packages/server/src/memory/service.ts:172-218` змінити fact retrieval:
   - замість `slice(0, 20)` — запит з `ORDER BY (importance * exp(-(now - last_mentioned_at) / halflife))`
   - halflife — константа `IMPORTANCE_HALFLIFE_MS = 30 * 24 * 3600 * 1000` (30 днів)
   - `importance=10` факти не тонуть бо множник великий
   - SQLite не має `exp()` — або зробити на JS боці після SELECT, або спростити: `WHERE importance >= 5 OR last_mentioned_at > (now - 30d)`
-- [ ] при кожному використанні fact у context prefix — оновлювати `last_mentioned_at = Date.now()` (reconsolidation effect)
-- [ ] повертати з buildContextPrefix не тільки текст, а й **метадані про використані факти**: `{ prefix: string, recalledFacts: Array<{key, value, importance}> }` — для SSE
-- [ ] оновити виклики (router.ts, chat.ts) на новий тип повернення
-- [ ] тести: high-importance факт виринає; старий low-importance — ні; mention оновлює last_mentioned_at
-- [ ] `npm test`
+- [x] при кожному використанні fact у context prefix — оновлювати `last_mentioned_at = Date.now()` (reconsolidation effect)
+- [x] повертати з buildContextPrefix не тільки текст, а й **метадані про використані факти**: `{ prefix: string, recalledFacts: Array<{key, value, importance}> }` — для SSE
+- [x] оновити виклики (router.ts, chat.ts) на новий тип повернення
+- [x] тести: high-importance факт виринає; старий low-importance — ні; mention оновлює last_mentioned_at
+- [x] `npm test`
 
 ### Task 7: Slash `/забудь` — memory_forget tool
 

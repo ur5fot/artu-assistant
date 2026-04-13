@@ -46,7 +46,7 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
       const userText = rawText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
       if (userText) {
         try {
-          const prefix = await params.memoryService.buildContextPrefix(userText, params.signal);
+          const { prefix } = await params.memoryService.buildContextPrefix(userText, params.signal);
           if (prefix) {
             const rewritten = [...params.messages];
             rewritten[idx] = { ...msg, content: `${prefix}\n\n${rawText}` };
@@ -174,7 +174,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
       const userText = rawLastUserText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
       if (userText) {
         try {
-          const prefix = await params.memoryService.buildContextPrefix(userText, params.signal);
+          const { prefix } = await params.memoryService.buildContextPrefix(userText, params.signal);
           if (prefix) systemPrompt = prefix + '\n\n' + basePrompt;
         } catch (err) {
           console.warn('[router] memory context failed:', err instanceof Error ? err.message : err);

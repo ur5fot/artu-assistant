@@ -97,8 +97,9 @@ describe('MemoryService', () => {
       ollama: mockOllama as any,
       extractorModel: 'qwen2.5:7b',
     });
-    const prefix = await svc.buildContextPrefix('test');
-    expect(prefix).toBe('');
+    const result = await svc.buildContextPrefix('test');
+    expect(result.prefix).toBe('');
+    expect(result.recalledFacts).toEqual([]);
   });
 
   it('buildContextPrefix injects active facts and entries', async () => {
@@ -115,12 +116,57 @@ describe('MemoryService', () => {
     await svc.indexTurn({
       userMessage: 'я з Одеси',
       assistantMessage: 'круто',
-      timestamp: 1000,
+      timestamp: Date.now(),
     });
 
-    const prefix = await svc.buildContextPrefix('де я живу?');
+    const { prefix, recalledFacts } = await svc.buildContextPrefix('де я живу?');
     expect(prefix).toContain('ПАМ\'ЯТЬ R2');
     expect(prefix).toContain('user.location');
     expect(prefix).toContain('Одеса');
+    expect(recalledFacts).toEqual([
+      expect.objectContaining({ key: 'user.location', value: 'Одеса' }),
+    ]);
+  });
+
+  it('buildContextPrefix ranks high-importance facts and drops decayed low-importance ones', async () => {
+    const svc = createMemoryService({
+      db: getDb(),
+      embeddings: mockEmbeddings as any,
+      ollama: mockOllama as any,
+      extractorModel: 'qwen2.5:7b',
+    });
+
+    // Recent important fact — should always surface.
+    await svc.saveFact({ key: 'user.name', value: 'Іван', importance: 10, timestamp: Date.now() });
+    // Very old low-importance fact — score drops below MIN_RECALL_SCORE.
+    const oldTs = Date.now() - 365 * 24 * 3600 * 1000;
+    await svc.saveFact({ key: 'user.pet', value: 'кіт', importance: 1, timestamp: oldTs });
+
+    const { recalledFacts, prefix } = await svc.buildContextPrefix('хто я?');
+    const keys = recalledFacts.map((f) => f.key);
+    expect(keys).toContain('user.name');
+    expect(keys).not.toContain('user.pet');
+    expect(prefix).toContain('user.name');
+    expect(prefix).not.toContain('user.pet');
+  });
+
+  it('buildContextPrefix reconsolidates last_mentioned_at for recalled facts', async () => {
+    const svc = createMemoryService({
+      db: getDb(),
+      embeddings: mockEmbeddings as any,
+      ollama: mockOllama as any,
+      extractorModel: 'qwen2.5:7b',
+    });
+
+    const oldTs = Date.now() - 7 * 24 * 3600 * 1000;
+    await svc.saveFact({ key: 'user.city', value: 'Київ', importance: 5, timestamp: oldTs });
+
+    const before = (await svc.getActiveFacts()).find((f) => f.key === 'user.city')!;
+    expect(before.lastMentionedAt).toBe(oldTs);
+
+    await svc.buildContextPrefix('де я?');
+
+    const after = (await svc.getActiveFacts()).find((f) => f.key === 'user.city')!;
+    expect(after.lastMentionedAt).toBeGreaterThan(oldTs);
   });
 });

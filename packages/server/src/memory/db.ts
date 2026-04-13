@@ -133,6 +133,18 @@ export function getActiveFacts(db: Database.Database): Array<{
     }>;
 }
 
+export function touchFactsLastMentioned(
+  db: Database.Database,
+  ids: number[],
+  timestamp: number,
+): void {
+  if (ids.length === 0) return;
+  const placeholders = ids.map(() => '?').join(',');
+  db.prepare(
+    `UPDATE memory_facts SET last_mentioned_at = ? WHERE id IN (${placeholders})`,
+  ).run(timestamp, ...ids);
+}
+
 export function markFactForgotten(db: Database.Database, factId: number): boolean {
   // Self-reference superseded_by so the unique partial index on active keys
   // stops treating the forgotten row as live — otherwise re-inserting the same
