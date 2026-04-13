@@ -36,6 +36,8 @@ function extractFlagsQuoteAware(
   // "quoted text" are treated as literal content, not flags. A flag only
   // matches when it sits on a token boundary (start-of-input or whitespace
   // before it, whitespace or end-of-input after it) in an unquoted region.
+  // Quote delimiters themselves are dropped from `out` so downstream consumers
+  // (single-param slot assignment) don't receive stray `"` characters.
   const matched = new Set<string>();
   let out = '';
   let quote: '"' | "'" | null = null;
@@ -43,14 +45,17 @@ function extractFlagsQuoteAware(
   while (i < input.length) {
     const ch = input[i];
     if (quote) {
+      if (ch === quote) {
+        quote = null;
+        i++;
+        continue;
+      }
       out += ch;
-      if (ch === quote) quote = null;
       i++;
       continue;
     }
     if (ch === '"' || ch === "'") {
       quote = ch;
-      out += ch;
       i++;
       continue;
     }

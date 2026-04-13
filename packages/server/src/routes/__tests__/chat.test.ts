@@ -686,7 +686,9 @@ describe('POST /api/chat', () => {
       .expect(200);
 
     expect(receivedMessages[0].content).not.toContain('"reset":true');
-    expect(receivedMessages[0].content).toContain('foo --скинути bar');
+    // Quotes must be stripped from the literal — the saved overlay text
+    // should be `foo --скинути bar`, not `"foo --скинути bar"`.
+    expect(receivedMessages[0].content).toContain('"text":"foo --скинути bar"');
   });
 
   it('sanitizes errors containing API key patterns', async () => {
