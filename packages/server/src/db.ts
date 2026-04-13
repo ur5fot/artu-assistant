@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import * as sqliteVec from 'sqlite-vec';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +23,47 @@ export function initDb(dbPath?: string): void {
 
   db = new Database(resolvedPath);
   db.pragma('journal_mode = WAL');
+
+  sqliteVec.load(db);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memory_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL,
+      source_id TEXT,
+      content TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_memory_entries_kind
+      ON memory_entries(kind, created_at)
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memory_facts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      superseded_by INTEGER REFERENCES memory_facts(id),
+      last_mentioned_at INTEGER NOT NULL
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_facts_key_active
+      ON memory_facts(key) WHERE superseded_by IS NULL
+  `);
+
+  db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(
+      entity_id INTEGER PRIMARY KEY,
+      entity_type TEXT,
+      embedding FLOAT[768]
+    )
+  `);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS audit_log (

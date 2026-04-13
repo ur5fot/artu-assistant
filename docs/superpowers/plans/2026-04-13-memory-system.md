@@ -45,7 +45,7 @@ git commit -m "feat: add sqlite-vec dependency for memory system"
 **Files:**
 - Modify: `packages/server/src/db.ts`
 
-- [ ] **Step 1: Load sqlite-vec extension and add memory schema**
+- [x] **Step 1: Load sqlite-vec extension and add memory schema**
 
 In `packages/server/src/db.ts`, add the import at the top:
 
@@ -98,7 +98,7 @@ Then update `initDb` to load the extension and create memory tables. Insert this
   `);
 ```
 
-- [ ] **Step 2: Write a smoke test for schema creation**
+- [x] **Step 2: Write a smoke test for schema creation**
 
 Create `packages/server/src/memory/__tests__/schema.test.ts`:
 
@@ -147,12 +147,12 @@ describe('memory schema', () => {
 });
 ```
 
-- [ ] **Step 3: Run the test**
+- [x] **Step 3: Run the test**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/memory/__tests__/schema.test.ts`
 Expected: PASS — both tests.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/memory/__tests__/schema.test.ts
