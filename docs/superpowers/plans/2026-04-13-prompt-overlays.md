@@ -72,15 +72,15 @@
 
 ### Task 3: Новий пакет @r2/tool-prompt-overlay
 
-- [ ] створити `packages/tool-prompt-overlay/package.json` за зразком `packages/tool-web-search/package.json`, name `@r2/tool-prompt-overlay`
-- [ ] створити `packages/tool-prompt-overlay/tsconfig.json` за зразком сусідніх
-- [ ] створити `packages/tool-prompt-overlay/src/index.ts`:
+- [x] створити `packages/tool-prompt-overlay/package.json` за зразком `packages/tool-web-search/package.json`, name `@r2/tool-prompt-overlay`
+- [x] створити `packages/tool-prompt-overlay/tsconfig.json` за зразком сусідніх
+- [x] створити `packages/tool-prompt-overlay/src/index.ts`:
   - фабрика `createTool(deps)` повертає **масив** з двох `ToolDefinition`: `prompt_overlay_claude` і `prompt_overlay_ollama` (обидва шарять один handler, різниця — параметр `model`)
   - кожен має `command: { name: 'клод-промпт' | 'лама-промпт', description, params: [{name:'text', required:false}] }`
   - параметри схеми: `{ text?: string, show?: boolean, reset?: boolean }`
   - `permissionLevel: 'confirm'` (side-effect на БД)
   - `provider: 'all'`
-- [ ] handler-логіка (згідно з таблицею у спеці):
+- [x] handler-логіка (згідно з таблицею у спеці):
   - `show=true` + `reset=true` → error «не можна поєднувати `--показати` і `--скинути`»
   - `show=true` + `text` → error «не можна поєднувати `--показати` з текстом»
   - `reset=true` + `text` → error «не можна поєднувати `--скинути` з текстом»
@@ -88,9 +88,9 @@
   - `reset=true` → `clearOverlay(model)`, повернути `"скинуто"`
   - `text` присутній → `setOverlay(model, text)`, повернути `"збережено"`
   - нічого не задано → error з usage-підказкою
-- [ ] додати `@r2/tool-prompt-overlay` у `packages/server/package.json` dependencies (`file:../tool-prompt-overlay`)
-- [ ] написати тести `packages/tool-prompt-overlay/__tests__/index.test.ts` — кожен з 6+ сценаріїв (set/get/reset/combinations/empty), mock db-функцій або in-memory SQLite
-- [ ] `npm --workspace @r2/tool-prompt-overlay test` і повний `npm test`
+- [x] додати `@r2/tool-prompt-overlay` у `packages/server/package.json` dependencies (`file:../tool-prompt-overlay`)
+- [x] написати тести `packages/tool-prompt-overlay/__tests__/index.test.ts` — кожен з 6+ сценаріїв (set/get/reset/combinations/empty), mock db-функцій або in-memory SQLite
+- [x] `npm --workspace @r2/tool-prompt-overlay test` і повний `npm test`
 
 ### Task 4: Інтеграція slash-команд у chat route
 

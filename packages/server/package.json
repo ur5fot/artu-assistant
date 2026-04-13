@@ -8,7 +8,8 @@
     "./evals/store.js": "./src/evals/store.ts",
     "./evals/evaluator.js": "./src/evals/evaluator.ts",
     "./tools/base.js": "./src/tools/base.ts",
-    "./tools/registry.js": "./src/tools/registry.ts"
+    "./tools/registry.js": "./src/tools/registry.ts",
+    "./db.js": "./src/db.ts"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -21,6 +22,7 @@
     "@r2/tool-code-deploy": "*",
     "@r2/tool-code-task": "*",
     "@r2/tool-memory": "*",
+    "@r2/tool-prompt-overlay": "*",
     "better-sqlite3": "^11.8.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.0",
