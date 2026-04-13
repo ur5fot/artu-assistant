@@ -282,7 +282,7 @@ git commit -m "feat: add Ollama embeddings client"
 - Create: `packages/server/src/memory/extractor.ts`
 - Create: `packages/server/src/memory/__tests__/extractor.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/server/src/memory/__tests__/extractor.test.ts`:
 
@@ -348,12 +348,12 @@ describe('extractFacts', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to see it fail**
+- [x] **Step 2: Run test to see it fail**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/memory/__tests__/extractor.test.ts`
 Expected: FAIL — module missing.
 
-- [ ] **Step 3: Implement extractor**
+- [x] **Step 3: Implement extractor**
 
 Create `packages/server/src/memory/extractor.ts`:
 
@@ -440,12 +440,12 @@ R2: ${params.assistantMessage}
 }
 ```
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/memory/__tests__/extractor.test.ts`
 Expected: PASS — 4 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/memory/extractor.ts packages/server/src/memory/__tests__/extractor.test.ts
