@@ -460,7 +460,7 @@ git commit -m "feat: add fact extractor via Ollama chat"
 - Create: `packages/server/src/memory/db.ts`
 - Create: `packages/server/src/memory/__tests__/db.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/server/src/memory/__tests__/db.test.ts`:
 
@@ -577,16 +577,16 @@ describe('memory db', () => {
 
 Note the test has a typo (`insertOrSupersede Fact`) — rename to `insertOrSupersedeFact`. Fix before running.
 
-- [ ] **Step 2: Fix the typo**
+- [x] **Step 2: Fix the typo**
 
 In `packages/server/src/memory/__tests__/db.test.ts`, find `insertOrSupersede Fact` on the import line and replace with `insertOrSupersedeFact`.
 
-- [ ] **Step 3: Run test to see it fail**
+- [x] **Step 3: Run test to see it fail**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/memory/__tests__/db.test.ts`
 Expected: FAIL — module does not exist.
 
-- [ ] **Step 4: Implement db module**
+- [x] **Step 4: Implement db module**
 
 Create `packages/server/src/memory/db.ts`:
 
@@ -750,12 +750,12 @@ export function vectorSearch(db: Database.Database, params: VectorSearchParams):
 }
 ```
 
-- [ ] **Step 5: Run test to verify pass**
+- [x] **Step 5: Run test to verify pass**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/memory/__tests__/db.test.ts`
 Expected: PASS — 5 tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/memory/db.ts packages/server/src/memory/__tests__/db.test.ts
