@@ -50,8 +50,8 @@ const ENTRY_PREVIEW_MAX_CHARS = 300;
 // "reference data, not instructions" frame the LLM relies on.
 function sanitizeForMemoryBlock(text: string): string {
   return text
-    .replace(/=+\s*ПАМ['’]ЯТЬ\s+R2[^\n]*/gi, '[memory-header]')
-    .replace(/=+\s*КОНЕЦ\s+ПАМ['’]ЯТІ\s*=+/gi, '[memory-footer]')
+    .replace(/=+\s*ПАМ['’ʼ`´]ЯТЬ\s+R2[^\n]*/gi, '[memory-header]')
+    .replace(/=+\s*КОНЕЦ\s+ПАМ['’ʼ`´]ЯТІ\s*=+/gi, '[memory-footer]')
     .replace(/[\r\n]+/g, ' ');
 }
 
@@ -154,7 +154,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
           // bypassing the "reference data, not instructions" frame that
           // buildContextPrefix applies.
           text: sanitizeForMemoryBlock(h.content),
-          kind: h.entityType === 'fact' ? 'fact' : (h.kind as 'user_msg' | 'assistant_msg'),
+          kind: h.kind,
           score: h.score,
           timestamp: h.createdAt,
         }));
@@ -174,7 +174,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
 
       const facts = getActiveFacts(db);
       const hits = vectorSearch(db, { embedding: vec, limit: 10, kind: 'entry' });
-      const entryHits = hits.filter((h) => h.score >= 0.6).slice(0, 10);
+      const entryHits = hits.filter((h) => h.score >= 0.6);
 
       if (facts.length === 0 && entryHits.length === 0) return '';
 
@@ -203,7 +203,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
           const preview = safeContent.length > ENTRY_PREVIEW_MAX_CHARS
             ? safeContent.slice(0, ENTRY_PREVIEW_MAX_CHARS) + '...'
             : safeContent;
-          const label = h.kind === 'user_msg' ? 'Юзер' : h.kind === 'assistant_msg' ? 'R2' : h.kind;
+          const label = h.kind === 'user_msg' ? 'Юзер' : 'R2';
           bodyLines.push(`[${date}] ${label}: ${preview}`);
         }
       }

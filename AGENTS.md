@@ -355,6 +355,8 @@ First `docker compose up` takes longer because the analyzer image builds locally
 
 R2 remembers past conversations via a local vector database. Every chat turn is embedded with `nomic-embed-text` (via Ollama) and stored in sqlite-vec tables inside `data/r2.db`. Ollama also extracts structured facts about the user (`user.location`, `user.phone`, etc.) with versioning — when a fact changes, the old one is marked superseded and history is preserved.
 
+Setup requires an extra Ollama model pull: `ollama pull nomic-embed-text`. Memory is implemented in `packages/server/src/memory/` and exposed via the `@r2/tool-memory` workspace package (`memory_search` tool, `/память` slash command). Slash-command invocations and tool results are intentionally NOT indexed: the former is a dispatcher, not user content; the latter bypasses the PII proxy and could leak secrets.
+
 Read path has two channels:
 - **Auto-retrieval**: before every LLM call, router injects relevant memories into the system prompt (top 10 entries + all active facts, ≤2000 tokens).
 - **Tool**: `memory_search` lets the model dig deeper on demand. Available to both Ollama and Claude.

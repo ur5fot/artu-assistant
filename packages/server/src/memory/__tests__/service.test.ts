@@ -14,9 +14,13 @@ describe('MemoryService', () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2-memory-svc-'));
     initDb(path.join(tmpDir, 'test.db'));
     mockEmbeddings = {
-      embed: vi.fn().mockImplementation(async (_text: string) => {
+      embed: vi.fn().mockImplementation(async (text: string) => {
+        // Deterministic hash-based vector so similarity ordering is reproducible.
         const vec = new Array(768).fill(0);
-        vec[0] = Math.random();
+        let h = 0;
+        for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
+        vec[0] = ((h >>> 0) % 1000) / 1000;
+        vec[1] = 1 - vec[0];
         return vec;
       }),
     };
