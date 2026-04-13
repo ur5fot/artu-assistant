@@ -321,7 +321,11 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
                 console.error('Failed to save assistant message:', err instanceof Error ? err.message : err);
               }
 
-              if (memoryService && originalUserText) {
+              // Skip indexing slash-command invocations: the literal "/cmd ..."
+              // text is a tool dispatcher, not user content worth recalling, and
+              // commands like /code_task carry raw diffs/secrets that bypass
+              // Presidio and must not be embedded into long-term memory.
+              if (memoryService && originalUserText && !originalUserText.startsWith('/')) {
                 const toolResults = assistantToolCalls
                   .filter((tc) => tc.result && tc.result.success)
                   .map((tc) => ({

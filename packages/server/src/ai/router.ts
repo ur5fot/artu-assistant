@@ -86,13 +86,14 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
     if (lastUserIdx !== -1) {
       const idx = params.messages.length - 1 - lastUserIdx;
       const msg = params.messages[idx];
-      const userText = typeof msg.content === 'string' ? msg.content : '';
+      const rawText = typeof msg.content === 'string' ? msg.content : '';
+      const userText = rawText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
       if (userText) {
         try {
           const prefix = await params.memoryService.buildContextPrefix(userText);
           if (prefix) {
             const rewritten = [...params.messages];
-            rewritten[idx] = { ...msg, content: `${prefix}\n\n${userText}` };
+            rewritten[idx] = { ...msg, content: `${prefix}\n\n${rawText}` };
             messagesForClaude = rewritten;
           }
         } catch (err) {
@@ -198,6 +199,8 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
   let ollamaToolCalls: import('./ollama.js').OllamaToolCall[] | undefined;
   const ollamaTools = params.registry.getForProvider('ollama');
   const toolSummary = ollamaTools.map((t) => ({ name: t.name, description: t.description }));
+  const basePrompt = getLocalSystemPrompt(toolSummary);
+  let systemPrompt = basePrompt;
   try {
     // PII anonymization is NOT applied for the local model — Ollama runs on
     // the user's own machine, so there is no external data boundary to
@@ -205,11 +208,10 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     // original messages when escalation happens.
     const ollamaToolDefs = ollamaTools.map(toOllamaToolDef);
 
-    const basePrompt = getLocalSystemPrompt(toolSummary);
-    let systemPrompt = basePrompt;
     if (params.memoryService) {
       const lastUserMsg = params.messages[params.messages.length - 1];
-      const userText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+      const rawLastUserText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+      const userText = rawLastUserText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
       if (userText) {
         try {
           const prefix = await params.memoryService.buildContextPrefix(userText);
@@ -263,7 +265,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
         messages: params.messages,
         ollama: params.ollama!,
         tools: ollamaTools,
-        system: getLocalSystemPrompt(toolSummary),
+        system: systemPrompt,
         onEvent: params.onEvent,
         signal: params.signal,
         pendingConfirms: params.pendingConfirms ?? new Map(),

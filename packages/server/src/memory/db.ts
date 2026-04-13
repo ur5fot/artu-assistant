@@ -52,6 +52,9 @@ export function insertEntry(db: Database.Database, params: InsertEntryParams): n
 }
 
 export function insertOrSupersedeFact(db: Database.Database, params: InsertFactParams): number {
+  // Normalize value so non-deterministic whitespace from the extractor LLM
+  // ("Одеса" vs "Одеса ") doesn't trigger spurious supersede churn.
+  const normalized: InsertFactParams = { ...params, value: params.value.trim().replace(/\s+/g, ' ') };
   const tx = db.transaction((p: InsertFactParams) => {
     const existing = db
       .prepare(
@@ -98,7 +101,7 @@ export function insertOrSupersedeFact(db: Database.Database, params: InsertFactP
 
     return newId;
   });
-  return tx(params);
+  return tx(normalized);
 }
 
 export function getActiveFacts(db: Database.Database): Array<{
