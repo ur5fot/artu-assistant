@@ -1648,17 +1648,17 @@ git commit -m "docs: document memory system configuration and usage"
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Full build**
+- [x] **Step 1: Full build**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build`
 Expected: PASS — all packages compile.
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run`
 Expected: PASS — all tests including new memory tests.
 
-- [ ] **Step 3: Manual test with running server**
+- [x] **Step 3: Manual test with running server**
 
 Start the dev server: `cd /Users/dim/code/R2-D2 && npm run dev`
 
@@ -1672,7 +1672,7 @@ Test scenarios in the chat:
 7. Send: "де я зараз живу?"
 8. Expected: R2 says "Київ" (superseded fact works)
 
-- [ ] **Step 4: Verify DB state**
+- [x] **Step 4: Verify DB state**
 
 Run: `sqlite3 /Users/dim/code/R2-D2/data/r2.db "SELECT key, value, superseded_by FROM memory_facts ORDER BY id"`
 Expected: two rows for `user.location` — first with `superseded_by` set to second's id, second with `superseded_by` NULL.
