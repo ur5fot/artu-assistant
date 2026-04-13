@@ -115,13 +115,17 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
 
       const toolDef = toolMap.get(tc.function.name);
       if (!toolDef) {
-        // Unknown tool — add error result and continue
+        // Unknown tool — include available tool list so the model can retry with correct name.
+        const availableNames = tools.map((t) => t.name).join(', ');
         const blockId = crypto.randomUUID();
         onEvent({
           type: 'tool_call_start',
           toolCall: { id: blockId, name: tc.function.name, input: tc.function.arguments, status: 'running' },
         });
-        const errorResult = { success: false as const, error: `Unknown tool: ${tc.function.name}` };
+        const errorResult = {
+          success: false as const,
+          error: `Unknown tool "${tc.function.name}". Available tools: ${availableNames}. Retry with a valid tool name.`,
+        };
         onEvent({ type: 'tool_call_result', id: blockId, result: errorResult });
         toolResults.push({ call: tc, content: JSON.stringify(errorResult) });
         continue;

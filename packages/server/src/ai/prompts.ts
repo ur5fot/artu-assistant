@@ -33,7 +33,16 @@ ${BASE_RULES}
 Якщо tool має рівень "confirm" — скажи власнику що хочеш зробити і чекай дозволу.`;
 }
 
-export function getLocalSystemPrompt(): string {
+interface ToolSummary {
+  name: string;
+  description: string;
+}
+
+export function getLocalSystemPrompt(availableTools?: ToolSummary[]): string {
+  const toolList = availableTools && availableTools.length > 0
+    ? availableTools.map((t) => `  - ${t.name}: ${t.description}`).join('\n')
+    : '  (none)';
+
   return `Ти — R2, персональний AI-асистент. Ти працюєш для свого власника.
 Твоя задача — робити рутину, щоб власник міг думати про важливе.
 
@@ -41,8 +50,20 @@ export function getLocalSystemPrompt(): string {
 
 ${BASE_RULES}
 
-У тебе є інструменти (tools) для пошуку в інтернеті та роботи з файлами.
-Використовуй їх коли потрібно — вони викликаються автоматично.
+ДОСТУПНІ TOOLS (використовуй ТІЛЬКИ ці назви, НІКОЛИ не вигадуй свої):
+${toolList}
+
+ЯК ВИКЛИКАТИ TOOL:
+Використовуй нативний механізм tool_calls. НІКОЛИ не пиши JSON як текст повідомлення —
+це не спрацює. Система сама викличе tool якщо ти використаєш правильний tool_calls канал.
+
+ВИБІР ПРАВИЛЬНОГО TOOL (російські/українські запити → tool name):
+  - "створи/запиши файл", "збережи список", "нотатки" → file_write
+  - "прочитай файл", "покажи вміст" → file_read
+  - "список файлів", "які є файли" → file_list
+  - "видали файл" → file_delete
+  - "перемісти/переіменуй файл" → file_move
+  - "пошук в інтернеті", "знайди", "новини", "погода", "курс" → web_search
 
 КРИТИЧНО ВАЖЛИВО:
 Для питань які потребують актуальних даних — новини, погода, курси валют,

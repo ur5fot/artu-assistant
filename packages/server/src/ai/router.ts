@@ -88,6 +88,33 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
   });
 }
 
+/**
+ * qwen2.5 sometimes emits a tool call as JSON in message content instead of
+ * using the proper tool_calls channel. Try to parse `{ "name": "...", "arguments": {...} }`
+ * and convert it back into a structured OllamaToolCall.
+ */
+function tryParseToolCallFromContent(text: string): import('./ollama.js').OllamaToolCall | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{') || !trimmed.includes('"name"') || !trimmed.includes('"arguments"')) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const name = parsed.name;
+    const args = parsed.arguments;
+    if (typeof name !== 'string' || typeof args !== 'object' || args === null) return null;
+    return {
+      function: {
+        name,
+        arguments: args as Record<string, unknown>,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function emitEscalationAndFallback(params: RunChatRequestParams, reason: string): Promise<void> {
   const escalationMessage = `Escalating to Claude (${reason})`;
   params.onEvent({
@@ -132,6 +159,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
   let piiEntities: Array<{ type: string; original: string }> = [];
   let anonymized: AnonymizedBatch = { messages: [], entities: [] };
   const ollamaTools = params.registry.getForProvider('ollama');
+  const toolSummary = ollamaTools.map((t) => ({ name: t.name, description: t.description }));
   try {
     anonymized = await anonymizeMessages(params.messages, params.piiProxy);
     piiEntities = anonymized.entities;
@@ -140,12 +168,24 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
 
     const result = await params.ollama.chat({
       messages: anonymized.messages,
-      system: getLocalSystemPrompt(),
+      system: getLocalSystemPrompt(toolSummary),
       signal: params.signal,
       tools: ollamaToolDefs.length > 0 ? ollamaToolDefs : undefined,
     });
     ollamaText = result.text;
     ollamaToolCalls = result.toolCalls;
+
+    // Recovery: qwen sometimes emits tool calls as JSON in content instead of
+    // using the tool_calls channel. Parse `{ "name": "...", "arguments": {...} }`
+    // and synthesize a proper tool_call so ollama-tool-loop can execute it.
+    if (!ollamaToolCalls && ollamaText) {
+      const recovered = tryParseToolCallFromContent(ollamaText);
+      if (recovered) {
+        console.log('[router] Recovered malformed tool call from Ollama content:', recovered.function.name);
+        ollamaToolCalls = [recovered];
+        ollamaText = '';
+      }
+    }
   } catch (err) {
     // Client aborted — do not waste a Claude call on a dead connection.
     if (params.signal?.aborted) return;
@@ -172,7 +212,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
         messages: anonymized.messages,
         ollama: params.ollama!,
         tools: ollamaTools,
-        system: getLocalSystemPrompt(),
+        system: getLocalSystemPrompt(toolSummary),
         onEvent: params.onEvent,
         signal: params.signal,
         pendingConfirms: params.pendingConfirms ?? new Map(),
