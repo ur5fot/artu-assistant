@@ -167,7 +167,7 @@ git commit -m "feat: load sqlite-vec and create memory tables"
 - Create: `packages/server/src/memory/embeddings.ts`
 - Create: `packages/server/src/memory/__tests__/embeddings.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/server/src/memory/__tests__/embeddings.test.ts`:
 
@@ -218,12 +218,12 @@ describe('EmbeddingsClient', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to see it fail**
+- [x] **Step 2: Run test to see it fail**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/memory/__tests__/embeddings.test.ts`
 Expected: FAIL — module does not exist.
 
-- [ ] **Step 3: Implement embeddings client**
+- [x] **Step 3: Implement embeddings client**
 
 Create `packages/server/src/memory/embeddings.ts`:
 
@@ -262,12 +262,12 @@ export function createEmbeddingsClient(config: EmbeddingsClientConfig): Embeddin
 }
 ```
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/memory/__tests__/embeddings.test.ts`
 Expected: PASS — 3 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/memory/embeddings.ts packages/server/src/memory/__tests__/embeddings.test.ts
