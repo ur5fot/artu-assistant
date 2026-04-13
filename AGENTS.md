@@ -227,6 +227,7 @@ data: { "type": "done" }
 | /деплой | code_deploy | Задеплоїти зміни в продакшн |
 | /евал | eval_add | Додати поведінковий тест |
 | /тести | eval_run | Запустити всі поведінкові тести |
+| /память | memory_search | Пошук у пам'яті R2 |
 
 ### Keyboard Shortcuts (UI)
 
@@ -429,6 +430,11 @@ LOCAL_LLM_MODE=enabled            # enabled | disabled
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b
 OLLAMA_TIMEOUT_MS=15000
+# Memory system (Phase 2 — Memory)
+MEMORY_ENABLED=true                # kill switch; false skips sqlite-vec load
+MEMORY_EMBED_MODEL=nomic-embed-text
+MEMORY_EXTRACT_MODEL=qwen2.5:7b
+MEMORY_MAX_CONTEXT_TOKENS=2000     # budget for auto-retrieval prefix
 ```
 
 ## Self-deploy flow (Phase 3C+3D)

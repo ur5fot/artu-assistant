@@ -96,9 +96,12 @@ R2: ${assistantText}
 
   // Memory-poisoning guard: facts get prefixed into future LLM prompts, so a
   // crafted user message could try to smuggle instructions through fact.value.
-  // Constrain key to a strict charset (canonical schema), cap value length,
-  // and strip control characters that could break out of our memory block.
-  const KEY_RE = /^[a-z][a-z0-9_.]{0,63}$/i;
+  // Constrain key to a strict lowercase charset (canonical schema), cap value
+  // length, and strip control characters that could break out of our memory
+  // block. Intentionally NOT case-insensitive — `User.Location` and
+  // `user.location` must collapse to the same canonical key so supersede
+  // detection works, so we reject mixed-case keys outright.
+  const KEY_RE = /^[a-z][a-z0-9_.]{0,63}$/;
   const VALUE_MAX = 500;
   const facts: ExtractedFact[] = [];
   for (const item of parsed) {

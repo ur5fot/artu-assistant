@@ -209,7 +209,11 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     const ollamaToolDefs = ollamaTools.map(toOllamaToolDef);
 
     if (params.memoryService) {
-      const lastUserMsg = params.messages[params.messages.length - 1];
+      const lastMsg = params.messages[params.messages.length - 1];
+      // Only build memory context from a user query. If the turn happens to
+      // end on an assistant message (re-invocation path) we'd otherwise embed
+      // assistant text as the "query" and retrieve irrelevant memories.
+      const lastUserMsg = lastMsg?.role === 'user' ? lastMsg : undefined;
       const rawLastUserText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
       const userText = rawLastUserText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
       if (userText) {
