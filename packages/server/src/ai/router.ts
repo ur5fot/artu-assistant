@@ -89,30 +89,47 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
 }
 
 /**
- * qwen2.5 sometimes emits a tool call as JSON in message content instead of
- * using the proper tool_calls channel. Try to parse `{ "name": "...", "arguments": {...} }`
- * and convert it back into a structured OllamaToolCall.
+ * qwen2.5 sometimes emits a tool call as text in message content instead of
+ * using the proper tool_calls channel. Try to recover it from common formats:
+ *   1. `{ "name": "...", "arguments": {...} }` — OpenAI-style JSON wrapper
+ *   2. `tool_name {...}` — function call notation (qwen favorite)
+ *   3. bare `{...}` where first key looks like a tool parameter — risky,
+ *      only parse if we can't match the other formats
  */
 function tryParseToolCallFromContent(text: string): import('./ollama.js').OllamaToolCall | null {
   const trimmed = text.trim();
-  if (!trimmed.startsWith('{') || !trimmed.includes('"name"') || !trimmed.includes('"arguments"')) {
-    return null;
+
+  // Format 1: { "name": "...", "arguments": {...} }
+  if (trimmed.startsWith('{') && trimmed.includes('"name"') && trimmed.includes('"arguments"')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'object' && parsed !== null) {
+        const name = parsed.name;
+        const args = parsed.arguments;
+        if (typeof name === 'string' && typeof args === 'object' && args !== null) {
+          return { function: { name, arguments: args as Record<string, unknown> } };
+        }
+      }
+    } catch {
+      // fall through to next format
+    }
   }
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    const name = parsed.name;
-    const args = parsed.arguments;
-    if (typeof name !== 'string' || typeof args !== 'object' || args === null) return null;
-    return {
-      function: {
-        name,
-        arguments: args as Record<string, unknown>,
-      },
-    };
-  } catch {
-    return null;
+
+  // Format 2: tool_name {...}
+  const match = trimmed.match(/^([a-z_][a-z0-9_]*)\s+(\{[\s\S]*\})\s*$/i);
+  if (match) {
+    const [, name, jsonStr] = match;
+    try {
+      const args = JSON.parse(jsonStr);
+      if (typeof args === 'object' && args !== null) {
+        return { function: { name, arguments: args as Record<string, unknown> } };
+      }
+    } catch {
+      return null;
+    }
   }
+
+  return null;
 }
 
 async function emitEscalationAndFallback(params: RunChatRequestParams, reason: string): Promise<void> {
