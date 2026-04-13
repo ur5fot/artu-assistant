@@ -10,6 +10,12 @@ interface EmbeddingsClientConfig {
 
 const EMBED_INPUT_MAX_CHARS = 8000;
 
+// Must match FLOAT[768] in db.ts memory_vec_* virtual tables. If a user
+// points MEMORY_EMBED_MODEL at a model with a different output dimension,
+// inserts fail deep inside sqlite-vec with an opaque error and search
+// degrades silently via the warn-and-continue paths. Fail loudly instead.
+const EXPECTED_EMBED_DIM = 768;
+
 // Circuit breaker: if Ollama is unreachable, stop hammering it. Without this,
 // a single chat turn can stack three 15s timeouts (router prefix embed, ollama
 // chat, claude-fallback prefix embed) and block the user for ~45s before any
@@ -40,6 +46,17 @@ export function createEmbeddingsClient(config: EmbeddingsClientConfig): Embeddin
         const data = (await res.json()) as { embedding?: number[] };
         if (!Array.isArray(data.embedding)) {
           throw new Error('Embeddings response missing embedding');
+        }
+        if (data.embedding.length !== EXPECTED_EMBED_DIM) {
+          throw new Error(
+            `Embeddings dimension mismatch: model '${config.model}' returned ${data.embedding.length}, expected ${EXPECTED_EMBED_DIM}. ` +
+              `The memory_vec_* tables are defined as FLOAT[${EXPECTED_EMBED_DIM}]; change MEMORY_EMBED_MODEL back to a 768-dim model or rebuild the schema.`,
+          );
+        }
+        for (const n of data.embedding) {
+          if (typeof n !== 'number' || !Number.isFinite(n)) {
+            throw new Error('Embeddings response contains non-finite values');
+          }
         }
         return data.embedding;
       } catch (err) {

@@ -44,6 +44,17 @@ interface MemoryServiceDeps {
 
 const ENTRY_PREVIEW_MAX_CHARS = 300;
 
+// Neutralize stored text before it goes inside the memory block so a user
+// who pasted third-party content containing our header/footer sentinels (or
+// raw newlines that break the line-per-entry layout) cannot escape the
+// "reference data, not instructions" frame the LLM relies on.
+function sanitizeForMemoryBlock(text: string): string {
+  return text
+    .replace(/=+\s*ПАМ['’]ЯТЬ\s+R2[^\n]*/gi, '[memory-header]')
+    .replace(/=+\s*КОНЕЦ\s+ПАМ['’]ЯТІ\s*=+/gi, '[memory-footer]')
+    .replace(/[\r\n]+/g, ' ');
+}
+
 export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
   const { db, embeddings, ollama } = deps;
   // ~2 chars per token is conservative for Cyrillic on Claude/Ollama tokenizers
@@ -175,7 +186,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
         bodyLines.push('Активні факти про юзера:');
         for (const f of facts.slice(0, 20)) {
           const date = new Date(f.lastMentionedAt).toISOString().slice(0, 10);
-          bodyLines.push(`- ${f.key}: ${f.value} (оновлено ${date})`);
+          bodyLines.push(`- ${sanitizeForMemoryBlock(f.key)}: ${sanitizeForMemoryBlock(f.value)} (оновлено ${date})`);
         }
         bodyLines.push('');
       }
@@ -183,9 +194,10 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
         bodyLines.push('Релевантні попередні розмови:');
         for (const h of entryHits) {
           const date = new Date(h.createdAt).toISOString().slice(0, 10);
-          const preview = h.content.length > ENTRY_PREVIEW_MAX_CHARS
-            ? h.content.slice(0, ENTRY_PREVIEW_MAX_CHARS) + '...'
-            : h.content;
+          const safeContent = sanitizeForMemoryBlock(h.content);
+          const preview = safeContent.length > ENTRY_PREVIEW_MAX_CHARS
+            ? safeContent.slice(0, ENTRY_PREVIEW_MAX_CHARS) + '...'
+            : safeContent;
           const label = h.kind === 'user_msg' ? 'Юзер' : h.kind === 'assistant_msg' ? 'R2' : h.kind;
           bodyLines.push(`[${date}] ${label}: ${preview}`);
         }
