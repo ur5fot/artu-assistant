@@ -9,7 +9,13 @@ import {
   vectorSearch,
   markFactForgotten,
 } from './db.js';
-import { extractFacts } from './extractor.js';
+import { extractFacts, normalizeKey } from './extractor.js';
+
+// Same canonical schema and caps enforced by extractFacts. saveFact (called
+// from memory_remember) must match, otherwise two write paths produce keys
+// that dedup can't collapse and values that bypass the poisoning guard.
+const FACT_KEY_RE = /^[a-z][a-z0-9_.]{0,63}$/;
+const FACT_VALUE_MAX = 500;
 
 export interface MemoryHit {
   text: string;
@@ -201,9 +207,14 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
     },
 
     async saveFact(params) {
-      const key = params.key.trim();
-      const value = params.value.trim().replace(/\s+/g, ' ');
-      if (!key || !value) return null;
+      const key = normalizeKey(params.key);
+      if (!FACT_KEY_RE.test(key)) return null;
+      let value = params.value
+        .replace(/[\u0000-\u001f\u007f]/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+      if (value.length > FACT_VALUE_MAX) value = value.slice(0, FACT_VALUE_MAX);
+      if (!value) return null;
       const importance = params.importance ?? 1;
       const createdAt = params.timestamp ?? Date.now();
       const factText = `${key}: ${value}`;
@@ -227,7 +238,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
     async forgetFact(params) {
       const query = params.query.trim();
       if (!query) return { forgotten: [], candidates: [] };
-      const normalizedQuery = query.toLowerCase();
+      const normalizedQuery = normalizeKey(query);
 
       const all = getActiveFacts(db);
       const exact = all.filter((f) => f.key === normalizedQuery);
