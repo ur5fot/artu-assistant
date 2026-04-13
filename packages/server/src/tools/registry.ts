@@ -9,7 +9,13 @@ export interface ToolRegistry {
   get(name: string): ToolDefinition | undefined;
   getAll(): ToolDefinition[];
   getForProvider(provider: 'ollama' | 'claude'): ToolDefinition[];
-  getCommands(): Array<{ name: string; tool: string; description: string; params?: Array<{ name: string; required: boolean; description?: string }> }>;
+  getCommands(): Array<{
+    name: string;
+    tool: string;
+    description: string;
+    params?: Array<{ name: string; required: boolean; description?: string }>;
+    flags?: Array<{ token: string; param: string; description?: string }>;
+  }>;
   getByCommandName(commandName: string): ToolDefinition | undefined;
 }
 
@@ -52,6 +58,7 @@ export function createRegistry(): ToolRegistry {
           tool: t.name,
           description: t.command!.description,
           params: t.command!.params,
+          flags: t.command!.flags,
         }));
     },
 
