@@ -647,6 +647,48 @@ describe('POST /api/chat', () => {
     expect(receivedMessages[0].content).not.toContain('"text"');
   });
 
+  it('treats flag-like substrings inside quoted text as literal content', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue({
+      name: 'prompt_overlay_ollama',
+      provider: 'all',
+      command: {
+        name: 'лама-промпт',
+        params: [{ name: 'text', required: false }],
+        flags: [
+          { token: '--показати', param: 'show' },
+          { token: '--скинути', param: 'reset' },
+        ],
+      },
+    });
+
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+      memoryService: null,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/лама-промпт "foo --скинути bar"' }] })
+      .expect(200);
+
+    expect(receivedMessages[0].content).not.toContain('"reset":true');
+    expect(receivedMessages[0].content).toContain('foo --скинути bar');
+  });
+
   it('sanitizes errors containing API key patterns', async () => {
     const app = express();
     app.use(express.json());

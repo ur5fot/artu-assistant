@@ -28,6 +28,57 @@ function addTimestamps(messages: Array<{ role: string; content: string; timestam
   }));
 }
 
+function extractFlagsQuoteAware(
+  input: string,
+  flagTokens: readonly string[],
+): { stripped: string; matched: Set<string> } {
+  // Scan char-by-char tracking quote state so flag-like substrings inside
+  // "quoted text" are treated as literal content, not flags. A flag only
+  // matches when it sits on a token boundary (start-of-input or whitespace
+  // before it, whitespace or end-of-input after it) in an unquoted region.
+  const matched = new Set<string>();
+  let out = '';
+  let quote: '"' | "'" | null = null;
+  let i = 0;
+  while (i < input.length) {
+    const ch = input[i];
+    if (quote) {
+      out += ch;
+      if (ch === quote) quote = null;
+      i++;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      out += ch;
+      i++;
+      continue;
+    }
+    const atBoundary = i === 0 || /\s/.test(input[i - 1]);
+    if (atBoundary) {
+      let hit: string | null = null;
+      for (const tok of flagTokens) {
+        if (tok && input.startsWith(tok, i)) {
+          const after = input[i + tok.length];
+          if (after === undefined || /\s/.test(after)) {
+            hit = tok;
+            break;
+          }
+        }
+      }
+      if (hit) {
+        matched.add(hit);
+        out += ' ';
+        i += hit.length;
+        continue;
+      }
+    }
+    out += ch;
+    i++;
+  }
+  return { stripped: out, matched };
+}
+
 function parseCommandArgs(input: string): string[] {
   // Shell-like tokenizer: splits on whitespace, supports "double" and 'single' quotes.
   // Tracks `hasToken` separately from `current` so an empty quoted string ("") still
@@ -169,16 +220,16 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
           const requiredParams = (toolDef.command?.params ?? []).filter((p) => p.required);
           // Extract declared boolean flags from args BEFORE positional parsing so a
           // flag token (e.g. "--показати") never lands in a positional param slot.
-          let remainingArgs = argsStr;
+          // Quote-aware: flag-like substrings inside "quoted text" are left alone.
           const declaredFlags = toolDef.command?.flags ?? [];
+          const { stripped, matched } = extractFlagsQuoteAware(
+            argsStr,
+            declaredFlags.map((f) => f.token),
+          );
           for (const flag of declaredFlags) {
-            const re = new RegExp(`(^|\\s)${flag.token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`, 'g');
-            if (re.test(remainingArgs)) {
-              params[flag.param] = true;
-              remainingArgs = remainingArgs.replace(re, ' ');
-            }
+            if (matched.has(flag.token)) params[flag.param] = true;
           }
-          const trimmedArgs = remainingArgs.trim();
+          const trimmedArgs = stripped.trim();
 
           // Validation: required params must be provided. Fail fast instead of
           // letting the LLM infer values from prior context (could trigger unintended
