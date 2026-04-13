@@ -94,10 +94,10 @@
 
 ### Task 4: Інтеграція slash-команд у chat route
 
-- [ ] перевірити у `packages/server/src/routes/chat.ts` як парсяться існуючі slash-команди (`/пошук`, `/пам'ять`); переконатися що auto-discovery через registry працює для нових tools без ручного hardcoding
-- [ ] якщо є центральний парсер аргументів — переконатися що прапорці `--показати`, `--скинути` з кирилиці розпарсяться; якщо ні — адаптувати parsing (можливо trivial, можливо треба додати alias mapping)
-- [ ] додати integration-тест у `packages/server/src/routes/__tests__/chat.test.ts`: `POST /chat` з `/клод-промпт тест` → в БД є overlay → наступний `getSystemPrompt()` містить «тест»; `/клод-промпт --скинути` → немає
-- [ ] `npm --workspace @r2/server test`
+- [x] перевірити у `packages/server/src/routes/chat.ts` як парсяться існуючі slash-команди (`/пошук`, `/пам'ять`); переконатися що auto-discovery через registry працює для нових tools без ручного hardcoding
+- [x] якщо є центральний парсер аргументів — переконатися що прапорці `--показати`, `--скинути` з кирилиці розпарсяться; якщо ні — адаптувати parsing (можливо trivial, можливо треба додати alias mapping)
+- [x] додати integration-тест у `packages/server/src/routes/__tests__/chat.test.ts`: `POST /chat` з `/клод-промпт тест` → в БД є overlay → наступний `getSystemPrompt()` містить «тест»; `/клод-промпт --скинути` → немає
+- [x] `npm --workspace @r2/server test`
 
 ### Task 5: Verify acceptance criteria
 

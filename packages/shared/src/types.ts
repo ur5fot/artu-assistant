@@ -59,6 +59,11 @@ export interface ToolDefinition {
       required: boolean;
       description?: string;
     }>;
+    flags?: Array<{
+      token: string;
+      param: string;
+      description?: string;
+    }>;
   };
 }
 

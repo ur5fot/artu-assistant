@@ -167,7 +167,18 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
           // Map positional args to tool parameters
           const params: Record<string, unknown> = {};
           const requiredParams = (toolDef.command?.params ?? []).filter((p) => p.required);
-          const trimmedArgs = argsStr.trim();
+          // Extract declared boolean flags from args BEFORE positional parsing so a
+          // flag token (e.g. "--показати") never lands in a positional param slot.
+          let remainingArgs = argsStr;
+          const declaredFlags = toolDef.command?.flags ?? [];
+          for (const flag of declaredFlags) {
+            const re = new RegExp(`(^|\\s)${flag.token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`);
+            if (re.test(remainingArgs)) {
+              params[flag.param] = true;
+              remainingArgs = remainingArgs.replace(re, ' ');
+            }
+          }
+          const trimmedArgs = remainingArgs.trim();
 
           // Validation: required params must be provided. Fail fast instead of
           // letting the LLM infer values from prior context (could trigger unintended

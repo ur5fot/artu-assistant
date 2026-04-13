@@ -519,6 +519,134 @@ describe('POST /api/chat', () => {
     expect(receivedMessages[0].content).toBe('/unknown test');
   });
 
+  it('parses prompt-overlay slash command with text argument', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue({
+      name: 'prompt_overlay_claude',
+      provider: 'all',
+      command: {
+        name: 'клод-промпт',
+        params: [{ name: 'text', required: false }],
+        flags: [
+          { token: '--показати', param: 'show' },
+          { token: '--скинути', param: 'reset' },
+        ],
+      },
+    });
+
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+      memoryService: null,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/клод-промпт відповідай коротко' }] })
+      .expect(200);
+
+    expect(receivedMessages[0].content).toContain('Use tool "prompt_overlay_claude"');
+    expect(receivedMessages[0].content).toContain('"text":"відповідай коротко"');
+    expect(receivedMessages[0].content).not.toContain('"show"');
+    expect(receivedMessages[0].content).not.toContain('"reset"');
+  });
+
+  it('parses --показати flag into show=true with no text param', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue({
+      name: 'prompt_overlay_claude',
+      provider: 'all',
+      command: {
+        name: 'клод-промпт',
+        params: [{ name: 'text', required: false }],
+        flags: [
+          { token: '--показати', param: 'show' },
+          { token: '--скинути', param: 'reset' },
+        ],
+      },
+    });
+
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+      memoryService: null,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/клод-промпт --показати' }] })
+      .expect(200);
+
+    expect(receivedMessages[0].content).toContain('"show":true');
+    expect(receivedMessages[0].content).not.toContain('"text"');
+  });
+
+  it('parses --скинути flag into reset=true', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue({
+      name: 'prompt_overlay_ollama',
+      provider: 'all',
+      command: {
+        name: 'лама-промпт',
+        params: [{ name: 'text', required: false }],
+        flags: [
+          { token: '--показати', param: 'show' },
+          { token: '--скинути', param: 'reset' },
+        ],
+      },
+    });
+
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+      memoryService: null,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/лама-промпт --скинути' }] })
+      .expect(200);
+
+    expect(receivedMessages[0].content).toContain('"reset":true');
+    expect(receivedMessages[0].content).not.toContain('"text"');
+  });
+
   it('sanitizes errors containing API key patterns', async () => {
     const app = express();
     app.use(express.json());

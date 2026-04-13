@@ -47,6 +47,10 @@ function buildTool(cfg: Config, deps: Required<PromptOverlayDeps>): ToolDefiniti
       name: cfg.commandName,
       description: cfg.commandDescription,
       params: [{ name: 'text', required: false, description: 'Текст надстройки (або --показати / --скинути)' }],
+      flags: [
+        { token: '--показати', param: 'show', description: 'Показати поточний overlay' },
+        { token: '--скинути', param: 'reset', description: 'Скинути overlay' },
+      ],
     },
     parameters: {
       type: 'object',
