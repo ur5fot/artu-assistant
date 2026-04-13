@@ -21,6 +21,41 @@ function formatTimestamp(ts: number): string {
   });
 }
 
+export function truncateMessages<T extends { role: string; content: string }>(
+  messages: T[],
+  maxChars: number,
+): T[] {
+  // Budget-based tail truncation. Walks backwards from the newest message and
+  // keeps as many as fit within `maxChars`, then discards any leading
+  // `assistant` orphan (assistant message with no preceding kept `user` turn)
+  // so the model never sees an assistant reply without its triggering user
+  // turn — otherwise Anthropic rejects the request and Ollama gets confused.
+  // Raw messages stay in SQLite; we only trim what we send to the model.
+  if (messages.length === 0) return messages;
+  if (maxChars <= 0) return messages;
+
+  const lastIdx = messages.length - 1;
+  const last = messages[lastIdx];
+  const lastLen = last.content.length;
+
+  const kept: T[] = [last];
+  let total = lastLen;
+
+  for (let i = lastIdx - 1; i >= 0; i--) {
+    const m = messages[i];
+    const len = m.content.length;
+    if (total + len > maxChars) break;
+    kept.unshift(m);
+    total += len;
+  }
+
+  while (kept.length > 1 && kept[0].role === 'assistant') {
+    kept.shift();
+  }
+
+  return kept;
+}
+
 function addTimestamps(messages: Array<{ role: string; content: string; timestamp?: number }>): MessageParam[] {
   return messages.map((m) => ({
     role: m.role as 'user' | 'assistant',
@@ -326,9 +361,13 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
     let assistantSource: 'ollama' | 'claude' | undefined;
     const assistantId = crypto.randomUUID();
 
+    const budgetRaw = Number(process.env.CHAT_CONTEXT_BUDGET_CHARS);
+    const contextBudget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? budgetRaw : 60000;
+    const truncated = truncateMessages(messages, contextBudget);
+
     try {
       await runChatRequest({
-        messages: addTimestamps(messages),
+        messages: addTimestamps(truncated),
         signal: abortController.signal,
         pendingConfirms,
         pendingPlanReviews,

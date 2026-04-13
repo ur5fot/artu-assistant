@@ -139,13 +139,13 @@
 
 ### Task 9: Context window truncation у chat.ts
 
-- [ ] у `packages/server/src/routes/chat.ts` перед `runChatRequest` (~ line 331) додати функцію `truncateMessages(messages, maxChars)` яка:
+- [x] у `packages/server/src/routes/chat.ts` перед `runChatRequest` (~ line 331) додати функцію `truncateMessages(messages, maxChars)` яка:
   - завжди лишає SYSTEM (якщо є) + останнє user повідомлення
   - від кінця до початку додає повідомлення поки сумарно ≤ `maxChars`
   - відкинуті — просто не передаються (raw лишаються в БД для історії)
-- [ ] `maxChars` конфігурується через `process.env.CHAT_CONTEXT_BUDGET_CHARS` (default 60000 ≈ 15k tokens — комфортно для Haiku/qwen)
-- [ ] тести: коротка сесія — всі повідомлення; довга — обрізається; порядок і цілісність пари user/assistant зберігається (не обрізати assistant без його user)
-- [ ] `npm test`
+- [x] `maxChars` конфігурується через `process.env.CHAT_CONTEXT_BUDGET_CHARS` (default 60000 ≈ 15k tokens — комфортно для Haiku/qwen)
+- [x] тести: коротка сесія — всі повідомлення; довга — обрізається; порядок і цілісність пари user/assistant зберігається (не обрізати assistant без його user)
+- [x] `npm test`
 
 ### Task 10: Verify acceptance criteria
 

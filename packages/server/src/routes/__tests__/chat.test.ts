@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createChatRouter } from '../chat.js';
+import { createChatRouter, truncateMessages } from '../chat.js';
 import { createPassthroughProxy } from '../../pii/proxy.js';
 
 function fakeRegistry() {
@@ -793,5 +793,57 @@ describe('POST /api/chat', () => {
 
     expect(res.text).toContain('AI service temporarily unavailable');
     expect(res.text).not.toContain('sk-ant-');
+  });
+});
+
+describe('truncateMessages', () => {
+  it('keeps all messages when under budget', () => {
+    const msgs = [
+      { role: 'user', content: 'one' },
+      { role: 'assistant', content: 'two' },
+      { role: 'user', content: 'three' },
+    ];
+    expect(truncateMessages(msgs, 1000)).toEqual(msgs);
+  });
+
+  it('always keeps the last user message even past budget', () => {
+    const long = 'x'.repeat(100);
+    const msgs = [
+      { role: 'user', content: long },
+      { role: 'assistant', content: long },
+      { role: 'user', content: 'latest' },
+    ];
+    const out = truncateMessages(msgs, 10);
+    expect(out).toHaveLength(1);
+    expect(out[0].content).toBe('latest');
+  });
+
+  it('walks backwards adding messages until budget exhausted', () => {
+    const msgs = [
+      { role: 'user', content: 'aaaa' },      // 4
+      { role: 'assistant', content: 'bbbb' }, // 4
+      { role: 'user', content: 'cccc' },      // 4
+      { role: 'assistant', content: 'dddd' }, // 4
+      { role: 'user', content: 'eeee' },      // 4 — last
+    ];
+    // budget 12 → keep last 3 (12 chars)
+    const out = truncateMessages(msgs, 12);
+    expect(out.map((m) => m.content)).toEqual(['cccc', 'dddd', 'eeee']);
+  });
+
+  it('drops leading assistant orphan to preserve user/assistant pairing', () => {
+    const msgs = [
+      { role: 'user', content: 'aaaa' },
+      { role: 'assistant', content: 'bbbb' },
+      { role: 'user', content: 'ccccc' }, // 5 — last
+    ];
+    // budget 10 → keeps last (5) + assistant 'bbbb' (4) = 9. Leading is 'assistant' → drop.
+    const out = truncateMessages(msgs, 10);
+    expect(out.map((m) => m.role)).toEqual(['user']);
+    expect(out[0].content).toBe('ccccc');
+  });
+
+  it('handles empty input', () => {
+    expect(truncateMessages([], 100)).toEqual([]);
   });
 });
