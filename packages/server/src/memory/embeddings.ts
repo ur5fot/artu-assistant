@@ -1,5 +1,5 @@
 export interface EmbeddingsClient {
-  embed(text: string): Promise<number[]>;
+  embed(text: string, signal?: AbortSignal): Promise<number[]>;
 }
 
 interface EmbeddingsClientConfig {
@@ -26,18 +26,22 @@ export function createEmbeddingsClient(config: EmbeddingsClientConfig): Embeddin
   const timeoutMs = config.timeoutMs ?? 15000;
   let openedAt = 0;
   return {
-    async embed(text: string): Promise<number[]> {
+    async embed(text: string, signal?: AbortSignal): Promise<number[]> {
       if (openedAt && Date.now() - openedAt < CIRCUIT_OPEN_MS) {
         throw new Error('Embeddings circuit open (recent failure)');
       }
       openedAt = 0;
       const input = text.length > EMBED_INPUT_MAX_CHARS ? text.slice(0, EMBED_INPUT_MAX_CHARS) : text;
+      // Combine caller cancellation with the timeout so a disconnected client
+      // does not keep the fetch alive for up to timeoutMs.
+      const timeoutSignal = AbortSignal.timeout(timeoutMs);
+      const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
       try {
         const res = await fetch(`${config.url}/api/embeddings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ model: config.model, prompt: input }),
-          signal: AbortSignal.timeout(timeoutMs),
+          signal: combinedSignal,
         });
         if (!res.ok) {
           await res.body?.cancel().catch(() => {});
@@ -60,7 +64,12 @@ export function createEmbeddingsClient(config: EmbeddingsClientConfig): Embeddin
         }
         return data.embedding;
       } catch (err) {
-        openedAt = Date.now();
+        // A caller-initiated abort is not a server health signal — don't open
+        // the circuit, or the next request would be refused for no reason.
+        const abortedByCaller = signal?.aborted === true;
+        if (!abortedByCaller) {
+          openedAt = Date.now();
+        }
         throw err;
       }
     },

@@ -89,6 +89,37 @@ if (piiMode === 'disabled') {
 // Setup
 const client = createClaudeClient();
 const localLlmMode = (process.env.LOCAL_LLM_MODE || 'enabled') as 'enabled' | 'disabled';
+
+// Router intentionally skips PII anonymization for the Ollama path on the
+// assumption that Ollama runs on the user's machine. If OLLAMA_URL points at a
+// non-loopback host, that assumption breaks and raw user content (including
+// PII) would cross the network. Refuse to start unless the operator has
+// explicitly opted in via OLLAMA_ALLOW_REMOTE=1.
+if (localLlmMode !== 'disabled') {
+  const rawUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+  try {
+    const parsed = new URL(rawUrl);
+    const host = parsed.hostname.toLowerCase();
+    const isLoopback =
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '::1' ||
+      host === '[::1]' ||
+      host.endsWith('.localhost');
+    if (!isLoopback && process.env.OLLAMA_ALLOW_REMOTE !== '1') {
+      throw new Error(
+        `OLLAMA_URL=${rawUrl} is not loopback. The Ollama path sends unmasked PII. ` +
+          `Set OLLAMA_ALLOW_REMOTE=1 to acknowledge, or set LOCAL_LLM_MODE=disabled.`,
+      );
+    }
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error(`OLLAMA_URL is not a valid URL: ${rawUrl}`);
+    }
+    throw err;
+  }
+}
+
 const ollama: OllamaClient | null = localLlmMode === 'disabled' ? null : createOllamaClient();
 if (ollama) {
   console.log('[router] Local LLM enabled via Ollama at', process.env.OLLAMA_URL || 'http://localhost:11434');

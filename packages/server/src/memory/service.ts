@@ -31,7 +31,7 @@ export interface MemoryService {
 
   getActiveFacts(): Promise<Array<{ key: string; value: string; lastMentionedAt: number }>>;
 
-  buildContextPrefix(userMessage: string): Promise<string>;
+  buildContextPrefix(userMessage: string, signal?: AbortSignal): Promise<string>;
 }
 
 interface MemoryServiceDeps {
@@ -62,9 +62,9 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
   const contextBudget = (deps.maxContextTokens ?? 2000) * 2;
   let indexQueue: Promise<void> = Promise.resolve();
 
-  async function safeEmbed(text: string): Promise<number[] | null> {
+  async function safeEmbed(text: string, signal?: AbortSignal): Promise<number[] | null> {
     try {
-      return await embeddings.embed(text);
+      return await embeddings.embed(text, signal);
     } catch (err) {
       console.warn('[memory] embed failed:', err instanceof Error ? err.message : err);
       return null;
@@ -96,10 +96,11 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       // bypass the PII proxy, so their raw outputs can carry unmasked secrets, diffs,
       // and file paths. Embedding them here would persist those secrets in SQLite and
       // resurface them via buildContextPrefix into upstream LLM prompts.
-      await Promise.all([
-        indexOne('user_msg', userMessage, timestamp),
-        indexOne('assistant_msg', assistantMessage, timestamp),
-      ]);
+      // Skip empty messages so tool-only assistant turns don't pollute search.
+      const tasks: Promise<void>[] = [];
+      if (userMessage.trim()) tasks.push(indexOne('user_msg', userMessage, timestamp));
+      if (assistantMessage.trim()) tasks.push(indexOne('assistant_msg', assistantMessage, timestamp));
+      await Promise.all(tasks);
 
       let facts: Array<{ key: string; value: string }> = [];
       try {
@@ -168,9 +169,10 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       }));
     },
 
-    async buildContextPrefix(userMessage) {
-      const vec = await safeEmbed(userMessage);
-      if (!vec) return '';
+    async buildContextPrefix(userMessage, signal) {
+      if (signal?.aborted) return '';
+      const vec = await safeEmbed(userMessage, signal);
+      if (!vec || signal?.aborted) return '';
 
       const facts = getActiveFacts(db);
       const hits = vectorSearch(db, { embedding: vec, limit: 10, kind: 'entry' });

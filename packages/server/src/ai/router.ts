@@ -32,50 +32,6 @@ export interface RunChatRequestParams {
   }) => Promise<void>;
 }
 
-interface AnonymizedBatch {
-  messages: MessageParam[];
-  entities: Array<{ type: string; original: string }>;
-}
-
-async function anonymizeMessages(
-  messages: MessageParam[],
-  piiProxy: PiiProxy,
-): Promise<AnonymizedBatch> {
-  const entities: Array<{ type: string; original: string }> = [];
-  const collect = (role: MessageParam['role'], result: { entities: Array<{ type: string; original: string }> }) => {
-    if (role === 'user') {
-      for (const e of result.entities) entities.push({ type: e.type, original: e.original });
-    }
-  };
-  const out = await Promise.all(
-    messages.map(async (msg) => {
-      if (typeof msg.content === 'string') {
-        const result = await piiProxy.anonymize(msg.content);
-        collect(msg.role, result);
-        return { role: msg.role, content: result.text } as MessageParam;
-      }
-      if (Array.isArray(msg.content)) {
-        // Router only lets text-only block arrays reach this function; still
-        // guard each block defensively so a future shape change cannot leak
-        // PII past Presidio.
-        const newBlocks = await Promise.all(
-          msg.content.map(async (block: any) => {
-            if (block?.type === 'text' && typeof block.text === 'string') {
-              const result = await piiProxy.anonymize(block.text);
-              collect(msg.role, result);
-              return { ...block, text: result.text };
-            }
-            return block;
-          }),
-        );
-        return { role: msg.role, content: newBlocks } as MessageParam;
-      }
-      return msg;
-    }),
-  );
-  return { messages: out, entities };
-}
-
 async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
   if (!params.signal?.aborted) {
     params.onEvent({ type: 'assistant_source', source: 'claude' });
@@ -90,7 +46,7 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
       const userText = rawText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
       if (userText) {
         try {
-          const prefix = await params.memoryService.buildContextPrefix(userText);
+          const prefix = await params.memoryService.buildContextPrefix(userText, params.signal);
           if (prefix) {
             const rewritten = [...params.messages];
             rewritten[idx] = { ...msg, content: `${prefix}\n\n${rawText}` };
@@ -218,7 +174,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
       const userText = rawLastUserText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
       if (userText) {
         try {
-          const prefix = await params.memoryService.buildContextPrefix(userText);
+          const prefix = await params.memoryService.buildContextPrefix(userText, params.signal);
           if (prefix) systemPrompt = prefix + '\n\n' + basePrompt;
         } catch (err) {
           console.warn('[router] memory context failed:', err instanceof Error ? err.message : err);
