@@ -17,6 +17,9 @@ describe('extractFacts', () => {
       { key: 'user.location', value: 'Одеса' },
       { key: 'user.phone', value: '+380' },
     ]);
+    expect(mockOllama.chat).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'qwen2.5:7b' }),
+    );
   });
 
   it('returns empty array when Ollama returns non-JSON', async () => {

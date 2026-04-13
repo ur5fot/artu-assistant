@@ -104,5 +104,38 @@ describe('memory db', () => {
     const hits = vectorSearch(getDb(), { embedding: makeVec(0.1), limit: 2 });
     expect(hits).toHaveLength(2);
     expect(hits[0].content).toBe('apple');
+    expect(hits[1].content).toBe('banana');
+  });
+
+  it('entries and facts with colliding numeric ids both index and search', () => {
+    // Both autoincrement from 1 — the previous single-table vec schema collided.
+    insertEntry(getDb(), { kind: 'user_msg', sourceId: 'x', content: 'hello', createdAt: 1, embedding: makeVec(0.5) });
+    insertOrSupersedeFact(getDb(), { key: 'user.name', value: 'Діма', createdAt: 1, embedding: makeVec(0.5) });
+
+    const hits = vectorSearch(getDb(), { embedding: makeVec(0.5), limit: 10 });
+    const kinds = hits.map((h) => h.entityType).sort();
+    expect(kinds).toEqual(['entry', 'fact']);
+  });
+
+  it('vectorSearch filters by kind', () => {
+    insertEntry(getDb(), { kind: 'user_msg', sourceId: 'a', content: 'msg', createdAt: 1, embedding: makeVec(0.5) });
+    insertOrSupersedeFact(getDb(), { key: 'k', value: 'v', createdAt: 1, embedding: makeVec(0.5) });
+
+    const onlyFacts = vectorSearch(getDb(), { embedding: makeVec(0.5), limit: 10, kind: 'fact' });
+    expect(onlyFacts.every((h) => h.entityType === 'fact')).toBe(true);
+    expect(onlyFacts).toHaveLength(1);
+
+    const onlyEntries = vectorSearch(getDb(), { embedding: makeVec(0.5), limit: 10, kind: 'entry' });
+    expect(onlyEntries.every((h) => h.entityType === 'entry')).toBe(true);
+    expect(onlyEntries).toHaveLength(1);
+  });
+
+  it('superseded facts disappear from vectorSearch', () => {
+    insertOrSupersedeFact(getDb(), { key: 'user.location', value: 'Київ', createdAt: 1, embedding: makeVec(0.5) });
+    insertOrSupersedeFact(getDb(), { key: 'user.location', value: 'Одеса', createdAt: 2, embedding: makeVec(0.5) });
+
+    const hits = vectorSearch(getDb(), { embedding: makeVec(0.5), limit: 10, kind: 'fact' });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].content).toBe('user.location: Одеса');
   });
 });

@@ -137,6 +137,9 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
 
     // Save the original user message to DB before any rewriting
     const lastMsg = messages[messages.length - 1];
+    const originalUserText = lastMsg && lastMsg.role === 'user' && typeof lastMsg.content === 'string'
+      ? lastMsg.content
+      : '';
     if (lastMsg && lastMsg.role === 'user') {
       try {
         saveMessage({
@@ -318,9 +321,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
                 console.error('Failed to save assistant message:', err instanceof Error ? err.message : err);
               }
 
-              if (memoryService) {
-                const lastUserMsg = messages[messages.length - 1];
-                const userText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+              if (memoryService && originalUserText) {
                 const toolResults = assistantToolCalls
                   .filter((tc) => tc.result && tc.result.success)
                   .map((tc) => ({
@@ -332,7 +333,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
                   }));
                 memoryService
                   .indexTurn({
-                    userMessage: userText,
+                    userMessage: originalUserText,
                     assistantMessage: assistantText,
                     toolResults,
                     timestamp: Date.now(),

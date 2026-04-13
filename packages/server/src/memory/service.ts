@@ -126,14 +126,8 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       const vec = await safeEmbed(query);
       if (!vec) return [];
 
-      const hits = vectorSearch(db, { embedding: vec, limit: limit * 2 });
+      const hits = vectorSearch(db, { embedding: vec, limit, kind });
       return hits
-        .filter((h) => {
-          if (kind === 'fact') return h.entityType === 'fact';
-          if (kind === 'entry') return h.entityType === 'entry';
-          return true;
-        })
-        .slice(0, limit)
         .map((h): MemoryHit => ({
           text: h.content,
           kind: h.entityType === 'fact' ? 'fact' : (h.kind as 'user_msg' | 'assistant_msg' | 'tool_result'),

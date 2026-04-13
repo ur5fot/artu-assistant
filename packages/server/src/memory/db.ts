@@ -35,55 +35,61 @@ function toBuffer(vec: number[]): Buffer {
 }
 
 export function insertEntry(db: Database.Database, params: InsertEntryParams): number {
-  const result = db
-    .prepare(
-      `INSERT INTO memory_entries (kind, source_id, content, created_at)
-       VALUES (?, ?, ?, ?)`,
-    )
-    .run(params.kind, params.sourceId, params.content, params.createdAt);
-  const id = Number(result.lastInsertRowid);
-
-  db.prepare(
-    `INSERT INTO memory_vec (entity_id, entity_type, embedding) VALUES (?, 'entry', ?)`,
-  ).run(BigInt(id), toBuffer(params.embedding));
-
-  return id;
+  const tx = db.transaction((p: InsertEntryParams) => {
+    const result = db
+      .prepare(
+        `INSERT INTO memory_entries (kind, source_id, content, created_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(p.kind, p.sourceId, p.content, p.createdAt);
+    const id = Number(result.lastInsertRowid);
+    db.prepare(
+      `INSERT INTO memory_vec_entries (entity_id, embedding) VALUES (?, ?)`,
+    ).run(BigInt(id), toBuffer(p.embedding));
+    return id;
+  });
+  return tx(params);
 }
 
 export function insertOrSupersedeFact(db: Database.Database, params: InsertFactParams): number {
-  const existing = db
-    .prepare(
-      `SELECT id, value FROM memory_facts
-       WHERE key = ? AND superseded_by IS NULL`,
-    )
-    .get(params.key) as { id: number; value: string } | undefined;
+  const tx = db.transaction((p: InsertFactParams) => {
+    const existing = db
+      .prepare(
+        `SELECT id, value FROM memory_facts
+         WHERE key = ? AND superseded_by IS NULL`,
+      )
+      .get(p.key) as { id: number; value: string } | undefined;
 
-  if (existing && existing.value === params.value) {
+    if (existing && existing.value === p.value) {
+      db.prepare(
+        `UPDATE memory_facts SET last_mentioned_at = ? WHERE id = ?`,
+      ).run(p.createdAt, existing.id);
+      return existing.id;
+    }
+
+    const result = db
+      .prepare(
+        `INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by)
+         VALUES (?, ?, ?, ?, NULL)`,
+      )
+      .run(p.key, p.value, p.createdAt, p.createdAt);
+    const newId = Number(result.lastInsertRowid);
+
+    if (existing) {
+      db.prepare(
+        `UPDATE memory_facts SET superseded_by = ? WHERE id = ?`,
+      ).run(newId, existing.id);
+      // Drop the vector for the superseded fact so search no longer surfaces it.
+      db.prepare(`DELETE FROM memory_vec_facts WHERE entity_id = ?`).run(BigInt(existing.id));
+    }
+
     db.prepare(
-      `UPDATE memory_facts SET last_mentioned_at = ? WHERE id = ?`,
-    ).run(params.createdAt, existing.id);
-    return existing.id;
-  }
+      `INSERT INTO memory_vec_facts (entity_id, embedding) VALUES (?, ?)`,
+    ).run(BigInt(newId), toBuffer(p.embedding));
 
-  const result = db
-    .prepare(
-      `INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by)
-       VALUES (?, ?, ?, ?, NULL)`,
-    )
-    .run(params.key, params.value, params.createdAt, params.createdAt);
-  const newId = Number(result.lastInsertRowid);
-
-  if (existing) {
-    db.prepare(
-      `UPDATE memory_facts SET superseded_by = ? WHERE id = ?`,
-    ).run(newId, existing.id);
-  }
-
-  db.prepare(
-    `INSERT INTO memory_vec (entity_id, entity_type, embedding) VALUES (?, 'fact', ?)`,
-  ).run(BigInt(newId), toBuffer(params.embedding));
-
-  return newId;
+    return newId;
+  });
+  return tx(params);
 }
 
 export function getActiveFacts(db: Database.Database): Array<{
@@ -103,22 +109,23 @@ export function getActiveFacts(db: Database.Database): Array<{
 }
 
 export function vectorSearch(db: Database.Database, params: VectorSearchParams): EntryHit[] {
-  const results = db
-    .prepare(
-      `SELECT entity_id, entity_type, distance
-       FROM memory_vec
-       WHERE embedding MATCH ? AND k = ?
-       ORDER BY distance`,
-    )
-    .all(toBuffer(params.embedding), params.limit) as Array<{
-      entity_id: number;
-      entity_type: string;
-      distance: number;
-    }>;
-
+  const wantEntries = params.kind !== 'fact';
+  const wantFacts = params.kind !== 'entry';
   const hits: EntryHit[] = [];
-  for (const r of results) {
-    if (r.entity_type === 'entry') {
+
+  if (wantEntries) {
+    const rows = db
+      .prepare(
+        `SELECT entity_id, distance
+         FROM memory_vec_entries
+         WHERE embedding MATCH ? AND k = ?
+         ORDER BY distance`,
+      )
+      .all(toBuffer(params.embedding), params.limit) as Array<{
+        entity_id: number;
+        distance: number;
+      }>;
+    for (const r of rows) {
       const row = db
         .prepare('SELECT content, kind, created_at FROM memory_entries WHERE id = ?')
         .get(r.entity_id) as { content: string; kind: string; created_at: number } | undefined;
@@ -132,9 +139,24 @@ export function vectorSearch(db: Database.Database, params: VectorSearchParams):
           createdAt: row.created_at,
         });
       }
-    } else if (r.entity_type === 'fact') {
+    }
+  }
+
+  if (wantFacts) {
+    const rows = db
+      .prepare(
+        `SELECT entity_id, distance
+         FROM memory_vec_facts
+         WHERE embedding MATCH ? AND k = ?
+         ORDER BY distance`,
+      )
+      .all(toBuffer(params.embedding), params.limit) as Array<{
+        entity_id: number;
+        distance: number;
+      }>;
+    for (const r of rows) {
       const row = db
-        .prepare('SELECT key, value, created_at FROM memory_facts WHERE id = ?')
+        .prepare('SELECT key, value, created_at FROM memory_facts WHERE id = ? AND superseded_by IS NULL')
         .get(r.entity_id) as { key: string; value: string; created_at: number } | undefined;
       if (row) {
         hits.push({
@@ -148,5 +170,7 @@ export function vectorSearch(db: Database.Database, params: VectorSearchParams):
       }
     }
   }
-  return hits;
+
+  hits.sort((a, b) => b.score - a.score);
+  return hits.slice(0, params.limit);
 }

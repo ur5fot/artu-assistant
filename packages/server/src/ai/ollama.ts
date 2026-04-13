@@ -25,6 +25,7 @@ interface OllamaChatParams {
   system?: string;
   signal?: AbortSignal;
   tools?: OllamaToolDef[];
+  model?: string;
 }
 
 interface OllamaChatResult {
@@ -81,7 +82,7 @@ export function createOllamaClient(): OllamaClient {
   return {
     async chat(params: OllamaChatParams): Promise<OllamaChatResult> {
       const url = process.env.OLLAMA_URL || 'http://localhost:11434';
-      const model = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
+      const model = params.model ?? process.env.OLLAMA_MODEL ?? 'qwen2.5:7b';
       const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) || 15000;
 
       const ollamaMessages = params.messages.map(toOllamaMessage);

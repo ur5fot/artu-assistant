@@ -25,7 +25,8 @@ describe('memory schema', () => {
     const names = tables.map((t) => t.name);
     expect(names).toContain('memory_entries');
     expect(names).toContain('memory_facts');
-    expect(names).toContain('memory_vec');
+    expect(names).toContain('memory_vec_entries');
+    expect(names).toContain('memory_vec_facts');
   });
 
   it('loads sqlite-vec extension and allows vec0 insert', () => {
@@ -34,9 +35,9 @@ describe('memory schema', () => {
     vec[0] = 0.5;
     vec[1] = -0.3;
     db.prepare(
-      `INSERT INTO memory_vec (entity_id, entity_type, embedding) VALUES (?, ?, ?)`,
-    ).run(BigInt(1), 'entry', Buffer.from(vec.buffer));
-    const row = db.prepare('SELECT entity_type FROM memory_vec WHERE entity_id = 1').get() as { entity_type: string };
-    expect(row.entity_type).toBe('entry');
+      `INSERT INTO memory_vec_entries (entity_id, embedding) VALUES (?, ?)`,
+    ).run(BigInt(1), Buffer.from(vec.buffer));
+    const row = db.prepare('SELECT entity_id FROM memory_vec_entries WHERE entity_id = 1').get() as { entity_id: number };
+    expect(row.entity_id).toBe(1);
   });
 });

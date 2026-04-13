@@ -44,6 +44,7 @@ R2: ${params.assistantMessage}
   try {
     response = await ollama.chat({
       messages: [{ role: 'user', content: prompt }],
+      model: params.model,
     });
   } catch (err) {
     console.warn('[memory] fact extraction failed:', err instanceof Error ? err.message : err);

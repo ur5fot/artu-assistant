@@ -58,10 +58,16 @@ export function initDb(dbPath?: string): void {
   `);
 
   db.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(
+    CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec_entries USING vec0(
       entity_id INTEGER PRIMARY KEY,
-      entity_type TEXT,
-      embedding FLOAT[768]
+      embedding FLOAT[768] distance_metric=cosine
+    )
+  `);
+
+  db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec_facts USING vec0(
+      entity_id INTEGER PRIMARY KEY,
+      embedding FLOAT[768] distance_metric=cosine
     )
   `);
 
