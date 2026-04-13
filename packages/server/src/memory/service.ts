@@ -46,7 +46,9 @@ const ENTRY_PREVIEW_MAX_CHARS = 300;
 
 export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
   const { db, embeddings, ollama } = deps;
-  const contextBudget = (deps.maxContextTokens ?? 2000) * 4;
+  // ~2 chars per token is conservative for Cyrillic on Claude/Ollama tokenizers
+  // (a 4x factor that holds for English ASCII would blow the budget for Ukrainian).
+  const contextBudget = (deps.maxContextTokens ?? 2000) * 2;
   let indexQueue: Promise<void> = Promise.resolve();
 
   async function safeEmbed(text: string): Promise<number[] | null> {
