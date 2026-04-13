@@ -691,6 +691,84 @@ describe('POST /api/chat', () => {
     expect(receivedMessages[0].content).toContain('"text":"foo --скинути bar"');
   });
 
+  it('parses quoted multi-arg command without flag declarations', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue({
+      name: 'file_move',
+      provider: 'all',
+      command: {
+        name: 'перемістити',
+        params: [
+          { name: 'source', required: true },
+          { name: 'destination', required: true },
+        ],
+      },
+    });
+
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+      memoryService: null,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/перемістити "old file.txt" "new file.txt"' }] })
+      .expect(200);
+
+    expect(receivedMessages[0].content).toContain('"source":"old file.txt"');
+    expect(receivedMessages[0].content).toContain('"destination":"new file.txt"');
+  });
+
+  it('preserves apostrophes in plain text for commands without flags', async () => {
+    const app = express();
+    app.use(express.json());
+
+    let receivedMessages: any[] = [];
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue({
+      name: 'web_search',
+      provider: 'all',
+      command: {
+        name: 'пошук',
+        params: [{ name: 'query', required: true }],
+      },
+    });
+
+    const router = createChatRouter({
+      runLoop: async ({ messages, onEvent }) => {
+        receivedMessages = messages;
+        onEvent({ type: 'done' });
+      },
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: null,
+      registry: reg as any,
+      memoryService: null,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: "/пошук what's new" }] })
+      .expect(200);
+
+    expect(receivedMessages[0].content).toContain('"query":"what\'s new"');
+  });
+
   it('sanitizes errors containing API key patterns', async () => {
     const app = express();
     app.use(express.json());

@@ -38,6 +38,14 @@ function extractFlagsQuoteAware(
   // before it, whitespace or end-of-input after it) in an unquoted region.
   // Quote delimiters themselves are dropped from `out` so downstream consumers
   // (single-param slot assignment) don't receive stray `"` characters.
+  // Fast path: when a command declares no flags, return the input untouched.
+  // Otherwise we'd strip quote delimiters and lose apostrophes in plain text
+  // (e.g. `/пошук what's new` → `whats new`) and mis-split quoted multi-arg
+  // commands (e.g. `/перемістити "old file.txt" "new file.txt"`).
+  const nonEmptyTokens = flagTokens.filter((t) => t);
+  if (nonEmptyTokens.length === 0) {
+    return { stripped: input, matched: new Set() };
+  }
   const matched = new Set<string>();
   let out = '';
   let quote: '"' | "'" | null = null;
