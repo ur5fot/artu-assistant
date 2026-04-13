@@ -1440,7 +1440,7 @@ git commit -m "feat: wire MemoryService into router, chat route, tool deps"
 - Create: `packages/tool-memory/tsconfig.json`
 - Create: `packages/tool-memory/src/index.ts`
 
-- [ ] **Step 1: Create package.json**
+- [x] **Step 1: Create package.json**
 
 Create `packages/tool-memory/package.json`:
 
@@ -1463,7 +1463,7 @@ Create `packages/tool-memory/package.json`:
 }
 ```
 
-- [ ] **Step 2: Create tsconfig.json**
+- [x] **Step 2: Create tsconfig.json**
 
 Create `packages/tool-memory/tsconfig.json`:
 
@@ -1478,7 +1478,7 @@ Create `packages/tool-memory/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 3: Create tool implementation**
+- [x] **Step 3: Create tool implementation**
 
 Create `packages/tool-memory/src/index.ts`:
 
@@ -1571,22 +1571,22 @@ export function createTool(deps: { memoryService: MemoryServiceLike | null }): T
 export default createTool;
 ```
 
-- [ ] **Step 4: Install package in workspace**
+- [x] **Step 4: Install package in workspace**
 
 Run: `cd /Users/dim/code/R2-D2 && npm install`
 Expected: `@r2/tool-memory` linked into the workspace.
 
-- [ ] **Step 5: Build**
+- [x] **Step 5: Build**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/tool-memory`
 Expected: PASS — creates `packages/tool-memory/dist/`.
 
-- [ ] **Step 6: Full build to verify discovery**
+- [x] **Step 6: Full build to verify discovery**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/tool-memory/
