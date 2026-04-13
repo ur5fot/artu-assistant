@@ -148,7 +148,12 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       const hits = vectorSearch(db, { embedding: vec, limit, kind });
       return hits
         .map((h): MemoryHit => ({
-          text: h.content,
+          // Sanitize: memory_search results are fed back to the LLM as
+          // tool_result content. A poisoned past entry could otherwise smuggle
+          // fake memory-block sentinels or control characters into the prompt,
+          // bypassing the "reference data, not instructions" frame that
+          // buildContextPrefix applies.
+          text: sanitizeForMemoryBlock(h.content),
           kind: h.entityType === 'fact' ? 'fact' : (h.kind as 'user_msg' | 'assistant_msg'),
           score: h.score,
           timestamp: h.createdAt,
