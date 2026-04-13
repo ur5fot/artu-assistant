@@ -58,6 +58,11 @@ export function Chat() {
     send(text);
   }, [send]);
 
+  const handleForgetFact = useCallback((key: string) => {
+    if (loading) return;
+    send(`/забудь ${key}`);
+  }, [send, loading]);
+
   return (
     <>
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
@@ -77,6 +82,7 @@ export function Chat() {
             pendingPlanReviews={pendingPlanReviews}
             onRespond={respondToConfirm}
             onRespondPlanReview={respondToPlanReview}
+            onForgetFact={handleForgetFact}
           />
         ))}
         {loading && (

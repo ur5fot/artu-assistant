@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { Message, ToolCall } from '@r2/shared';
+import type { Message, ToolCall, RecalledFact } from '@r2/shared';
 import { connectSSE, type SSEConnection } from '../utils/sse';
 
 export interface PendingConfirm {
@@ -53,6 +53,7 @@ export function useChat() {
     const toolCalls: ToolCall[] = [];
     let piiEntities: Array<{ type: string; original: string }> | undefined;
     let source: 'ollama' | 'claude' | undefined;
+    let recalledFacts: RecalledFact[] | undefined;
 
     setMessages((prev) => [...prev, userMessage]);
 
@@ -74,6 +75,7 @@ export function useChat() {
                   timestamp: Date.now(),
                   piiEntities,
                   source,
+                  recalledFacts,
                 },
               ];
             });
@@ -93,6 +95,7 @@ export function useChat() {
                   timestamp: Date.now(),
                   piiEntities,
                   source,
+                  recalledFacts,
                 },
               ];
             });
@@ -116,6 +119,7 @@ export function useChat() {
                   timestamp: Date.now(),
                   piiEntities,
                   source,
+                  recalledFacts,
                 },
               ];
             });
@@ -146,6 +150,7 @@ export function useChat() {
                   timestamp: Date.now(),
                   piiEntities,
                   source,
+                  recalledFacts,
                 },
               ];
             });
@@ -169,6 +174,7 @@ export function useChat() {
                   timestamp: Date.now(),
                   piiEntities,
                   source,
+                  recalledFacts,
                 },
               ];
             });
@@ -189,6 +195,7 @@ export function useChat() {
                   timestamp: Date.now(),
                   piiEntities,
                   source,
+                  recalledFacts,
                 },
               ];
             });
@@ -210,6 +217,27 @@ export function useChat() {
                   timestamp: Date.now(),
                   piiEntities,
                   source,
+                  recalledFacts,
+                },
+              ];
+            });
+            break;
+
+          case 'memory_recalled':
+            recalledFacts = event.facts;
+            setMessages((prev) => {
+              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
+              return [
+                ...base,
+                {
+                  id: assistantId,
+                  role: 'assistant' as const,
+                  content: assistantText,
+                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+                  timestamp: Date.now(),
+                  piiEntities,
+                  source,
+                  recalledFacts,
                 },
               ];
             });
@@ -229,6 +257,7 @@ export function useChat() {
                   timestamp: Date.now(),
                   piiEntities,
                   source,
+                  recalledFacts,
                 },
               ];
             });

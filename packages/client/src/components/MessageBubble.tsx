@@ -2,6 +2,7 @@ import type { Message } from '@r2/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { PiiBadge } from './PiiBadge';
+import { MemoryRecalledCard } from './MemoryRecalledCard';
 import { ToolCallCard } from './ToolCallCard';
 import { PermissionCard } from './PermissionCard';
 import { PlanReviewCard } from './PlanReviewCard';
@@ -13,6 +14,7 @@ interface Props {
   pendingPlanReviews: Map<string, PendingPlanReview>;
   onRespond: (callId: string, allowed: boolean, remember: boolean) => Promise<boolean>;
   onRespondPlanReview: (callId: string, approved: boolean, editedPlan?: string) => Promise<boolean>;
+  onForgetFact?: (key: string) => void;
 }
 
 const markdownStyles = `
@@ -47,7 +49,7 @@ const markdownStyles = `
 .r2-markdown hr { border: none; border-top: 1px solid rgba(0,0,0,0.1); margin: 8px 0; }
 `;
 
-export function MessageBubble({ message, pendingConfirms, pendingPlanReviews, onRespond, onRespondPlanReview }: Props) {
+export function MessageBubble({ message, pendingConfirms, pendingPlanReviews, onRespond, onRespondPlanReview, onForgetFact }: Props) {
   const isUser = message.role === 'user';
 
   return (
@@ -58,6 +60,9 @@ export function MessageBubble({ message, pendingConfirms, pendingPlanReviews, on
       marginBottom: 12,
     }}>
       <style>{markdownStyles}</style>
+      {!isUser && message.recalledFacts && message.recalledFacts.length > 0 && (
+        <MemoryRecalledCard facts={message.recalledFacts} onForget={onForgetFact} />
+      )}
       {message.toolCalls?.map((tc) => {
         const planReview = pendingPlanReviews.get(tc.id);
         if (planReview) {

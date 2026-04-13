@@ -46,11 +46,14 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
       const userText = rawText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
       if (userText) {
         try {
-          const { prefix } = await params.memoryService.buildContextPrefix(userText, params.signal);
+          const { prefix, recalledFacts } = await params.memoryService.buildContextPrefix(userText, params.signal);
           if (prefix) {
             const rewritten = [...params.messages];
             rewritten[idx] = { ...msg, content: `${prefix}\n\n${rawText}` };
             messagesForClaude = rewritten;
+          }
+          if (recalledFacts.length > 0 && !params.signal?.aborted) {
+            params.onEvent({ type: 'memory_recalled', facts: recalledFacts });
           }
         } catch (err) {
           console.warn('[router] memory context failed for claude:', err instanceof Error ? err.message : err);
@@ -174,8 +177,11 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
       const userText = rawLastUserText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
       if (userText) {
         try {
-          const { prefix } = await params.memoryService.buildContextPrefix(userText, params.signal);
+          const { prefix, recalledFacts } = await params.memoryService.buildContextPrefix(userText, params.signal);
           if (prefix) systemPrompt = prefix + '\n\n' + basePrompt;
+          if (recalledFacts.length > 0 && !params.signal?.aborted) {
+            params.onEvent({ type: 'memory_recalled', facts: recalledFacts });
+          }
         } catch (err) {
           console.warn('[router] memory context failed:', err instanceof Error ? err.message : err);
         }

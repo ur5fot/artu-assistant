@@ -126,16 +126,16 @@
 
 ### Task 8: SSE-подія memory_recalled і UI
 
-- [ ] у `packages/shared/src/types.ts:70-80` додати до union `SSEEvent`:
+- [x] у `packages/shared/src/types.ts:70-80` додати до union `SSEEvent`:
   ```ts
   | { type: 'memory_recalled'; facts: Array<{ key: string; value: string; importance: number }> }
   ```
-- [ ] у `router.ts` (або chat.ts, там де викликається `buildContextPrefix`) — одразу після отримання prefix емітити `memory_recalled` event з `recalledFacts`
-- [ ] у клієнті `packages/client/src/hooks/useChat.ts` — обробити нову подію, зберігати у state поряд з повідомленнями
-- [ ] створити `packages/client/src/components/MemoryRecalledCard.tsx` — маленька плашка «🧠 Згадав: user.wife=Марина, …» над або під відповіддю, з кнопкою 🗑 біля кожного факту (натискання → надіслати `/забудь user.wife`)
-- [ ] інтегрувати в `Chat.tsx` рендер
-- [ ] тести backend: емітиться при buildContextPrefix з фактами, не емітиться коли пусто
-- [ ] unit-тест компоненту (якщо є setup для client-тестів; якщо ні — візуальна перевірка)
+- [x] у `router.ts` (або chat.ts, там де викликається `buildContextPrefix`) — одразу після отримання prefix емітити `memory_recalled` event з `recalledFacts`
+- [x] у клієнті `packages/client/src/hooks/useChat.ts` — обробити нову подію, зберігати у state поряд з повідомленнями
+- [x] створити `packages/client/src/components/MemoryRecalledCard.tsx` — маленька плашка «🧠 Згадав: user.wife=Марина, …» над або під відповіддю, з кнопкою 🗑 біля кожного факту (натискання → надіслати `/забудь user.wife`)
+- [x] інтегрувати в `Chat.tsx` рендер
+- [x] тести backend: емітиться при buildContextPrefix з фактами, не емітиться коли пусто
+- [x] unit-тест компоненту (якщо є setup для client-тестів; якщо ні — візуальна перевірка)
 
 ### Task 9: Context window truncation у chat.ts
 

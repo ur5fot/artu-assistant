@@ -245,4 +245,81 @@ describe('runChatRequest', () => {
     expect(piiEvents).toHaveLength(1);
   });
 
+  it('emits memory_recalled when memoryService returns facts (ollama path)', async () => {
+    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'ok.' }) };
+    const memoryService = {
+      buildContextPrefix: vi.fn(async () => ({
+        prefix: '=== memory ===\nfoo\n=== end ===',
+        recalledFacts: [
+          { key: 'user.name', value: 'Іван', importance: 10 },
+          { key: 'user.wife', value: 'Марина', importance: 1 },
+        ],
+      })),
+    };
+
+    const events: SSEEvent[] = [];
+    await runChatRequest({
+      messages: [{ role: 'user', content: 'хто я?' }],
+      onEvent: (e) => events.push(e),
+      runLoop: vi.fn() as any,
+      ollama: fakeOllama as any,
+      piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
+      memoryService: memoryService as any,
+    });
+
+    const recalled = events.find((e) => e.type === 'memory_recalled');
+    expect(recalled).toBeDefined();
+    expect((recalled as any).facts).toHaveLength(2);
+    expect((recalled as any).facts[0].key).toBe('user.name');
+  });
+
+  it('does not emit memory_recalled when no facts are recalled', async () => {
+    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'ok.' }) };
+    const memoryService = {
+      buildContextPrefix: vi.fn(async () => ({ prefix: '', recalledFacts: [] })),
+    };
+
+    const events: SSEEvent[] = [];
+    await runChatRequest({
+      messages: [{ role: 'user', content: 'hi' }],
+      onEvent: (e) => events.push(e),
+      runLoop: vi.fn() as any,
+      ollama: fakeOllama as any,
+      piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
+      memoryService: memoryService as any,
+    });
+
+    expect(events.some((e) => e.type === 'memory_recalled')).toBe(false);
+  });
+
+  it('emits memory_recalled on claude fallback path', async () => {
+    process.env.LOCAL_LLM_MODE = 'disabled';
+    const memoryService = {
+      buildContextPrefix: vi.fn(async () => ({
+        prefix: '=== memory ===\nfoo\n=== end ===',
+        recalledFacts: [{ key: 'user.name', value: 'Іван', importance: 10 }],
+      })),
+    };
+    const fakeRunLoop = vi.fn(async ({ onEvent }) => {
+      onEvent({ type: 'done' });
+    });
+
+    const events: SSEEvent[] = [];
+    await runChatRequest({
+      messages: [{ role: 'user', content: 'хто я?' }],
+      onEvent: (e) => events.push(e),
+      runLoop: fakeRunLoop as any,
+      ollama: null,
+      piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
+      memoryService: memoryService as any,
+    });
+
+    const recalled = events.find((e) => e.type === 'memory_recalled');
+    expect(recalled).toBeDefined();
+    expect((recalled as any).facts[0].key).toBe('user.name');
+  });
+
 });

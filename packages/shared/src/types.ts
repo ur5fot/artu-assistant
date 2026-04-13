@@ -1,3 +1,9 @@
+export interface RecalledFact {
+  key: string;
+  value: string;
+  importance: number;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -6,6 +12,7 @@ export interface Message {
   timestamp: number;
   piiEntities?: Array<{ type: string; original: string }>;
   source?: 'ollama' | 'claude';
+  recalledFacts?: RecalledFact[];
 }
 
 export interface ToolCall {
@@ -75,6 +82,7 @@ export type SSEEvent =
   | { type: 'tool_call_result'; id: string; result: ToolResult }
   | { type: 'tool_confirm_request'; toolCall: ToolCall; level: 'confirm' | 'forbidden'; destructiveWarning?: { reason: string } }
   | { type: 'pii_masked'; entities: Array<{ type: string; original: string }> }
+  | { type: 'memory_recalled'; facts: RecalledFact[] }
   | { type: 'assistant_source'; source: 'ollama' | 'claude' }
   | { type: 'done' }
   | { type: 'error'; message: string };

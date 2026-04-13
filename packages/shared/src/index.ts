@@ -6,4 +6,5 @@ export type {
   ToolContext,
   PlanReviewResponse,
   ToolDefinition,
+  RecalledFact,
 } from './types.js';
