@@ -21,6 +21,14 @@ export interface RunChatRequestParams {
   ollama: OllamaClient | null;
   registry: ToolRegistry;
   memoryService: MemoryService | null;
+  /**
+   * Override for the memory-recall embedding query. When the caller rewrote
+   * the last user message (e.g. slash-command → tool dispatcher), the rewritten
+   * content is a meta-instruction, not the user's intent. Pass the original
+   * user text here so buildContextPrefix retrieves relevant memories instead
+   * of embedding `[User used command /...]` boilerplate.
+   */
+  memoryQuery?: string;
   forceProvider?: 'claude';
   runLoop: (params: {
     messages: MessageParam[];
@@ -43,7 +51,8 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
       const idx = params.messages.length - 1 - lastUserIdx;
       const msg = params.messages[idx];
       const rawText = typeof msg.content === 'string' ? msg.content : '';
-      const userText = rawText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
+      const strippedText = rawText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
+      const userText = params.memoryQuery ?? strippedText;
       if (userText) {
         try {
           const { prefix, recalledFacts } = await params.memoryService.buildContextPrefix(userText, params.signal);
@@ -174,7 +183,8 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
       // assistant text as the "query" and retrieve irrelevant memories.
       const lastUserMsg = lastMsg?.role === 'user' ? lastMsg : undefined;
       const rawLastUserText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
-      const userText = rawLastUserText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
+      const strippedLastUserText = rawLastUserText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
+      const userText = params.memoryQuery ?? strippedLastUserText;
       if (userText) {
         try {
           const { prefix, recalledFacts } = await params.memoryService.buildContextPrefix(userText, params.signal);

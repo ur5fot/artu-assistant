@@ -42,6 +42,21 @@ describe('memory_remember tool', () => {
     expect(args.importance).toBe(10);
   });
 
+  it('preserves Cyrillic key and prefixes with user.', async () => {
+    const svc = fakeService();
+    const tool = createMemoryRememberTool({ memoryService: svc });
+    await tool.handler({ text: 'дружина: Марина' });
+    expect(svc.saveFact.mock.calls[0][0].key).toBe('user.дружина');
+    expect(svc.saveFact.mock.calls[0][0].value).toBe('Марина');
+  });
+
+  it('falls back to user.note.<id> when normalized key is empty', async () => {
+    const svc = fakeService();
+    const tool = createMemoryRememberTool({ memoryService: svc });
+    await tool.handler({ text: '!!!: значення' });
+    expect(svc.saveFact.mock.calls[0][0].key).toMatch(/^user\.note\./);
+  });
+
   it('keeps dotted keys as-is and lowercases', async () => {
     const svc = fakeService();
     const tool = createMemoryRememberTool({ memoryService: svc });

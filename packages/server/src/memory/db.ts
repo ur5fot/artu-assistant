@@ -152,7 +152,7 @@ export function markFactForgotten(db: Database.Database, factId: number): boolea
   const result = db
     .prepare(
       `UPDATE memory_facts SET forgotten = 1, superseded_by = COALESCE(superseded_by, id)
-       WHERE id = ?`,
+       WHERE id = ? AND forgotten = 0`,
     )
     .run(factId);
   if (result.changes > 0) {

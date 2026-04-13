@@ -35,9 +35,13 @@ function parseRememberText(text: string): { key: string; value: string } {
       const normalizedKey = rawKey
         .toLowerCase()
         .replace(/\s+/g, '_')
-        .replace(/[^a-z0-9._]/g, '');
-      const key = normalizedKey.includes('.') ? normalizedKey : `user.${normalizedKey}`;
-      return { key, value };
+        .replace(/[^\p{L}\p{N}._]/gu, '')
+        .replace(/\.+/g, '.')
+        .replace(/^\.+|\.+$/g, '');
+      if (normalizedKey) {
+        const key = normalizedKey.includes('.') ? normalizedKey : `user.${normalizedKey}`;
+        return { key, value };
+      }
     }
   }
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -84,7 +88,8 @@ export function createMemorySearchTool(deps: { memoryService: MemoryServiceLike 
       }
       const kind = params.kind === 'fact' || params.kind === 'entry' ? params.kind : 'all';
       const rawLimit = Number(params.limit);
-      const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 10, 1), 50);
+      const safeLimit = Number.isFinite(rawLimit) ? Math.floor(rawLimit) : 10;
+      const limit = Math.min(Math.max(safeLimit, 1), 50);
 
       try {
         const hits = await deps.memoryService.search({ query, kind, limit });

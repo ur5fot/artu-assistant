@@ -227,9 +227,10 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
     async forgetFact(params) {
       const query = params.query.trim();
       if (!query) return { forgotten: [], candidates: [] };
+      const normalizedQuery = query.toLowerCase();
 
       const all = getActiveFacts(db);
-      const exact = all.filter((f) => f.key === query);
+      const exact = all.filter((f) => f.key === normalizedQuery);
       if (exact.length === 1) {
         const f = exact[0];
         markFactForgotten(db, f.id);
@@ -325,7 +326,14 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
 
       let body = bodyLines.join('\n');
       if (body.length > bodyBudget) {
-        body = body.slice(0, bodyBudget) + '\n...';
+        // Truncate by whole lines so a fact value never gets sliced mid-word
+        // and the LLM never sees partial data like "user.phone: +3805".
+        const lines = body.split('\n');
+        const marker = '\n...';
+        while (lines.length > 0 && lines.join('\n').length + marker.length > bodyBudget) {
+          lines.pop();
+        }
+        body = lines.join('\n') + marker;
       }
       const prefix = `${header}\n${body}\n${footer}`;
 

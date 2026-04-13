@@ -375,6 +375,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         ollama,
         registry,
         memoryService,
+        memoryQuery: recognizedSlashCommand ? originalUserText : undefined,
         forceProvider,
         runLoop,
         onEvent: (event: SSEEvent) => {

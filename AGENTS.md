@@ -141,6 +141,7 @@ type SSEEvent =
   | { type: 'text_delta'; content: string }
   | { type: 'tool_call_start'; toolCall: ToolCall }
   | { type: 'tool_call_result'; id: string; result: ToolResult }
+  | { type: 'memory_recalled'; facts: Array<{ key: string; value: string; importance: number }> }
   | { type: 'done' }
   | { type: 'error'; message: string };
 ```
@@ -235,6 +236,8 @@ data: { "type": "done" }
 | /евал | eval_add | Додати поведінковий тест |
 | /тести | eval_run | Запустити всі поведінкові тести |
 | /память | memory_search | Пошук у пам'яті R2 |
+| /запам'ятай | memory_remember | Зберегти факт з importance=10 |
+| /забудь | memory_forget | Позначити факт як забутий |
 | /клод-промпт | prompt_overlay_claude | Надстройка системного промпту Claude |
 | /лама-промпт | prompt_overlay_ollama | Надстройка системного промпту Ollama |
 
