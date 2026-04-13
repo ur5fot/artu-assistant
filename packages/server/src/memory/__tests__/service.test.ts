@@ -169,4 +169,53 @@ describe('MemoryService', () => {
     const after = (await svc.getActiveFacts()).find((f) => f.key === 'user.city')!;
     expect(after.lastMentionedAt).toBeGreaterThan(oldTs);
   });
+
+  it('forgetFact marks an exact-key match forgotten and removes it from recall', async () => {
+    const svc = createMemoryService({
+      db: getDb(),
+      embeddings: mockEmbeddings as any,
+      ollama: mockOllama as any,
+      extractorModel: 'qwen2.5:7b',
+    });
+
+    await svc.saveFact({ key: 'user.wife', value: 'Марина', importance: 10, timestamp: Date.now() });
+    await svc.saveFact({ key: 'user.name', value: 'Іван', importance: 10, timestamp: Date.now() });
+
+    const result = await svc.forgetFact({ query: 'user.wife' });
+    expect(result.forgotten).toEqual([
+      expect.objectContaining({ key: 'user.wife', value: 'Марина' }),
+    ]);
+    expect(result.candidates).toEqual([]);
+
+    const active = await svc.getActiveFacts();
+    expect(active.map((f) => f.key)).not.toContain('user.wife');
+    expect(active.map((f) => f.key)).toContain('user.name');
+
+    const { recalledFacts } = await svc.buildContextPrefix('хто моя дружина?');
+    expect(recalledFacts.map((f) => f.key)).not.toContain('user.wife');
+  });
+
+  it('forgetFact returns empty result when query matches nothing', async () => {
+    const svc = createMemoryService({
+      db: getDb(),
+      embeddings: mockEmbeddings as any,
+      ollama: mockOllama as any,
+      extractorModel: 'qwen2.5:7b',
+    });
+    const result = await svc.forgetFact({ query: 'user.unknown' });
+    expect(result.forgotten).toEqual([]);
+    expect(result.candidates).toEqual([]);
+  });
+
+  it('forgetFact rejects empty query', async () => {
+    const svc = createMemoryService({
+      db: getDb(),
+      embeddings: mockEmbeddings as any,
+      ollama: mockOllama as any,
+      extractorModel: 'qwen2.5:7b',
+    });
+    const result = await svc.forgetFact({ query: '   ' });
+    expect(result.forgotten).toEqual([]);
+    expect(result.candidates).toEqual([]);
+  });
 });

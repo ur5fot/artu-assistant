@@ -7,6 +7,7 @@ import {
   getActiveFacts,
   touchFactsLastMentioned,
   vectorSearch,
+  markFactForgotten,
 } from './db.js';
 import { extractFacts } from './extractor.js';
 
@@ -50,7 +51,20 @@ export interface MemoryService {
     timestamp?: number;
   }): Promise<{ id: number; key: string; value: string; importance: number } | null>;
 
+  forgetFact(params: { query: string }): Promise<ForgetResult>;
+
   buildContextPrefix(userMessage: string, signal?: AbortSignal): Promise<ContextPrefixResult>;
+}
+
+export interface ForgottenFact {
+  id: number;
+  key: string;
+  value: string;
+}
+
+export interface ForgetResult {
+  forgotten: ForgottenFact[];
+  candidates: ForgottenFact[];
 }
 
 interface MemoryServiceDeps {
@@ -208,6 +222,42 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
         console.warn('[memory] saveFact failed:', err instanceof Error ? err.message : err);
         return null;
       }
+    },
+
+    async forgetFact(params) {
+      const query = params.query.trim();
+      if (!query) return { forgotten: [], candidates: [] };
+
+      const all = getActiveFacts(db);
+      const exact = all.filter((f) => f.key === query);
+      if (exact.length === 1) {
+        const f = exact[0];
+        markFactForgotten(db, f.id);
+        return { forgotten: [{ id: f.id, key: f.key, value: f.value }], candidates: [] };
+      }
+      if (exact.length > 1) {
+        return {
+          forgotten: [],
+          candidates: exact.map((f) => ({ id: f.id, key: f.key, value: f.value })),
+        };
+      }
+
+      const vec = await safeEmbed(query);
+      if (!vec) return { forgotten: [], candidates: [] };
+      const hits = vectorSearch(db, { embedding: vec, limit: 5, kind: 'fact' });
+      const good = hits.filter((h) => h.score >= 0.6);
+      const candidates: ForgottenFact[] = good.map((h) => {
+        const idx = h.content.indexOf(': ');
+        const key = idx >= 0 ? h.content.slice(0, idx) : h.content;
+        const value = idx >= 0 ? h.content.slice(idx + 2) : '';
+        return { id: h.entityId, key, value };
+      });
+      if (candidates.length === 0) return { forgotten: [], candidates: [] };
+      if (candidates.length === 1) {
+        markFactForgotten(db, candidates[0].id);
+        return { forgotten: candidates, candidates: [] };
+      }
+      return { forgotten: [], candidates };
     },
 
     async getActiveFacts() {

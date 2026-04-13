@@ -118,11 +118,11 @@
 
 ### Task 7: Slash `/забудь` — memory_forget tool
 
-- [ ] додати `memory_forget` tool з `command: { name: 'забудь', params: [{name:'query', required:true}] }`
-- [ ] handler: шукає factId за key (точний збіг) або через vector search; маркує `forgotten=1` через `markFactForgotten`
-- [ ] якщо знайдено кілька — повертає список і просить уточнити (у відповіді)
-- [ ] тести: точний ключ → помічено; нема збігу → error; forgotten fact більше не в search
-- [ ] `npm test`
+- [x] додати `memory_forget` tool з `command: { name: 'забудь', params: [{name:'query', required:true}] }`
+- [x] handler: шукає factId за key (точний збіг) або через vector search; маркує `forgotten=1` через `markFactForgotten`
+- [x] якщо знайдено кілька — повертає список і просить уточнити (у відповіді)
+- [x] тести: точний ключ → помічено; нема збігу → error; forgotten fact більше не в search
+- [x] `npm test`
 
 ### Task 8: SSE-подія memory_recalled і UI
 

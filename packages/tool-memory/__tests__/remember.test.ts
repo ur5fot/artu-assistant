@@ -61,9 +61,10 @@ describe('memory_remember tool', () => {
     expect(tool.command?.name).toBe('запам\'ятай');
   });
 
-  it('createTool factory returns both search and remember tools', () => {
+  it('createTool factory includes memory_remember among returned tools', () => {
     const tools = createTool({ memoryService: fakeService() });
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools.map((t) => t.name).sort()).toEqual(['memory_remember', 'memory_search']);
+    expect(tools.map((t) => t.name)).toContain('memory_remember');
+    expect(tools.map((t) => t.name)).toContain('memory_search');
   });
 });

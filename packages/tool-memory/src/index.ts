@@ -17,6 +17,10 @@ interface MemoryServiceLike {
     importance?: number;
     timestamp?: number;
   }): Promise<{ id: number; key: string; value: string; importance: number } | null>;
+  forgetFact?(params: { query: string }): Promise<{
+    forgotten: Array<{ id: number; key: string; value: string }>;
+    candidates: Array<{ id: number; key: string; value: string }>;
+  }>;
 }
 
 const REMEMBER_IMPORTANCE = 10;
@@ -167,8 +171,79 @@ export function createMemoryRememberTool(deps: { memoryService: MemoryServiceLik
   };
 }
 
+export function createMemoryForgetTool(deps: { memoryService: MemoryServiceLike | null }): ToolDefinition {
+  return {
+    name: 'memory_forget',
+    description: 'Mark a memory fact as forgotten so it no longer appears in recall. Use when the user asks to forget something.',
+    permissionLevel: 'auto',
+    provider: 'all',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Exact fact key (e.g. "user.wife") or natural-language description of the fact to forget.',
+        },
+      },
+      required: ['query'],
+    },
+    command: {
+      name: 'забудь',
+      description: 'Забути факт із пам\'яті',
+      params: [{ name: 'query', required: true, description: 'Ключ або опис факту' }],
+    },
+    async handler(params: Record<string, unknown>): Promise<ToolResult> {
+      if (!deps.memoryService || typeof deps.memoryService.forgetFact !== 'function') {
+        return { success: false, error: 'Memory service is disabled' };
+      }
+      const query = typeof params.query === 'string' ? params.query.trim() : '';
+      if (!query) {
+        return { success: false, error: 'query parameter is required' };
+      }
+      try {
+        const result = await deps.memoryService.forgetFact({ query });
+        if (result.forgotten.length > 0) {
+          const lines = result.forgotten.map((f) => `${f.key} = ${f.value}`);
+          return {
+            success: true,
+            data: result,
+            display: {
+              type: 'text',
+              content: `Забув: ${lines.join(', ')}`,
+            },
+          };
+        }
+        if (result.candidates.length > 0) {
+          const lines = result.candidates.map((f) => `- ${f.key} = ${f.value}`);
+          return {
+            success: true,
+            data: result,
+            display: {
+              type: 'text',
+              content: `Знайшов кілька збігів — уточни ключ:\n${lines.join('\n')}`,
+            },
+          };
+        }
+        return {
+          success: false,
+          error: `Нічого не знайдено для "${query}"`,
+        };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'memory_forget failed',
+        };
+      }
+    },
+  };
+}
+
 export function createTool(deps: { memoryService: MemoryServiceLike | null }): ToolDefinition[] {
-  return [createMemorySearchTool(deps), createMemoryRememberTool(deps)];
+  return [
+    createMemorySearchTool(deps),
+    createMemoryRememberTool(deps),
+    createMemoryForgetTool(deps),
+  ];
 }
 
 export default createTool;
