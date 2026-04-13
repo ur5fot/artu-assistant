@@ -770,7 +770,7 @@ git commit -m "feat: memory db queries with fact versioning and vector search"
 - Create: `packages/server/src/memory/service.ts`
 - Create: `packages/server/src/memory/__tests__/service.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/memory/__tests__/service.test.ts`:
 
@@ -924,12 +924,12 @@ describe('MemoryService', () => {
 });
 ```
 
-- [ ] **Step 2: Run to see it fail**
+- [x] **Step 2: Run to see it fail**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/memory/__tests__/service.test.ts`
 Expected: FAIL — service.ts does not exist.
 
-- [ ] **Step 3: Implement MemoryService**
+- [x] **Step 3: Implement MemoryService**
 
 Create `packages/server/src/memory/service.ts`:
 
@@ -1122,12 +1122,12 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
 }
 ```
 
-- [ ] **Step 4: Run test**
+- [x] **Step 4: Run test**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server/src/memory/__tests__/service.test.ts`
 Expected: PASS — 6 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/memory/service.ts packages/server/src/memory/__tests__/service.test.ts
