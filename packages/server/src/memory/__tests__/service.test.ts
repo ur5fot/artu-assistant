@@ -28,7 +28,7 @@ describe('MemoryService', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('indexTurn stores user, assistant, and tool result entries', async () => {
+  it('indexTurn stores user and assistant entries (tool results excluded)', async () => {
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
@@ -39,13 +39,12 @@ describe('MemoryService', () => {
     await svc.indexTurn({
       userMessage: 'привіт',
       assistantMessage: 'вітаю',
-      toolResults: [{ id: 't1', name: 'web_search', content: 'some result' }],
       timestamp: 1000,
     });
 
     const count = getDb().prepare('SELECT COUNT(*) AS c FROM memory_entries').get() as { c: number };
-    expect(count.c).toBe(3);
-    expect(mockEmbeddings.embed).toHaveBeenCalledTimes(3);
+    expect(count.c).toBe(2);
+    expect(mockEmbeddings.embed).toHaveBeenCalledTimes(2);
   });
 
   it('indexTurn extracts and stores facts', async () => {
@@ -63,7 +62,6 @@ describe('MemoryService', () => {
     await svc.indexTurn({
       userMessage: 'мене звати Діма',
       assistantMessage: 'приємно познайомитись',
-      toolResults: [],
       timestamp: 1000,
     });
 
@@ -71,26 +69,6 @@ describe('MemoryService', () => {
     expect(facts).toEqual([
       expect.objectContaining({ key: 'user.name', value: 'Діма' }),
     ]);
-  });
-
-  it('indexTurn truncates tool results > 2000 chars', async () => {
-    const svc = createMemoryService({
-      db: getDb(),
-      embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
-      extractorModel: 'qwen2.5:7b',
-    });
-
-    const bigContent = 'x'.repeat(5000);
-    await svc.indexTurn({
-      userMessage: 'u',
-      assistantMessage: 'a',
-      toolResults: [{ id: 't1', name: 'big', content: bigContent }],
-      timestamp: 1000,
-    });
-
-    const row = getDb().prepare("SELECT content FROM memory_entries WHERE kind = 'tool_result'").get() as { content: string };
-    expect(row.content.length).toBeLessThanOrEqual(2000);
   });
 
   it('indexTurn does not throw when embeddings fail', async () => {
@@ -104,7 +82,6 @@ describe('MemoryService', () => {
     await expect(svc.indexTurn({
       userMessage: 'x',
       assistantMessage: 'y',
-      toolResults: [],
       timestamp: 1000,
     })).resolves.not.toThrow();
   });
@@ -134,7 +111,6 @@ describe('MemoryService', () => {
     await svc.indexTurn({
       userMessage: 'я з Одеси',
       assistantMessage: 'круто',
-      toolResults: [],
       timestamp: 1000,
     });
 

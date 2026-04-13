@@ -106,12 +106,14 @@ if (memoryEnabled && ollama) {
     url: process.env.OLLAMA_URL || 'http://localhost:11434',
     model: process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text',
   });
+  const parsedMaxTokens = Number(process.env.MEMORY_MAX_CONTEXT_TOKENS);
+  const maxContextTokens = Number.isFinite(parsedMaxTokens) && parsedMaxTokens > 0 ? parsedMaxTokens : 2000;
   memoryService = createMemoryService({
     db: getDb(),
     embeddings,
     ollama,
     extractorModel: process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b',
-    maxContextTokens: Number(process.env.MEMORY_MAX_CONTEXT_TOKENS) || 2000,
+    maxContextTokens,
   });
   console.log('[memory] enabled with model', process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text');
 } else {

@@ -23,6 +23,7 @@ export function initDb(dbPath?: string): void {
 
   db = new Database(resolvedPath);
   db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
 
   sqliteVec.load(db);
 

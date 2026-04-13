@@ -11,7 +11,7 @@ import { extractFacts } from './extractor.js';
 
 export interface MemoryHit {
   text: string;
-  kind: 'fact' | 'user_msg' | 'assistant_msg' | 'tool_result';
+  kind: 'fact' | 'user_msg' | 'assistant_msg';
   score: number;
   timestamp: number;
 }
@@ -20,7 +20,6 @@ export interface MemoryService {
   indexTurn(params: {
     userMessage: string;
     assistantMessage: string;
-    toolResults: Array<{ id: string; name: string; content: string }>;
     timestamp: number;
   }): Promise<void>;
 
@@ -43,7 +42,6 @@ interface MemoryServiceDeps {
   maxContextTokens?: number;
 }
 
-const TOOL_RESULT_MAX_CHARS = 2000;
 const ENTRY_PREVIEW_MAX_CHARS = 300;
 
 export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
@@ -61,15 +59,14 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
   }
 
   async function indexOne(
-    kind: 'user_msg' | 'assistant_msg' | 'tool_result',
+    kind: 'user_msg' | 'assistant_msg',
     content: string,
-    sourceId: string | null,
     createdAt: number,
   ): Promise<void> {
     const vec = await safeEmbed(content);
     if (!vec) return;
     try {
-      insertEntry(db, { kind, sourceId, content, createdAt, embedding: vec });
+      insertEntry(db, { kind, sourceId: null, content, createdAt, embedding: vec });
     } catch (err) {
       console.warn('[memory] insertEntry failed:', err instanceof Error ? err.message : err);
     }
@@ -78,24 +75,17 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
   async function runIndexTurn(params: {
     userMessage: string;
     assistantMessage: string;
-    toolResults: Array<{ id: string; name: string; content: string }>;
     timestamp: number;
   }): Promise<void> {
-      const { userMessage, assistantMessage, toolResults, timestamp } = params;
+      const { userMessage, assistantMessage, timestamp } = params;
 
+      // Tool results are intentionally NOT indexed: tools like code_task/file_read/bash
+      // bypass the PII proxy, so their raw outputs can carry unmasked secrets, diffs,
+      // and file paths. Embedding them here would persist those secrets in SQLite and
+      // resurface them via buildContextPrefix into upstream LLM prompts.
       await Promise.all([
-        indexOne('user_msg', userMessage, null, timestamp),
-        indexOne('assistant_msg', assistantMessage, null, timestamp),
-        ...toolResults.map((tr) =>
-          indexOne(
-            'tool_result',
-            tr.content.length > TOOL_RESULT_MAX_CHARS
-              ? tr.content.slice(0, TOOL_RESULT_MAX_CHARS)
-              : tr.content,
-            tr.id,
-            timestamp,
-          ),
-        ),
+        indexOne('user_msg', userMessage, timestamp),
+        indexOne('assistant_msg', assistantMessage, timestamp),
       ]);
 
       let facts: Array<{ key: string; value: string }> = [];
@@ -110,13 +100,15 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       }
 
       for (const fact of facts) {
-        const factText = `${fact.key}: ${fact.value}`;
+        const normalizedValue = fact.value.trim().replace(/\s+/g, ' ');
+        if (!normalizedValue) continue;
+        const factText = `${fact.key}: ${normalizedValue}`;
         const vec = await safeEmbed(factText);
         if (!vec) continue;
         try {
           insertOrSupersedeFact(db, {
             key: fact.key,
-            value: fact.value,
+            value: normalizedValue,
             createdAt: timestamp,
             embedding: vec,
           });
@@ -144,7 +136,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       return hits
         .map((h): MemoryHit => ({
           text: h.content,
-          kind: h.entityType === 'fact' ? 'fact' : (h.kind as 'user_msg' | 'assistant_msg' | 'tool_result'),
+          kind: h.entityType === 'fact' ? 'fact' : (h.kind as 'user_msg' | 'assistant_msg'),
           score: h.score,
           timestamp: h.createdAt,
         }));
@@ -168,33 +160,40 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
 
       if (facts.length === 0 && entryHits.length === 0) return '';
 
-      const lines: string[] = ['=== ПАМ\'ЯТЬ R2 ==='];
+      const header = '=== ПАМ\'ЯТЬ R2 ===';
+      const footer = '=== КОНЕЦ ПАМ\'ЯТІ ===';
+      // Reserve room for header + footer so truncation never drops the closing
+      // marker — otherwise the LLM sees an unterminated memory block and may
+      // treat the next user message as still part of memory.
+      const reserved = header.length + footer.length + 2;
+      const bodyBudget = Math.max(0, contextBudget - reserved);
+
+      const bodyLines: string[] = [];
       if (facts.length > 0) {
-        lines.push('Активні факти про юзера:');
+        bodyLines.push('Активні факти про юзера:');
         for (const f of facts.slice(0, 20)) {
           const date = new Date(f.lastMentionedAt).toISOString().slice(0, 10);
-          lines.push(`- ${f.key}: ${f.value} (оновлено ${date})`);
+          bodyLines.push(`- ${f.key}: ${f.value} (оновлено ${date})`);
         }
-        lines.push('');
+        bodyLines.push('');
       }
       if (entryHits.length > 0) {
-        lines.push('Релевантні попередні розмови:');
+        bodyLines.push('Релевантні попередні розмови:');
         for (const h of entryHits) {
           const date = new Date(h.createdAt).toISOString().slice(0, 10);
           const preview = h.content.length > ENTRY_PREVIEW_MAX_CHARS
             ? h.content.slice(0, ENTRY_PREVIEW_MAX_CHARS) + '...'
             : h.content;
           const label = h.kind === 'user_msg' ? 'Юзер' : h.kind === 'assistant_msg' ? 'R2' : h.kind;
-          lines.push(`[${date}] ${label}: ${preview}`);
+          bodyLines.push(`[${date}] ${label}: ${preview}`);
         }
       }
-      lines.push('=== КОНЕЦ ПАМ\'ЯТІ ===');
 
-      let prefix = lines.join('\n');
-      if (prefix.length > contextBudget) {
-        prefix = prefix.slice(0, contextBudget) + '\n...';
+      let body = bodyLines.join('\n');
+      if (body.length > bodyBudget) {
+        body = body.slice(0, bodyBudget) + '\n...';
       }
-      return prefix;
+      return `${header}\n${body}\n${footer}`;
     },
   };
 }

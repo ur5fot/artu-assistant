@@ -322,24 +322,14 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
               }
 
               // Skip indexing slash-command invocations: the literal "/cmd ..."
-              // text is a tool dispatcher, not user content worth recalling, and
-              // commands like /code_task carry raw diffs/secrets that bypass
-              // Presidio and must not be embedded into long-term memory.
+              // text is a tool dispatcher, not user content worth recalling.
+              // Tool results are also intentionally excluded by the memory
+              // service itself — they bypass PII masking and would leak secrets.
               if (memoryService && originalUserText && !originalUserText.startsWith('/')) {
-                const toolResults = assistantToolCalls
-                  .filter((tc) => tc.result && tc.result.success)
-                  .map((tc) => ({
-                    id: tc.id,
-                    name: tc.name,
-                    content: typeof tc.result?.data === 'string'
-                      ? tc.result.data
-                      : JSON.stringify(tc.result?.data ?? ''),
-                  }));
                 memoryService
                   .indexTurn({
                     userMessage: originalUserText,
                     assistantMessage: assistantText,
-                    toolResults,
                     timestamp: Date.now(),
                   })
                   .catch((err) => console.warn('[memory] indexTurn failed:', err instanceof Error ? err.message : err));
