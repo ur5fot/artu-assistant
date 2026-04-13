@@ -109,7 +109,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       if (assistantMessage.trim()) tasks.push(indexOne('assistant_msg', assistantMessage, timestamp));
       await Promise.all(tasks);
 
-      let facts: Array<{ key: string; value: string }> = [];
+      let facts: Array<{ key: string; value: string; importance: number }> = [];
       try {
         facts = await extractFacts(ollama, {
           userMessage,
@@ -132,6 +132,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
             value: normalizedValue,
             createdAt: timestamp,
             embedding: vec,
+            importance: fact.importance,
           });
         } catch (err) {
           console.warn('[memory] insertFact failed:', err instanceof Error ? err.message : err);

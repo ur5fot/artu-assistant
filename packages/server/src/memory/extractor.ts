@@ -3,6 +3,19 @@ import type { OllamaClient } from '../ai/ollama.js';
 export interface ExtractedFact {
   key: string;
   value: string;
+  importance: number;
+}
+
+// Word-boundary match on cues that the user wants a fact pinned. Hit => bump
+// importance to IMPORTANT_BOOST_VALUE so decay can't sink it. Cyrillic needs
+// explicit boundaries since \b doesn't behave for non-ASCII.
+const IMPORTANCE_KEYWORD_RE =
+  /(?:^|[^\p{L}\p{N}_])(важливо|запам['’ʼ]?ятай|запомни|не\s+забудь|don['’]?t\s+forget|important)(?=$|[^\p{L}\p{N}_])/iu;
+
+export const IMPORTANT_BOOST_VALUE = 10;
+
+export function hasImportanceKeyword(text: string): boolean {
+  return IMPORTANCE_KEYWORD_RE.test(text);
 }
 
 const EXTRACT_PROMPT_HEADER = `Витягни стійкі факти про юзера з наступного діалогу у форматі JSON масиву:
@@ -94,6 +107,8 @@ R2: ${assistantText}
 
   if (!Array.isArray(parsed)) return [];
 
+  const boost = hasImportanceKeyword(params.userMessage);
+
   // Memory-poisoning guard: facts get prefixed into future LLM prompts, so a
   // crafted user message could try to smuggle instructions through fact.value.
   // Constrain key to a strict lowercase charset (canonical schema), cap value
@@ -117,7 +132,7 @@ R2: ${assistantText}
       value = value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
       if (!value) continue;
       if (value.length > VALUE_MAX) value = value.slice(0, VALUE_MAX);
-      facts.push({ key, value });
+      facts.push({ key, value, importance: boost ? IMPORTANT_BOOST_VALUE : 1 });
     }
   }
   return facts;

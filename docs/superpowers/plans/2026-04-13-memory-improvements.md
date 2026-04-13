@@ -90,10 +90,10 @@
 
 ### Task 4: Кейворд-детектор у extractor
 
-- [ ] у `packages/server/src/memory/extractor.ts` у функції, що викликає LLM, перед викликом зробити простий regex-скан тексту на `/(важливо|запам'ятай|запомни|не забудь|don't forget|important)/i`
-- [ ] якщо match — після отримання LLM-відповіді підняти `importance` усіх витягнутих фактів з 1 до 10 (або додати prompt-інструкцію щоб LLM робив це сам, але regex надійніше)
-- [ ] тести: текст без кейвордів → importance=1, з кейвордом → importance=10, case-insensitive, не хапає «важливоість» як substring (word boundary)
-- [ ] `npm test`
+- [x] у `packages/server/src/memory/extractor.ts` у функції, що викликає LLM, перед викликом зробити простий regex-скан тексту на `/(важливо|запам'ятай|запомни|не забудь|don't forget|important)/i`
+- [x] якщо match — після отримання LLM-відповіді підняти `importance` усіх витягнутих фактів з 1 до 10 (або додати prompt-інструкцію щоб LLM робив це сам, але regex надійніше)
+- [x] тести: текст без кейвордів → importance=1, з кейвордом → importance=10, case-insensitive, не хапає «важливоість» як substring (word boundary)
+- [x] `npm test`
 
 ### Task 5: Нормалізація ключів у форматі subject.attribute
 
