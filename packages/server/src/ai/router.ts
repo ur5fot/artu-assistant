@@ -156,18 +156,17 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
 
   let ollamaText: string | null = null;
   let ollamaToolCalls: import('./ollama.js').OllamaToolCall[] | undefined;
-  let piiEntities: Array<{ type: string; original: string }> = [];
-  let anonymized: AnonymizedBatch = { messages: [], entities: [] };
   const ollamaTools = params.registry.getForProvider('ollama');
   const toolSummary = ollamaTools.map((t) => ({ name: t.name, description: t.description }));
   try {
-    anonymized = await anonymizeMessages(params.messages, params.piiProxy);
-    piiEntities = anonymized.entities;
-
+    // PII anonymization is NOT applied for the local model — Ollama runs on
+    // the user's own machine, so there is no external data boundary to
+    // protect. Claude's tool-loop still anonymizes its own input from the
+    // original messages when escalation happens.
     const ollamaToolDefs = ollamaTools.map(toOllamaToolDef);
 
     const result = await params.ollama.chat({
-      messages: anonymized.messages,
+      messages: params.messages,
       system: getLocalSystemPrompt(toolSummary),
       signal: params.signal,
       tools: ollamaToolDefs.length > 0 ? ollamaToolDefs : undefined,
@@ -201,15 +200,12 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
   if (ollamaToolCalls) {
     if (params.signal?.aborted) return;
 
-    if (piiEntities.length > 0) {
-      params.onEvent({ type: 'pii_masked', entities: piiEntities });
-    }
     params.onEvent({ type: 'assistant_source', source: 'ollama' });
 
     let loopResult: { escalate: boolean; reason: string };
     try {
       loopResult = await runOllamaToolLoop({
-        messages: anonymized.messages,
+        messages: params.messages,
         ollama: params.ollama!,
         tools: ollamaTools,
         system: getLocalSystemPrompt(toolSummary),
@@ -257,14 +253,9 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     return;
   }
 
-  if (piiEntities.length > 0) {
-    params.onEvent({ type: 'pii_masked', entities: piiEntities });
-  }
-
-  const deanonText = await params.piiProxy.deanonymize(ollamaText!);
   if (params.signal?.aborted) return;
   params.onEvent({ type: 'assistant_source', source: 'ollama' });
-  params.onEvent({ type: 'text_delta', content: deanonText });
+  params.onEvent({ type: 'text_delta', content: ollamaText! });
   if (params.signal?.aborted) return;
   params.onEvent({ type: 'done' });
 }
