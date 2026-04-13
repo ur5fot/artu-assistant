@@ -54,13 +54,13 @@
 
 ### Task 1: SQLite таблиця і функції overlay
 
-- [ ] додати в `packages/server/src/db.ts` у `initDb()` виклик `db.exec()` з `CREATE TABLE IF NOT EXISTS prompt_overlays (model TEXT PRIMARY KEY, text TEXT NOT NULL, updated_at INTEGER NOT NULL)`
-- [ ] додати експортовану функцію `getOverlay(model: 'claude' | 'ollama'): string | null` — `SELECT text FROM prompt_overlays WHERE model = ?`
-- [ ] додати `setOverlay(model: 'claude' | 'ollama', text: string): void` — `INSERT OR REPLACE INTO prompt_overlays (model, text, updated_at) VALUES (?, ?, ?)` з `Date.now()`
-- [ ] додати `clearOverlay(model: 'claude' | 'ollama'): void` — `DELETE FROM prompt_overlays WHERE model = ?`
-- [ ] ліміт валідації: у `setOverlay` кидати помилку якщо `text.length > 10000` (повідомлення «prompt overlay too long (max 10000 chars)»)
-- [ ] написати тести у `packages/server/src/__tests__/db.test.ts` (або новий файл) — set→get повертає текст, INSERT OR REPLACE оновлює, clear видаляє, clear на відсутньому ключі не падає, set > 10000 кидає
-- [ ] `npm --workspace @r2/server test` — мають пройти всі тести
+- [x] додати в `packages/server/src/db.ts` у `initDb()` виклик `db.exec()` з `CREATE TABLE IF NOT EXISTS prompt_overlays (model TEXT PRIMARY KEY, text TEXT NOT NULL, updated_at INTEGER NOT NULL)`
+- [x] додати експортовану функцію `getOverlay(model: 'claude' | 'ollama'): string | null` — `SELECT text FROM prompt_overlays WHERE model = ?`
+- [x] додати `setOverlay(model: 'claude' | 'ollama', text: string): void` — `INSERT OR REPLACE INTO prompt_overlays (model, text, updated_at) VALUES (?, ?, ?)` з `Date.now()`
+- [x] додати `clearOverlay(model: 'claude' | 'ollama'): void` — `DELETE FROM prompt_overlays WHERE model = ?`
+- [x] ліміт валідації: у `setOverlay` кидати помилку якщо `text.length > 10000` (повідомлення «prompt overlay too long (max 10000 chars)»)
+- [x] написати тести у `packages/server/src/__tests__/db.test.ts` (або новий файл) — set→get повертає текст, INSERT OR REPLACE оновлює, clear видаляє, clear на відсутньому ключі не падає, set > 10000 кидає
+- [x] `npm --workspace @r2/server test` — мають пройти всі тести
 
 ### Task 2: Конкатенація overlay у системні промпти
 

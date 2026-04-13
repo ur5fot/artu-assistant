@@ -126,6 +126,14 @@ export function initDb(dbPath?: string): void {
     )
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_overlays (
+      model TEXT PRIMARY KEY,
+      text TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
   // Migration: add `source` column if missing
   const cols = db.prepare("PRAGMA table_info(chat_messages)").all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === 'source')) {
@@ -250,6 +258,34 @@ export function getMessages(): Array<{
 export function clearMessages(): void {
   const d = getDb();
   d.prepare('DELETE FROM chat_messages').run();
+}
+
+export type OverlayModel = 'claude' | 'ollama';
+
+export const PROMPT_OVERLAY_MAX_LENGTH = 10000;
+
+export function getOverlay(model: OverlayModel): string | null {
+  const d = getDb();
+  const row = d
+    .prepare('SELECT text FROM prompt_overlays WHERE model = ?')
+    .get(model) as { text: string } | undefined;
+  return row ? row.text : null;
+}
+
+export function setOverlay(model: OverlayModel, text: string): void {
+  if (text.length > PROMPT_OVERLAY_MAX_LENGTH) {
+    throw new Error(`prompt overlay too long (max ${PROMPT_OVERLAY_MAX_LENGTH} chars)`);
+  }
+  const d = getDb();
+  d.prepare(
+    `INSERT OR REPLACE INTO prompt_overlays (model, text, updated_at)
+     VALUES (?, ?, ?)`
+  ).run(model, text, Date.now());
+}
+
+export function clearOverlay(model: OverlayModel): void {
+  const d = getDb();
+  d.prepare('DELETE FROM prompt_overlays WHERE model = ?').run(model);
 }
 
 export function cleanupAuditLog(): void {

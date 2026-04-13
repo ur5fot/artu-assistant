@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { initDb, logToolCall, cleanupAuditLog, getDb, closeDb, getPermissionRule, savePermissionRule, clearPermissionRules, saveMessage, getMessages, clearMessages } from './db.js';
+import { initDb, logToolCall, cleanupAuditLog, getDb, closeDb, getPermissionRule, savePermissionRule, clearPermissionRules, saveMessage, getMessages, clearMessages, getOverlay, setOverlay, clearOverlay, PROMPT_OVERLAY_MAX_LENGTH } from './db.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -211,6 +211,65 @@ describe('Database Module', () => {
 
       const messages = getMessages();
       expect(messages).toHaveLength(0);
+    });
+  });
+
+  describe('Prompt Overlays', () => {
+    it('returns null when no overlay set', () => {
+      expect(getOverlay('claude')).toBeNull();
+      expect(getOverlay('ollama')).toBeNull();
+    });
+
+    it('set then get returns the stored text', () => {
+      setOverlay('claude', 'be brief');
+      expect(getOverlay('claude')).toBe('be brief');
+    });
+
+    it('INSERT OR REPLACE updates existing overlay', () => {
+      setOverlay('claude', 'first');
+      setOverlay('claude', 'second');
+      expect(getOverlay('claude')).toBe('second');
+
+      const db = getDb();
+      const rows = db.prepare('SELECT * FROM prompt_overlays WHERE model = ?').all('claude');
+      expect(rows).toHaveLength(1);
+    });
+
+    it('stores claude and ollama independently', () => {
+      setOverlay('claude', 'claude overlay');
+      setOverlay('ollama', 'ollama overlay');
+      expect(getOverlay('claude')).toBe('claude overlay');
+      expect(getOverlay('ollama')).toBe('ollama overlay');
+    });
+
+    it('clearOverlay removes existing overlay', () => {
+      setOverlay('claude', 'x');
+      clearOverlay('claude');
+      expect(getOverlay('claude')).toBeNull();
+    });
+
+    it('clearOverlay on missing key does not throw', () => {
+      expect(() => clearOverlay('claude')).not.toThrow();
+      expect(getOverlay('claude')).toBeNull();
+    });
+
+    it('throws when text exceeds max length', () => {
+      const tooLong = 'a'.repeat(PROMPT_OVERLAY_MAX_LENGTH + 1);
+      expect(() => setOverlay('claude', tooLong)).toThrow(/too long/);
+    });
+
+    it('accepts text at exactly max length', () => {
+      const atLimit = 'a'.repeat(PROMPT_OVERLAY_MAX_LENGTH);
+      expect(() => setOverlay('claude', atLimit)).not.toThrow();
+      expect(getOverlay('claude')).toBe(atLimit);
+    });
+
+    it('persists updated_at timestamp', () => {
+      const before = Date.now();
+      setOverlay('claude', 'x');
+      const db = getDb();
+      const row = db.prepare('SELECT updated_at FROM prompt_overlays WHERE model = ?').get('claude') as { updated_at: number };
+      expect(row.updated_at).toBeGreaterThanOrEqual(before);
     });
   });
 });
