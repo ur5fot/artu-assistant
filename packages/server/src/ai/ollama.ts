@@ -94,6 +94,10 @@ export function createOllamaClient(): OllamaClient {
         model,
         stream: false,
         messages: ollamaMessages,
+        options: {
+          temperature: 0.2,
+          top_p: 0.9,
+        },
       };
       if (params.tools && params.tools.length > 0) {
         body.tools = params.tools;
@@ -129,6 +133,15 @@ export function createOllamaClient(): OllamaClient {
 
       const text = data?.message?.content ?? '';
       const toolCalls: OllamaToolCall[] | undefined = data?.message?.tool_calls;
+
+      if (process.env.OLLAMA_DEBUG === '1') {
+        console.log('[ollama raw response]', JSON.stringify({
+          model,
+          has_tools: !!params.tools?.length,
+          content: text,
+          tool_calls: toolCalls,
+        }, null, 2));
+      }
 
       return { text, toolCalls: toolCalls?.length ? toolCalls : undefined };
     },
