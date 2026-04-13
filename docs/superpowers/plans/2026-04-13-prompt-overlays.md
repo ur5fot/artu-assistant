@@ -64,11 +64,11 @@
 
 ### Task 2: Конкатенація overlay у системні промпти
 
-- [ ] у `packages/server/src/ai/prompts.ts` імпортувати `getOverlay` з `../db.js`
-- [ ] у `getSystemPrompt()` після збирання базового тексту перевірити `const overlay = getOverlay('claude')`; якщо не `null` і не порожній після `.trim()` — додати `\n\n## Додаткові інструкції\n${overlay}`
-- [ ] те саме у `getLocalSystemPrompt(toolSummary)` для `getOverlay('ollama')`
-- [ ] написати тести у `packages/server/src/ai/__tests__/prompts.test.ts` (створити якщо нема): mock `getOverlay`, перевірити що з non-empty overlay у результаті є «Додаткові інструкції» і текст; з `null` або `''` — блок відсутній; базові правила не змінилися
-- [ ] `npm --workspace @r2/server test`
+- [x] у `packages/server/src/ai/prompts.ts` імпортувати `getOverlay` з `../db.js`
+- [x] у `getSystemPrompt()` після збирання базового тексту перевірити `const overlay = getOverlay('claude')`; якщо не `null` і не порожній після `.trim()` — додати `\n\n## Додаткові інструкції\n${overlay}`
+- [x] те саме у `getLocalSystemPrompt(toolSummary)` для `getOverlay('ollama')`
+- [x] написати тести у `packages/server/src/ai/__tests__/prompts.test.ts` (створити якщо нема): mock `getOverlay`, перевірити що з non-empty overlay у результаті є «Додаткові інструкції» і текст; з `null` або `''` — блок відсутній; базові правила не змінилися
+- [x] `npm --workspace @r2/server test`
 
 ### Task 3: Новий пакет @r2/tool-prompt-overlay
 

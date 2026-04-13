@@ -1,3 +1,16 @@
+import { getOverlay } from '../db.js';
+
+function appendOverlay(base: string, model: 'claude' | 'ollama'): string {
+  let overlay: string | null = null;
+  try {
+    overlay = getOverlay(model);
+  } catch {
+    return base;
+  }
+  if (!overlay || !overlay.trim()) return base;
+  return `${base}\n\n## Додаткові інструкції\n${overlay}`;
+}
+
 function formatNow(): string {
   const now = new Date();
   const date = now.toLocaleDateString('uk-UA', {
@@ -22,7 +35,7 @@ const BASE_RULES = `Правила:
 6. Веди список зроблених дій щоб власник бачив що було зроблено.`;
 
 export function getSystemPrompt(): string {
-  return `Ти — R2, персональний AI-асистент. Ти працюєш для свого власника.
+  const base = `Ти — R2, персональний AI-асистент. Ти працюєш для свого власника.
 Твоя задача — робити рутину, щоб власник міг думати про важливе.
 
 Зараз: ${formatNow()}.
@@ -31,6 +44,7 @@ ${BASE_RULES}
 
 У тебе є інструменти (tools). Використовуй їх коли потрібно.
 Якщо tool має рівень "confirm" — скажи власнику що хочеш зробити і чекай дозволу.`;
+  return appendOverlay(base, 'claude');
 }
 
 interface ToolSummary {
@@ -43,7 +57,7 @@ export function getLocalSystemPrompt(availableTools?: ToolSummary[]): string {
     ? availableTools.map((t) => `  - ${t.name}: ${t.description}`).join('\n')
     : '  (none)';
 
-  return `Ти — R2, персональний AI-асистент. Ти працюєш для свого власника.
+  const base = `Ти — R2, персональний AI-асистент. Ти працюєш для свого власника.
 Твоя задача — робити рутину, щоб власник міг думати про важливе.
 
 Зараз: ${formatNow()}.
@@ -87,4 +101,5 @@ ${toolList}
 
 На прості фактичні питання зі своєї пам'яті відповідай напряму, коротко.
 Ніколи не змішуй маркер з іншим текстом — або маркер сам, або звичайна відповідь.`;
+  return appendOverlay(base, 'ollama');
 }
