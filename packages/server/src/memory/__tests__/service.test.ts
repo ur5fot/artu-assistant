@@ -164,11 +164,16 @@ describe('MemoryService', () => {
     const before = (await svc.getActiveFacts()).find((f) => f.key === 'user.city')!;
     expect(before.lastMentionedAt).toBe(oldTs);
 
-    await svc.buildContextPrefix('де я?');
+    // Query text matches the stored fact text so the deterministic hash-based
+    // mock embedding yields an exact vector match — reconsolidation only
+    // refreshes facts that clear the vector-relevance threshold, so an
+    // unrelated query would (correctly) NOT bump last_mentioned_at.
+    await svc.buildContextPrefix('user.city: Київ');
 
     const after = (await svc.getActiveFacts()).find((f) => f.key === 'user.city')!;
     expect(after.lastMentionedAt).toBeGreaterThan(oldTs);
   });
+
 
   it('forgetFact marks an exact-key match forgotten and removes it from recall', async () => {
     const svc = createMemoryService({

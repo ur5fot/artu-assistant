@@ -14,7 +14,10 @@ import { extractFacts, normalizeKey } from './extractor.js';
 // Same canonical schema and caps enforced by extractFacts. saveFact (called
 // from memory_remember) must match, otherwise two write paths produce keys
 // that dedup can't collapse and values that bypass the poisoning guard.
-const FACT_KEY_RE = /^[\p{Ll}][\p{Ll}\p{N}_.]{0,63}$/u;
+// The segment-based shape (vs the looser `[.]*` variant) rejects `name.` /
+// `user..name` so canonicalization and supersede detection stay consistent.
+const FACT_KEY_RE = /^[\p{Ll}\p{N}_]+(?:\.[\p{Ll}\p{N}_]+)+$/u;
+const FACT_KEY_MAX = 64;
 const FACT_VALUE_MAX = 500;
 
 export interface MemoryHit {
@@ -208,7 +211,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
 
     async saveFact(params) {
       const key = normalizeKey(params.key);
-      if (!FACT_KEY_RE.test(key)) return null;
+      if (key.length > FACT_KEY_MAX || !FACT_KEY_RE.test(key)) return null;
       let value = params.value
         .replace(/[\u0000-\u001f\u007f]/g, ' ')
         .trim()
@@ -244,7 +247,13 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       const exact = all.filter((f) => f.key === normalizedQuery);
       if (exact.length === 1) {
         const f = exact[0];
-        markFactForgotten(db, f.id);
+        // markFactForgotten may return false if the row was already flipped to
+        // forgotten (or superseded) between our read above and the UPDATE —
+        // report an empty forget set in that case instead of lying to the
+        // caller that we deleted a live fact.
+        if (!markFactForgotten(db, f.id)) {
+          return { forgotten: [], candidates: [] };
+        }
         return { forgotten: [{ id: f.id, key: f.key, value: f.value }], candidates: [] };
       }
       if (exact.length > 1) {
@@ -266,7 +275,9 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       });
       if (candidates.length === 0) return { forgotten: [], candidates: [] };
       if (candidates.length === 1) {
-        markFactForgotten(db, candidates[0].id);
+        if (!markFactForgotten(db, candidates[0].id)) {
+          return { forgotten: [], candidates: [] };
+        }
         return { forgotten: candidates, candidates: [] };
       }
       return { forgotten: [], candidates };
@@ -349,11 +360,26 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       const prefix = `${header}\n${body}\n${footer}`;
 
       // Reconsolidation: touching a recalled fact pushes its last_mentioned_at
-      // forward, so actively-used facts stay fresh and low-importance facts
-      // that never come up decay out of the ranking.
+      // forward. We intentionally only refresh facts that are semantically
+      // close to the current user message — blindly refreshing every ranked
+      // fact every turn would keep low-importance facts permanently "young"
+      // and neutralize decay whenever the active set fits within the recall
+      // cap. Vector-relevant facts are the ones the user is actually "using".
       if (facts.length > 0) {
         try {
-          touchFactsLastMentioned(db, facts.map((f) => f.id), now);
+          const factHits = vectorSearch(db, {
+            embedding: vec,
+            limit: MAX_RECALLED_FACTS,
+            kind: 'fact',
+          });
+          const RELEVANCE_MIN = 0.4;
+          const relevantIds = new Set(
+            factHits.filter((h) => h.score >= RELEVANCE_MIN).map((h) => h.entityId),
+          );
+          const toTouch = facts.filter((f) => relevantIds.has(f.id)).map((f) => f.id);
+          if (toTouch.length > 0) {
+            touchFactsLastMentioned(db, toTouch, now);
+          }
         } catch (err) {
           console.warn('[memory] touchFactsLastMentioned failed:', err instanceof Error ? err.message : err);
         }

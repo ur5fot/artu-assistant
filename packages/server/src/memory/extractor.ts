@@ -46,11 +46,24 @@ const EXTRACT_PROMPT_HEADER = `Витягни стійкі факти про ю�
 
 // Normalizes LLM-emitted keys into canonical `subject.attribute` form so supersede
 // detection collapses drifted variants. Lowercase + spaces→_ + default `user.`
-// prefix when the model forgets the subject namespace.
+// prefix when the model forgets the subject namespace. Leading/trailing dots
+// and empty segments are collapsed so `name.`, `..user..name..` and similar
+// drift still land in one canonical slot and the downstream regex can enforce
+// a real `subject.attribute` shape without ambiguity.
 export function normalizeKey(raw: string): string {
-  let k = raw.trim().toLowerCase().replace(/\s+/g, '_');
-  if (!k.includes('.')) k = `user.${k}`;
-  return k;
+  const trimmed = raw.trim().toLowerCase().replace(/\s+/g, '_');
+  // Track whether the raw input already carried a namespace separator. If it
+  // did but collapses to a single segment (e.g. `user.`, `project.`, `.name`)
+  // the key is malformed — return '' so the caller rejects it instead of
+  // silently remapping `user.` → `user.user` via the default prefix.
+  const hadDot = trimmed.includes('.');
+  const segs = trimmed.split('.').filter((seg) => seg.length > 0);
+  if (segs.length === 0) return '';
+  if (segs.length === 1) {
+    if (hadDot) return '';
+    return `user.${segs[0]}`;
+  }
+  return segs.join('.');
 }
 
 // Walks the LLM response with a small state machine to return the first
@@ -132,7 +145,14 @@ R2: ${assistantText}
   // block. Intentionally NOT case-insensitive — `User.Location` and
   // `user.location` must collapse to the same canonical key so supersede
   // detection works, so we reject mixed-case keys outright.
-  const KEY_RE = /^[\p{Ll}][\p{Ll}\p{N}_.]{0,63}$/u;
+  // Must have real `subject.attribute(.subattr)` shape: each dot-segment is
+  // non-empty and contains only lowercase letters / digits / underscores.
+  // Rejects `name.`, `user..name`, leading-dot variants that the looser
+  // `[.]{0,63}` pattern previously let through. Segments may start with a
+  // digit so documented keys like `project.2026.status`, `task.deadline.3d`
+  // and tool-memory's `user.note.<base36-id>` fallback still pass.
+  const KEY_RE = /^[\p{Ll}\p{N}_]+(?:\.[\p{Ll}\p{N}_]+)+$/u;
+  const KEY_MAX = 64;
   const VALUE_MAX = 500;
   const facts: ExtractedFact[] = [];
   for (const item of parsed) {
@@ -144,7 +164,7 @@ R2: ${assistantText}
     ) {
       const key = normalizeKey((item as any).key as string);
       let value = (item as any).value as string;
-      if (!KEY_RE.test(key)) continue;
+      if (key.length > KEY_MAX || !KEY_RE.test(key)) continue;
       value = value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
       if (!value) continue;
       if (value.length > VALUE_MAX) value = value.slice(0, VALUE_MAX);

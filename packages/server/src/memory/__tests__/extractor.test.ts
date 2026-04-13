@@ -162,6 +162,13 @@ describe('normalizeKey', () => {
   it('trims surrounding whitespace', () => {
     expect(normalizeKey('  user.name  ')).toBe('user.name');
   });
+
+  it('rejects malformed dotted keys that collapse to a single segment', () => {
+    expect(normalizeKey('user.')).toBe('');
+    expect(normalizeKey('.name')).toBe('');
+    expect(normalizeKey('project.')).toBe('');
+    expect(normalizeKey('..user..')).toBe('');
+  });
 });
 
 describe('hasImportanceKeyword', () => {

@@ -35,7 +35,25 @@ export function truncateMessages<T extends { role: string; content: string }>(
   if (maxChars <= 0) return messages;
 
   const lastIdx = messages.length - 1;
-  const last = messages[lastIdx];
+  const originalLast = messages[lastIdx];
+  // Hard-cap the last message too: a single oversized paste must not blow the
+  // budget just because the "always keep last" rule would otherwise waive
+  // truncation. Keep the tail of the content (question/instructions usually
+  // live near the end of a user turn) and prefix a visible marker so the
+  // model is aware the turn was clipped.
+  let last = originalLast;
+  if (originalLast.content.length > maxChars) {
+    const marker = '[...truncated]\n';
+    const room = maxChars - marker.length;
+    // When the budget is smaller than the marker itself, dropping the marker
+    // and just keeping the tail of the content is the only way to actually
+    // honor `maxChars` — `slice(-0)` returns the full string, so falling back
+    // to `marker + slice(-room)` with `room=0` would leak the oversized body.
+    const content = room > 0
+      ? marker + originalLast.content.slice(-room)
+      : originalLast.content.slice(-maxChars);
+    last = { ...originalLast, content };
+  }
   const lastLen = last.content.length;
 
   const kept: T[] = [last];
