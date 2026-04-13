@@ -5,6 +5,7 @@ import {
   insertOrSupersedeFact,
   getActiveFacts,
   vectorSearch,
+  markFactForgotten,
 } from '../db.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -128,6 +129,101 @@ describe('memory db', () => {
     const onlyEntries = vectorSearch(getDb(), { embedding: makeVec(0.5), limit: 10, kind: 'entry' });
     expect(onlyEntries.every((h) => h.entityType === 'entry')).toBe(true);
     expect(onlyEntries).toHaveLength(1);
+  });
+
+  it('stores importance when provided, defaults to 1', () => {
+    const idDefault = insertOrSupersedeFact(getDb(), {
+      key: 'user.hobby',
+      value: 'chess',
+      createdAt: 1,
+      embedding: makeVec(0.4),
+    });
+    const idHigh = insertOrSupersedeFact(getDb(), {
+      key: 'user.name',
+      value: 'Діма',
+      createdAt: 1,
+      embedding: makeVec(0.5),
+      importance: 10,
+    });
+
+    const rowDefault = getDb()
+      .prepare('SELECT importance, forgotten FROM memory_facts WHERE id = ?')
+      .get(idDefault) as { importance: number; forgotten: number };
+    const rowHigh = getDb()
+      .prepare('SELECT importance, forgotten FROM memory_facts WHERE id = ?')
+      .get(idHigh) as { importance: number; forgotten: number };
+
+    expect(rowDefault.importance).toBe(1);
+    expect(rowDefault.forgotten).toBe(0);
+    expect(rowHigh.importance).toBe(10);
+  });
+
+  it('importance never decreases on supersede — user-marked fact survives auto-rewrite', () => {
+    insertOrSupersedeFact(getDb(), {
+      key: 'user.name',
+      value: 'Діма',
+      createdAt: 1,
+      embedding: makeVec(0.5),
+      importance: 10,
+    });
+    const secondId = insertOrSupersedeFact(getDb(), {
+      key: 'user.name',
+      value: 'Dmytro',
+      createdAt: 2,
+      embedding: makeVec(0.6),
+      // extractor default — importance=1
+    });
+
+    const row = getDb()
+      .prepare('SELECT importance FROM memory_facts WHERE id = ?')
+      .get(secondId) as { importance: number };
+    expect(row.importance).toBe(10);
+  });
+
+  it('markFactForgotten hides the fact from getActiveFacts and vectorSearch', () => {
+    const id = insertOrSupersedeFact(getDb(), {
+      key: 'user.location',
+      value: 'Київ',
+      createdAt: 1,
+      embedding: makeVec(0.5),
+    });
+
+    expect(getActiveFacts(getDb())).toHaveLength(1);
+    const ok = markFactForgotten(getDb(), id);
+    expect(ok).toBe(true);
+
+    expect(getActiveFacts(getDb())).toHaveLength(0);
+
+    const hits = vectorSearch(getDb(), { embedding: makeVec(0.5), limit: 10, kind: 'fact' });
+    expect(hits).toHaveLength(0);
+  });
+
+  it('markFactForgotten returns false when id does not exist', () => {
+    expect(markFactForgotten(getDb(), 99999)).toBe(false);
+  });
+
+  it('insertOrSupersedeFact ignores forgotten rows when checking for duplicates', () => {
+    const firstId = insertOrSupersedeFact(getDb(), {
+      key: 'user.name',
+      value: 'Діма',
+      createdAt: 1,
+      embedding: makeVec(0.5),
+    });
+    markFactForgotten(getDb(), firstId);
+
+    // After forgetting, a fresh insert of the same key should be a brand-new row,
+    // not a supersede chain linked to the forgotten one.
+    const secondId = insertOrSupersedeFact(getDb(), {
+      key: 'user.name',
+      value: 'Діма',
+      createdAt: 2,
+      embedding: makeVec(0.5),
+    });
+    expect(secondId).not.toBe(firstId);
+
+    const active = getActiveFacts(getDb());
+    expect(active).toHaveLength(1);
+    expect(active[0]).toMatchObject({ key: 'user.name', value: 'Діма' });
   });
 
   it('superseded facts disappear from vectorSearch', () => {

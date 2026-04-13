@@ -13,6 +13,7 @@ export interface InsertFactParams {
   value: string;
   createdAt: number;
   embedding: number[];
+  importance?: number;
 }
 
 export interface VectorSearchParams {
@@ -58,15 +59,20 @@ export function insertOrSupersedeFact(db: Database.Database, params: InsertFactP
   const tx = db.transaction((p: InsertFactParams) => {
     const existing = db
       .prepare(
-        `SELECT id, value FROM memory_facts
-         WHERE key = ? AND superseded_by IS NULL`,
+        `SELECT id, value, importance FROM memory_facts
+         WHERE key = ? AND superseded_by IS NULL AND forgotten = 0`,
       )
-      .get(p.key) as { id: number; value: string } | undefined;
+      .get(p.key) as { id: number; value: string; importance: number } | undefined;
+
+    const requestedImportance = p.importance ?? 1;
+    const effectiveImportance = existing
+      ? Math.max(existing.importance, requestedImportance)
+      : requestedImportance;
 
     if (existing && existing.value === p.value) {
       db.prepare(
-        `UPDATE memory_facts SET last_mentioned_at = ? WHERE id = ?`,
-      ).run(p.createdAt, existing.id);
+        `UPDATE memory_facts SET last_mentioned_at = ?, importance = ? WHERE id = ?`,
+      ).run(p.createdAt, effectiveImportance, existing.id);
       return existing.id;
     }
 
@@ -83,10 +89,10 @@ export function insertOrSupersedeFact(db: Database.Database, params: InsertFactP
 
     const result = db
       .prepare(
-        `INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by)
-         VALUES (?, ?, ?, ?, NULL)`,
+        `INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, importance, forgotten)
+         VALUES (?, ?, ?, ?, NULL, ?, 0)`,
       )
-      .run(p.key, p.value, p.createdAt, p.createdAt);
+      .run(p.key, p.value, p.createdAt, p.createdAt, effectiveImportance);
     const newId = Number(result.lastInsertRowid);
 
     if (existing) {
@@ -109,15 +115,39 @@ export function getActiveFacts(db: Database.Database): Array<{
   key: string;
   value: string;
   lastMentionedAt: number;
+  importance: number;
 }> {
   return db
     .prepare(
-      `SELECT id, key, value, last_mentioned_at AS lastMentionedAt
+      `SELECT id, key, value, last_mentioned_at AS lastMentionedAt, importance
        FROM memory_facts
-       WHERE superseded_by IS NULL
+       WHERE superseded_by IS NULL AND forgotten = 0
        ORDER BY last_mentioned_at DESC`,
     )
-    .all() as Array<{ id: number; key: string; value: string; lastMentionedAt: number }>;
+    .all() as Array<{
+      id: number;
+      key: string;
+      value: string;
+      lastMentionedAt: number;
+      importance: number;
+    }>;
+}
+
+export function markFactForgotten(db: Database.Database, factId: number): boolean {
+  // Self-reference superseded_by so the unique partial index on active keys
+  // stops treating the forgotten row as live — otherwise re-inserting the same
+  // key after a forget would hit the active-key constraint.
+  const result = db
+    .prepare(
+      `UPDATE memory_facts SET forgotten = 1, superseded_by = COALESCE(superseded_by, id)
+       WHERE id = ?`,
+    )
+    .run(factId);
+  if (result.changes > 0) {
+    db.prepare(`DELETE FROM memory_vec_facts WHERE entity_id = ?`).run(BigInt(factId));
+    return true;
+  }
+  return false;
 }
 
 export function vectorSearch(db: Database.Database, params: VectorSearchParams): EntryHit[] {
@@ -168,7 +198,7 @@ export function vectorSearch(db: Database.Database, params: VectorSearchParams):
       }>;
     for (const r of rows) {
       const row = db
-        .prepare('SELECT key, value, created_at FROM memory_facts WHERE id = ? AND superseded_by IS NULL')
+        .prepare('SELECT key, value, created_at FROM memory_facts WHERE id = ? AND superseded_by IS NULL AND forgotten = 0')
         .get(r.entity_id) as { key: string; value: string; created_at: number } | undefined;
       if (row) {
         hits.push({

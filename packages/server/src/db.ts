@@ -139,6 +139,16 @@ export function initDb(dbPath?: string): void {
   if (!cols.some((c) => c.name === 'source')) {
     db.exec(`ALTER TABLE chat_messages ADD COLUMN source TEXT`);
   }
+
+  // Migration: add importance / forgotten columns to memory_facts if missing.
+  // SQLite can't do IF NOT EXISTS for columns, so we gate on PRAGMA table_info.
+  const factCols = db.prepare('PRAGMA table_info(memory_facts)').all() as Array<{ name: string }>;
+  if (!factCols.some((c) => c.name === 'importance')) {
+    db.exec(`ALTER TABLE memory_facts ADD COLUMN importance INTEGER NOT NULL DEFAULT 1`);
+  }
+  if (!factCols.some((c) => c.name === 'forgotten')) {
+    db.exec(`ALTER TABLE memory_facts ADD COLUMN forgotten INTEGER NOT NULL DEFAULT 0`);
+  }
 }
 
 export function getDb(): Database.Database {

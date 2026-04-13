@@ -61,13 +61,13 @@
 
 ### Task 1: Schema — importance і forgotten колонки
 
-- [ ] у `packages/server/src/memory/db.ts` у `initDb()` (або `migrateMemorySchema()`) додати `ALTER TABLE memory_facts ADD COLUMN importance INTEGER NOT NULL DEFAULT 1` з `IF NOT EXISTS`-патерном (SQLite: спробувати ALTER в try/catch, бо IF NOT EXISTS на колонках не підтримується)
-- [ ] те саме для `forgotten INTEGER NOT NULL DEFAULT 0`
-- [ ] оновити `insertFact` / `updateFact` / `searchFacts` запити щоб читали і писали нові колонки
-- [ ] додати `markFactForgotten(factId)` хелпер — `UPDATE memory_facts SET forgotten = 1 WHERE id = ?`
-- [ ] оновити `SELECT ... FROM memory_facts` у `listActiveFacts` (і всюди) щоб фільтрувало `forgotten = 0`
-- [ ] тести у `memory/__tests__/db.test.ts` — insert з importance, update importance, markForgotten, forgotten факти не з'являються в list
-- [ ] `npm --workspace @r2/server test`
+- [x] у `packages/server/src/memory/db.ts` у `initDb()` (або `migrateMemorySchema()`) додати `ALTER TABLE memory_facts ADD COLUMN importance INTEGER NOT NULL DEFAULT 1` з `IF NOT EXISTS`-патерном (SQLite: спробувати ALTER в try/catch, бо IF NOT EXISTS на колонках не підтримується)
+- [x] те саме для `forgotten INTEGER NOT NULL DEFAULT 0`
+- [x] оновити `insertFact` / `updateFact` / `searchFacts` запити щоб читали і писали нові колонки
+- [x] додати `markFactForgotten(factId)` хелпер — `UPDATE memory_facts SET forgotten = 1 WHERE id = ?`
+- [x] оновити `SELECT ... FROM memory_facts` у `listActiveFacts` (і всюди) щоб фільтрувало `forgotten = 0`
+- [x] тести у `memory/__tests__/db.test.ts` — insert з importance, update importance, markForgotten, forgotten факти не з'являються в list
+- [x] `npm --workspace @r2/server test`
 
 ### Task 2: Дедуп при збереженні (superseded_by)
 
