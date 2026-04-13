@@ -94,17 +94,27 @@ R2: ${assistantText}
 
   if (!Array.isArray(parsed)) return [];
 
+  // Memory-poisoning guard: facts get prefixed into future LLM prompts, so a
+  // crafted user message could try to smuggle instructions through fact.value.
+  // Constrain key to a strict charset (canonical schema), cap value length,
+  // and strip control characters that could break out of our memory block.
+  const KEY_RE = /^[a-z][a-z0-9_.]{0,63}$/i;
+  const VALUE_MAX = 500;
   const facts: ExtractedFact[] = [];
   for (const item of parsed) {
     if (
       typeof item === 'object' &&
       item !== null &&
       typeof (item as any).key === 'string' &&
-      typeof (item as any).value === 'string' &&
-      (item as any).key.length > 0 &&
-      (item as any).value.length > 0
+      typeof (item as any).value === 'string'
     ) {
-      facts.push({ key: (item as any).key, value: (item as any).value });
+      const key = (item as any).key as string;
+      let value = (item as any).value as string;
+      if (!KEY_RE.test(key)) continue;
+      value = value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+      if (!value) continue;
+      if (value.length > VALUE_MAX) value = value.slice(0, VALUE_MAX);
+      facts.push({ key, value });
     }
   }
   return facts;

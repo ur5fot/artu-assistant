@@ -155,6 +155,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
 
     // Check if the latest user message is a slash command and rewrite for LLM
     let forceProvider: 'claude' | undefined;
+    let recognizedSlashCommand = false;
     const lastUserMsg = messages[messages.length - 1];
     if (lastUserMsg?.role === 'user' && typeof lastUserMsg.content === 'string') {
       const match = lastUserMsg.content.match(/^\/(\S+)\s*(.*)/s);
@@ -162,6 +163,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         const [, commandName, argsStr] = match;
         const toolDef = registry.getByCommandName(commandName);
         if (toolDef) {
+          recognizedSlashCommand = true;
           // Map positional args to tool parameters
           const params: Record<string, unknown> = {};
           const requiredParams = (toolDef.command?.params ?? []).filter((p) => p.required);
@@ -325,7 +327,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
               // text is a tool dispatcher, not user content worth recalling.
               // Tool results are also intentionally excluded by the memory
               // service itself — they bypass PII masking and would leak secrets.
-              if (memoryService && originalUserText && !originalUserText.startsWith('/')) {
+              if (memoryService && originalUserText && !recognizedSlashCommand) {
                 memoryService
                   .indexTurn({
                     userMessage: originalUserText,

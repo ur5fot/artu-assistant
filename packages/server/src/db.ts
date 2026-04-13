@@ -25,7 +25,14 @@ export function initDb(dbPath?: string): void {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 
-  sqliteVec.load(db);
+  // The kill-switch must really kill: if the user disables memory we skip the
+  // sqlite-vec extension load AND the vec0 virtual tables. Otherwise a broken
+  // sqlite-vec build would still take down server startup, defeating the
+  // purpose of MEMORY_ENABLED=false as an escape hatch.
+  const memoryEnabled = (process.env.MEMORY_ENABLED ?? 'true') !== 'false';
+  if (memoryEnabled) {
+    sqliteVec.load(db);
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS memory_entries (
@@ -58,19 +65,21 @@ export function initDb(dbPath?: string): void {
       ON memory_facts(key) WHERE superseded_by IS NULL
   `);
 
-  db.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec_entries USING vec0(
-      entity_id INTEGER PRIMARY KEY,
-      embedding FLOAT[768] distance_metric=cosine
-    )
-  `);
+  if (memoryEnabled) {
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec_entries USING vec0(
+        entity_id INTEGER PRIMARY KEY,
+        embedding FLOAT[768] distance_metric=cosine
+      )
+    `);
 
-  db.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec_facts USING vec0(
-      entity_id INTEGER PRIMARY KEY,
-      embedding FLOAT[768] distance_metric=cosine
-    )
-  `);
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec_facts USING vec0(
+        entity_id INTEGER PRIMARY KEY,
+        embedding FLOAT[768] distance_metric=cosine
+      )
+    `);
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS audit_log (
