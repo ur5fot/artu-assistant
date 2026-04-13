@@ -18,7 +18,9 @@ import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { createRegistry, discoverTools } from './tools/registry.js';
-import { initDb, cleanupAuditLog, closeDb } from './db.js';
+import { initDb, cleanupAuditLog, closeDb, getDb } from './db.js';
+import { createEmbeddingsClient } from './memory/embeddings.js';
+import { createMemoryService, type MemoryService } from './memory/service.js';
 import { errorHandler } from './errors.js';
 import { createPiiProxy, createPassthroughProxy } from './pii/proxy.js';
 import { PiiVault } from './pii/vault.js';
@@ -97,6 +99,25 @@ const registry = createRegistry();
 const pendingConfirms: PendingConfirms = new Map();
 const pendingPlanReviews: PendingPlanReviews = new Map();
 
+const memoryEnabled = (process.env.MEMORY_ENABLED ?? 'true') !== 'false';
+let memoryService: MemoryService | null = null;
+if (memoryEnabled && ollama) {
+  const embeddings = createEmbeddingsClient({
+    url: process.env.OLLAMA_URL || 'http://localhost:11434',
+    model: process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text',
+  });
+  memoryService = createMemoryService({
+    db: getDb(),
+    embeddings,
+    ollama,
+    extractorModel: process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b',
+    maxContextTokens: Number(process.env.MEMORY_MAX_CONTEXT_TOKENS) || 2000,
+  });
+  console.log('[memory] enabled with model', process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text');
+} else {
+  console.log('[memory] disabled');
+}
+
 // Bound runLoop closure — tool factories use this for recursive agent calls
 const runLoopFn = (params: {
   messages: any;
@@ -122,6 +143,7 @@ await discoverTools(registry, {
   client,
   registry,
   piiProxy,
+  memoryService,
 });
 
 const chatRouter = createChatRouter({
@@ -132,6 +154,7 @@ const chatRouter = createChatRouter({
   piiProxy,
   ollama,
   registry,
+  memoryService,
 });
 
 app.use('/api', chatRouter);

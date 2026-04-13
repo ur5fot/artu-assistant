@@ -1144,7 +1144,7 @@ git commit -m "feat: MemoryService orchestrates indexing, search, context prefix
 - Modify: `packages/server/src/ai/router.ts`
 - Modify: `packages/server/src/routes/chat.ts`
 
-- [ ] **Step 1: Add memoryService to ToolDeps**
+- [x] **Step 1: Add memoryService to ToolDeps**
 
 In `packages/server/src/tools/base.ts`, update `ToolDeps` interface:
 
@@ -1160,7 +1160,7 @@ export interface ToolDeps {
 }
 ```
 
-- [ ] **Step 2: Instantiate MemoryService in index.ts**
+- [x] **Step 2: Instantiate MemoryService in index.ts**
 
 In `packages/server/src/index.ts`, add imports near the existing ones:
 
@@ -1220,7 +1220,7 @@ const chatRouter = createChatRouter({
 });
 ```
 
-- [ ] **Step 3: Add memoryService to router and auto-retrieval**
+- [x] **Step 3: Add memoryService to router and auto-retrieval**
 
 In `packages/server/src/ai/router.ts`, update `RunChatRequestParams` to include `memoryService`:
 
@@ -1319,7 +1319,7 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
 }
 ```
 
-- [ ] **Step 4: Call indexTurn from chat route**
+- [x] **Step 4: Call indexTurn from chat route**
 
 In `packages/server/src/routes/chat.ts`, update `ChatRouterDeps`:
 
@@ -1414,17 +1414,17 @@ In the `case 'done':` handler, add indexing call after `saveMessage`:
           }
 ```
 
-- [ ] **Step 5: Build server**
+- [x] **Step 5: Build server**
 
 Run: `cd /Users/dim/code/R2-D2 && npm run build -w packages/server`
 Expected: PASS — no TypeScript errors.
 
-- [ ] **Step 6: Run full server test suite**
+- [x] **Step 6: Run full server test suite**
 
 Run: `cd /Users/dim/code/R2-D2 && npx vitest run packages/server`
 Expected: PASS — all existing tests + new memory tests.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/tools/base.ts packages/server/src/index.ts packages/server/src/ai/router.ts packages/server/src/routes/chat.ts

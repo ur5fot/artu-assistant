@@ -39,6 +39,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: fakeRegistry() as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -64,6 +65,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: fakeRegistry() as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -90,6 +92,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: fakeRegistry() as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -115,6 +118,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: fakeRegistry() as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -140,6 +144,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: fakeRegistry() as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -170,6 +175,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: fakeRegistry() as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -198,6 +204,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: fakeRegistry() as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -227,6 +234,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: fakeRegistry() as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -267,6 +275,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: fakeRegistry() as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -311,6 +320,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: reg as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -349,6 +359,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: reg as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -383,6 +394,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: reg as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -424,6 +436,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: reg as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -463,6 +476,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: reg as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -492,6 +506,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: reg as any,
+      memoryService: null,
     });
     app.use('/api', router);
 
@@ -517,6 +532,7 @@ describe('POST /api/chat', () => {
       piiProxy: createPassthroughProxy(),
       ollama: null,
       registry: fakeRegistry() as any,
+      memoryService: null,
     });
     app.use('/api', router);
 

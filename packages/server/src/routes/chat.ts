@@ -8,6 +8,7 @@ import type { PendingPlanReviews } from './plan-review.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import type { OllamaClient } from '../ai/ollama.js';
 import type { ToolRegistry } from '../tools/registry.js';
+import type { MemoryService } from '../memory/service.js';
 import { runChatRequest } from '../ai/router.js';
 import { saveMessage } from '../db.js';
 import crypto from 'node:crypto';
@@ -108,9 +109,10 @@ interface ChatRouterDeps {
   piiProxy: PiiProxy;
   ollama: OllamaClient | null;
   registry: ToolRegistry;
+  memoryService: MemoryService | null;
 }
 
-export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy, ollama, registry }: ChatRouterDeps): Router {
+export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy, ollama, registry, memoryService }: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -253,6 +255,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         piiProxy,
         ollama,
         registry,
+        memoryService,
         forceProvider,
         runLoop,
         onEvent: (event: SSEEvent) => {
@@ -313,6 +316,28 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
                 });
               } catch (err) {
                 console.error('Failed to save assistant message:', err instanceof Error ? err.message : err);
+              }
+
+              if (memoryService) {
+                const lastUserMsg = messages[messages.length - 1];
+                const userText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+                const toolResults = assistantToolCalls
+                  .filter((tc) => tc.result && tc.result.success)
+                  .map((tc) => ({
+                    id: tc.id,
+                    name: tc.name,
+                    content: typeof tc.result?.data === 'string'
+                      ? tc.result.data
+                      : JSON.stringify(tc.result?.data ?? ''),
+                  }));
+                memoryService
+                  .indexTurn({
+                    userMessage: userText,
+                    assistantMessage: assistantText,
+                    toolResults,
+                    timestamp: Date.now(),
+                  })
+                  .catch((err) => console.warn('[memory] indexTurn failed:', err instanceof Error ? err.message : err));
               }
             }
           }

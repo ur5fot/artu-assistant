@@ -5,6 +5,7 @@ import type { PendingPlanReviews } from '../routes/plan-review.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import type { OllamaClient } from './ollama.js';
 import type { ToolRegistry } from '../tools/registry.js';
+import type { MemoryService } from '../memory/service.js';
 import { shouldEscalate } from './escalation-check.js';
 import { getLocalSystemPrompt } from './prompts.js';
 import { toOllamaToolDef } from './ollama.js';
@@ -19,6 +20,7 @@ export interface RunChatRequestParams {
   piiProxy: PiiProxy;
   ollama: OllamaClient | null;
   registry: ToolRegistry;
+  memoryService: MemoryService | null;
   forceProvider?: 'claude';
   runLoop: (params: {
     messages: MessageParam[];
@@ -78,8 +80,29 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
   if (!params.signal?.aborted) {
     params.onEvent({ type: 'assistant_source', source: 'claude' });
   }
+  let messagesForClaude = params.messages;
+  if (params.memoryService && params.messages.length > 0) {
+    const lastUserIdx = [...params.messages].reverse().findIndex((m) => m.role === 'user');
+    if (lastUserIdx !== -1) {
+      const idx = params.messages.length - 1 - lastUserIdx;
+      const msg = params.messages[idx];
+      const userText = typeof msg.content === 'string' ? msg.content : '';
+      if (userText) {
+        try {
+          const prefix = await params.memoryService.buildContextPrefix(userText);
+          if (prefix) {
+            const rewritten = [...params.messages];
+            rewritten[idx] = { ...msg, content: `${prefix}\n\n${userText}` };
+            messagesForClaude = rewritten;
+          }
+        } catch (err) {
+          console.warn('[router] memory context failed for claude:', err instanceof Error ? err.message : err);
+        }
+      }
+    }
+  }
   await params.runLoop({
-    messages: params.messages,
+    messages: messagesForClaude,
     onEvent: params.onEvent,
     signal: params.signal,
     pendingConfirms: params.pendingConfirms,
@@ -182,9 +205,24 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     // original messages when escalation happens.
     const ollamaToolDefs = ollamaTools.map(toOllamaToolDef);
 
+    const basePrompt = getLocalSystemPrompt(toolSummary);
+    let systemPrompt = basePrompt;
+    if (params.memoryService) {
+      const lastUserMsg = params.messages[params.messages.length - 1];
+      const userText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+      if (userText) {
+        try {
+          const prefix = await params.memoryService.buildContextPrefix(userText);
+          if (prefix) systemPrompt = prefix + '\n\n' + basePrompt;
+        } catch (err) {
+          console.warn('[router] memory context failed:', err instanceof Error ? err.message : err);
+        }
+      }
+    }
+
     const result = await params.ollama.chat({
       messages: params.messages,
-      system: getLocalSystemPrompt(toolSummary),
+      system: systemPrompt,
       signal: params.signal,
       tools: ollamaToolDefs.length > 0 ? ollamaToolDefs : undefined,
     });

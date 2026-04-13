@@ -4,6 +4,7 @@ import type { ClaudeClient } from '../ai/claude.js';
 import type { ToolRegistry } from './registry.js';
 import type { PendingConfirms } from '../routes/confirm.js';
 import type { PendingPlanReviews } from '../routes/plan-review.js';
+import type { MemoryService } from '../memory/service.js';
 
 export type { ToolDefinition, ToolContext, PlanReviewResponse } from '@r2/shared';
 
@@ -30,6 +31,7 @@ export interface ToolDeps {
   client: ClaudeClient;
   registry: ToolRegistry;
   piiProxy: PiiProxy;
+  memoryService: MemoryService | null;
 }
 
 export type ToolFactory = (deps: ToolDeps) => SharedToolDefinition | SharedToolDefinition[];
