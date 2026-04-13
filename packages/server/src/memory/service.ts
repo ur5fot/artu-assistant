@@ -49,6 +49,7 @@ const ENTRY_PREVIEW_MAX_CHARS = 300;
 export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
   const { db, embeddings, ollama } = deps;
   const contextBudget = (deps.maxContextTokens ?? 2000) * 4;
+  let indexQueue: Promise<void> = Promise.resolve();
 
   async function safeEmbed(text: string): Promise<number[] | null> {
     try {
@@ -74,8 +75,12 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
     }
   }
 
-  return {
-    async indexTurn(params) {
+  async function runIndexTurn(params: {
+    userMessage: string;
+    assistantMessage: string;
+    toolResults: Array<{ id: string; name: string; content: string }>;
+    timestamp: number;
+  }): Promise<void> {
       const { userMessage, assistantMessage, toolResults, timestamp } = params;
 
       await Promise.all([
@@ -119,6 +124,15 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
           console.warn('[memory] insertFact failed:', err instanceof Error ? err.message : err);
         }
       }
+  }
+
+  return {
+    async indexTurn(params) {
+      const next = indexQueue.then(() => runIndexTurn(params)).catch((err) => {
+        console.warn('[memory] indexTurn failed:', err instanceof Error ? err.message : err);
+      });
+      indexQueue = next;
+      return next;
     },
 
     async search(params) {
@@ -149,8 +163,8 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       if (!vec) return '';
 
       const facts = getActiveFacts(db);
-      const hits = vectorSearch(db, { embedding: vec, limit: 10 });
-      const entryHits = hits.filter((h) => h.entityType === 'entry' && h.score >= 0.6).slice(0, 10);
+      const hits = vectorSearch(db, { embedding: vec, limit: 10, kind: 'entry' });
+      const entryHits = hits.filter((h) => h.score >= 0.6).slice(0, 10);
 
       if (facts.length === 0 && entryHits.length === 0) return '';
 

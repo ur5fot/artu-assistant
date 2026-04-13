@@ -53,7 +53,7 @@ export function initDb(dbPath?: string): void {
   `);
 
   db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_facts_key_active
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_facts_key_active
       ON memory_facts(key) WHERE superseded_by IS NULL
   `);
 

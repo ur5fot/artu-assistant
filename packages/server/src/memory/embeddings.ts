@@ -8,14 +8,17 @@ interface EmbeddingsClientConfig {
   timeoutMs?: number;
 }
 
+const EMBED_INPUT_MAX_CHARS = 8000;
+
 export function createEmbeddingsClient(config: EmbeddingsClientConfig): EmbeddingsClient {
   const timeoutMs = config.timeoutMs ?? 15000;
   return {
     async embed(text: string): Promise<number[]> {
+      const input = text.length > EMBED_INPUT_MAX_CHARS ? text.slice(0, EMBED_INPUT_MAX_CHARS) : text;
       const res = await fetch(`${config.url}/api/embeddings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: config.model, prompt: text }),
+        body: JSON.stringify({ model: config.model, prompt: input }),
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!res.ok) {

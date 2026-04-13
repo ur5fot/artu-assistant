@@ -67,6 +67,17 @@ export function insertOrSupersedeFact(db: Database.Database, params: InsertFactP
       return existing.id;
     }
 
+    if (existing) {
+      // Mark old row superseded BEFORE inserting new so the unique partial
+      // index on (key) WHERE superseded_by IS NULL never sees two actives.
+      // Self-reference acts as a non-null placeholder so the unique partial
+      // index sees the row as inactive while we insert the replacement.
+      db.prepare(
+        `UPDATE memory_facts SET superseded_by = id WHERE id = ?`,
+      ).run(existing.id);
+      db.prepare(`DELETE FROM memory_vec_facts WHERE entity_id = ?`).run(BigInt(existing.id));
+    }
+
     const result = db
       .prepare(
         `INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by)
@@ -79,8 +90,6 @@ export function insertOrSupersedeFact(db: Database.Database, params: InsertFactP
       db.prepare(
         `UPDATE memory_facts SET superseded_by = ? WHERE id = ?`,
       ).run(newId, existing.id);
-      // Drop the vector for the superseded fact so search no longer surfaces it.
-      db.prepare(`DELETE FROM memory_vec_facts WHERE entity_id = ?`).run(BigInt(existing.id));
     }
 
     db.prepare(

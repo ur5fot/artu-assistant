@@ -32,11 +32,14 @@ export async function extractFacts(
     model: string;
   },
 ): Promise<ExtractedFact[]> {
+  const MAX = 4000;
+  const userText = params.userMessage.length > MAX ? params.userMessage.slice(0, MAX) : params.userMessage;
+  const assistantText = params.assistantMessage.length > MAX ? params.assistantMessage.slice(0, MAX) : params.assistantMessage;
   const prompt = `${EXTRACT_PROMPT_HEADER}
 
 Діалог:
-User: ${params.userMessage}
-R2: ${params.assistantMessage}
+User: ${userText}
+R2: ${assistantText}
 
 Відповідь (JSON масив):`;
 

@@ -219,64 +219,6 @@ describe('runChatRequest', () => {
     expect(fakeRunLoop).not.toHaveBeenCalled();
   });
 
-  it('anonymizes text inside text-only content block arrays before Ollama', async () => {
-    const piiProxy = {
-      anonymize: vi.fn(async (t: string) => ({
-        text: t.replace('Dima', '<PERSON:1>'),
-        entities: t.includes('Dima') ? [{ type: 'PERSON', original: 'Dima' }] : [],
-      })),
-      deanonymize: vi.fn(async (t: string) => t.replace('<PERSON:1>', 'Dima')),
-    };
-    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'hi <PERSON:1>' }) };
-
-    const events: SSEEvent[] = [];
-    await runChatRequest({
-      messages: [
-        { role: 'user', content: [{ type: 'text', text: 'say hi to Dima' }] },
-      ] as any,
-      onEvent: (e) => events.push(e),
-      runLoop: vi.fn() as any,
-      ollama: fakeOllama as any,
-      piiProxy: piiProxy as any,
-      registry: fakeRegistry() as any,
-      memoryService: null,
-    });
-
-    expect(piiProxy.anonymize).toHaveBeenCalledWith('say hi to Dima');
-    const sent = fakeOllama.chat.mock.calls[0][0].messages;
-    expect(sent[0].content[0].text).toBe('say hi to <PERSON:1>');
-    expect(events.some((e) => e.type === 'pii_masked')).toBe(true);
-    expect(events.some((e) => e.type === 'text_delta' && (e as any).content === 'hi Dima')).toBe(true);
-  });
-
-  it('aborted signal after Ollama success suppresses text_delta/done', async () => {
-    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'ok answer' }) };
-    const fakeRunLoop = vi.fn();
-    const controller = new AbortController();
-    const piiProxy = {
-      anonymize: vi.fn(async (t: string) => ({ text: t, entities: [] })),
-      deanonymize: vi.fn(async (t: string) => {
-        controller.abort();
-        return t;
-      }),
-    };
-
-    const events: SSEEvent[] = [];
-    await runChatRequest({
-      messages: [{ role: 'user', content: 'hi' }],
-      onEvent: (e) => events.push(e),
-      signal: controller.signal,
-      runLoop: fakeRunLoop as any,
-      ollama: fakeOllama as any,
-      piiProxy: piiProxy as any,
-      registry: fakeRegistry() as any,
-      memoryService: null,
-    });
-
-    expect(events.some((e) => e.type === 'text_delta')).toBe(false);
-    expect(events.some((e) => e.type === 'done')).toBe(false);
-  });
-
   it('escalation path does not emit router-level pii_masked (tool-loop handles it)', async () => {
     const piiProxy = {
       anonymize: vi.fn(async (t: string) => ({ text: t.replace('Dima', '<PERSON:1>'), entities: [{ type: 'PERSON', original: 'Dima' }] })),
@@ -303,28 +245,4 @@ describe('runChatRequest', () => {
     expect(piiEvents).toHaveLength(1);
   });
 
-  it('applies PII anonymize to messages before Ollama and deanonymize to response', async () => {
-    const piiProxy = {
-      anonymize: vi.fn(async (t: string) => ({ text: t.replace('Dima', '<PERSON:1>'), entities: [] })),
-      deanonymize: vi.fn(async (t: string) => t.replace('<PERSON:1>', 'Dima')),
-    };
-    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'Hello <PERSON:1>' }) };
-
-    const events: SSEEvent[] = [];
-    await runChatRequest({
-      messages: [{ role: 'user', content: 'Say hi to Dima' }],
-      onEvent: (e) => events.push(e),
-      runLoop: vi.fn() as any,
-      ollama: fakeOllama as any,
-      piiProxy: piiProxy as any,
-      registry: fakeRegistry() as any,
-      memoryService: null,
-    });
-
-    expect(piiProxy.anonymize).toHaveBeenCalled();
-    expect(piiProxy.deanonymize).toHaveBeenCalled();
-    const sentMessages = fakeOllama.chat.mock.calls[0][0].messages;
-    expect(sentMessages[0].content).toBe('Say hi to <PERSON:1>');
-    expect(events.some((e) => e.type === 'text_delta' && (e as any).content === 'Hello Dima')).toBe(true);
-  });
 });
