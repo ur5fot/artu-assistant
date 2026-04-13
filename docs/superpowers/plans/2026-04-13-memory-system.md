@@ -16,22 +16,22 @@
 - Modify: `package.json`
 - Modify: `packages/server/package.json`
 
-- [ ] **Step 1: Install sqlite-vec in the server package**
+- [x] **Step 1: Install sqlite-vec in the server package**
 
 Run: `cd /Users/dim/code/R2-D2 && npm install sqlite-vec -w packages/server`
 Expected: `sqlite-vec` added to `packages/server/package.json` dependencies.
 
-- [ ] **Step 2: Pull nomic-embed-text model**
+- [x] **Step 2: Pull nomic-embed-text model**
 
 Run: `ollama pull nomic-embed-text`
 Expected: `success` — model downloaded (~274MB).
 
-- [ ] **Step 3: Verify embedding endpoint works**
+- [x] **Step 3: Verify embedding endpoint works**
 
 Run: `curl -s http://localhost:11434/api/embeddings -d '{"model":"nomic-embed-text","prompt":"привіт"}' | python3 -m json.tool | head -5`
 Expected: JSON with `embedding` array of 768 floats.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add package.json package-lock.json packages/server/package.json
