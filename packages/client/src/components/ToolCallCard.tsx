@@ -27,15 +27,35 @@ export function ToolCallCard({ toolCall }: Props) {
   const statusIcon = toolCall.status === 'running' ? '⏵' : toolCall.status === 'done' ? '✓' : '✗';
   const statusColor = toolCall.status === 'running' ? '#888' : toolCall.status === 'done' ? '#059669' : '#DC2626';
 
+  // For file_write, show the actual content that was written so the user can
+  // verify against the model's summary (prevents hallucinated formatting claims).
+  const isFileWrite = toolCall.name === 'file_write';
+  const writtenContent = isFileWrite && typeof toolCall.input.content === 'string'
+    ? toolCall.input.content
+    : null;
+  const writtenPath = isFileWrite && typeof toolCall.input.path === 'string'
+    ? toolCall.input.path
+    : null;
+
   return (
     <div style={{
       background: '#f8f8f8', border: '1px solid #e5e5e5', borderRadius: 10,
       padding: 10, marginBottom: 6, maxWidth: '80%', fontSize: 12,
     }}>
       <div style={{ fontWeight: 600, color: statusColor, marginBottom: 4 }}>
-        {statusIcon} {toolCall.name}
+        {statusIcon} {toolCall.name}{writtenPath ? `: ${writtenPath}` : ''}
       </div>
-      {result?.display?.content && (
+      {writtenContent !== null && (
+        <pre style={{
+          background: '#1e293b', color: '#e2e8f0', padding: 8, borderRadius: 6,
+          fontSize: 11, fontFamily: 'SF Mono, Menlo, monospace',
+          whiteSpace: 'pre-wrap', margin: '4px 0 0', maxHeight: 300, overflowY: 'auto',
+        }}>
+          {writtenContent.slice(0, 2000)}
+          {writtenContent.length > 2000 ? '\n... (truncated)' : ''}
+        </pre>
+      )}
+      {!isFileWrite && result?.display?.content && (
         <div style={{ fontFamily: 'monospace', fontSize: 11, whiteSpace: 'pre-wrap', color: '#444' }}>
           {result.display.content.slice(0, 400)}
         </div>

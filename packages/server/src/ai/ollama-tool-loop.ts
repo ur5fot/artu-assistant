@@ -96,6 +96,9 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
         // Strip escalation markers from text — we can't escalate after tools
         // executed, so don't leak raw markers like [need tool: ...] to the user.
         text = text.replace(/\[need\s+(?:code|tool)\b[^\]]*\]/gi, '').trim();
+        // Self-check: ask Ollama to verify its own response against the
+        // actual tool results in history, and rewrite if it hallucinated.
+        text = await verifyAndCorrect(ollama, loopMessages, text, system, signal);
       }
 
       // Deanonymize and emit final text
@@ -169,4 +172,54 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
   // Max iterations — emit warning
   onEvent({ type: 'text_delta', content: 'Reached maximum number of tool iterations.' });
   return { escalate: false, reason: '' };
+}
+
+/**
+ * Self-check pass: take the model's final response and ask it to verify
+ * the response against the actual tool results in history. If the model
+ * hallucinated (e.g. claimed bullet formatting when the file contains
+ * flat text), it should rewrite the response to match reality.
+ *
+ * This adds one extra Ollama call but prevents the common failure mode
+ * where qwen2.5:7b invents formatting or content that does not match
+ * what the tools actually produced.
+ */
+async function verifyAndCorrect(
+  ollama: OllamaClient,
+  history: OllamaLoopMessage[],
+  candidateText: string,
+  system: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!candidateText.trim()) return candidateText;
+
+  const verificationPrompt = `Ось твоя чернетка відповіді користувачу:
+
+"""
+${candidateText}
+"""
+
+Перевір цю відповідь проти РЕАЛЬНИХ результатів tools у попередніх повідомленнях.
+Якщо відповідь точно описує що сталось — поверни її БЕЗ ЗМІН.
+Якщо відповідь вигадує форматування, вміст, буллети, переноси рядків яких немає
+в реальному tool result — перепиши її чесно.
+
+Поверни ТІЛЬКИ фінальну відповідь користувачу, без метакоментарів.`;
+
+  try {
+    const result = await ollama.chat({
+      messages: [
+        ...(history as MessageParam[]),
+        { role: 'user', content: verificationPrompt } as MessageParam,
+      ],
+      system,
+      signal,
+      // No tools — we only want text
+    });
+    const corrected = (result.text || '').trim();
+    return corrected || candidateText;
+  } catch {
+    // If self-check fails for any reason, fall back to the original response
+    return candidateText;
+  }
 }
