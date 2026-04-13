@@ -79,14 +79,14 @@
 
 ### Task 3: Slash `/запам'ятай` — memory_remember tool
 
-- [ ] створити `packages/tool-memory/src/memory-remember.ts` (або додати до `index.ts` як другий tool)
-- [ ] `ToolDefinition`: `name: 'memory_remember'`, `command: { name: 'запам'ятай', description, params: [{name:'text', required:true}] }`, `permissionLevel: 'auto'`, `provider: 'all'`
-- [ ] handler: парсить `text`, витягує (LLM extractor з importance=10, або простіша логіка — ввесь текст як один fact `user.note.<timestamp> = <text>`)
-- [ ] рішення: для MVP — найпростіше, весь текст у fact `user.note.<random-id>` з importance=10. Якщо юзер хоче структурно — пише явно «ключ: значення».
-- [ ] детектор `key: value` синтаксису у тексті — якщо є двокрапка, розділити на key і value.
-- [ ] реєстрація у `packages/server/src/tools/registry.ts` відбувається auto-discovery
-- [ ] тести у `packages/tool-memory/__tests__/remember.test.ts`: простий текст → fact з importance=10, `key: value` → parsed, empty → error
-- [ ] `npm test`
+- [x] створити `packages/tool-memory/src/memory-remember.ts` (або додати до `index.ts` як другий tool)
+- [x] `ToolDefinition`: `name: 'memory_remember'`, `command: { name: 'запам'ятай', description, params: [{name:'text', required:true}] }`, `permissionLevel: 'auto'`, `provider: 'all'`
+- [x] handler: парсить `text`, витягує (LLM extractor з importance=10, або простіша логіка — ввесь текст як один fact `user.note.<timestamp> = <text>`)
+- [x] рішення: для MVP — найпростіше, весь текст у fact `user.note.<random-id>` з importance=10. Якщо юзер хоче структурно — пише явно «ключ: значення».
+- [x] детектор `key: value` синтаксису у тексті — якщо є двокрапка, розділити на key і value.
+- [x] реєстрація у `packages/server/src/tools/registry.ts` відбувається auto-discovery
+- [x] тести у `packages/tool-memory/__tests__/remember.test.ts`: простий текст → fact з importance=10, `key: value` → parsed, empty → error
+- [x] `npm test`
 
 ### Task 4: Кейворд-детектор у extractor
 

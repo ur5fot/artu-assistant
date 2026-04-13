@@ -11,9 +11,36 @@ interface MemoryServiceLike {
     score: number;
     timestamp: number;
   }>>;
+  saveFact?(params: {
+    key: string;
+    value: string;
+    importance?: number;
+    timestamp?: number;
+  }): Promise<{ id: number; key: string; value: string; importance: number } | null>;
 }
 
-export function createTool(deps: { memoryService: MemoryServiceLike | null }): ToolDefinition {
+const REMEMBER_IMPORTANCE = 10;
+
+function parseRememberText(text: string): { key: string; value: string } {
+  const trimmed = text.trim();
+  const colonIdx = trimmed.indexOf(':');
+  if (colonIdx > 0 && colonIdx < 80) {
+    const rawKey = trimmed.slice(0, colonIdx).trim();
+    const value = trimmed.slice(colonIdx + 1).trim();
+    if (rawKey && value) {
+      const normalizedKey = rawKey
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9._]/g, '');
+      const key = normalizedKey.includes('.') ? normalizedKey : `user.${normalizedKey}`;
+      return { key, value };
+    }
+  }
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  return { key: `user.note.${id}`, value: trimmed };
+}
+
+export function createMemorySearchTool(deps: { memoryService: MemoryServiceLike | null }): ToolDefinition {
   return {
     name: 'memory_search',
     description: 'Search R2 memory for relevant facts and past conversations. Use when you need to recall what the user told you before, what was done in past tasks, or to verify facts about the user.',
@@ -81,6 +108,67 @@ export function createTool(deps: { memoryService: MemoryServiceLike | null }): T
       }
     },
   };
+}
+
+export function createMemoryRememberTool(deps: { memoryService: MemoryServiceLike | null }): ToolDefinition {
+  return {
+    name: 'memory_remember',
+    description: 'Save a user-provided fact into long-term memory with high importance so it survives decay. Use when the user explicitly asks to remember something.',
+    permissionLevel: 'auto',
+    provider: 'all',
+    parameters: {
+      type: 'object',
+      properties: {
+        text: {
+          type: 'string',
+          description: 'Free text to remember. May use "key: value" syntax for structured facts.',
+        },
+      },
+      required: ['text'],
+    },
+    command: {
+      name: 'запам\'ятай',
+      description: 'Запам\'ятати факт назавжди',
+      params: [{ name: 'text', required: true, description: 'Що запам\'ятати' }],
+    },
+    async handler(params: Record<string, unknown>): Promise<ToolResult> {
+      if (!deps.memoryService || typeof deps.memoryService.saveFact !== 'function') {
+        return { success: false, error: 'Memory service is disabled' };
+      }
+      const text = typeof params.text === 'string' ? params.text.trim() : '';
+      if (!text) {
+        return { success: false, error: 'text parameter is required' };
+      }
+      const { key, value } = parseRememberText(text);
+      try {
+        const saved = await deps.memoryService.saveFact({
+          key,
+          value,
+          importance: REMEMBER_IMPORTANCE,
+        });
+        if (!saved) {
+          return { success: false, error: 'Не вдалося зберегти факт' };
+        }
+        return {
+          success: true,
+          data: saved,
+          display: {
+            type: 'text',
+            content: `Запам'ятав: ${saved.key} = ${saved.value}`,
+          },
+        };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'memory_remember failed',
+        };
+      }
+    },
+  };
+}
+
+export function createTool(deps: { memoryService: MemoryServiceLike | null }): ToolDefinition[] {
+  return [createMemorySearchTool(deps), createMemoryRememberTool(deps)];
 }
 
 export default createTool;

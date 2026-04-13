@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createTool } from '../src/index.js';
+import { createMemorySearchTool as createTool } from '../src/index.js';
 
 function fakeService(search = vi.fn().mockResolvedValue([])) {
   return { search };

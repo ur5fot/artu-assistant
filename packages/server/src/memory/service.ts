@@ -31,6 +31,13 @@ export interface MemoryService {
 
   getActiveFacts(): Promise<Array<{ key: string; value: string; lastMentionedAt: number }>>;
 
+  saveFact(params: {
+    key: string;
+    value: string;
+    importance?: number;
+    timestamp?: number;
+  }): Promise<{ id: number; key: string; value: string; importance: number } | null>;
+
   buildContextPrefix(userMessage: string, signal?: AbortSignal): Promise<string>;
 }
 
@@ -159,6 +166,30 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
           score: h.score,
           timestamp: h.createdAt,
         }));
+    },
+
+    async saveFact(params) {
+      const key = params.key.trim();
+      const value = params.value.trim().replace(/\s+/g, ' ');
+      if (!key || !value) return null;
+      const importance = params.importance ?? 1;
+      const createdAt = params.timestamp ?? Date.now();
+      const factText = `${key}: ${value}`;
+      const vec = await safeEmbed(factText);
+      if (!vec) return null;
+      try {
+        const id = insertOrSupersedeFact(db, {
+          key,
+          value,
+          createdAt,
+          embedding: vec,
+          importance,
+        });
+        return { id, key, value, importance };
+      } catch (err) {
+        console.warn('[memory] saveFact failed:', err instanceof Error ? err.message : err);
+        return null;
+      }
     },
 
     async getActiveFacts() {
