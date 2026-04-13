@@ -1601,7 +1601,7 @@ git commit -m "feat: add memory_search tool package"
 - Modify: `.env.example`
 - Modify: `AGENTS.md`
 
-- [ ] **Step 1: Add memory env vars to .env.example**
+- [x] **Step 1: Add memory env vars to .env.example**
 
 In `/Users/dim/code/R2-D2/.env.example`, append:
 
@@ -1613,7 +1613,7 @@ MEMORY_EXTRACT_MODEL=qwen2.5:7b
 MEMORY_MAX_CONTEXT_TOKENS=2000
 ```
 
-- [ ] **Step 2: Document in AGENTS.md**
+- [x] **Step 2: Document in AGENTS.md**
 
 In `/Users/dim/code/R2-D2/AGENTS.md`, add a new section (find the section about Presidio and add memory after it):
 
@@ -1635,7 +1635,7 @@ Configuration via env vars:
 Memory starts empty on first deploy — pre-existing `chat_messages` are NOT re-indexed.
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .env.example AGENTS.md

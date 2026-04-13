@@ -349,6 +349,23 @@ Presidio analyzer is built from a custom Docker image in `presidio/` with spaCy 
 - `presidio/multilang.yaml` — NLP engine configuration loaded by Presidio at startup
 
 First `docker compose up` takes longer because the analyzer image builds locally (~3-5 min).
+
+### Memory System
+
+R2 remembers past conversations via a local vector database. Every chat turn is embedded with `nomic-embed-text` (via Ollama) and stored in sqlite-vec tables inside `data/r2.db`. Ollama also extracts structured facts about the user (`user.location`, `user.phone`, etc.) with versioning — when a fact changes, the old one is marked superseded and history is preserved.
+
+Read path has two channels:
+- **Auto-retrieval**: before every LLM call, router injects relevant memories into the system prompt (top 10 entries + all active facts, ≤2000 tokens).
+- **Tool**: `memory_search` lets the model dig deeper on demand. Available to both Ollama and Claude.
+
+Configuration via env vars:
+- `MEMORY_ENABLED=true` — kill switch
+- `MEMORY_EMBED_MODEL=nomic-embed-text` — embedding model
+- `MEMORY_EXTRACT_MODEL=qwen2.5:7b` — fact extractor model
+- `MEMORY_MAX_CONTEXT_TOKENS=2000` — budget for auto-retrieval prefix
+
+Memory starts empty on first deploy — pre-existing `chat_messages` are NOT re-indexed.
+
 - Permission dialog в UI (confirm level tools)
 - ~~Audit log (SQLite таблица: who, what, when, result)~~ ✓ Phase 2A
 - ~~Tool registry: авто-обнаружение tools из packages/tool-*/~~ ✓ Phase 2A
