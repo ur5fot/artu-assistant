@@ -14,7 +14,7 @@ import { extractFacts, normalizeKey } from './extractor.js';
 // Same canonical schema and caps enforced by extractFacts. saveFact (called
 // from memory_remember) must match, otherwise two write paths produce keys
 // that dedup can't collapse and values that bypass the poisoning guard.
-const FACT_KEY_RE = /^[a-z][a-z0-9_.]{0,63}$/;
+const FACT_KEY_RE = /^[\p{Ll}][\p{Ll}\p{N}_.]{0,63}$/u;
 const FACT_VALUE_MAX = 500;
 
 export interface MemoryHit {

@@ -132,7 +132,7 @@ R2: ${assistantText}
   // block. Intentionally NOT case-insensitive — `User.Location` and
   // `user.location` must collapse to the same canonical key so supersede
   // detection works, so we reject mixed-case keys outright.
-  const KEY_RE = /^[a-z][a-z0-9_.]{0,63}$/;
+  const KEY_RE = /^[\p{Ll}][\p{Ll}\p{N}_.]{0,63}$/u;
   const VALUE_MAX = 500;
   const facts: ExtractedFact[] = [];
   for (const item of parsed) {
