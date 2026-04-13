@@ -120,3 +120,13 @@ Integration:
   з параметром `model`, або два тонких wrapper'и)
 - `packages/server/src/tools/registry.ts` — реєстрація
 - тести: `db.test.ts`, `prompts.test.ts`, tool-level test
+
+## Реалізовано з відхиленнями
+
+- Інструменти винесено у окремий workspace-пакет `packages/tool-prompt-overlay/`
+  замість `packages/server/src/tools/`, щоб відповідати патерну інших tool-пакетів
+  (`tool-web-search`, `tool-memory` тощо). Registry підхоплює автоматично через
+  auto-discovery, окрема реєстрація не потрібна.
+- Тести додано у `packages/server/src/__tests__/db.test.ts`,
+  `packages/server/src/ai/__tests__/prompts.test.ts` та
+  `packages/tool-prompt-overlay/__tests__/index.test.ts`.
