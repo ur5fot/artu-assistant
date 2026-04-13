@@ -5,6 +5,9 @@ dist/
 *.db
 *.enc
 *.tsbuildinfo
+.DS_Store
+.claude/
+progress-*.txt
 
 # searxng/ is NOT ignored — it contains config, not data
 
