@@ -13,12 +13,12 @@ export function createReminderRouter(deps: ReminderRouterDeps): Router {
 
   router.post('/dismiss', (req: Request, res: Response) => {
     const id = Number((req.body ?? {}).id);
-    if (!Number.isFinite(id) || id <= 0) {
+    if (!Number.isInteger(id) || id <= 0) {
       res.status(400).json({ error: 'id is required' });
       return;
     }
     const existed = store.getById(id);
-    if (!existed) {
+    if (!existed || !existed.active || (existed.cycle_stage !== 'ringing' && existed.cycle_stage !== 'paused')) {
       res.status(404).json({ error: 'not found' });
       return;
     }
@@ -29,18 +29,18 @@ export function createReminderRouter(deps: ReminderRouterDeps): Router {
 
   router.post('/snooze', (req: Request, res: Response) => {
     const id = Number((req.body ?? {}).id);
-    if (!Number.isFinite(id) || id <= 0) {
+    if (!Number.isInteger(id) || id <= 0) {
       res.status(400).json({ error: 'id is required' });
       return;
     }
     const existed = store.getById(id);
-    if (!existed) {
+    if (!existed || !existed.active || (existed.cycle_stage !== 'ringing' && existed.cycle_stage !== 'paused')) {
       res.status(404).json({ error: 'not found' });
       return;
     }
-    const newId = store.snooze(id, Date.now());
+    const snoozedId = store.snooze(id, Date.now());
     bus.emit('push', { type: 'reminder_stop_ring', id });
-    res.json({ ok: true, newId });
+    res.json({ ok: true, snoozedId });
   });
 
   return router;

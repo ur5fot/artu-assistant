@@ -11,13 +11,21 @@ interface EventsRouterDeps {
  * future real-time events). One connection per browser tab, kept open.
  * Clients use `new EventSource('/api/events')`.
  */
+const MAX_SSE_CONNECTIONS = 32;
+
 export function createEventsRouter(deps: EventsRouterDeps): Router {
   const router = Router();
   const { bus } = deps;
+  let openConnections = 0;
 
-  bus.setMaxListeners(0);
+  bus.setMaxListeners(MAX_SSE_CONNECTIONS + 10);
 
   router.get('/', (req: Request, res: Response) => {
+    if (openConnections >= MAX_SSE_CONNECTIONS) {
+      res.status(503).json({ error: 'too many SSE connections' });
+      return;
+    }
+    openConnections++;
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -45,6 +53,7 @@ export function createEventsRouter(deps: EventsRouterDeps): Router {
     const cleanup = () => {
       if (closed) return;
       closed = true;
+      openConnections--;
       bus.off('push', listener);
       clearInterval(heartbeat);
     };

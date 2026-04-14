@@ -70,6 +70,33 @@ describe('reminder routes', () => {
     expect(res.status).toBe(400);
   });
 
+  it('POST /api/reminder/dismiss works during paused phase', async () => {
+    const store = createReminderStore({ db });
+    const id = store.create('drink', { kind: 'once', at_iso: new Date(Date.now() + 60_000).toISOString() });
+    store.beginRing(id, Date.now());
+    store.advanceRingingToPaused(id, Date.now() + 60_000);
+    const res = await post(app, '/api/reminder/dismiss', { id });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+  });
+
+  it('POST /api/reminder/dismiss 404 when reminder is idle', async () => {
+    const store = createReminderStore({ db });
+    const id = store.create('drink', { kind: 'once', at_iso: new Date(Date.now() + 60_000).toISOString() });
+    const res = await post(app, '/api/reminder/dismiss', { id });
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /api/reminder/snooze works during paused phase', async () => {
+    const store = createReminderStore({ db });
+    const id = store.create('drink', { kind: 'daily', hour: 9, minute: 0 });
+    store.beginRing(id, Date.now());
+    store.advanceRingingToPaused(id, Date.now() + 60_000);
+    const res = await post(app, '/api/reminder/snooze', { id });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
   it('POST /api/reminder/snooze creates a new one-shot 10 minutes out', async () => {
     const store = createReminderStore({ db });
     const id = store.create('drink', { kind: 'daily', hour: 9, minute: 0 });
@@ -77,7 +104,7 @@ describe('reminder routes', () => {
     const res = await post(app, '/api/reminder/snooze', { id });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(typeof res.body.newId).toBe('number');
+    expect(typeof res.body.snoozedId).toBe('number');
     const rows = db.prepare('SELECT id, schedule_json FROM reminders').all() as any[];
     expect(rows).toHaveLength(2);
     const snoozed = rows.find((r) => r.id !== id)!;
