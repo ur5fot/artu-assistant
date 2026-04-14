@@ -434,7 +434,7 @@ git commit -m "feat(client): PWA manifest + iOS meta tags"
 - Create: `packages/client/public/sw.js`
 - Modify: `packages/client/src/main.tsx`
 
-- [ ] **Step 1: Create `packages/client/public/sw.js`**
+- [x] **Step 1: Create `packages/client/public/sw.js`**
 
 ```js
 // Minimal Service Worker: passthrough only.
@@ -451,12 +451,12 @@ self.addEventListener('fetch', () => {
 });
 ```
 
-- [ ] **Step 2: Read current `packages/client/src/main.tsx`**
+- [x] **Step 2: Read current `packages/client/src/main.tsx`**
 
 Run: `cat packages/client/src/main.tsx`
 Expected: note where `createRoot(...).render(...)` is called, to append registration after it.
 
-- [ ] **Step 3: Register the Service Worker after React mounts**
+- [x] **Step 3: Register the Service Worker after React mounts**
 
 Append to `packages/client/src/main.tsx` (after the existing render call):
 
@@ -468,18 +468,18 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 }
 ```
 
-- [ ] **Step 4: Type-check client**
+- [x] **Step 4: Type-check client**
 
 Run: `cd /Users/dim/code/R2-D2 && npx tsc -p packages/client/tsconfig.json --noEmit`
 Expected: no output, exit 0.
 
-- [ ] **Step 5: Start dev and verify SW registers in browser devtools**
+- [x] **Step 5: Start dev and verify SW registers in browser devtools**
 
 Run dev in a terminal: `npm run dev:tailnet`
 Open `https://<host>.ts.net:5176/` in Chrome on the Mac → DevTools → Application → Service Workers → confirm `sw.js` is "activated and running".
 Stop dev with Ctrl+C.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/client/public/sw.js packages/client/src/main.tsx
@@ -617,7 +617,7 @@ Expected: all tests pass (no server code was touched but guard against accidenta
 Run: `cd /Users/dim/code/R2-D2 && npx tsc -p packages/client/tsconfig.json --noEmit && npx tsc -p packages/server/tsconfig.json --noEmit`
 Expected: both exit 0, no output.
 
-- [ ] **Step 4: Manual PWA install smoke test**
+- [x] **Step 4: Manual PWA install smoke test**
 
 - `npm run tailnet:cert` (if not already done).
 - `npm run dev:tailnet`.
