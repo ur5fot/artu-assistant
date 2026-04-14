@@ -16,10 +16,23 @@ function loadTailnetCert(): { cert: Buffer; key: Buffer } | undefined {
     console.warn('[vite] VITE_HTTPS=true but .tailnet-cert/ is missing — falling back to HTTP. Run: npm run tailnet:cert');
     return undefined;
   }
-  const files = readdirSync(dir);
-  const crt = files.find((f) => f.endsWith('.crt'));
-  if (!crt) {
+  const files = readdirSync(dir).sort();
+  const crts = files.filter((f) => f.endsWith('.crt'));
+  if (crts.length === 0) {
     console.warn('[vite] VITE_HTTPS=true but no .crt found in .tailnet-cert/ — falling back to HTTP.');
+    return undefined;
+  }
+  const host = process.env.R2_TAILNET_HOST;
+  let crt: string | undefined;
+  if (host && crts.includes(`${host}.crt`)) {
+    crt = `${host}.crt`;
+  } else if (crts.length === 1) {
+    crt = crts[0];
+  } else {
+    console.warn(
+      `[vite] VITE_HTTPS=true but .tailnet-cert/ contains multiple certs (${crts.join(', ')}). ` +
+        'Set R2_TAILNET_HOST=<host> to select one — falling back to HTTP.',
+    );
     return undefined;
   }
   const stem = crt.slice(0, -4);

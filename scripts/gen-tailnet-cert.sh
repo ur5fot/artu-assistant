@@ -26,6 +26,12 @@ if [ -z "$HOST" ] || [ "$HOST" = "null" ]; then
   exit 1
 fi
 
+if [[ ! $HOST =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]]; then
+  echo "error: invalid tailnet hostname" >&2
+  echo "Expected DNS label chars only (a-z, 0-9, '.', '-')." >&2
+  exit 1
+fi
+
 mkdir -p .tailnet-cert
 chmod 700 .tailnet-cert
 echo "Requesting Tailscale cert for $HOST..."
