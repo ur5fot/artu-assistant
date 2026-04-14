@@ -55,7 +55,7 @@ TDD: write the failing tests first, then implement. This task is pure functions,
 
 ### Step 1.1: Create shared schedule type
 
-- [ ] Create `packages/tool-reminder/src/schedule-types.ts`:
+- [x] Create `packages/tool-reminder/src/schedule-types.ts`:
 
 ```ts
 export type Schedule =
@@ -69,7 +69,7 @@ export type Schedule =
 
 Needed so TypeScript can resolve the import from the server package even though no tool factory exists yet.
 
-- [ ] Create `packages/tool-reminder/package.json`:
+- [x] Create `packages/tool-reminder/package.json`:
 
 ```json
 {
@@ -87,7 +87,7 @@ Needed so TypeScript can resolve the import from the server package even though 
 }
 ```
 
-- [ ] Create `packages/tool-reminder/tsconfig.json`:
+- [x] Create `packages/tool-reminder/tsconfig.json`:
 
 ```json
 {
@@ -100,7 +100,7 @@ Needed so TypeScript can resolve the import from the server package even though 
 }
 ```
 
-- [ ] Create a placeholder `packages/tool-reminder/src/index.ts`:
+- [x] Create a placeholder `packages/tool-reminder/src/index.ts`:
 
 ```ts
 export type { Schedule } from './schedule-types.js';
@@ -108,13 +108,13 @@ export type { Schedule } from './schedule-types.js';
 
 (Real tool definitions come in Task 3.)
 
-- [ ] Install workspace: `cd /Users/dim/code/R2-D2 && npm install` (syncs the new workspace).
+- [x] Install workspace: `cd /Users/dim/code/R2-D2 && npm install` (syncs the new workspace).
 
 Expected output: no errors, `@r2/tool-reminder` symlinked in `node_modules`.
 
 ### Step 1.3: Write failing tests for `computeNextFire`
 
-- [ ] Create `packages/server/src/reminders/__tests__/recurrence.test.ts`:
+- [x] Create `packages/server/src/reminders/__tests__/recurrence.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -240,7 +240,7 @@ describe('computeNextFire', () => {
 
 ### Step 1.4: Verify tests fail
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx vitest run src/reminders/__tests__/recurrence.test.ts
@@ -250,7 +250,7 @@ Expected: FAIL — "Failed to resolve import '../recurrence.js'".
 
 ### Step 1.5: Implement `computeNextFire`
 
-- [ ] Create `packages/server/src/reminders/recurrence.ts`:
+- [x] Create `packages/server/src/reminders/recurrence.ts`:
 
 ```ts
 import type { Schedule } from '@r2/tool-reminder/src/schedule-types.js';
@@ -314,7 +314,7 @@ export function computeNextFire(schedule: Schedule, now: number): number | null 
 
 ### Step 1.6: Verify tests pass
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx vitest run src/reminders/__tests__/recurrence.test.ts
@@ -324,7 +324,7 @@ Expected: PASS — all 14 tests green.
 
 ### Step 1.7: Commit
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2
