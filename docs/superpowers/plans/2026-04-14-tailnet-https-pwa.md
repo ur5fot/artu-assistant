@@ -493,7 +493,7 @@ git commit -m "feat(client): register passthrough service worker"
 **Files:**
 - Create: `packages/client/src/__tests__/manifest.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/client/src/__tests__/manifest.test.ts`:
 
@@ -524,12 +524,12 @@ describe('PWA manifest', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 Run: `cd packages/client && npx vitest run src/__tests__/manifest.test.ts`
 Expected: `2 passed` (manifest file was already created in Task 4).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/client/src/__tests__/manifest.test.ts
