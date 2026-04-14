@@ -38,7 +38,7 @@
 - Create: `scripts/gen-tailnet-cert.sh`
 - Modify: `.gitignore`, `package.json`
 
-- [ ] **Step 1: Add `.tailnet-cert/` to `.gitignore`**
+- [x] **Step 1: Add `.tailnet-cert/` to `.gitignore`**
 
 Open `.gitignore` and append at the end:
 
@@ -47,7 +47,7 @@ Open `.gitignore` and append at the end:
 .tailnet-cert/
 ```
 
-- [ ] **Step 2: Create `scripts/gen-tailnet-cert.sh`**
+- [x] **Step 2: Create `scripts/gen-tailnet-cert.sh`**
 
 ```bash
 #!/bin/bash
@@ -91,12 +91,12 @@ echo ""
 echo "Next: npm run dev:tailnet"
 ```
 
-- [ ] **Step 3: Make the script executable**
+- [x] **Step 3: Make the script executable**
 
 Run: `chmod +x scripts/gen-tailnet-cert.sh`
 Expected: no output, exit 0.
 
-- [ ] **Step 4: Add `tailnet:cert` to `package.json` scripts**
+- [x] **Step 4: Add `tailnet:cert` to `package.json` scripts**
 
 In `package.json`, inside `"scripts"`, insert below `dev:tailnet`:
 
@@ -104,17 +104,17 @@ In `package.json`, inside `"scripts"`, insert below `dev:tailnet`:
     "tailnet:cert": "./scripts/gen-tailnet-cert.sh",
 ```
 
-- [ ] **Step 5: Run the script to verify it works end-to-end**
+- [x] **Step 5: Run the script to verify it works end-to-end**
 
 Run: `npm run tailnet:cert`
 Expected: prints `✓ Cert written to .tailnet-cert/<host>.ts.net.crt` and key; files exist in `.tailnet-cert/`.
 
-- [ ] **Step 6: Verify `.tailnet-cert/` is ignored**
+- [x] **Step 6: Verify `.tailnet-cert/` is ignored**
 
 Run: `git status`
 Expected: `.tailnet-cert/` does NOT appear in Untracked files. Only tracked changes are `.gitignore`, `scripts/gen-tailnet-cert.sh`, `package.json`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add .gitignore scripts/gen-tailnet-cert.sh package.json
