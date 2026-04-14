@@ -424,10 +424,12 @@ Memory starts empty on first deploy — pre-existing `chat_messages` are NOT re-
   - `packages/server/src/ai/tool-helpers.ts` — shared tool-execution helpers (permissions, audit, PII)
   - `packages/server/src/ai/router.ts` — runChatRequest orchestrator
   - `packages/server/src/ai/escalation-check.ts` — regex heuristics for escalation
+  - `packages/server/src/ai/timestamp-strip.ts` — shared helper for stripping the `[DD.MM.YYYY, HH:MM]` prefix that `chat.ts` adds to user turns. Used both for memory-query extraction and for cleaning Ollama output (qwen2.5 tends to mirror the prefix in its reply; Claude does not)
   - ToolDefinition has `provider: 'ollama' | 'claude' | 'all'` — controls which engine sees which tools
   - Ollama handles `web_search` and file tools natively; escalates only for `code_task` (claude-only)
   - LOCAL_LLM_MODE=disabled kills router; ollama unreachable → silent fallback
   - Default model: qwen2.5:7b (~5 GB RAM). Run `ollama serve` + `ollama pull qwen2.5:7b` before use.
+  - Cold start with full system prompt + ~11 tool schemas can take 10-20s on first call — keep `OLLAMA_TIMEOUT_MS` ≥ 30000 or expect silent fallbacks to Claude while the model loads.
 - Справки, рапорти
 - RAG по юридической базе
 - Генерация документов .docx

@@ -87,6 +87,32 @@ describe('runChatRequest', () => {
     expect(events.at(-1)?.type).toBe('done');
   });
 
+  it('strips leading [DD.MM.YYYY, HH:MM] prefix that qwen mirrors from user turn', async () => {
+    // Regression: qwen2.5 often echoes the timestamp prefix that chat.ts
+    // prepends to user messages. The router must strip it before the UI
+    // sees the final text_delta.
+    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: '[14.04.2026, 10:39] 4' }) };
+    const fakeRunLoop = vi.fn();
+
+    const events: SSEEvent[] = [];
+    await runChatRequest({
+      messages: [{ role: 'user', content: '[14.04.2026, 10:39] 2+2=?' }],
+      onEvent: (e) => events.push(e),
+      runLoop: fakeRunLoop as any,
+      ollama: fakeOllama as any,
+      piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
+      memoryService: null,
+    });
+
+    const textDeltas = events.filter((e) => e.type === 'text_delta') as Array<{
+      type: 'text_delta';
+      content: string;
+    }>;
+    expect(textDeltas).toHaveLength(1);
+    expect(textDeltas[0].content).toBe('4');
+  });
+
   it('Ollama success + escalate phrase calls runToolLoop after progress event', async () => {
     const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'I need to use a tool for this' }) };
     const fakeRunLoop = vi.fn(async ({ onEvent }) => {

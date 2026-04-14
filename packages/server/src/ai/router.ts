@@ -10,6 +10,7 @@ import { shouldEscalate } from './escalation-check.js';
 import { getLocalSystemPrompt } from './prompts.js';
 import { toOllamaToolDef } from './ollama.js';
 import { runOllamaToolLoop } from './ollama-tool-loop.js';
+import { stripTimestampPrefix } from './timestamp-strip.js';
 
 export interface RunChatRequestParams {
   messages: MessageParam[];
@@ -51,7 +52,7 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
       const idx = params.messages.length - 1 - lastUserIdx;
       const msg = params.messages[idx];
       const rawText = typeof msg.content === 'string' ? msg.content : '';
-      const strippedText = rawText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
+      const strippedText = stripTimestampPrefix(rawText);
       const userText = params.memoryQuery ?? strippedText;
       if (userText) {
         try {
@@ -183,7 +184,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
       // assistant text as the "query" and retrieve irrelevant memories.
       const lastUserMsg = lastMsg?.role === 'user' ? lastMsg : undefined;
       const rawLastUserText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
-      const strippedLastUserText = rawLastUserText.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
+      const strippedLastUserText = stripTimestampPrefix(rawLastUserText);
       const userText = params.memoryQuery ?? strippedLastUserText;
       if (userText) {
         try {
@@ -289,10 +290,8 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
   if (params.signal?.aborted) return;
   params.onEvent({ type: 'assistant_source', source: 'ollama' });
   // qwen2.5 sometimes mirrors the `[DD.MM.YYYY, HH:MM]` prefix that chat.ts
-  // prepends to user messages. Strip a leading date-time bracket so it doesn't
-  // leak into the UI. Claude does not exhibit this quirk.
-  const cleanedText = ollamaText!.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
-  params.onEvent({ type: 'text_delta', content: cleanedText });
+  // prepends to user messages. Claude does not exhibit this quirk.
+  params.onEvent({ type: 'text_delta', content: stripTimestampPrefix(ollamaText!) });
   if (params.signal?.aborted) return;
   params.onEvent({ type: 'done' });
 }

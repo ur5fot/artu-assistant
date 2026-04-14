@@ -7,6 +7,7 @@ import type { OllamaClient, OllamaToolCall } from './ollama.js';
 import { toOllamaToolDef } from './ollama.js';
 import { executeToolWithPermission, deanonDeep } from './tool-helpers.js';
 import { shouldEscalate } from './escalation-check.js';
+import { stripTimestampPrefix } from './timestamp-strip.js';
 import crypto from 'node:crypto';
 
 const MAX_ITERATIONS = 10;
@@ -103,10 +104,7 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
 
       // Deanonymize and emit final text. Strip any leading `[DD.MM.YYYY, HH:MM]`
       // prefix qwen may have mirrored from the timestamped user turn.
-      const deanonText = (await piiProxy.deanonymize(text)).replace(
-        /^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/,
-        '',
-      );
+      const deanonText = stripTimestampPrefix(await piiProxy.deanonymize(text));
       if (signal?.aborted) return { escalate: false, reason: '' };
       if (deanonText) {
         onEvent({ type: 'text_delta', content: deanonText });
