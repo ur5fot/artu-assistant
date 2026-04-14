@@ -367,10 +367,20 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
     const abortController = new AbortController();
-    res.on('close', () => abortController.abort());
+    // SSE comment-ping keeps the TCP stream warm so tailnet/NAT/proxy idle
+    // timeouts don't kill long Ollama generations mid-turn.
+    const heartbeat = setInterval(() => {
+      if (!res.writableEnded) res.write(': ping\n\n');
+    }, 5000);
+    res.on('close', () => {
+      clearInterval(heartbeat);
+      abortController.abort();
+    });
+    res.on('finish', () => clearInterval(heartbeat));
 
     // Accumulate assistant response for persistence
     let assistantText = '';

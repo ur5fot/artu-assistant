@@ -2,6 +2,23 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Message, ToolCall, RecalledFact } from '@r2/shared';
 import { connectSSE, type SSEConnection } from '../utils/sse';
 
+// crypto.randomUUID is gated behind secure context (HTTPS / localhost). When
+// the app is served over plain HTTP on a non-localhost host (e.g. Tailscale
+// MagicDNS, LAN IP), window.crypto.randomUUID is undefined and every send
+// crashes. Fall back to a tiny RFC-4122 v4 generator built from getRandomValues,
+// which is available in all non-secure contexts too.
+const randomId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return randomId();
+  }
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const h = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+};
+
 export interface PendingConfirm {
   callId: string;
   level: 'confirm' | 'forbidden';
@@ -29,7 +46,17 @@ export function useChat() {
   const sendStartRef = useRef<number>(0);
 
   const send = useCallback((text: string) => {
-    if (!text.trim() || sendingRef.current || !historyLoaded) return;
+    if (!text.trim() || !historyLoaded) return;
+
+    // If a previous request is still marked in-flight, assume it's stuck
+    // (server never emitted `done`/`error`) and force-reset so the new send
+    // isn't silently dropped.
+    if (sendingRef.current) {
+      connectionRef.current?.abort();
+      connectionRef.current = null;
+      sendingRef.current = false;
+      setLoading(false);
+    }
 
     sendingRef.current = true;
     sendStartRef.current = Date.now();
@@ -42,13 +69,13 @@ export function useChat() {
     setPendingPlanReviews(new Map());
 
     const userMessage: Message = {
-      id: crypto.randomUUID(),
+      id: randomId(),
       role: 'user',
       content: text.trim(),
       timestamp: Date.now(),
     };
 
-    const assistantId = crypto.randomUUID();
+    const assistantId = randomId();
     let assistantText = '';
     const toolCalls: ToolCall[] = [];
     let piiEntities: Array<{ type: string; original: string }> | undefined;

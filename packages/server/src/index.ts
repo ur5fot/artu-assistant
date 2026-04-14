@@ -35,7 +35,20 @@ import fs from 'node:fs';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: `http://localhost:${process.env.CLIENT_PORT || 5173}` }));
+const clientPort = process.env.CLIENT_PORT || '5173';
+const corsOrigin: cors.CorsOptions['origin'] = (origin, cb) => {
+  if (!origin) return cb(null, true);
+  try {
+    const u = new URL(origin);
+    if (u.port !== clientPort) return cb(new Error('CORS: port mismatch'));
+    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return cb(null, true);
+    if (u.hostname.endsWith('.ts.net')) return cb(null, true);
+    return cb(new Error('CORS: origin not allowed'));
+  } catch {
+    return cb(new Error('CORS: bad origin'));
+  }
+};
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: '10mb' }));
 
 // Initialize database

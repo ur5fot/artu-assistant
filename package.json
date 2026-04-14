@@ -6,6 +6,7 @@
   ],
   "scripts": {
     "dev": "./scripts/dev.sh plain",
+    "dev:tailnet": "./scripts/dev.sh tailnet",
     "dev:tunnel": "./scripts/dev.sh tunnel",
     "dev:named": "./scripts/dev.sh named",
     "dev:server": "npm run dev -w @r2/server",

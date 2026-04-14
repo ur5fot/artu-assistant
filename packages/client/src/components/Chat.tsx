@@ -100,7 +100,7 @@ export function Chat() {
       <ChatInput
         ref={chatInputRef}
         onSend={handleSend}
-        disabled={loading || !historyLoaded}
+        disabled={!historyLoaded}
         onSlashTyped={handleSlashTyped}
         inputValue={inputValue}
         onInputChange={setInputValue}

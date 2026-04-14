@@ -1,7 +1,7 @@
 #!/bin/bash
 # Dev entry point: starts Docker + Ollama, runs dev servers, cleans up on exit.
 # Usage: ./scripts/dev.sh [mode]
-#   mode: "plain" (default) | "tunnel" | "named"
+#   mode: "plain" (default) | "tailnet" | "tunnel" | "named"
 set -e
 
 MODE="${1:-plain}"
@@ -28,6 +28,9 @@ trap cleanup EXIT INT TERM
 case "$MODE" in
   plain)
     npx concurrently "npm run dev:server" "npm run dev:client"
+    ;;
+  tailnet)
+    npx concurrently "npm run dev:server" "VITE_HOST=true npm run dev:client"
     ;;
   tunnel)
     npx concurrently "npm run dev:server" "VITE_HOST=true npm run dev:client" "sleep 5 && npm run tunnel"
