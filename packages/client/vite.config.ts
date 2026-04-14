@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { config } from 'dotenv';
@@ -16,5 +17,9 @@ export default defineConfig({
     proxy: {
       '/api': `http://localhost:${process.env.PORT || 3001}`,
     },
+  },
+  test: {
+    environment: 'jsdom',
+    globals: false,
   },
 });

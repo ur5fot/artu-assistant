@@ -18,6 +18,7 @@ import { createReminderStore } from './reminders/store.js';
 import { startScheduler } from './reminders/scheduler.js';
 import { reminderBus } from './reminders/bus.js';
 import { createReminderRouter } from './routes/reminder.js';
+import { createEventsRouter } from './routes/events.js';
 import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
@@ -206,6 +207,7 @@ app.use('/api', createMessagesRouter());
 app.use('/api', createMergeRouter());
 app.use('/api', createCommandsRouter(registry));
 app.use('/api/reminder', createReminderRouter({ store: reminderStore, bus: reminderBus }));
+app.use('/api/events', createEventsRouter({ bus: reminderBus }));
 if (piiVault) {
   app.use('/api', createPiiRouter(piiVault));
 }

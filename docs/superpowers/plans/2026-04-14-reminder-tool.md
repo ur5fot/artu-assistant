@@ -1694,13 +1694,13 @@ export function createEventsRouter(deps: EventsRouterDeps): Router {
 
 ### Step 4.2: Mount the events router in `index.ts`
 
-- [ ] In `packages/server/src/index.ts`, add import:
+- [x] In `packages/server/src/index.ts`, add import:
 
 ```ts
 import { createEventsRouter } from './routes/events.js';
 ```
 
-- [ ] Mount it alongside other routers:
+- [x] Mount it alongside other routers:
 
 ```ts
 app.use('/api/events', createEventsRouter({ bus: reminderBus }));
@@ -1708,9 +1708,9 @@ app.use('/api/events', createEventsRouter({ bus: reminderBus }));
 
 ### Step 4.3: Smoke test the SSE endpoint (manual)
 
-- [ ] Restart the dev server (tsx watch handles this automatically after edits).
+- [x] Restart the dev server (tsx watch handles this automatically after edits).
 
-- [ ] In one terminal, subscribe:
+- [x] In one terminal, subscribe:
 
 ```bash
 curl -N http://localhost:3004/api/events
@@ -1718,7 +1718,7 @@ curl -N http://localhost:3004/api/events
 
 Expected: immediately see `:ok` frame. Heartbeat `:heartbeat` every 20s. No disconnect.
 
-- [ ] In another terminal, push a fake event:
+- [x] In another terminal, push a fake event:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server
@@ -1739,7 +1739,7 @@ Expected: within ~15–20 seconds the first terminal prints a `data: {"type":"re
 
 ### Step 4.4: Create alarm-audio wrapper
 
-- [ ] Create `packages/client/src/lib/alarm-audio.ts`:
+- [x] Create `packages/client/src/lib/alarm-audio.ts`:
 
 ```ts
 /**
@@ -1807,7 +1807,7 @@ export function createAlarmAudio(): AlarmAudio {
 
 ### Step 4.5: Write failing tests for `ReminderAlarm`
 
-- [ ] Create `packages/client/src/components/__tests__/ReminderAlarm.test.tsx`:
+- [x] Create `packages/client/src/components/__tests__/ReminderAlarm.test.tsx`:
 
 ```tsx
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
@@ -1922,7 +1922,7 @@ describe('ReminderAlarm', () => {
 
 ### Step 4.6: Verify tests fail
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/client && npx vitest run src/components/__tests__/ReminderAlarm.test.tsx
@@ -1932,7 +1932,7 @@ Expected: FAIL — "Cannot find module '../ReminderAlarm'".
 
 ### Step 4.7: Implement `ReminderAlarm` component
 
-- [ ] Create `packages/client/src/components/ReminderAlarm.tsx`:
+- [x] Create `packages/client/src/components/ReminderAlarm.tsx`:
 
 ```tsx
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -2064,7 +2064,7 @@ export function ReminderAlarm() {
 
 ### Step 4.8: Verify client tests pass
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/client && npx vitest run src/components/__tests__/ReminderAlarm.test.tsx
@@ -2074,13 +2074,13 @@ Expected: PASS — 6 tests green.
 
 ### Step 4.9: Mount `<ReminderAlarm />` in App.tsx
 
-- [ ] Open `packages/client/src/App.tsx`. Add the import at the top:
+- [x] Open `packages/client/src/App.tsx`. Add the import at the top:
 
 ```tsx
 import { ReminderAlarm } from './components/ReminderAlarm';
 ```
 
-- [ ] Inside the JSX returned by `App`, add `<ReminderAlarm />` at the top level (sibling to the chat layout), so it floats above everything:
+- [x] Inside the JSX returned by `App`, add `<ReminderAlarm />` at the top level (sibling to the chat layout), so it floats above everything:
 
 ```tsx
 return (
@@ -2095,7 +2095,7 @@ return (
 
 ### Step 4.10: Full server + client test run
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx tsc --noEmit && npx vitest run
@@ -2103,7 +2103,7 @@ cd /Users/dim/code/R2-D2/packages/server && npx tsc --noEmit && npx vitest run
 
 Expected: green.
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/client && npx tsc --noEmit && npx vitest run
@@ -2113,7 +2113,7 @@ Expected: green.
 
 ### Step 4.11: Commit
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2
