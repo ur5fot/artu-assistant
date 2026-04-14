@@ -2145,7 +2145,7 @@ EOF
 
 ### Step 5.1: Add prompt guard to both system prompts
 
-- [ ] Open `packages/server/src/ai/prompts.ts`. Find the Ollama base prompt string (`getLocalSystemPrompt` → the block containing `ОБМЕЖЕННЯ:`). Replace the existing `ОБМЕЖЕННЯ:` block with:
+- [x] Open `packages/server/src/ai/prompts.ts`. Find the Ollama base prompt string (`getLocalSystemPrompt` → the block containing `ОБМЕЖЕННЯ:`). Replace the existing `ОБМЕЖЕННЯ:` block with:
 
 ```ts
   const base = `Ти — R2, персональний AI-асистент. Ти працюєш для свого власника.
@@ -2202,7 +2202,7 @@ ${toolList}
 Ніколи не змішуй маркер з іншим текстом — або маркер сам, або звичайна відповідь.`;
 ```
 
-- [ ] Find the Claude base prompt in `getSystemPrompt`. Append a compact version of the guard to `BASE_RULES` OR to the prompt string directly:
+- [x] Find the Claude base prompt in `getSystemPrompt`. Append a compact version of the guard to `BASE_RULES` OR to the prompt string directly:
 
 Replace:
 
@@ -2233,7 +2233,7 @@ This constant is shared by both `getSystemPrompt` and `getLocalSystemPrompt`, so
 
 ### Step 5.2: Run prompt tests
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx vitest run src/ai/__tests__/prompts.test.ts
@@ -2243,7 +2243,7 @@ Expected: green. If any test pins the old rules string, update the expected stri
 
 ### Step 5.3: Update `AGENTS.md`
 
-- [ ] Open `AGENTS.md`. Find the Phase 4G block. After the Phase 4G bullets, add a new Phase 5 section:
+- [x] Open `AGENTS.md`. Find the Phase 4G block. After the Phase 4G bullets, add a new Phase 5 section:
 
 ```markdown
 - **5A) Reminder tool** ✓ — alarm-style one-shot and recurring (daily/weekly/monthly) reminders
@@ -2260,35 +2260,35 @@ Expected: green. If any test pins the old rules string, update the expected stri
 
 ### Step 5.4: Manual end-to-end verification
 
-- [ ] Make sure the dev server is running (`tsx watch` auto-restarts on edits).
+- [x] Make sure the dev server is running (`tsx watch` auto-restarts on edits).
 
-- [ ] **Test one-shot:** In the chat UI type: `напомни через 1 минуту выпить воды`.
+- [x] **Test one-shot:** In the chat UI type: `напомни через 1 минуту выпить воды`.
   - Expect: assistant response from Claude confirming creation with id.
   - After ~60–75 seconds: modal appears with "⏰ выпить воды (звонит…)", Web Audio tone plays, a chat message `⏰ выпить воды` appears in history.
   - Click `✓ Выключить`: tone stops, modal closes.
 
-- [ ] **Test snooze:** Create another one-shot for 1 minute. When it rings, click `😴 Через 10 мин`. Modal closes. Check in SQLite that a new reminder row exists with `kind: 'once'` 10 min in the future.
+- [x] **Test snooze:** Create another one-shot for 1 minute. When it rings, click `😴 Через 10 мин`. Modal closes. Check in SQLite that a new reminder row exists with `kind: 'once'` 10 min in the future.
 
 ```bash
 sqlite3 /Users/dim/code/R2-D2/data/r2.db "SELECT id, text, datetime(next_fire_at_ms/1000, 'unixepoch') FROM reminders WHERE active = 1 ORDER BY id DESC LIMIT 5;"
 ```
 
-- [ ] **Test 3-cycle:** Create a one-shot for 1 minute. When it rings, do NOT click anything for 10 minutes. Expect three separate ring phases (60s on, 2 min off, 60s on, 2 min off, 60s on), then a final `⏰ пропущено: <text>` chat message and the modal disappears.
+- [x] **Test 3-cycle:** Create a one-shot for 1 minute. When it rings, do NOT click anything for 10 minutes. Expect three separate ring phases (60s on, 2 min off, 60s on, 2 min off, 60s on), then a final `⏰ пропущено: <text>` chat message and the modal disappears.
 
-- [ ] **Test daily:** `напомни каждый день в <текущий час+2>:00 зарядка`.
+- [x] **Test daily:** `напомни каждый день в <текущий час+2>:00 зарядка`.
   - In chat: confirm id.
   - `/нагадування` — shows the daily reminder with `(следующее: ..., daily)`.
   - `/нагадування видалити <id>` — removed.
 
-- [ ] **Test prompt guard:** Ask qwen something for which there is no tool: `забронируй мне столик в ресторане на 7 вечера`. Expect: qwen replies honestly (`в меня нет такого инструмента` or `[need tool: ...]`). It must NOT say "забронировал" or "сделано".
+- [x] **Test prompt guard:** Ask qwen something for which there is no tool: `забронируй мне столик в ресторане на 7 вечера`. Expect: qwen replies honestly (`в меня нет такого инструмента` or `[need tool: ...]`). It must NOT say "забронировал" or "сделано".
 
-- [ ] **Test prompt guard (claude):** Same prompt, but escalate to Claude (e.g. `/клод забронируй ...`). Claude should also decline honestly.
+- [x] **Test prompt guard (claude):** Same prompt, but escalate to Claude (e.g. `/клод забронируй ...`). Claude should also decline honestly.
 
 If any of the above fail, fix the issue and re-run the failing check. Do not mark the task complete on partial success.
 
 ### Step 5.5: Commit
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2

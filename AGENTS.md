@@ -430,6 +430,16 @@ Memory starts empty on first deploy — pre-existing `chat_messages` are NOT re-
   - LOCAL_LLM_MODE=disabled kills router; ollama unreachable → silent fallback
   - Default model: qwen2.5:7b (~5 GB RAM). Run `ollama serve` + `ollama pull qwen2.5:7b` before use.
   - Cold start with full system prompt + ~11 tool schemas can take 10-20s on first call — keep `OLLAMA_TIMEOUT_MS` ≥ 30000 or expect silent fallbacks to Claude while the model loads.
+- **5A) Reminder tool** ✓ — alarm-style one-shot and recurring (daily/weekly/monthly) reminders
+  - `packages/tool-reminder` — tool definitions (create claude-only; list/delete provider='all')
+  - `packages/server/src/reminders/` — `recurrence.ts` (next-fire calculator), `store.ts` (SQLite CRUD + state machine), `scheduler.ts` (idempotent background tick), `bus.ts` (EventEmitter singleton)
+  - `packages/server/src/routes/events.ts` — Server-Sent Events endpoint `/api/events` (20s heartbeat, EventSource-compatible)
+  - `packages/server/src/routes/reminder.ts` — POST `/api/reminder/dismiss`, POST `/api/reminder/snooze`
+  - `packages/client/src/components/ReminderAlarm.tsx` + `lib/alarm-audio.ts` — singleton modal + Web Audio API pulsed tone (880 Hz, no binary asset)
+  - Alarm cycle: 60s ring → 2 min pause → 60s ring → 2 min pause → 60s ring → done (3 rings total before "пропущено")
+  - Schedule discriminated union: `once` / `daily` / `weekly` / `monthly`, LLM translates natural language → structured params (qwen escalates `reminder_create` to Claude via `provider: 'claude'` because qwen2.5 is unreliable at datetime arithmetic / weekday numbering)
+  - State machine is idempotent across server restarts: state lives in SQLite, scheduler tick resumes from whatever row state it finds on next tick after reboot
+  - Runtime override of `provider` (to force reminder_create onto Ollama after upgrading models) is a backlog item ("Tool provider overrides")
 - Справки, рапорти
 - RAG по юридической базе
 - Генерация документов .docx
