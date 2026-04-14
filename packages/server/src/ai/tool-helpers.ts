@@ -3,6 +3,7 @@ import type { ConfirmResponse, PendingConfirms } from '../routes/confirm.js';
 import type { PendingPlanReviews } from '../routes/plan-review.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import { logToolCall, getPermissionRule, savePermissionRule } from '../db.js';
+import { anonymizeJsonStringLeaves } from '../pii/anonymize-tree.js';
 
 export async function deanonDeep(value: unknown, piiProxy: PiiProxy): Promise<unknown> {
   if (typeof value === 'string') return piiProxy.deanonymize(value);
@@ -195,27 +196,25 @@ export async function executeToolWithPermission(params: {
     }
   }
 
-  // Anonymize tool result before logging and sending back to LLM
+  // Anonymize tool result before logging and sending back to LLM.
+  // Walk the JSON tree and mask only string leaves — numeric fields like
+  // timestamps must stay numbers so Presidio's regex recognizers don't
+  // mis-classify them as CREDIT_CARD / PHONE_NUMBER.
   if (result.data) {
-    const anonResult = await piiProxy.anonymize(JSON.stringify(result.data));
-    if (anonResult.entities.length > 0) {
-      try {
-        result = { ...result, data: JSON.parse(anonResult.text) };
-      } catch {
-        result = { ...result, data: anonResult.text };
-      }
+    const anon = await anonymizeJsonStringLeaves(result.data, piiProxy);
+    if (anon.entities.length > 0) {
+      result = { ...result, data: anon.value };
     }
   }
 
-  // Audit log — anonymize input before writing to avoid PII at rest
+  // Audit log — anonymize input before writing to avoid PII at rest.
+  // Same reasoning as the result block: only string leaves go through Presidio.
   try {
-    const anonInput = await piiProxy.anonymize(JSON.stringify(input));
-    let logInput: Record<string, unknown>;
-    try {
-      logInput = JSON.parse(anonInput.text) as Record<string, unknown>;
-    } catch {
-      logInput = { _raw: anonInput.text };
-    }
+    const anonInput = await anonymizeJsonStringLeaves(input, piiProxy);
+    const logInput =
+      anonInput.value !== null && typeof anonInput.value === 'object' && !Array.isArray(anonInput.value)
+        ? (anonInput.value as Record<string, unknown>)
+        : { _raw: anonInput.value };
     logToolCall({ toolName: toolDef.name, input: logInput, result, success: result.success, durationMs });
   } catch (err) {
     console.error('Audit log write failed:', err instanceof Error ? err.message : err);
