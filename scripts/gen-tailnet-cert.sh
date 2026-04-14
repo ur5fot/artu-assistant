@@ -4,9 +4,17 @@
 # Override the host by exporting R2_TAILNET_HOST.
 set -euo pipefail
 
-if ! command -v tailscale >/dev/null 2>&1; then
-  echo "error: 'tailscale' CLI not found on PATH." >&2
-  echo "Install Tailscale and ensure the tailscaled daemon is running." >&2
+TAILSCALE_BIN=""
+if command -v tailscale >/dev/null 2>&1; then
+  TAILSCALE_BIN="tailscale"
+elif [ -x "/Applications/Tailscale.app/Contents/MacOS/Tailscale" ]; then
+  # App Store version: binary must be invoked with its full path from inside
+  # the .app bundle, otherwise its Swift runtime aborts at startup with
+  # "bundleIdentifier unknown to the registry".
+  TAILSCALE_BIN="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+else
+  echo "error: 'tailscale' CLI not found." >&2
+  echo "Install Tailscale (https://tailscale.com/download) and make sure the daemon is running." >&2
   exit 1
 fi
 
@@ -17,7 +25,7 @@ if [ -z "$HOST" ]; then
     echo "Install jq or export R2_TAILNET_HOST=<your-host>.ts.net." >&2
     exit 1
   fi
-  HOST=$(tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//')
+  HOST=$("$TAILSCALE_BIN" status --json | jq -r '.Self.DNSName' | sed 's/\.$//')
 fi
 
 if [ -z "$HOST" ] || [ "$HOST" = "null" ]; then
@@ -35,7 +43,7 @@ fi
 mkdir -p .tailnet-cert
 chmod 700 .tailnet-cert
 echo "Requesting Tailscale cert for $HOST..."
-tailscale cert \
+"$TAILSCALE_BIN" cert \
   --cert-file ".tailnet-cert/${HOST}.crt" \
   --key-file ".tailnet-cert/${HOST}.key" \
   "$HOST"

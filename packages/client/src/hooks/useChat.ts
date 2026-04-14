@@ -9,7 +9,7 @@ import { connectSSE, type SSEConnection } from '../utils/sse';
 // which is available in all non-secure contexts too.
 const randomId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return randomId();
+    return crypto.randomUUID();
   }
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
