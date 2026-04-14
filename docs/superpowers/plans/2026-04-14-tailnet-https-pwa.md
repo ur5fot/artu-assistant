@@ -232,7 +232,7 @@ git commit -m "feat(dev): Vite HTTPS in tailnet mode via Tailscale cert"
 **Files:**
 - Create: `scripts/gen-pwa-icons.mjs`, `packages/client/public/icon-192.png`, `icon-512.png`, `icon-maskable-512.png`
 
-- [ ] **Step 1: Create `scripts/gen-pwa-icons.mjs`**
+- [x] **Step 1: Create `scripts/gen-pwa-icons.mjs`**
 
 This script draws "R2" text on a solid background using the `sharp` library if available, otherwise falls back to writing a minimal solid-color PNG via a tiny hand-rolled encoder. We use the fallback path to avoid adding a new dependency for placeholder art.
 
@@ -344,17 +344,17 @@ writeFileSync(resolve(outDir, 'icon-maskable-512.png'), drawIcon(512, { maskable
 console.log('✓ Wrote icon-192.png, icon-512.png, icon-maskable-512.png');
 ```
 
-- [ ] **Step 2: Run the generator**
+- [x] **Step 2: Run the generator**
 
 Run: `node scripts/gen-pwa-icons.mjs`
 Expected: prints `✓ Wrote icon-192.png, icon-512.png, icon-maskable-512.png`.
 
-- [ ] **Step 3: Verify the PNGs are valid**
+- [x] **Step 3: Verify the PNGs are valid**
 
 Run: `file packages/client/public/icon-192.png packages/client/public/icon-512.png packages/client/public/icon-maskable-512.png`
 Expected: each line contains `PNG image data, 192 x 192` / `512 x 512` with 8-bit/color RGBA.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/gen-pwa-icons.mjs packages/client/public/icon-192.png packages/client/public/icon-512.png packages/client/public/icon-maskable-512.png
