@@ -5,6 +5,7 @@ import type { ToolRegistry } from './registry.js';
 import type { PendingConfirms } from '../routes/confirm.js';
 import type { PendingPlanReviews } from '../routes/plan-review.js';
 import type { MemoryService } from '../memory/service.js';
+import type { ReminderStore } from '../reminders/store.js';
 
 export type { ToolDefinition, ToolContext, PlanReviewResponse } from '@r2/shared';
 
@@ -32,6 +33,7 @@ export interface ToolDeps {
   registry: ToolRegistry;
   piiProxy: PiiProxy;
   memoryService: MemoryService | null;
+  reminderStore: ReminderStore | null;
 }
 
 export type ToolFactory = (deps: ToolDeps) => SharedToolDefinition | SharedToolDefinition[];

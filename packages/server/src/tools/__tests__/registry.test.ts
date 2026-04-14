@@ -215,6 +215,7 @@ describe('discoverTools with factory support', () => {
       registry,
       piiProxy: {} as any,
       memoryService: null,
+      reminderStore: null,
     };
     await discoverTools(registry, deps, tmpDir);
 

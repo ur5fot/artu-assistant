@@ -1164,7 +1164,7 @@ EOF
 
 ### Step 3.1: Write failing tests for the reminder routes
 
-- [ ] Create `packages/server/src/routes/__tests__/reminder.test.ts`:
+- [x] Create `packages/server/src/routes/__tests__/reminder.test.ts`:
 
 ```ts
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -1258,7 +1258,7 @@ describe('reminder routes', () => {
 
 ### Step 3.2: Verify tests fail
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx vitest run src/routes/__tests__/reminder.test.ts
@@ -1268,7 +1268,7 @@ Expected: FAIL — "Failed to resolve import '../reminder.js'".
 
 ### Step 3.3: Implement `packages/server/src/routes/reminder.ts`
 
-- [ ] Create `packages/server/src/routes/reminder.ts`:
+- [x] Create `packages/server/src/routes/reminder.ts`:
 
 ```ts
 import { Router, type Request, type Response } from 'express';
@@ -1322,7 +1322,7 @@ export function createReminderRouter(deps: ReminderRouterDeps): Router {
 
 ### Step 3.4: Verify route tests pass
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx vitest run src/routes/__tests__/reminder.test.ts
@@ -1332,7 +1332,7 @@ Expected: PASS — 3 tests green.
 
 ### Step 3.5: Replace tool-reminder placeholder with real tool definitions
 
-- [ ] Overwrite `packages/tool-reminder/src/index.ts`:
+- [x] Overwrite `packages/tool-reminder/src/index.ts`:
 
 ```ts
 import type { ToolDefinition, ToolResult } from '@r2/shared';
@@ -1514,7 +1514,7 @@ export default createTool;
 
 ### Step 3.6: Add `reminderStore` to `ToolDeps`
 
-- [ ] Modify `packages/server/src/tools/base.ts`. Find the `ToolDeps` interface and add the new field:
+- [x] Modify `packages/server/src/tools/base.ts`. Find the `ToolDeps` interface and add the new field:
 
 ```ts
 import type { ReminderStore } from '../reminders/store.js';
@@ -1535,7 +1535,7 @@ Note: adding `reminderStore: ReminderStore | null` as a required property means 
 
 ### Step 3.7: Wire store + router + scheduler into `packages/server/src/index.ts`
 
-- [ ] Open `packages/server/src/index.ts`. Add these imports near the existing relative imports:
+- [x] Open `packages/server/src/index.ts`. Add these imports near the existing relative imports:
 
 ```ts
 import { createReminderStore } from './reminders/store.js';
@@ -1544,14 +1544,14 @@ import { reminderBus } from './reminders/bus.js';
 import { createReminderRouter } from './routes/reminder.js';
 ```
 
-- [ ] After `initDb(...)` is called (search for `initDb(`), build the store and start the scheduler:
+- [x] After `initDb(...)` is called (search for `initDb(`), build the store and start the scheduler:
 
 ```ts
 const reminderStore = createReminderStore({ db: getDb() });
 const stopScheduler = startScheduler({ store: reminderStore, db: getDb(), bus: reminderBus });
 ```
 
-- [ ] Find the call to `discoverTools(...)` and the construction of `ToolDeps`. Pass `reminderStore`:
+- [x] Find the call to `discoverTools(...)` and the construction of `ToolDeps`. Pass `reminderStore`:
 
 ```ts
 const toolDeps: ToolDeps = {
@@ -1566,13 +1566,13 @@ const toolDeps: ToolDeps = {
 
 (Exact variable name for `toolDeps` may differ — follow the existing file's style. The point is `reminderStore` must appear wherever `memoryService` already appears.)
 
-- [ ] Mount the router alongside existing routers. Search for `app.use('/api', ...)` or similar and add:
+- [x] Mount the router alongside existing routers. Search for `app.use('/api', ...)` or similar and add:
 
 ```ts
 app.use('/api/reminder', createReminderRouter({ store: reminderStore, bus: reminderBus }));
 ```
 
-- [ ] On graceful shutdown (search for `process.on('SIGTERM'` or `closeDb`), add `stopScheduler()`:
+- [x] On graceful shutdown (search for `process.on('SIGTERM'` or `closeDb`), add `stopScheduler()`:
 
 ```ts
 process.on('SIGTERM', () => {
@@ -1586,7 +1586,7 @@ process.on('SIGTERM', () => {
 
 ### Step 3.8: Verify typecheck and full test run
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx tsc --noEmit
@@ -1594,7 +1594,7 @@ cd /Users/dim/code/R2-D2/packages/server && npx tsc --noEmit
 
 Expected: no errors.
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx vitest run
@@ -1604,7 +1604,7 @@ Expected: all tests pass, including the new reminder tests and existing suites. 
 
 ### Step 3.9: Commit
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2

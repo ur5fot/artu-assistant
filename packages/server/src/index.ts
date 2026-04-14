@@ -14,6 +14,10 @@ import { createPiiRouter } from './routes/pii.js';
 import { createMessagesRouter } from './routes/messages.js';
 import { createMergeRouter } from './routes/merge.js';
 import { createCommandsRouter } from './routes/commands.js';
+import { createReminderStore } from './reminders/store.js';
+import { startScheduler } from './reminders/scheduler.js';
+import { reminderBus } from './reminders/bus.js';
+import { createReminderRouter } from './routes/reminder.js';
 import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
@@ -126,6 +130,9 @@ if (ollama) {
 } else {
   console.log('[router] Local LLM disabled — all chat goes to Claude');
 }
+const reminderStore = createReminderStore({ db: getDb() });
+const stopScheduler = startScheduler({ store: reminderStore, db: getDb(), bus: reminderBus });
+
 const registry = createRegistry();
 const pendingConfirms: PendingConfirms = new Map();
 const pendingPlanReviews: PendingPlanReviews = new Map();
@@ -177,6 +184,7 @@ await discoverTools(registry, {
   registry,
   piiProxy,
   memoryService,
+  reminderStore,
 });
 
 const chatRouter = createChatRouter({
@@ -197,6 +205,7 @@ app.use('/api', createPermissionsRouter());
 app.use('/api', createMessagesRouter());
 app.use('/api', createMergeRouter());
 app.use('/api', createCommandsRouter(registry));
+app.use('/api/reminder', createReminderRouter({ store: reminderStore, bus: reminderBus }));
 if (piiVault) {
   app.use('/api', createPiiRouter(piiVault));
 }
@@ -216,6 +225,7 @@ const server = app.listen(Number(PORT), '127.0.0.1', () => {
 // Graceful shutdown on SIGTERM (from supervisor)
 process.on('SIGTERM', () => {
   console.log('Worker received SIGTERM, shutting down...');
+  stopScheduler();
   server.close(() => {
     closeDb();
     process.exit(0);
