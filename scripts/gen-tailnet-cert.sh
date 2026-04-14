@@ -2,7 +2,7 @@
 # Generate a Tailscale-issued HTTPS cert for this machine's tailnet hostname.
 # Writes .tailnet-cert/<host>.crt and .tailnet-cert/<host>.key.
 # Override the host by exporting R2_TAILNET_HOST.
-set -e
+set -euo pipefail
 
 if ! command -v tailscale >/dev/null 2>&1; then
   echo "error: 'tailscale' CLI not found on PATH." >&2
@@ -27,11 +27,14 @@ if [ -z "$HOST" ] || [ "$HOST" = "null" ]; then
 fi
 
 mkdir -p .tailnet-cert
+chmod 700 .tailnet-cert
 echo "Requesting Tailscale cert for $HOST..."
 tailscale cert \
   --cert-file ".tailnet-cert/${HOST}.crt" \
   --key-file ".tailnet-cert/${HOST}.key" \
   "$HOST"
+chmod 600 ".tailnet-cert/${HOST}.key"
+chmod 644 ".tailnet-cert/${HOST}.crt"
 
 echo "✓ Cert written to .tailnet-cert/${HOST}.crt"
 echo "✓ Key  written to .tailnet-cert/${HOST}.key"

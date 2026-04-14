@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 describe('PWA manifest', () => {
-  const manifestPath = resolve(__dirname, '..', '..', 'public', 'manifest.webmanifest');
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const publicDir = resolve(__dirname, '..', '..', 'public');
+  const manifest = JSON.parse(readFileSync(resolve(publicDir, 'manifest.webmanifest'), 'utf8'));
 
   it('has required top-level fields', () => {
     expect(manifest.name).toBe('R2');
@@ -20,5 +20,14 @@ describe('PWA manifest', () => {
     expect(icons.some((i) => i.sizes === '192x192')).toBe(true);
     expect(icons.some((i) => i.sizes === '512x512')).toBe(true);
     expect(icons.some((i) => i.purpose === 'maskable')).toBe(true);
+  });
+
+  it('every icon src resolves to a non-empty file on disk', () => {
+    const icons = manifest.icons as Array<{ src: string }>;
+    for (const icon of icons) {
+      const path = resolve(publicDir, icon.src.replace(/^\//, ''));
+      const stat = statSync(path);
+      expect(stat.size).toBeGreaterThan(0);
+    }
   });
 });
