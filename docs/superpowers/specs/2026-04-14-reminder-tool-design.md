@@ -147,7 +147,7 @@ export function createReminderTools(store: ReminderStore): ToolDefinition[] {
     {
       name: 'reminder_create',
       description: 'Создать напоминание с будильником. schedule — один из: once/daily/weekly/monthly.',
-      provider: 'all',
+      provider: 'claude', // NOT 'all' — see "Why claude-only for create" below
       parameters: { /* JSON schema with schedule discriminated union */ },
       permissionLevel: 'auto',
       command: { name: 'нагадай', description: '...', params: [{ name: 'text', required: true }] },
@@ -181,6 +181,14 @@ export function createReminderTools(store: ReminderStore): ToolDefinition[] {
 ```
 
 `ReminderStore` — интерфейс реализованный в server'е (`packages/server/src/reminders/store.ts`), даёт CRUD над таблицей + computes `next_fire_at_ms` при create через `computeNextFire`.
+
+### Why claude-only for `reminder_create`
+
+Перевод натуральной речи в структурированный `Schedule` (discriminated union с ISO datetime arithmetic, weekday number, clamp day_of_month) — задача, на которой `qwen2.5:7b` систематически ошибается: промахи на «через 5 часов» (требует ISO math от текущего времени), «послезавтра в 16:30» (2-day offset), weekday nums (Sun=0 vs Mon=1), русские/украинские формулировки с предлогами. Ошибка в дате — пропущенное напоминание, это высокая цена.
+
+`reminder_list` и `reminder_delete` остаются `provider: 'all'` — они принимают простой `id` или пустой body, qwen справляется без проблем.
+
+Пользователь сможет override'нуть этот выбор позже через отдельную фичу **"tool provider overrides"** (в project backlog) — SQLite-таблица `tool_provider_overrides` + slash-команда `/провайдер reminder_create ollama`, без правки кода. Пока же hardcode `'claude'` — самый надёжный MVP путь.
 
 ## SSE Events (server → client)
 
