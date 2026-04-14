@@ -369,7 +369,7 @@ git commit -m "feat(client): placeholder PWA icons"
 - Create: `packages/client/public/manifest.webmanifest`
 - Modify: `packages/client/index.html`
 
-- [ ] **Step 1: Create the manifest**
+- [x] **Step 1: Create the manifest**
 
 Create `packages/client/public/manifest.webmanifest`:
 
@@ -392,12 +392,12 @@ Create `packages/client/public/manifest.webmanifest`:
 }
 ```
 
-- [ ] **Step 2: Read current `packages/client/index.html`**
+- [x] **Step 2: Read current `packages/client/index.html`**
 
 Run: `cat packages/client/index.html`
 Expected: note the existing `<head>` contents so the next step inserts tags cleanly without duplicating `<title>` or `<link rel="icon">`.
 
-- [ ] **Step 3: Add manifest link and PWA meta tags to `<head>`**
+- [x] **Step 3: Add manifest link and PWA meta tags to `<head>`**
 
 Insert the following lines into `packages/client/index.html` just before `</head>` (order does not matter, keep them grouped):
 
@@ -410,7 +410,7 @@ Insert the following lines into `packages/client/index.html` just before `</head
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 ```
 
-- [ ] **Step 4: Verify manifest is served**
+- [x] **Step 4: Verify manifest is served**
 
 Start dev in a terminal: `npm run dev:tailnet` (or `npm run dev`), then in another terminal:
 
@@ -419,7 +419,7 @@ Expected: first lines of JSON showing `"name": "R2"`.
 
 Stop dev with Ctrl+C.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/client/public/manifest.webmanifest packages/client/index.html
