@@ -543,12 +543,12 @@ git commit -m "test(client): validate PWA manifest fields"
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1: Read current README**
+- [x] **Step 1: Read current README**
 
 Run: `cat README.md | head -60`
 Expected: locate the "Development" or "Getting started" section to anchor the new block below it.
 
-- [ ] **Step 2: Append "Install on phone (dev)" section**
+- [x] **Step 2: Append "Install on phone (dev)" section**
 
 Insert this block in `README.md` at the end of the Development section (or append to the file if no obvious anchor):
 
@@ -591,7 +591,7 @@ Tailscale tailnet as the dev machine.
    when a real logo is ready.
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add README.md
