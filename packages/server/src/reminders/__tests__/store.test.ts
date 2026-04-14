@@ -153,7 +153,7 @@ describe('ReminderStore', () => {
     expect(row.active).toBe(0);
   });
 
-  it('snooze: creates a new one-shot 10 min later with the same text', () => {
+  it('snooze: recurring — clones a one-shot and rolls original to next occurrence', () => {
     const store = createReminderStore({ db, now: () => fakeNow });
     const schedule: Schedule = { kind: 'daily', hour: 9, minute: 0 };
     const id = store.create('выпить воды', schedule);
@@ -167,5 +167,25 @@ describe('ReminderStore', () => {
     const original = db.prepare('SELECT * FROM reminders WHERE id = ?').get(id) as any;
     expect(original.active).toBe(1);
     expect(original.cycle_stage).toBe('idle');
+    expect(original.next_fire_at_ms).toBeGreaterThan(fakeNow + 5000 + 10 * 60_000);
+  });
+
+  it('snooze: one-shot — clones and deactivates original', () => {
+    const store = createReminderStore({ db, now: () => fakeNow });
+    const schedule: Schedule = { kind: 'once', at_iso: new Date(fakeNow + 1000).toISOString() };
+    const id = store.create('позвонить', schedule);
+    store.beginRing(id, fakeNow + 1000);
+    const newId = store.snooze(id, fakeNow + 5000);
+    const original = db.prepare('SELECT * FROM reminders WHERE id = ?').get(id) as any;
+    expect(original.active).toBe(0);
+    expect(original.cycle_stage).toBe('done');
+    const clone = db.prepare('SELECT * FROM reminders WHERE id = ?').get(newId) as any;
+    expect(clone.active).toBe(1);
+    expect(clone.next_fire_at_ms).toBe(fakeNow + 5000 + 10 * 60_000);
+  });
+
+  it('snooze: throws for unknown id', () => {
+    const store = createReminderStore({ db, now: () => fakeNow });
+    expect(() => store.snooze(9999, fakeNow)).toThrow(/not found/);
   });
 });

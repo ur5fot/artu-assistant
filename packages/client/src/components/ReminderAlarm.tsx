@@ -62,11 +62,16 @@ export function ReminderAlarm() {
   }, [audio, updateAudio]);
 
   const handleDismiss = async (id: number) => {
-    await fetch('/api/reminder/dismiss', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
+    try {
+      const res = await fetch('/api/reminder/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) return;
+    } catch {
+      return;
+    }
     setAlarms((prev) => {
       const next = prev.filter((a) => a.id !== id);
       updateAudio(next);
@@ -75,11 +80,16 @@ export function ReminderAlarm() {
   };
 
   const handleSnooze = async (id: number) => {
-    await fetch('/api/reminder/snooze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
+    try {
+      const res = await fetch('/api/reminder/snooze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) return;
+    } catch {
+      return;
+    }
     setAlarms((prev) => {
       const next = prev.filter((a) => a.id !== id);
       updateAudio(next);

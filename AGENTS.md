@@ -240,6 +240,8 @@ data: { "type": "done" }
 | /забудь | memory_forget | Позначити факт як забутий |
 | /клод-промпт | prompt_overlay_claude | Надстройка системного промпту Claude |
 | /лама-промпт | prompt_overlay_ollama | Надстройка системного промпту Ollama |
+| /нагадай | reminder_create | Створити нагадування (once / daily / weekly / monthly) |
+| /нагадування | reminder_list | Список активних нагадувань (підкоманда `видалити <id>` → reminder_delete) |
 
 **Prompt overlays** (`/клод-промпт`, `/лама-промпт`): додають блок «Додаткові інструкції» поверх базового системного промпту для Claude або Ollama без рестарту сервера. Зберігаються у таблиці `prompt_overlays` (SQLite), застосовуються у наступному запиті.
 
@@ -256,6 +258,20 @@ Usage:
 - **Arrow Up/Down** — navigate commands in palette
 - **Enter** — execute selected command
 - **Escape** — close palette
+
+### GET /api/events (Server-Sent Events)
+
+Постійний SSE-потік server→client push-подій. `EventSource('/api/events')` з клієнта. Heartbeat `:heartbeat` кожні 20s. Події: `reminder_ring`, `reminder_stop_ring`, `reminder_done` (див. `ServerPushEvent` у `@r2/shared`).
+
+### POST /api/reminder/dismiss
+
+**Request:** `{ "id": number }`
+**Response:** `{ ok: true }` — зупиняє поточний цикл дзвінка, перераховує `next_fire_at_ms` для періодичних нагадувань, деактивує `once`.
+
+### POST /api/reminder/snooze
+
+**Request:** `{ "id": number }`
+**Response:** `{ ok: true, snoozedId: number }` — створює 10-хвилинний one-shot клон; оригінал `once` деактивується, періодичний переводиться на наступне заплановане спрацювання.
 
 ### GET /api/health
 

@@ -47,7 +47,7 @@ function emit(bus: EventEmitter, event: ReminderPushEvent): void {
 function persistChatMessage(db: Database.Database, content: string, now: number): void {
   db.prepare(`
     INSERT INTO chat_messages (message_id, role, content, timestamp, source)
-    VALUES (?, 'assistant', ?, ?, 'claude')
+    VALUES (?, 'assistant', ?, ?, NULL)
   `).run(crypto.randomUUID(), content, now);
 }
 

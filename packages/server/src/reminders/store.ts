@@ -198,25 +198,48 @@ export function createReminderStore(deps: StoreDeps): ReminderStore {
     snooze(id, nowMs) {
       const row = db.prepare('SELECT * FROM reminders WHERE id = ?').get(id) as any;
       if (!row) throw new Error(`Reminder ${id} not found`);
+      const originalSchedule = JSON.parse(row.schedule_json) as Schedule;
       const snoozedSchedule: Schedule = {
         kind: 'once',
         at_iso: new Date(nowMs + SNOOZE_DELAY_MS).toISOString(),
       };
-      const stmt = db.prepare(`
+      const result = db.prepare(`
         INSERT INTO reminders (text, schedule_json, next_fire_at_ms, created_at)
         VALUES (?, ?, ?, ?)
-      `);
-      const result = stmt.run(
+      `).run(
         row.text,
         JSON.stringify(snoozedSchedule),
         nowMs + SNOOZE_DELAY_MS,
         nowMs,
       );
-      db.prepare(`
-        UPDATE reminders
-        SET cycle_stage = 'idle', cycle_num = 0, cycle_stage_ends_at_ms = NULL
-        WHERE id = ?
-      `).run(id);
+      if (originalSchedule.kind === 'once') {
+        db.prepare(`
+          UPDATE reminders
+          SET active = 0,
+              cycle_stage = 'done',
+              cycle_num = 0,
+              cycle_stage_ends_at_ms = NULL
+          WHERE id = ?
+        `).run(id);
+      } else {
+        const nextFire = computeNextFire(originalSchedule, nowMs);
+        if (nextFire === null) {
+          db.prepare(`
+            UPDATE reminders
+            SET active = 0, cycle_stage = 'done', cycle_stage_ends_at_ms = NULL
+            WHERE id = ?
+          `).run(id);
+        } else {
+          db.prepare(`
+            UPDATE reminders
+            SET cycle_stage = 'idle',
+                cycle_num = 0,
+                cycle_stage_ends_at_ms = NULL,
+                next_fire_at_ms = ?
+            WHERE id = ?
+          `).run(nextFire, id);
+        }
+      }
       return Number(result.lastInsertRowid);
     },
 
