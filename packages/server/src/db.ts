@@ -82,6 +82,26 @@ export function initDb(dbPath?: string): void {
   }
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS reminders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      text TEXT NOT NULL,
+      schedule_json TEXT NOT NULL,
+      next_fire_at_ms INTEGER NOT NULL,
+      cycle_stage TEXT NOT NULL DEFAULT 'idle',
+      cycle_num INTEGER NOT NULL DEFAULT 0,
+      cycle_stage_ends_at_ms INTEGER,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_reminders_next_fire
+      ON reminders(next_fire_at_ms)
+      WHERE active = 1
+  `);
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS audit_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       tool_name TEXT NOT NULL,

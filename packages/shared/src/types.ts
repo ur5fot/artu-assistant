@@ -86,3 +86,8 @@ export type SSEEvent =
   | { type: 'assistant_source'; source: 'ollama' | 'claude' }
   | { type: 'done' }
   | { type: 'error'; message: string };
+
+export type ServerPushEvent =
+  | { type: 'reminder_ring'; id: number; text: string }
+  | { type: 'reminder_stop_ring'; id: number }
+  | { type: 'reminder_done'; id: number };

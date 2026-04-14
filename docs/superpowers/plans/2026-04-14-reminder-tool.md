@@ -358,7 +358,7 @@ EOF
 
 ### Step 2.1: Add `reminders` DDL to `db.ts`
 
-- [ ] Open `packages/server/src/db.ts`. Find the block that creates tables (look for `CREATE TABLE IF NOT EXISTS memory_entries`). Add the new DDL right after the existing table creations, BEFORE any `sqlite-vec` virtual table creation:
+- [x] Open `packages/server/src/db.ts`. Find the block that creates tables (look for `CREATE TABLE IF NOT EXISTS memory_entries`). Add the new DDL right after the existing table creations, BEFORE any `sqlite-vec` virtual table creation:
 
 ```ts
   db.exec(`
@@ -384,7 +384,7 @@ EOF
 
 ### Step 2.2: Write failing tests for `ReminderStore`
 
-- [ ] Create `packages/server/src/reminders/__tests__/store.test.ts`:
+- [x] Create `packages/server/src/reminders/__tests__/store.test.ts`:
 
 ```ts
 import { describe, expect, it, beforeEach } from 'vitest';
@@ -564,7 +564,7 @@ describe('ReminderStore', () => {
 
 ### Step 2.3: Verify tests fail
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx vitest run src/reminders/__tests__/store.test.ts
@@ -574,7 +574,7 @@ Expected: FAIL — "Failed to resolve import '../store.js'".
 
 ### Step 2.4: Implement `ReminderStore`
 
-- [ ] Create `packages/server/src/reminders/store.ts`:
+- [x] Create `packages/server/src/reminders/store.ts`:
 
 ```ts
 import type Database from 'better-sqlite3';
@@ -811,7 +811,7 @@ export function createReminderStore(deps: StoreDeps): ReminderStore {
 
 ### Step 2.5: Verify store tests pass
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx vitest run src/reminders/__tests__/store.test.ts
@@ -823,7 +823,7 @@ Expected: PASS — 13 tests green.
 
 Both the scheduler (bus emitter) and the SSE route (Task 4) need to agree on the exact shape of events. Declare `ServerPushEvent` once in `@r2/shared` and import it from there, so any future divergence surfaces as a type error.
 
-- [ ] Open `packages/shared/src/types.ts`. Append at the bottom of the file:
+- [x] Open `packages/shared/src/types.ts`. Append at the bottom of the file:
 
 ```ts
 export type ServerPushEvent =
@@ -832,7 +832,7 @@ export type ServerPushEvent =
   | { type: 'reminder_done'; id: number };
 ```
 
-- [ ] Create `packages/server/src/reminders/bus.ts`:
+- [x] Create `packages/server/src/reminders/bus.ts`:
 
 ```ts
 import { EventEmitter } from 'node:events';
@@ -851,7 +851,7 @@ export const reminderBus = new EventEmitter();
 
 ### Step 2.7: Write failing tests for scheduler
 
-- [ ] Create `packages/server/src/reminders/__tests__/scheduler.test.ts`:
+- [x] Create `packages/server/src/reminders/__tests__/scheduler.test.ts`:
 
 ```ts
 import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest';
@@ -1013,7 +1013,7 @@ describe('advanceScheduler', () => {
 
 ### Step 2.8: Verify scheduler tests fail
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx vitest run src/reminders/__tests__/scheduler.test.ts
@@ -1023,7 +1023,7 @@ Expected: FAIL — "Failed to resolve import '../scheduler.js'".
 
 ### Step 2.9: Implement `scheduler.ts`
 
-- [ ] Create `packages/server/src/reminders/scheduler.ts`:
+- [x] Create `packages/server/src/reminders/scheduler.ts`:
 
 ```ts
 import type Database from 'better-sqlite3';
@@ -1108,7 +1108,7 @@ export function startScheduler(params: {
 
 ### Step 2.10: Verify scheduler tests pass
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx vitest run src/reminders
@@ -1118,7 +1118,7 @@ Expected: PASS — all tests (recurrence + store + scheduler) green.
 
 ### Step 2.11: Full server vitest sanity check
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2/packages/server && npx tsc --noEmit && npx vitest run
@@ -1128,7 +1128,7 @@ Expected: tsc clean, all existing + new tests pass.
 
 ### Step 2.12: Commit
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 cd /Users/dim/code/R2-D2
