@@ -20,117 +20,175 @@ function requireStore(deps: ReminderDeps): ReminderStoreLike {
   return deps.reminderStore;
 }
 
-const SCHEDULE_SCHEMA = {
-  oneOf: [
-    {
-      type: 'object',
-      properties: {
-        kind: { type: 'string', enum: ['once'] },
-        at_iso: { type: 'string', description: 'ISO 8601 datetime in the future' },
-      },
-      required: ['kind', 'at_iso'],
+// Flat parameter schema — both qwen and Claude struggle with nested
+// discriminated unions (`oneOf` with 4 object shapes). All schedule fields
+// live at the top level; the handler reads `kind` and picks the relevant
+// siblings, validating each field based on the chosen kind.
+const CREATE_PARAMS_SCHEMA = {
+  type: 'object' as const,
+  properties: {
+    text: { type: 'string', description: 'Текст напоминания' },
+    kind: {
+      type: 'string',
+      enum: ['once', 'daily', 'weekly', 'monthly'],
+      description: 'once=разово, daily=каждый день, weekly=по дням недели, monthly=раз в месяц',
     },
-    {
-      type: 'object',
-      properties: {
-        kind: { type: 'string', enum: ['daily'] },
-        hour: { type: 'integer', minimum: 0, maximum: 23 },
-        minute: { type: 'integer', minimum: 0, maximum: 59 },
-      },
-      required: ['kind', 'hour', 'minute'],
+    at_iso: {
+      type: 'string',
+      description: 'Только для kind=once. ПОЛНЫЙ ISO 8601 datetime вида "2026-04-14T15:00:00" (не placeholder!). Используй ТОЛЬКО если можешь точно вычислить от текущего времени. Иначе используй after_minutes/after_hours/after_days.',
     },
-    {
-      type: 'object',
-      properties: {
-        kind: { type: 'string', enum: ['weekly'] },
-        weekdays: {
-          type: 'array',
-          items: { type: 'integer', minimum: 0, maximum: 6 },
-          description: '0 = Sunday, 6 = Saturday',
-        },
-        hour: { type: 'integer', minimum: 0, maximum: 23 },
-        minute: { type: 'integer', minimum: 0, maximum: 59 },
-      },
-      required: ['kind', 'weekdays', 'hour', 'minute'],
+    after_minutes: {
+      type: 'integer',
+      minimum: 1,
+      description: 'Альтернатива at_iso для kind=once. Через сколько минут сработать. Пример: "через 5 минут" → after_minutes:5.',
     },
-    {
-      type: 'object',
-      properties: {
-        kind: { type: 'string', enum: ['monthly'] },
-        day_of_month: { type: 'integer', minimum: 1, maximum: 31 },
-        hour: { type: 'integer', minimum: 0, maximum: 23 },
-        minute: { type: 'integer', minimum: 0, maximum: 59 },
-      },
-      required: ['kind', 'day_of_month', 'hour', 'minute'],
+    after_hours: {
+      type: 'integer',
+      minimum: 1,
+      description: 'Альтернатива at_iso для kind=once. Через сколько часов сработать. Пример: "через 5 часов" → after_hours:5.',
     },
-  ],
+    after_days: {
+      type: 'integer',
+      minimum: 1,
+      description: 'Альтернатива at_iso для kind=once. Через сколько дней сработать. Пример: "завтра" → after_days:1.',
+    },
+    hour: {
+      type: 'integer',
+      minimum: 0,
+      maximum: 23,
+      description: 'Час 0-23. Нужен для kind=daily|weekly|monthly.',
+    },
+    minute: {
+      type: 'integer',
+      minimum: 0,
+      maximum: 59,
+      description: 'Минута 0-59. Нужна для kind=daily|weekly|monthly.',
+    },
+    weekdays: {
+      type: 'array',
+      items: { type: 'integer', minimum: 0, maximum: 6 },
+      description: 'Только для kind=weekly. 0=вс, 1=пн, 2=вт, 3=ср, 4=чт, 5=пт, 6=сб. Пример: [1,3] = пн и ср.',
+    },
+    day_of_month: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 31,
+      description: 'Только для kind=monthly. День месяца 1-31. 31 → последний день месяца.',
+    },
+  },
+  required: ['text'],
 };
 
-function validateSchedule(s: any): string | null {
-  if (!s || typeof s !== 'object') return 'schedule is required';
-  const hourOk = (h: any) => Number.isInteger(h) && h >= 0 && h <= 23;
-  const minOk = (m: any) => Number.isInteger(m) && m >= 0 && m <= 59;
-  switch (s.kind) {
+interface FlatCreateInput {
+  text?: unknown;
+  kind?: unknown;
+  at_iso?: unknown;
+  after_minutes?: unknown;
+  after_hours?: unknown;
+  after_days?: unknown;
+  hour?: unknown;
+  minute?: unknown;
+  weekdays?: unknown;
+  day_of_month?: unknown;
+}
+
+function parseScheduleFromFlat(input: FlatCreateInput, now: number = Date.now()): Schedule | string {
+  const hourOk = (h: unknown): h is number => Number.isInteger(h) && (h as number) >= 0 && (h as number) <= 23;
+  const minOk = (m: unknown): m is number => Number.isInteger(m) && (m as number) >= 0 && (m as number) <= 59;
+  const posInt = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1;
+  // Default `kind` to 'once' when the caller omitted it but supplied a
+  // one-shot delta or an ISO timestamp. Helps models that sometimes drop
+  // the discriminator field in their first tool_call attempt. We do NOT
+  // default for the recurring shapes (daily/weekly/monthly) because the
+  // intent is ambiguous (hour/minute alone can't tell daily vs weekly).
+  let kind = input.kind;
+  if (!kind && (posInt(input.after_minutes) || posInt(input.after_hours) || posInt(input.after_days) || typeof input.at_iso === 'string')) {
+    kind = 'once';
+  }
+  switch (kind) {
     case 'once': {
-      const t = Date.parse(s.at_iso);
-      if (!Number.isFinite(t)) return 'once.at_iso must be a valid ISO datetime';
-      return null;
+      // Prefer delta params (model-friendly) over at_iso (requires ISO math).
+      let deltaMs = 0;
+      if (posInt(input.after_minutes)) deltaMs += input.after_minutes * 60_000;
+      if (posInt(input.after_hours)) deltaMs += input.after_hours * 3_600_000;
+      if (posInt(input.after_days)) deltaMs += input.after_days * 86_400_000;
+      if (deltaMs > 0) {
+        return { kind: 'once', at_iso: new Date(now + deltaMs).toISOString() };
+      }
+      // Fall back to literal ISO string.
+      const at = String(input.at_iso ?? '');
+      const t = Date.parse(at);
+      if (!Number.isFinite(t)) {
+        return 'kind=once требует либо at_iso (валидный ISO 8601), либо after_minutes/after_hours/after_days (целое ≥1)';
+      }
+      return { kind: 'once', at_iso: at };
     }
-    case 'daily':
-      if (!hourOk(s.hour) || !minOk(s.minute)) return 'daily hour/minute out of range';
-      return null;
-    case 'weekly':
-      if (!Array.isArray(s.weekdays) || s.weekdays.length === 0) return 'weekly.weekdays must be a non-empty array';
-      if (s.weekdays.some((d: any) => !Number.isInteger(d) || d < 0 || d > 6)) return 'weekly.weekdays values must be integers 0-6';
-      if (!hourOk(s.hour) || !minOk(s.minute)) return 'weekly hour/minute out of range';
-      return null;
-    case 'monthly':
-      if (!Number.isInteger(s.day_of_month) || s.day_of_month < 1 || s.day_of_month > 31) return 'monthly.day_of_month must be 1-31';
-      if (!hourOk(s.hour) || !minOk(s.minute)) return 'monthly hour/minute out of range';
-      return null;
+    case 'daily': {
+      if (!hourOk(input.hour) || !minOk(input.minute)) return 'kind=daily требует hour (0-23) и minute (0-59)';
+      return { kind: 'daily', hour: input.hour, minute: input.minute };
+    }
+    case 'weekly': {
+      if (!Array.isArray(input.weekdays) || input.weekdays.length === 0) {
+        return 'kind=weekly требует непустой массив weekdays (0=вс..6=сб)';
+      }
+      const days = input.weekdays as unknown[];
+      if (days.some((d) => !Number.isInteger(d) || (d as number) < 0 || (d as number) > 6)) {
+        return 'weekdays должен содержать только целые числа 0-6';
+      }
+      if (!hourOk(input.hour) || !minOk(input.minute)) return 'kind=weekly требует hour (0-23) и minute (0-59)';
+      return { kind: 'weekly', weekdays: days as number[], hour: input.hour, minute: input.minute };
+    }
+    case 'monthly': {
+      if (!Number.isInteger(input.day_of_month) || (input.day_of_month as number) < 1 || (input.day_of_month as number) > 31) {
+        return 'kind=monthly требует day_of_month (1-31)';
+      }
+      if (!hourOk(input.hour) || !minOk(input.minute)) return 'kind=monthly требует hour (0-23) и minute (0-59)';
+      return { kind: 'monthly', day_of_month: input.day_of_month as number, hour: input.hour, minute: input.minute };
+    }
     default:
-      return `unknown schedule.kind: ${s.kind}`;
+      return `kind должен быть once|daily|weekly|monthly, получено: ${String(input.kind)}`;
   }
 }
+
+// Exported for unit tests.
+export const __test__ = { parseScheduleFromFlat };
 
 export function createReminderCreateTool(deps: ReminderDeps): ToolDefinition {
   return {
     name: 'reminder_create',
     description:
-      'Создать напоминание с будильником (60s звон × 3 цикла). schedule — once/daily/weekly/monthly. Переводи натуральную речь ("через 5 часов", "каждый день в 9", "по пн и ср в 18:30") в структуру schedule. Используй текущее время из system prompt для расчёта at_iso в "once".',
+      'Создать напоминание с будильником (60s звон × 3 цикла). Все параметры плоские. ' +
+      'Для одноразовых "через N минут/часов/дней" используй after_minutes/after_hours/after_days — сервер сам вычислит точное время. ' +
+      'Примеры: ' +
+      '"через 2 минуты выпить воды" → {text:"выпить воды", kind:"once", after_minutes:2}; ' +
+      '"через 5 часов позвонить" → {text:"позвонить", kind:"once", after_hours:5}; ' +
+      '"завтра напомнить отчёт" → {text:"отчёт", kind:"once", after_days:1}; ' +
+      '"каждый день в 9:00 зарядка" → {text:"зарядка", kind:"daily", hour:9, minute:0}; ' +
+      '"по пн и ср в 18:30 спортзал" → {text:"спортзал", kind:"weekly", weekdays:[1,3], hour:18, minute:30}; ' +
+      '"1 числа каждый месяц в 12 оплата" → {text:"оплата", kind:"monthly", day_of_month:1, hour:12, minute:0}. ' +
+      'at_iso используй только если задан конкретный absolute datetime и ты уверен в арифметике.',
     permissionLevel: 'auto',
-    // Experiment with provider='all' (2026-04-14) confirmed qwen2.5:7b drops
-    // the nested `schedule` discriminated union from tool_calls entirely —
-    // it returns `{text}` without `schedule`, triggering validation errors.
-    // Revert to claude-only until either (a) the schema is flattened for
-    // qwen or (b) tool-provider-overrides feature lands and the user can
-    // opt in per-tool at runtime.
-    provider: 'claude',
+    // Flat schema works for both Ollama and Claude — 'all' re-enabled now
+    // that qwen doesn't have to navigate nested oneOf discriminated unions.
+    provider: 'all',
     command: {
       name: 'нагадай',
       description: 'Створити нагадування',
       params: [{ name: 'text', required: true, description: 'Що нагадати' }],
     },
-    parameters: {
-      type: 'object',
-      properties: {
-        text: { type: 'string', description: 'Текст напоминания' },
-        schedule: SCHEDULE_SCHEMA,
-      },
-      required: ['text', 'schedule'],
-    },
+    parameters: CREATE_PARAMS_SCHEMA,
     async handler(input): Promise<ToolResult> {
       const store = requireStore(deps);
-      const text = String((input as any).text ?? '').trim();
-      const schedule = (input as any).schedule as Schedule;
+      const flat = input as FlatCreateInput;
+      const text = String(flat.text ?? '').trim();
       if (!text) return { success: false, error: 'text is required' };
-      const scheduleError = validateSchedule(schedule);
-      if (scheduleError) return { success: false, error: scheduleError };
+      const parsed = parseScheduleFromFlat(flat);
+      if (typeof parsed === 'string') return { success: false, error: parsed };
       try {
-        const id = store.create(text, schedule);
+        const id = store.create(text, parsed);
         return {
           success: true,
-          data: { id, text, schedule },
+          data: { id, text, schedule: parsed },
           display: { type: 'text', content: `⏰ Напоминание #${id} создано: ${text}` },
         };
       } catch (err) {
