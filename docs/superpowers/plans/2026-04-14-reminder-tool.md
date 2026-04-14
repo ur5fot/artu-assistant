@@ -1640,7 +1640,7 @@ EOF
 
 `ServerPushEvent` is already exported from `@r2/shared` (added in Task 2 step 2.6). Just import it here.
 
-- [ ] Create `packages/server/src/routes/events.ts`:
+- [x] Create `packages/server/src/routes/events.ts`:
 
 ```ts
 import { Router, type Request, type Response } from 'express';
