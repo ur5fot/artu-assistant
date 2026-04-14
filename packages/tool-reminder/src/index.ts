@@ -99,7 +99,12 @@ export function createReminderCreateTool(deps: ReminderDeps): ToolDefinition {
     description:
       'Создать напоминание с будильником (60s звон × 3 цикла). schedule — once/daily/weekly/monthly. Переводи натуральную речь ("через 5 часов", "каждый день в 9", "по пн и ср в 18:30") в структуру schedule. Используй текущее время из system prompt для расчёта at_iso в "once".',
     permissionLevel: 'auto',
-    provider: 'claude',
+    // Experiment: let Ollama try first; router escalates to Claude on failure.
+    // Natural-language → structured schedule parsing (ISO datetime math,
+    // weekday numbering, ru/uk locutions) is borderline for qwen2.5:7b. Flip
+    // back to 'claude' if we see too many parse errors in practice, or wait
+    // for the runtime tool-provider-overrides feature in the backlog.
+    provider: 'all',
     command: {
       name: 'нагадай',
       description: 'Створити нагадування',
