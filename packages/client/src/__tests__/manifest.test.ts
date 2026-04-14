@@ -1,0 +1,33 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+describe('PWA manifest', () => {
+  const publicDir = resolve(__dirname, '..', '..', 'public');
+  const manifest = JSON.parse(readFileSync(resolve(publicDir, 'manifest.webmanifest'), 'utf8'));
+
+  it('has required top-level fields', () => {
+    expect(manifest.name).toBe('R2');
+    expect(manifest.short_name).toBe('R2');
+    expect(manifest.start_url).toBe('/');
+    expect(manifest.display).toBe('standalone');
+    expect(manifest.theme_color).toMatch(/^#[0-9a-fA-F]{6}$/);
+    expect(manifest.background_color).toMatch(/^#[0-9a-fA-F]{6}$/);
+  });
+
+  it('includes 192 and 512 icons plus a maskable variant', () => {
+    const icons = manifest.icons as Array<{ sizes: string; purpose?: string }>;
+    expect(icons.some((i) => i.sizes === '192x192')).toBe(true);
+    expect(icons.some((i) => i.sizes === '512x512')).toBe(true);
+    expect(icons.some((i) => i.purpose === 'maskable')).toBe(true);
+  });
+
+  it('every icon src resolves to a non-empty file on disk', () => {
+    const icons = manifest.icons as Array<{ src: string }>;
+    for (const icon of icons) {
+      const path = resolve(publicDir, icon.src.replace(/^\//, ''));
+      const stat = statSync(path);
+      expect(stat.size).toBeGreaterThan(0);
+    }
+  });
+});

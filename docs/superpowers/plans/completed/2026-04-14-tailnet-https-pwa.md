@@ -38,7 +38,7 @@
 - Create: `scripts/gen-tailnet-cert.sh`
 - Modify: `.gitignore`, `package.json`
 
-- [ ] **Step 1: Add `.tailnet-cert/` to `.gitignore`**
+- [x] **Step 1: Add `.tailnet-cert/` to `.gitignore`**
 
 Open `.gitignore` and append at the end:
 
@@ -47,7 +47,7 @@ Open `.gitignore` and append at the end:
 .tailnet-cert/
 ```
 
-- [ ] **Step 2: Create `scripts/gen-tailnet-cert.sh`**
+- [x] **Step 2: Create `scripts/gen-tailnet-cert.sh`**
 
 ```bash
 #!/bin/bash
@@ -91,12 +91,12 @@ echo ""
 echo "Next: npm run dev:tailnet"
 ```
 
-- [ ] **Step 3: Make the script executable**
+- [x] **Step 3: Make the script executable**
 
 Run: `chmod +x scripts/gen-tailnet-cert.sh`
 Expected: no output, exit 0.
 
-- [ ] **Step 4: Add `tailnet:cert` to `package.json` scripts**
+- [x] **Step 4: Add `tailnet:cert` to `package.json` scripts**
 
 In `package.json`, inside `"scripts"`, insert below `dev:tailnet`:
 
@@ -104,17 +104,17 @@ In `package.json`, inside `"scripts"`, insert below `dev:tailnet`:
     "tailnet:cert": "./scripts/gen-tailnet-cert.sh",
 ```
 
-- [ ] **Step 5: Run the script to verify it works end-to-end**
+- [x] **Step 5: Run the script to verify it works end-to-end**
 
 Run: `npm run tailnet:cert`
 Expected: prints `✓ Cert written to .tailnet-cert/<host>.ts.net.crt` and key; files exist in `.tailnet-cert/`.
 
-- [ ] **Step 6: Verify `.tailnet-cert/` is ignored**
+- [x] **Step 6: Verify `.tailnet-cert/` is ignored**
 
 Run: `git status`
 Expected: `.tailnet-cert/` does NOT appear in Untracked files. Only tracked changes are `.gitignore`, `scripts/gen-tailnet-cert.sh`, `package.json`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add .gitignore scripts/gen-tailnet-cert.sh package.json
@@ -128,7 +128,7 @@ git commit -m "feat(dev): tailnet cert generator script"
 **Files:**
 - Modify: `packages/client/vite.config.ts`, `scripts/dev.sh`
 
-- [ ] **Step 1: Update `packages/client/vite.config.ts` to read cert files**
+- [x] **Step 1: Update `packages/client/vite.config.ts` to read cert files**
 
 Replace the whole file with:
 
@@ -189,7 +189,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 2: Update `scripts/dev.sh` tailnet mode to export `VITE_HTTPS`**
+- [x] **Step 2: Update `scripts/dev.sh` tailnet mode to export `VITE_HTTPS`**
 
 Find the `tailnet)` case block and replace it with:
 
@@ -203,22 +203,22 @@ Find the `tailnet)` case block and replace it with:
     ;;
 ```
 
-- [ ] **Step 3: Type-check Vite config**
+- [x] **Step 3: Type-check Vite config**
 
 Run: `cd /Users/dim/code/R2-D2 && npx tsc -p packages/client/tsconfig.json --noEmit`
 Expected: no output, exit 0.
 
-- [ ] **Step 4: Run the dev server in tailnet mode and verify HTTPS banner**
+- [x] **Step 4: Run the dev server in tailnet mode and verify HTTPS banner**
 
 Run: `npm run dev:tailnet` (in a terminal the user controls — agent cannot observe background run).
 Expected: Vite prints `https://<host>.ts.net:5176/` in the Network section (not `http://`). Kill with Ctrl+C after verifying.
 
-- [ ] **Step 5: curl the HTTPS endpoint**
+- [x] **Step 5: curl the HTTPS endpoint**
 
 Run: `curl -sk -o /dev/null -w "code=%{http_code}\n" https://$(tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//'):5176/`
 Expected: `code=200`. The `-k` skips cert verification so this works even if the local root CA isn't installed for curl.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/client/vite.config.ts scripts/dev.sh
@@ -232,7 +232,7 @@ git commit -m "feat(dev): Vite HTTPS in tailnet mode via Tailscale cert"
 **Files:**
 - Create: `scripts/gen-pwa-icons.mjs`, `packages/client/public/icon-192.png`, `icon-512.png`, `icon-maskable-512.png`
 
-- [ ] **Step 1: Create `scripts/gen-pwa-icons.mjs`**
+- [x] **Step 1: Create `scripts/gen-pwa-icons.mjs`**
 
 This script draws "R2" text on a solid background using the `sharp` library if available, otherwise falls back to writing a minimal solid-color PNG via a tiny hand-rolled encoder. We use the fallback path to avoid adding a new dependency for placeholder art.
 
@@ -344,17 +344,17 @@ writeFileSync(resolve(outDir, 'icon-maskable-512.png'), drawIcon(512, { maskable
 console.log('✓ Wrote icon-192.png, icon-512.png, icon-maskable-512.png');
 ```
 
-- [ ] **Step 2: Run the generator**
+- [x] **Step 2: Run the generator**
 
 Run: `node scripts/gen-pwa-icons.mjs`
 Expected: prints `✓ Wrote icon-192.png, icon-512.png, icon-maskable-512.png`.
 
-- [ ] **Step 3: Verify the PNGs are valid**
+- [x] **Step 3: Verify the PNGs are valid**
 
 Run: `file packages/client/public/icon-192.png packages/client/public/icon-512.png packages/client/public/icon-maskable-512.png`
 Expected: each line contains `PNG image data, 192 x 192` / `512 x 512` with 8-bit/color RGBA.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/gen-pwa-icons.mjs packages/client/public/icon-192.png packages/client/public/icon-512.png packages/client/public/icon-maskable-512.png
@@ -369,7 +369,7 @@ git commit -m "feat(client): placeholder PWA icons"
 - Create: `packages/client/public/manifest.webmanifest`
 - Modify: `packages/client/index.html`
 
-- [ ] **Step 1: Create the manifest**
+- [x] **Step 1: Create the manifest**
 
 Create `packages/client/public/manifest.webmanifest`:
 
@@ -392,12 +392,12 @@ Create `packages/client/public/manifest.webmanifest`:
 }
 ```
 
-- [ ] **Step 2: Read current `packages/client/index.html`**
+- [x] **Step 2: Read current `packages/client/index.html`**
 
 Run: `cat packages/client/index.html`
 Expected: note the existing `<head>` contents so the next step inserts tags cleanly without duplicating `<title>` or `<link rel="icon">`.
 
-- [ ] **Step 3: Add manifest link and PWA meta tags to `<head>`**
+- [x] **Step 3: Add manifest link and PWA meta tags to `<head>`**
 
 Insert the following lines into `packages/client/index.html` just before `</head>` (order does not matter, keep them grouped):
 
@@ -410,7 +410,7 @@ Insert the following lines into `packages/client/index.html` just before `</head
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 ```
 
-- [ ] **Step 4: Verify manifest is served**
+- [x] **Step 4: Verify manifest is served**
 
 Start dev in a terminal: `npm run dev:tailnet` (or `npm run dev`), then in another terminal:
 
@@ -419,7 +419,7 @@ Expected: first lines of JSON showing `"name": "R2"`.
 
 Stop dev with Ctrl+C.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/client/public/manifest.webmanifest packages/client/index.html
@@ -434,7 +434,7 @@ git commit -m "feat(client): PWA manifest + iOS meta tags"
 - Create: `packages/client/public/sw.js`
 - Modify: `packages/client/src/main.tsx`
 
-- [ ] **Step 1: Create `packages/client/public/sw.js`**
+- [x] **Step 1: Create `packages/client/public/sw.js`**
 
 ```js
 // Minimal Service Worker: passthrough only.
@@ -451,12 +451,12 @@ self.addEventListener('fetch', () => {
 });
 ```
 
-- [ ] **Step 2: Read current `packages/client/src/main.tsx`**
+- [x] **Step 2: Read current `packages/client/src/main.tsx`**
 
 Run: `cat packages/client/src/main.tsx`
 Expected: note where `createRoot(...).render(...)` is called, to append registration after it.
 
-- [ ] **Step 3: Register the Service Worker after React mounts**
+- [x] **Step 3: Register the Service Worker after React mounts**
 
 Append to `packages/client/src/main.tsx` (after the existing render call):
 
@@ -468,18 +468,18 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 }
 ```
 
-- [ ] **Step 4: Type-check client**
+- [x] **Step 4: Type-check client**
 
 Run: `cd /Users/dim/code/R2-D2 && npx tsc -p packages/client/tsconfig.json --noEmit`
 Expected: no output, exit 0.
 
-- [ ] **Step 5: Start dev and verify SW registers in browser devtools**
+- [x] **Step 5: Start dev and verify SW registers in browser devtools**
 
 Run dev in a terminal: `npm run dev:tailnet`
 Open `https://<host>.ts.net:5176/` in Chrome on the Mac → DevTools → Application → Service Workers → confirm `sw.js` is "activated and running".
 Stop dev with Ctrl+C.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/client/public/sw.js packages/client/src/main.tsx
@@ -493,7 +493,7 @@ git commit -m "feat(client): register passthrough service worker"
 **Files:**
 - Create: `packages/client/src/__tests__/manifest.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/client/src/__tests__/manifest.test.ts`:
 
@@ -524,12 +524,12 @@ describe('PWA manifest', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 Run: `cd packages/client && npx vitest run src/__tests__/manifest.test.ts`
 Expected: `2 passed` (manifest file was already created in Task 4).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/client/src/__tests__/manifest.test.ts
@@ -543,12 +543,12 @@ git commit -m "test(client): validate PWA manifest fields"
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1: Read current README**
+- [x] **Step 1: Read current README**
 
 Run: `cat README.md | head -60`
 Expected: locate the "Development" or "Getting started" section to anchor the new block below it.
 
-- [ ] **Step 2: Append "Install on phone (dev)" section**
+- [x] **Step 2: Append "Install on phone (dev)" section**
 
 Insert this block in `README.md` at the end of the Development section (or append to the file if no obvious anchor):
 
@@ -591,7 +591,7 @@ Tailscale tailnet as the dev machine.
    when a real logo is ready.
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add README.md
@@ -602,22 +602,22 @@ git commit -m "docs: install R2 on phone via Tailscale HTTPS"
 
 ## Final verification
 
-- [ ] **Step 1: Full client test suite**
+- [x] **Step 1: Full client test suite**
 
 Run: `cd packages/client && npx vitest run`
 Expected: all tests pass, including the new `manifest.test.ts`.
 
-- [ ] **Step 2: Full server test suite**
+- [x] **Step 2: Full server test suite**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests pass (no server code was touched but guard against accidental breakage).
 
-- [ ] **Step 3: Full type-check**
+- [x] **Step 3: Full type-check**
 
 Run: `cd /Users/dim/code/R2-D2 && npx tsc -p packages/client/tsconfig.json --noEmit && npx tsc -p packages/server/tsconfig.json --noEmit`
 Expected: both exit 0, no output.
 
-- [ ] **Step 4: Manual PWA install smoke test**
+- [x] **Step 4: Manual PWA install smoke test**
 
 - `npm run tailnet:cert` (if not already done).
 - `npm run dev:tailnet`.
