@@ -32,7 +32,8 @@ Tailscale tailnet as the dev machine.
    npm run dev:tailnet
    ```
 
-   Vite will serve `https://<your-host>.ts.net:5176/`.
+   Vite will serve `https://<your-host>.ts.net:$CLIENT_PORT/` (the
+   port from `.env`, default `5173`).
 
 3. **Open that URL on the phone** (same tailnet, Tailscale app must be
    connected). If Mullvad or another VPN is active on the phone, put the
