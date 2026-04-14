@@ -2,9 +2,18 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
 import { getSystemPrompt } from './prompts.js';
 
-const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
-const MAX_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS) || 16384;
-const THINKING_BUDGET = Number(process.env.CLAUDE_THINKING_BUDGET) || 10240;
+// Reading `process.env.*` at request time (not at module load) is critical:
+// in ESM, all imports run before any top-level statements in the importing
+// module, so `dotenv.config()` in index.ts has NOT yet executed when this
+// module is first evaluated. Module-level constants would always see the
+// fallbacks. Resolving inside the closure ensures we pick up the loaded .env.
+function resolveClaudeConfig() {
+  return {
+    model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+    maxTokens: Number(process.env.CLAUDE_MAX_TOKENS) || 16384,
+    thinkingBudget: Number(process.env.CLAUDE_THINKING_BUDGET) || 10240,
+  };
+}
 
 interface SendMessageParams {
   messages: MessageParam[];
@@ -21,14 +30,15 @@ export function createClaudeClient(): ClaudeClient {
   const anthropic = new Anthropic();
 
   async function sendMessage(params: SendMessageParams): Promise<Anthropic.Message> {
+    const { model, maxTokens, thinkingBudget } = resolveClaudeConfig();
     const requestParams: Anthropic.MessageCreateParamsNonStreaming = {
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
+      model,
+      max_tokens: maxTokens,
       system: getSystemPrompt(),
       messages: params.messages,
       thinking: {
         type: 'enabled',
-        budget_tokens: THINKING_BUDGET,
+        budget_tokens: thinkingBudget,
       },
     };
 
