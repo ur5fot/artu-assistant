@@ -66,6 +66,33 @@ const SCHEDULE_SCHEMA = {
   ],
 };
 
+function validateSchedule(s: any): string | null {
+  if (!s || typeof s !== 'object') return 'schedule is required';
+  const hourOk = (h: any) => Number.isInteger(h) && h >= 0 && h <= 23;
+  const minOk = (m: any) => Number.isInteger(m) && m >= 0 && m <= 59;
+  switch (s.kind) {
+    case 'once': {
+      const t = Date.parse(s.at_iso);
+      if (!Number.isFinite(t)) return 'once.at_iso must be a valid ISO datetime';
+      return null;
+    }
+    case 'daily':
+      if (!hourOk(s.hour) || !minOk(s.minute)) return 'daily hour/minute out of range';
+      return null;
+    case 'weekly':
+      if (!Array.isArray(s.weekdays) || s.weekdays.length === 0) return 'weekly.weekdays must be a non-empty array';
+      if (s.weekdays.some((d: any) => !Number.isInteger(d) || d < 0 || d > 6)) return 'weekly.weekdays values must be integers 0-6';
+      if (!hourOk(s.hour) || !minOk(s.minute)) return 'weekly hour/minute out of range';
+      return null;
+    case 'monthly':
+      if (!Number.isInteger(s.day_of_month) || s.day_of_month < 1 || s.day_of_month > 31) return 'monthly.day_of_month must be 1-31';
+      if (!hourOk(s.hour) || !minOk(s.minute)) return 'monthly hour/minute out of range';
+      return null;
+    default:
+      return `unknown schedule.kind: ${s.kind}`;
+  }
+}
+
 export function createReminderCreateTool(deps: ReminderDeps): ToolDefinition {
   return {
     name: 'reminder_create',
@@ -91,6 +118,8 @@ export function createReminderCreateTool(deps: ReminderDeps): ToolDefinition {
       const text = String((input as any).text ?? '').trim();
       const schedule = (input as any).schedule as Schedule;
       if (!text) return { success: false, error: 'text is required' };
+      const scheduleError = validateSchedule(schedule);
+      if (scheduleError) return { success: false, error: scheduleError };
       try {
         const id = store.create(text, schedule);
         return {

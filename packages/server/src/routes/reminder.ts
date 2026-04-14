@@ -24,6 +24,7 @@ export function createReminderRouter(deps: ReminderRouterDeps): Router {
     }
     store.dismiss(id, Date.now());
     bus.emit('push', { type: 'reminder_stop_ring', id });
+    bus.emit('push', { type: 'reminder_done', id });
     res.json({ ok: true });
   });
 
@@ -40,6 +41,7 @@ export function createReminderRouter(deps: ReminderRouterDeps): Router {
     }
     const snoozedId = store.snooze(id, Date.now());
     bus.emit('push', { type: 'reminder_stop_ring', id });
+    bus.emit('push', { type: 'reminder_done', id });
     res.json({ ok: true, snoozedId });
   });
 

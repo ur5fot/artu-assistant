@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, cleanup } from '@testing-library/react';
 import { ReminderAlarm } from '../ReminderAlarm';

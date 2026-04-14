@@ -1,9 +1,11 @@
 import { Router, type Request, type Response } from 'express';
 import type { EventEmitter } from 'node:events';
 import type { ServerPushEvent } from '@r2/shared';
+import type { ReminderStore } from '../reminders/store.js';
 
 interface EventsRouterDeps {
   bus: EventEmitter;
+  store: ReminderStore;
 }
 
 /**
@@ -15,7 +17,7 @@ const MAX_SSE_CONNECTIONS = 32;
 
 export function createEventsRouter(deps: EventsRouterDeps): Router {
   const router = Router();
-  const { bus } = deps;
+  const { bus, store } = deps;
   let openConnections = 0;
 
   bus.setMaxListeners(MAX_SSE_CONNECTIONS + 10);
@@ -62,6 +64,21 @@ export function createEventsRouter(deps: EventsRouterDeps): Router {
     res.on('error', cleanup);
 
     safeWrite(':ok\n\n');
+
+    // Snapshot: replay currently in-progress alarms so a reloading/reconnecting
+    // client recovers the ringing/paused state it would otherwise miss.
+    try {
+      for (const r of store.list()) {
+        if (r.cycle_stage === 'ringing') {
+          safeWrite(`data: ${JSON.stringify({ type: 'reminder_ring', id: r.id, text: r.text })}\n\n`);
+        } else if (r.cycle_stage === 'paused') {
+          safeWrite(`data: ${JSON.stringify({ type: 'reminder_ring', id: r.id, text: r.text })}\n\n`);
+          safeWrite(`data: ${JSON.stringify({ type: 'reminder_stop_ring', id: r.id })}\n\n`);
+        }
+      }
+    } catch (err) {
+      console.error('[events] snapshot failed:', err instanceof Error ? err.message : err);
+    }
   });
 
   return router;

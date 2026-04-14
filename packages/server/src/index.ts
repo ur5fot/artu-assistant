@@ -207,7 +207,7 @@ app.use('/api', createMessagesRouter());
 app.use('/api', createMergeRouter());
 app.use('/api', createCommandsRouter(registry));
 app.use('/api/reminder', createReminderRouter({ store: reminderStore, bus: reminderBus }));
-app.use('/api/events', createEventsRouter({ bus: reminderBus }));
+app.use('/api/events', createEventsRouter({ bus: reminderBus, store: reminderStore }));
 if (piiVault) {
   app.use('/api', createPiiRouter(piiVault));
 }
