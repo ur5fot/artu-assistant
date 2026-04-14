@@ -30,7 +30,11 @@ case "$MODE" in
     npx concurrently "npm run dev:server" "npm run dev:client"
     ;;
   tailnet)
-    npx concurrently "npm run dev:server" "VITE_HOST=true npm run dev:client"
+    if [ ! -d .tailnet-cert ] || [ -z "$(ls -A .tailnet-cert 2>/dev/null)" ]; then
+      echo "hint: no Tailscale cert found — run 'npm run tailnet:cert' first for HTTPS."
+      echo "hint: continuing with plain HTTP; PWA install will not work."
+    fi
+    npx concurrently "npm run dev:server" "VITE_HOST=true VITE_HTTPS=true npm run dev:client"
     ;;
   tunnel)
     npx concurrently "npm run dev:server" "VITE_HOST=true npm run dev:client" "sleep 5 && npm run tunnel"

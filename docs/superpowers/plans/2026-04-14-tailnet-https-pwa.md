@@ -128,7 +128,7 @@ git commit -m "feat(dev): tailnet cert generator script"
 **Files:**
 - Modify: `packages/client/vite.config.ts`, `scripts/dev.sh`
 
-- [ ] **Step 1: Update `packages/client/vite.config.ts` to read cert files**
+- [x] **Step 1: Update `packages/client/vite.config.ts` to read cert files**
 
 Replace the whole file with:
 
@@ -189,7 +189,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 2: Update `scripts/dev.sh` tailnet mode to export `VITE_HTTPS`**
+- [x] **Step 2: Update `scripts/dev.sh` tailnet mode to export `VITE_HTTPS`**
 
 Find the `tailnet)` case block and replace it with:
 
@@ -203,22 +203,22 @@ Find the `tailnet)` case block and replace it with:
     ;;
 ```
 
-- [ ] **Step 3: Type-check Vite config**
+- [x] **Step 3: Type-check Vite config**
 
 Run: `cd /Users/dim/code/R2-D2 && npx tsc -p packages/client/tsconfig.json --noEmit`
 Expected: no output, exit 0.
 
-- [ ] **Step 4: Run the dev server in tailnet mode and verify HTTPS banner**
+- [x] **Step 4: Run the dev server in tailnet mode and verify HTTPS banner**
 
 Run: `npm run dev:tailnet` (in a terminal the user controls — agent cannot observe background run).
 Expected: Vite prints `https://<host>.ts.net:5176/` in the Network section (not `http://`). Kill with Ctrl+C after verifying.
 
-- [ ] **Step 5: curl the HTTPS endpoint**
+- [x] **Step 5: curl the HTTPS endpoint**
 
 Run: `curl -sk -o /dev/null -w "code=%{http_code}\n" https://$(tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//'):5176/`
 Expected: `code=200`. The `-k` skips cert verification so this works even if the local root CA isn't installed for curl.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/client/vite.config.ts scripts/dev.sh
