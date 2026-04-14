@@ -602,17 +602,17 @@ git commit -m "docs: install R2 on phone via Tailscale HTTPS"
 
 ## Final verification
 
-- [ ] **Step 1: Full client test suite**
+- [x] **Step 1: Full client test suite**
 
 Run: `cd packages/client && npx vitest run`
 Expected: all tests pass, including the new `manifest.test.ts`.
 
-- [ ] **Step 2: Full server test suite**
+- [x] **Step 2: Full server test suite**
 
 Run: `cd packages/server && npx vitest run`
 Expected: all tests pass (no server code was touched but guard against accidental breakage).
 
-- [ ] **Step 3: Full type-check**
+- [x] **Step 3: Full type-check**
 
 Run: `cd /Users/dim/code/R2-D2 && npx tsc -p packages/client/tsconfig.json --noEmit && npx tsc -p packages/server/tsconfig.json --noEmit`
 Expected: both exit 0, no output.
