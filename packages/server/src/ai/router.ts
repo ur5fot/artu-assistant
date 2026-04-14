@@ -288,7 +288,11 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
 
   if (params.signal?.aborted) return;
   params.onEvent({ type: 'assistant_source', source: 'ollama' });
-  params.onEvent({ type: 'text_delta', content: ollamaText! });
+  // qwen2.5 sometimes mirrors the `[DD.MM.YYYY, HH:MM]` prefix that chat.ts
+  // prepends to user messages. Strip a leading date-time bracket so it doesn't
+  // leak into the UI. Claude does not exhibit this quirk.
+  const cleanedText = ollamaText!.replace(/^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/, '');
+  params.onEvent({ type: 'text_delta', content: cleanedText });
   if (params.signal?.aborted) return;
   params.onEvent({ type: 'done' });
 }

@@ -101,8 +101,12 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
         text = await verifyAndCorrect(ollama, loopMessages, text, system, signal);
       }
 
-      // Deanonymize and emit final text
-      const deanonText = await piiProxy.deanonymize(text);
+      // Deanonymize and emit final text. Strip any leading `[DD.MM.YYYY, HH:MM]`
+      // prefix qwen may have mirrored from the timestamped user turn.
+      const deanonText = (await piiProxy.deanonymize(text)).replace(
+        /^\[\d{2}\.\d{2}\.\d{4}[^\]]*\]\s*/,
+        '',
+      );
       if (signal?.aborted) return { escalate: false, reason: '' };
       if (deanonText) {
         onEvent({ type: 'text_delta', content: deanonText });
