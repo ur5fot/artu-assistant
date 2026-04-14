@@ -63,6 +63,17 @@ export class PresidioClient {
       });
 
       if (!res.ok) {
+        // Presidio returns 500 with this message when the requested entity
+        // types have no recognizers registered for the given language (e.g.
+        // ru/uk lack the built-in EMAIL_ADDRESS/PHONE_NUMBER recognizers).
+        // Treat that as an empty result for this language rather than failing
+        // the whole multi-language analyze call.
+        if (res.status === 500) {
+          const body = await res.text().catch(() => '');
+          if (body.includes('No matching recognizers')) {
+            return [] as AnalyzerResult[];
+          }
+        }
         throw new Error(`Presidio analyzer error: ${res.status}`);
       }
 
