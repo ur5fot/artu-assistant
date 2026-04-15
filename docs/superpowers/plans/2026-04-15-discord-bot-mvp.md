@@ -40,10 +40,10 @@ MVP scope: DM only, whitelist only, no streaming (full reply sent on `done`), no
 
 ### Task 3: Discord bot module
 
-- [ ] create `packages/server/src/channels/discord/bot.ts` exporting `startDiscordBot(deps): Promise<{ stop(): Promise<void> }>`
-- [ ] deps interface: `{ token, whitelist: Set<string>, runChatRequest, db, historyLimit: number }`
-- [ ] construct `new Client({ intents: [GatewayIntentBits.DirectMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.Guilds], partials: [Partials.Channel, Partials.Message] })` — Guilds intent is required for the client to connect even if we only care about DMs; partials are required to receive uncached DMs
-- [ ] register `client.on('messageCreate', handler)`:
+- [x] create `packages/server/src/channels/discord/bot.ts` exporting `startDiscordBot(deps): Promise<{ stop(): Promise<void> }>`
+- [x] deps interface: `{ token, whitelist: Set<string>, runChatRequest, db, historyLimit: number }`
+- [x] construct `new Client({ intents: [GatewayIntentBits.DirectMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.Guilds], partials: [Partials.Channel, Partials.Message] })` — Guilds intent is required for the client to connect even if we only care about DMs; partials are required to receive uncached DMs
+- [x] register `client.on('messageCreate', handler)`:
   - ignore if `msg.author.bot`
   - ignore if `msg.channel.type !== ChannelType.DM`
   - ignore if `!whitelist.has(msg.author.id)` (silent — do not reply)
@@ -52,9 +52,9 @@ MVP scope: DM only, whitelist only, no streaming (full reply sent on `done`), no
   - append the new user message to the history array
   - call `runChatRequest({ messages, source: 'discord:'+msg.author.id, onEvent })`
   - `onEvent` accumulates `text_delta` chunks into a buffer; on `done` event, call `sendReply(msg.channel, buffer)`; on `error` event, reply `⚠️ error: {message}`
-- [ ] implement `sendReply(channel, text)`: split into chunks ≤2000 chars (Discord message limit), send sequentially via `channel.send`. Split on word boundaries where possible
-- [ ] `client.login(token)` and return `{ stop: async () => { await client.destroy(); } }`
-- [ ] write tests in `packages/server/src/channels/discord/__tests__/bot.test.ts`:
+- [x] implement `sendReply(channel, text)`: split into chunks ≤2000 chars (Discord message limit), send sequentially via `channel.send`. Split on word boundaries where possible
+- [x] `client.login(token)` and return `{ stop: async () => { await client.destroy(); } }`
+- [x] write tests in `packages/server/src/channels/discord/__tests__/bot.test.ts`:
   - mock discord.js `Client` via a small EventEmitter stub that exposes `on`, `login`, `destroy`
   - test: non-whitelist DM → `runChatRequest` NOT called, `sendReply` NOT called
   - test: bot message → ignored
@@ -63,7 +63,7 @@ MVP scope: DM only, whitelist only, no streaming (full reply sent on `done`), no
   - test: accumulate `text_delta` then `done` → `channel.send` called once with full text
   - test: text longer than 2000 chars → multiple `channel.send` calls, each ≤2000 chars, concatenation equals original
   - test: `error` event → sends error message
-- [ ] run `npm test` — must pass before next task
+- [x] run `npm test` — must pass before next task
 
 ### Task 4: Wire bot into server bootstrap
 
