@@ -123,3 +123,14 @@ Discord DM
 discord.js v14 silently drops the first DM to a bot if the DM channel is not already in `client.channels.cache`. Root cause lives in `node_modules/discord.js/src/util/Channels.js:36-41` — `createChannel()` cannot construct a `DMChannel` from a `MESSAGE_CREATE` payload because the payload's `type` field is the **message** type (0 = Default), not `ChannelType.DM` (1). `ChannelManager._add` then returns `null`, `MessageCreateAction.handle` hits `if (channel)` and returns without emitting `messageCreate`. No error, no warning — just silence. Discord no longer sends a preceding `CHANNEL_CREATE` for bot DMs, so there is nothing to pre-populate the cache.
 
 **Fix applied in `bot.ts`**: on `clientReady`, iterate `deps.whitelist` and call `client.users.fetch(id).then(u => u.createDM())` for each. This calls the REST endpoint `POST /users/@me/channels`, which caches the DM channel. Subsequent `MESSAGE_CREATE` packets take the `cache.get(data.id)` fast-path in `ChannelManager._add` and `messageCreate` fires normally.
+
+## Follow-up: unified chat history across channels
+
+The MVP stored Discord and web messages side-by-side but read them through per-source filters, so each channel saw only its own history. This was reversed later: the Discord bot and the web UI now share **one continuous conversation** via `chat_messages`.
+
+- `db.ts:getMessages` / `clearMessages` no longer have a special `source === 'web'` branch — the default (no arg) returns everything.
+- `routes/messages.ts` calls `getMessages()` / `clearMessages()` without args.
+- `channels/discord/bot.ts` reads `SELECT role, content FROM chat_messages ORDER BY timestamp DESC LIMIT ?` with no `WHERE source = ?` filter.
+- The `source` column is still written on every row so origin tracking and per-channel clearing remain possible from code; it just is not used as a read filter.
+
+**Why this is safe**: `chat_messages.content` is plain text for both user and assistant rows. Tool blocks live in the separate `tool_calls` JSON column and PII entities live in `pii_entities`; neither is read by the history loader on either side. The web UI's streaming/tool/PII features operate on the current request's in-memory state, not on the stored `content`, so cross-channel history never drags web-specific metadata into Discord (or vice versa).

@@ -7,7 +7,7 @@ export function createMessagesRouter(): Router {
 
   router.get('/messages', (_req: Request, res: Response) => {
     try {
-      const messages = getMessages('web');
+      const messages = getMessages();
       res.json(messages);
     } catch (err) {
       console.error('Failed to get messages:', err instanceof Error ? err.message : err);
@@ -17,7 +17,7 @@ export function createMessagesRouter(): Router {
 
   router.delete('/messages', (_req: Request, res: Response) => {
     try {
-      clearMessages('web');
+      clearMessages();
       res.json({ ok: true });
     } catch (err) {
       console.error('Failed to clear messages:', err instanceof Error ? err.message : err);
