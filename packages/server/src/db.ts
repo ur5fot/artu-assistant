@@ -159,6 +159,7 @@ export function initDb(dbPath?: string): void {
   if (!cols.some((c) => c.name === 'source')) {
     db.exec(`ALTER TABLE chat_messages ADD COLUMN source TEXT`);
   }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_messages_source ON chat_messages(source, timestamp)`);
 
   // Migration: add importance / forgotten columns to memory_facts if missing.
   // SQLite can't do IF NOT EXISTS for columns, so we gate on PRAGMA table_info.

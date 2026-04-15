@@ -219,23 +219,28 @@ if (discordToken) {
     throw new Error('DISCORD_BOT_TOKEN set but DISCORD_ALLOWED_USER_IDS empty');
   }
   const whitelist = new Set(ids);
-  discordBot = await startDiscordBot({
-    token: discordToken,
-    whitelist,
-    runChatRequest: (params) =>
-      runChatRequest({
-        ...params,
-        piiProxy,
-        ollama: ollamaForRouter,
-        registry,
-        memoryService,
-        runLoop: runLoopFn,
-      }),
-    db: getDb(),
-    historyLimit: 50,
-    saveMessage,
-  });
-  console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
+  try {
+    discordBot = await startDiscordBot({
+      token: discordToken,
+      whitelist,
+      runChatRequest: (params) =>
+        runChatRequest({
+          ...params,
+          piiProxy,
+          ollama: ollamaForRouter,
+          registry,
+          memoryService,
+          runLoop: runLoopFn,
+        }),
+      db: getDb(),
+      historyLimit: 50,
+      saveMessage,
+    });
+    console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
+  } catch (err) {
+    console.error('[discord] bot failed to start:', err instanceof Error ? err.message : err);
+    discordBot = null;
+  }
 }
 
 const chatRouter = createChatRouter({
