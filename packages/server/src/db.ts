@@ -268,9 +268,6 @@ export function getMessages(source?: string): Array<{
   if (source === undefined) {
     query = 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC';
     params = [];
-  } else if (source === 'web') {
-    query = "SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source IS NULL OR source NOT LIKE 'discord:%' ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC";
-    params = [];
   } else {
     query = 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source = ? ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC';
     params = [source];
@@ -300,8 +297,6 @@ export function clearMessages(source?: string): void {
   const d = getDb();
   if (source === undefined) {
     d.prepare('DELETE FROM chat_messages').run();
-  } else if (source === 'web') {
-    d.prepare("DELETE FROM chat_messages WHERE source IS NULL OR source NOT LIKE 'discord:%'").run();
   } else {
     d.prepare('DELETE FROM chat_messages WHERE source = ?').run(source);
   }

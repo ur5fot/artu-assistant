@@ -132,11 +132,15 @@ export async function startDiscordBot(
 
       const source = `discord:${msg.author.id}`;
 
+      // Unified history: read all chat_messages regardless of source so the
+      // Discord channel and the web UI share one continuous conversation.
+      // The `source` field is still stored on each row for origin tracking
+      // and per-channel clearing, but is NOT used as a read filter anymore.
       const rows = deps.db
         .prepare(
-          'SELECT role, content FROM chat_messages WHERE source = ? ORDER BY timestamp DESC, id DESC LIMIT ?',
+          'SELECT role, content FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT ?',
         )
-        .all(source, deps.historyLimit) as Array<{
+        .all(deps.historyLimit) as Array<{
         role: string;
         content: string;
       }>;
