@@ -443,7 +443,7 @@ Memory starts empty on first deploy — pre-existing `chat_messages` are NOT re-
   - `packages/server/src/ai/timestamp-strip.ts` — shared helper for stripping the `[DD.MM.YYYY, HH:MM]` prefix that `chat.ts` adds to user turns. Used both for memory-query extraction and for cleaning Ollama output (qwen2.5 tends to mirror the prefix in its reply; Claude does not)
   - ToolDefinition has `provider: 'ollama' | 'claude' | 'all'` — controls which engine sees which tools
   - Ollama handles `web_search` and file tools natively; escalates only for `code_task` (claude-only)
-  - LOCAL_LLM_MODE=disabled kills router; ollama unreachable → silent fallback
+  - LOCAL_LLM_MODE=disabled gates the chat router only (all chat → Claude); memory/embeddings stay active when MEMORY_ENABLED=true; ollama unreachable → silent fallback
   - Default model: qwen2.5:7b (~5 GB RAM). Run `ollama serve` + `ollama pull qwen2.5:7b` before use.
   - Cold start with full system prompt + ~11 tool schemas can take 10-20s on first call — keep `OLLAMA_TIMEOUT_MS` ≥ 30000 or expect silent fallbacks to Claude while the model loads.
 - **5A) Reminder tool** ✓ — alarm-style one-shot and recurring (daily/weekly/monthly) reminders
@@ -490,7 +490,7 @@ EVAL_CONCURRENCY=3                # parallel eval runs
 EVALS_PATH=./data/evals.json      # behavior evals store
 CLAUDE_HAIKU_MODEL=claude-haiku-4-5-20251001  # evaluator model
 # Local LLM router (Phase 4G)
-LOCAL_LLM_MODE=enabled            # enabled | disabled
+LOCAL_LLM_MODE=enabled            # enabled | disabled (chat router only; memory independent)
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b
 OLLAMA_TIMEOUT_MS=15000

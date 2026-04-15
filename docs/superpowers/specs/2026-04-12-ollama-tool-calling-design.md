@@ -46,9 +46,10 @@ Default value: `'claude'` (backward compatibility).
    - Escalate → Claude gets tools where `provider === 'claude' || provider === 'all'`
    - No escalation → return Ollama response
 
-### When Ollama is unavailable (`LOCAL_LLM_MODE=disabled`)
+### When Ollama is unavailable for chat (`LOCAL_LLM_MODE=disabled`)
 
-All messages go to Claude. Claude receives **all** tools regardless of `provider` value.
+All chat messages go to Claude. Claude receives **all** tools regardless of `provider` value.
+Memory and embeddings continue to use their own Ollama connection when `MEMORY_ENABLED=true`, independent of this flag.
 
 ## File Changes
 
