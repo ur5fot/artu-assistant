@@ -44,7 +44,7 @@ Goal: split the Ollama client into two roles. `ollamaForRouter` is nulled when `
 
 ### Task 3: Update docs if needed
 
-- [ ] if `README.md` or `AGENTS.md` documents `LOCAL_LLM_MODE`, update the description to clarify it gates only the chat router, not memory
+- [x] if `README.md` or `AGENTS.md` documents `LOCAL_LLM_MODE`, update the description to clarify it gates only the chat router, not memory
 
 ## Technical Details
 
