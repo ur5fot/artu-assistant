@@ -30,7 +30,6 @@ export interface RunChatRequestParams {
    * of embedding `[User used command /...]` boilerplate.
    */
   memoryQuery?: string;
-  source?: string;
   forceProvider?: 'claude';
   runLoop: (params: {
     messages: MessageParam[];

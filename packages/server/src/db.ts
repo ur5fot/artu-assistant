@@ -262,9 +262,10 @@ export function getMessages(source?: string): Array<{
   source?: string;
 }> {
   const d = getDb();
-  const rows = d.prepare(
-    'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source IS ? ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC'
-  ).all(source ?? null) as Array<{
+  const query = source === undefined
+    ? 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC'
+    : 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source IS ? ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC';
+  const rows = (source === undefined ? d.prepare(query).all() : d.prepare(query).all(source ?? null)) as Array<{
     message_id: string;
     role: string;
     content: string;
@@ -285,9 +286,13 @@ export function getMessages(source?: string): Array<{
   }));
 }
 
-export function clearMessages(): void {
+export function clearMessages(source?: string): void {
   const d = getDb();
-  d.prepare('DELETE FROM chat_messages').run();
+  if (source === undefined) {
+    d.prepare('DELETE FROM chat_messages').run();
+  } else {
+    d.prepare('DELETE FROM chat_messages WHERE source IS ?').run(source ?? null);
+  }
 }
 
 export type OverlayModel = 'claude' | 'ollama';

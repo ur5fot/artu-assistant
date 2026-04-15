@@ -16,7 +16,6 @@ export interface DiscordBotDeps {
   whitelist: Set<string>;
   runChatRequest: (params: {
     messages: MessageParam[];
-    source: string;
     onEvent: (event: SSEEvent) => void;
   }) => Promise<void>;
   db: Database.Database;
@@ -109,7 +108,6 @@ export async function startDiscordBot(
 
       await deps.runChatRequest({
         messages,
-        source,
         onEvent: (event: SSEEvent) => {
           if (event.type === 'text_delta') {
             buffer += event.content;

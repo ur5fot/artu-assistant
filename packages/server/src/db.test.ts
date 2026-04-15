@@ -226,6 +226,25 @@ describe('Database Module', () => {
       expect(messages[1].source).toBe('discord:1234');
     });
 
+    it('getMessages without args returns all messages regardless of source', () => {
+      saveMessage({ messageId: 'msg-web', role: 'user', content: 'Hello web', timestamp: 1700000000000 });
+      saveMessage({ messageId: 'msg-claude', role: 'assistant', content: 'Hi from claude', timestamp: 1700000001000, source: 'claude' });
+      saveMessage({ messageId: 'msg-discord', role: 'user', content: 'Hello discord', timestamp: 1700000002000, source: 'discord:1234' });
+
+      const messages = getMessages();
+      expect(messages).toHaveLength(3);
+    });
+
+    it('getMessages with source filters by that source', () => {
+      saveMessage({ messageId: 'msg-web', role: 'user', content: 'Hello web', timestamp: 1700000000000 });
+      saveMessage({ messageId: 'msg-d1', role: 'user', content: 'Hello discord', timestamp: 1700000001000, source: 'discord:1234' });
+      saveMessage({ messageId: 'msg-d2', role: 'assistant', content: 'Hi back', timestamp: 1700000002000, source: 'discord:1234' });
+
+      const discordMsgs = getMessages('discord:1234');
+      expect(discordMsgs).toHaveLength(2);
+      expect(discordMsgs.every(m => m.source === 'discord:1234')).toBe(true);
+    });
+
     it('source defaults to undefined when not provided', () => {
       saveMessage({
         messageId: 'msg-nosrc',

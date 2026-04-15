@@ -111,7 +111,7 @@ describe('Discord bot', () => {
     expect(channel.send).not.toHaveBeenCalled();
   });
 
-  it('calls runChatRequest with source and loaded history for whitelisted DM', async () => {
+  it('calls runChatRequest with loaded history for whitelisted DM', async () => {
     const historyRows = [
       { role: 'assistant', content: 'prev answer' },
       { role: 'user', content: 'prev question' },
@@ -134,8 +134,7 @@ describe('Discord bot', () => {
 
     expect(runChatRequest).toHaveBeenCalledTimes(1);
 
-    const call = runChatRequest.mock.calls[0]![0] as { source: string; messages: Array<{ role: string; content: string }> };
-    expect(call.source).toBe('discord:123');
+    const call = runChatRequest.mock.calls[0]![0] as { messages: Array<{ role: string; content: string }> };
     expect(call.messages).toEqual([
       { role: 'user', content: 'prev question' },
       { role: 'assistant', content: 'prev answer' },
