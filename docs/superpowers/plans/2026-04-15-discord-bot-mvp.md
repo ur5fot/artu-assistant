@@ -113,6 +113,13 @@ Discord DM
 ## Post-Completion
 
 - User creates a Discord application + bot in https://discord.com/developers/applications, copies the bot token, and adds it as `DISCORD_BOT_TOKEN` in `.env`
+- On the **Bot** tab, enable **Message Content Intent** under Privileged Gateway Intents (required for discord.js to read `msg.content`)
 - User enables Developer Mode in Discord client, copies own user ID, adds it to `DISCORD_ALLOWED_USER_IDS` (comma-separated if multiple)
-- User invites the bot to their own account via the OAuth2 URL generator (scopes: `bot`, no guild permissions needed for DMs)
+- User invites the bot via OAuth2 URL Generator: scopes `bot`, **Integration Type: Guild Install** (User Install does not deliver DM events via gateway), bot permissions: Send Messages + Read Message History. The bot **must share at least one guild** with the user — add it to any server you are on (create an empty one if needed). Friends-only does not work.
 - Restart server; send a DM to the bot; verify reply
+
+## Gotcha: first DM silently dropped without DM pre-cache
+
+discord.js v14 silently drops the first DM to a bot if the DM channel is not already in `client.channels.cache`. Root cause lives in `node_modules/discord.js/src/util/Channels.js:36-41` — `createChannel()` cannot construct a `DMChannel` from a `MESSAGE_CREATE` payload because the payload's `type` field is the **message** type (0 = Default), not `ChannelType.DM` (1). `ChannelManager._add` then returns `null`, `MessageCreateAction.handle` hits `if (channel)` and returns without emitting `messageCreate`. No error, no warning — just silence. Discord no longer sends a preceding `CHANNEL_CREATE` for bot DMs, so there is nothing to pre-populate the cache.
+
+**Fix applied in `bot.ts`**: on `clientReady`, iterate `deps.whitelist` and call `client.users.fetch(id).then(u => u.createDM())` for each. This calls the REST endpoint `POST /users/@me/channels`, which caches the DM channel. Subsequent `MESSAGE_CREATE` packets take the `cache.get(data.id)` fast-path in `ChannelManager._add` and `messageCreate` fires normally.

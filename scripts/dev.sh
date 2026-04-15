@@ -27,7 +27,7 @@ trap cleanup EXIT INT TERM
 
 case "$MODE" in
   plain)
-    npx concurrently "npm run dev:server" "npm run dev:client"
+    npx concurrently "npm run dev:server" "VITE_SUPERVISOR_WS_URL= npm run dev:client"
     ;;
   tailnet)
     if [ ! -d .tailnet-cert ] || [ -z "$(ls -A .tailnet-cert 2>/dev/null)" ]; then
