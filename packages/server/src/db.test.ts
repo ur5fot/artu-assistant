@@ -204,6 +204,41 @@ describe('Database Module', () => {
       expect(messages[0].content).toBe('Hello');
     });
 
+    it('saves and retrieves source field', () => {
+      saveMessage({
+        messageId: 'msg-src-1',
+        role: 'user',
+        content: 'Hello from Discord',
+        timestamp: 1700000000000,
+        source: 'discord:1234',
+      });
+      saveMessage({
+        messageId: 'msg-src-2',
+        role: 'assistant',
+        content: 'Hi back',
+        timestamp: 1700000001000,
+        source: 'discord:1234',
+      });
+
+      const messages = getMessages();
+      expect(messages).toHaveLength(2);
+      expect(messages[0].source).toBe('discord:1234');
+      expect(messages[1].source).toBe('discord:1234');
+    });
+
+    it('source defaults to undefined when not provided', () => {
+      saveMessage({
+        messageId: 'msg-nosrc',
+        role: 'user',
+        content: 'Hello from web',
+        timestamp: 1700000000000,
+      });
+
+      const messages = getMessages();
+      expect(messages).toHaveLength(1);
+      expect(messages[0].source).toBeUndefined();
+    });
+
     it('clears all messages', () => {
       saveMessage({ messageId: 'msg-x', role: 'user', content: 'Hello', timestamp: 1700000000000 });
       saveMessage({ messageId: 'msg-y', role: 'assistant', content: 'Hi', timestamp: 1700000001000 });

@@ -31,12 +31,12 @@ MVP scope: DM only, whitelist only, no streaming (full reply sent on `done`), no
 
 ### Task 2: Source-aware chat history + runChatRequest source param
 
-- [ ] add `source?: string` (default `'web'`) to `runChatRequest` params in `packages/server/src/ai/router.ts`
-- [ ] propagate `source` to every `saveMessage`/`chat_messages` insert inside the request flow so both user and assistant messages carry the correct origin
-- [ ] verify existing `routes/chat.ts` still works unchanged (source defaults to `'web'`)
-- [ ] write a unit test: call `runChatRequest` with `source='discord:1234'`, assert user+assistant rows in `chat_messages` have that source
-- [ ] write a unit test: default (no source) falls back to `'web'`
-- [ ] run `npm test` — must pass before next task
+- [x] add `source?: string` (default `'web'`) to `runChatRequest` params in `packages/server/src/ai/router.ts`
+- [x] propagate `source` to every `saveMessage`/`chat_messages` insert inside the request flow so both user and assistant messages carry the correct origin
+- [x] verify existing `routes/chat.ts` still works unchanged (source defaults to `'web'`)
+- [x] write a unit test: call `runChatRequest` with `source='discord:1234'`, assert user+assistant rows in `chat_messages` have that source
+- [x] write a unit test: default (no source) falls back to `'web'`
+- [x] run `npm test` — must pass before next task
 
 ### Task 3: Discord bot module
 

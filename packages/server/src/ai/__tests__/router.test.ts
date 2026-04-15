@@ -320,6 +320,48 @@ describe('runChatRequest', () => {
     expect(events.some((e) => e.type === 'memory_recalled')).toBe(false);
   });
 
+  it('accepts source param without error', async () => {
+    process.env.LOCAL_LLM_MODE = 'disabled';
+    const fakeRunLoop = vi.fn(async ({ onEvent }) => {
+      onEvent({ type: 'text_delta', content: 'ok' });
+      onEvent({ type: 'done' });
+    });
+
+    const events: SSEEvent[] = [];
+    await runChatRequest({
+      messages: [{ role: 'user', content: 'hi' }],
+      onEvent: (e) => events.push(e),
+      runLoop: fakeRunLoop as any,
+      ollama: null,
+      piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
+      memoryService: null,
+      source: 'discord:1234',
+    });
+
+    expect(fakeRunLoop).toHaveBeenCalled();
+    expect(events.some((e) => e.type === 'text_delta')).toBe(true);
+  });
+
+  it('source defaults to undefined when not provided', async () => {
+    process.env.LOCAL_LLM_MODE = 'disabled';
+    const fakeRunLoop = vi.fn(async ({ onEvent }) => {
+      onEvent({ type: 'done' });
+    });
+
+    await runChatRequest({
+      messages: [{ role: 'user', content: 'hi' }],
+      onEvent: () => {},
+      runLoop: fakeRunLoop as any,
+      ollama: null,
+      piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
+      memoryService: null,
+    });
+
+    expect(fakeRunLoop).toHaveBeenCalled();
+  });
+
   it('emits memory_recalled on claude fallback path', async () => {
     process.env.LOCAL_LLM_MODE = 'disabled';
     const memoryService = {

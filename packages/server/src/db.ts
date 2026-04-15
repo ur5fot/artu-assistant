@@ -233,7 +233,7 @@ interface SaveMessageParams {
   toolCalls?: ToolCall[];
   piiEntities?: Array<{ type: string; original: string }>;
   timestamp: number;
-  source?: 'ollama' | 'claude';
+  source?: string;
 }
 
 export function saveMessage(params: SaveMessageParams): void {
@@ -259,7 +259,7 @@ export function getMessages(): Array<{
   toolCalls?: ToolCall[];
   piiEntities?: Array<{ type: string; original: string }>;
   timestamp: number;
-  source?: 'ollama' | 'claude';
+  source?: string;
 }> {
   const d = getDb();
   const rows = d.prepare(
@@ -281,7 +281,7 @@ export function getMessages(): Array<{
     toolCalls: row.tool_calls ? JSON.parse(row.tool_calls) : undefined,
     piiEntities: row.pii_entities ? JSON.parse(row.pii_entities) : undefined,
     timestamp: row.timestamp,
-    source: row.source === 'ollama' || row.source === 'claude' ? row.source : undefined,
+    source: row.source ?? undefined,
   }));
 }
 
