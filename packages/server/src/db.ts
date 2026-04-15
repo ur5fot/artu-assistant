@@ -253,6 +253,11 @@ export function saveMessage(params: SaveMessageParams): void {
   );
 }
 
+export function getChatHistoryLimit(): number {
+  const raw = Number(process.env.CHAT_HISTORY_LIMIT);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 500;
+}
+
 export function getMessages(source?: string): Array<{
   id: string;
   role: 'user' | 'assistant';
@@ -263,13 +268,14 @@ export function getMessages(source?: string): Array<{
   source?: string;
 }> {
   const d = getDb();
+  const limit = getChatHistoryLimit();
   let query: string;
   let params: unknown[];
   if (source === undefined) {
-    query = 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC';
+    query = `SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT ${limit}) ORDER BY timestamp ASC, id ASC`;
     params = [];
   } else {
-    query = 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source = ? ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC';
+    query = `SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source = ? ORDER BY timestamp DESC, id DESC LIMIT ${limit}) ORDER BY timestamp ASC, id ASC`;
     params = [source];
   }
   const rows = d.prepare(query).all(...params) as Array<{
@@ -338,4 +344,20 @@ export function cleanupAuditLog(): void {
   d.prepare(
     'DELETE FROM audit_log WHERE id NOT IN (SELECT id FROM audit_log ORDER BY id DESC LIMIT 10000)'
   ).run();
+}
+
+/**
+ * Deletes chat_messages older than CHAT_HISTORY_RETENTION_DAYS. If the env var
+ * is unset, 0, or invalid, retention is disabled and nothing is deleted —
+ * this preserves the historical default of "keep forever".
+ * Returns the number of rows deleted (0 if disabled).
+ */
+export function cleanupOldChatMessages(): number {
+  const raw = Number(process.env.CHAT_HISTORY_RETENTION_DAYS);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  const days = Math.floor(raw);
+  const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+  const d = getDb();
+  const info = d.prepare('DELETE FROM chat_messages WHERE timestamp < ?').run(cutoffMs);
+  return Number(info.changes ?? 0);
 }
