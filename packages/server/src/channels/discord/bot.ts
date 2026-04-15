@@ -6,6 +6,7 @@ import {
   type Message,
   type DMChannel,
 } from 'discord.js';
+import crypto from 'node:crypto';
 import type { SSEEvent } from '@r2/shared';
 import type Database from 'better-sqlite3';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
@@ -20,15 +21,18 @@ export interface DiscordBotDeps {
   }) => Promise<void>;
   db: Database.Database;
   historyLimit: number;
+  saveMessage: (params: {
+    messageId: string;
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp: number;
+    source: string;
+  }) => void;
   /** Override the Client instance (testing only). */
   _client?: Client;
 }
 
-export function sendReply(channel: DMChannel, text: string): Promise<void> {
-  return sendChunked(channel, text);
-}
-
-async function sendChunked(channel: DMChannel, text: string): Promise<void> {
+export async function sendReply(channel: DMChannel, text: string): Promise<void> {
   const MAX = 2000;
   if (text.length <= MAX) {
     await channel.send(text);
@@ -68,6 +72,8 @@ export async function startDiscordBot(
       if (msg.channel.type !== ChannelType.DM) return;
       if (!deps.whitelist.has(msg.author.id)) return;
 
+      if (!msg.content.trim()) return;
+
       const dmChannel = msg.channel as DMChannel;
       await dmChannel.sendTyping();
 
@@ -89,7 +95,16 @@ export async function startDiscordBot(
       }));
       messages.push({ role: 'user', content: msg.content });
 
+      deps.saveMessage({
+        messageId: crypto.randomUUID(),
+        role: 'user',
+        content: msg.content,
+        timestamp: Date.now(),
+        source,
+      });
+
       let buffer = '';
+      let replyPromise: Promise<void> | null = null;
 
       await deps.runChatRequest({
         messages,
@@ -99,7 +114,7 @@ export async function startDiscordBot(
             buffer += event.content;
           } else if (event.type === 'done') {
             if (buffer) {
-              sendReply(dmChannel, buffer).catch((err) => {
+              replyPromise = sendReply(dmChannel, buffer).catch((err) => {
                 console.error('[discord] failed to send reply:', err);
               });
             }
@@ -112,6 +127,18 @@ export async function startDiscordBot(
           }
         },
       });
+
+      await replyPromise;
+
+      if (buffer) {
+        deps.saveMessage({
+          messageId: crypto.randomUUID(),
+          role: 'assistant',
+          content: buffer,
+          timestamp: Date.now(),
+          source,
+        });
+      }
     } catch (err) {
       console.error(
         '[discord] messageCreate handler error:',

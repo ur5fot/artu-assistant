@@ -23,7 +23,7 @@ import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { createRegistry, discoverTools } from './tools/registry.js';
-import { initDb, cleanupAuditLog, closeDb, getDb } from './db.js';
+import { initDb, cleanupAuditLog, closeDb, getDb, saveMessage } from './db.js';
 import { createEmbeddingsClient } from './memory/embeddings.js';
 import { createMemoryService, type MemoryService } from './memory/service.js';
 import { errorHandler } from './errors.js';
@@ -233,6 +233,7 @@ if (discordToken) {
       }),
     db: getDb(),
     historyLimit: 50,
+    saveMessage,
   });
   console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
 }

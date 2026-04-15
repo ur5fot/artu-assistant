@@ -45,6 +45,7 @@ async function setup(overrides: Partial<DiscordBotDeps> = {}) {
   const client = overrides._client ?? makeFakeClient();
   const runChatRequest = overrides.runChatRequest ?? vi.fn<any>().mockResolvedValue(undefined);
   const db = overrides.db ?? makeFakeDb();
+  const saveMsgFn = overrides.saveMessage ?? vi.fn();
 
   const deps: DiscordBotDeps = {
     token: 'test-token',
@@ -52,12 +53,13 @@ async function setup(overrides: Partial<DiscordBotDeps> = {}) {
     runChatRequest: runChatRequest as any,
     db: db as any,
     historyLimit: 50,
+    saveMessage: saveMsgFn as any,
     _client: client as Client,
     ...overrides,
   };
 
   const bot = await startDiscordBot(deps);
-  return { bot, client: client as Client, runChatRequest: runChatRequest as ReturnType<typeof vi.fn>, db };
+  return { bot, client: client as Client, runChatRequest: runChatRequest as ReturnType<typeof vi.fn>, db, saveMessage: saveMsgFn as ReturnType<typeof vi.fn> };
 }
 
 function delay(ms = 50) {
@@ -79,6 +81,16 @@ describe('Discord bot', () => {
     const { client, runChatRequest } = await setup();
     const { msg } = makeMessage();
     msg.channel.type = ChannelType.GuildText as any;
+
+    client.emit('messageCreate', msg as any);
+    await delay();
+
+    expect(runChatRequest).not.toHaveBeenCalled();
+  });
+
+  it('ignores messages with empty content', async () => {
+    const { client, runChatRequest } = await setup();
+    const { msg } = makeMessage({ content: '   ' });
 
     client.emit('messageCreate', msg as any);
     await delay();
@@ -111,7 +123,7 @@ describe('Discord bot', () => {
       onEvent({ type: 'done' } as SSEEvent);
     });
 
-    const { client } = await setup({
+    const { client, saveMessage } = await setup({
       runChatRequest: runChatRequest as any,
       db: db as any,
     });
@@ -129,6 +141,17 @@ describe('Discord bot', () => {
       { role: 'assistant', content: 'prev answer' },
       { role: 'user', content: 'new question' },
     ]);
+
+    expect(saveMessage).toHaveBeenCalledTimes(2);
+    const userSave = saveMessage.mock.calls[0][0];
+    expect(userSave.role).toBe('user');
+    expect(userSave.content).toBe('new question');
+    expect(userSave.source).toBe('discord:123');
+
+    const assistantSave = saveMessage.mock.calls[1][0];
+    expect(assistantSave.role).toBe('assistant');
+    expect(assistantSave.content).toBe('reply');
+    expect(assistantSave.source).toBe('discord:123');
   });
 
   it('accumulates text_delta and sends full text on done', async () => {

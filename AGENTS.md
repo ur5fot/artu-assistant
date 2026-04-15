@@ -489,6 +489,9 @@ R2_GIT_REPO_PATH=                 # optional, defaults to repo root
 EVAL_CONCURRENCY=3                # parallel eval runs
 EVALS_PATH=./data/evals.json      # behavior evals store
 CLAUDE_HAIKU_MODEL=claude-haiku-4-5-20251001  # evaluator model
+# Discord bot (DM-only, whitelist-gated)
+DISCORD_BOT_TOKEN=                 # bot token; if unset the bot does not start
+DISCORD_ALLOWED_USER_IDS=          # comma-separated Discord user IDs; required when token is set
 # Local LLM router (Phase 4G)
 LOCAL_LLM_MODE=enabled            # enabled | disabled (chat router only; memory independent)
 OLLAMA_URL=http://localhost:11434
