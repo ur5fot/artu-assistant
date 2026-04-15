@@ -84,10 +84,10 @@ MVP scope: DM only, whitelist only, no streaming (full reply sent on `done`), no
 
 ### Task 6: Verify acceptance criteria
 
-- [ ] code review: non-whitelist user messages are silently ignored (no log noise that leaks IDs)
-- [ ] code review: Discord errors do not crash the server (all handlers wrapped in try/catch, bot errors logged)
-- [ ] code review: bot uses the same `runChatRequest` instance as the web route (no duplicated PII/memory wiring)
-- [ ] full test suite + typecheck clean
+- [x] code review: non-whitelist user messages are silently ignored (no log noise that leaks IDs)
+- [x] code review: Discord errors do not crash the server (all handlers wrapped in try/catch, bot errors logged)
+- [x] code review: bot uses the same `runChatRequest` instance as the web route (no duplicated PII/memory wiring)
+- [x] full test suite + typecheck clean
 
 ## Technical Details
 
