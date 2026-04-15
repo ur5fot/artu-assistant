@@ -205,7 +205,7 @@ describe('Discord bot', () => {
     client.emit('messageCreate', msg as any);
     await delay();
 
-    expect(channel.send).toHaveBeenCalledWith('⚠️ error: something broke');
+    expect(channel.send).toHaveBeenCalledWith('⚠️ Something went wrong. Please try again later.');
   });
 
   it('stop() destroys the client', async () => {

@@ -220,7 +220,7 @@ describe('Database Module', () => {
         source: 'discord:1234',
       });
 
-      const messages = getMessages();
+      const messages = getMessages('discord:1234');
       expect(messages).toHaveLength(2);
       expect(messages[0].source).toBe('discord:1234');
       expect(messages[1].source).toBe('discord:1234');

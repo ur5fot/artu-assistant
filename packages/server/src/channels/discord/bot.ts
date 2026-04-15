@@ -104,6 +104,7 @@ export async function startDiscordBot(
       });
 
       let buffer = '';
+      let replySent = false;
       let replyPromise: Promise<void> | null = null;
 
       await deps.runChatRequest({
@@ -114,13 +115,16 @@ export async function startDiscordBot(
             buffer += event.content;
           } else if (event.type === 'done') {
             if (buffer) {
-              replyPromise = sendReply(dmChannel, buffer).catch((err) => {
-                console.error('[discord] failed to send reply:', err);
-              });
+              replyPromise = sendReply(dmChannel, buffer)
+                .then(() => { replySent = true; })
+                .catch((err) => {
+                  console.error('[discord] failed to send reply:', err);
+                });
             }
           } else if (event.type === 'error') {
+            console.error('[discord] chat error event:', event.message);
             dmChannel
-              .send(`⚠️ error: ${event.message}`)
+              .send('⚠️ Something went wrong. Please try again later.')
               .catch((err) =>
                 console.error('[discord] failed to send error:', err),
               );
@@ -130,7 +134,7 @@ export async function startDiscordBot(
 
       await replyPromise;
 
-      if (buffer) {
+      if (buffer && replySent) {
         deps.saveMessage({
           messageId: crypto.randomUUID(),
           role: 'assistant',
@@ -146,9 +150,7 @@ export async function startDiscordBot(
       );
       try {
         const dmChannel = msg.channel as DMChannel;
-        await dmChannel.send(
-          `⚠️ error: ${err instanceof Error ? err.message : 'unknown error'}`,
-        );
+        await dmChannel.send('⚠️ Something went wrong. Please try again later.');
       } catch {
         // ignore send failure
       }
