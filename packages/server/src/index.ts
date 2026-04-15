@@ -131,7 +131,8 @@ if (routerNeedsOllama || memoryNeedsOllama) {
     if (!isLoopback && process.env.OLLAMA_ALLOW_REMOTE !== '1') {
       throw new Error(
         `OLLAMA_URL=${rawUrl} is not loopback. The Ollama path sends unmasked PII. ` +
-          `Set OLLAMA_ALLOW_REMOTE=1 to acknowledge, or set LOCAL_LLM_MODE=disabled and MEMORY_ENABLED=false.`,
+          `Set OLLAMA_ALLOW_REMOTE=1 to acknowledge this risk. ` +
+          `To skip Ollama entirely, set both LOCAL_LLM_MODE=disabled and MEMORY_ENABLED=false.`,
       );
     }
   } catch (err) {
@@ -142,8 +143,9 @@ if (routerNeedsOllama || memoryNeedsOllama) {
   }
 }
 
-const ollamaForRouter: OllamaClient | null = routerNeedsOllama ? createOllamaClient() : null;
-const ollamaForMemory: OllamaClient | null = memoryNeedsOllama ? createOllamaClient() : null;
+const ollama: OllamaClient | null =
+  (routerNeedsOllama || memoryNeedsOllama) ? createOllamaClient() : null;
+const ollamaForRouter: OllamaClient | null = routerNeedsOllama ? ollama : null;
 
 if (ollamaForRouter) {
   console.log('[router] Local LLM enabled via Ollama at', process.env.OLLAMA_URL || 'http://localhost:11434');
@@ -158,7 +160,7 @@ const pendingConfirms: PendingConfirms = new Map();
 const pendingPlanReviews: PendingPlanReviews = new Map();
 
 let memoryService: MemoryService | null = null;
-if (memoryEnabled && ollamaForMemory) {
+if (memoryEnabled) {
   const embeddings = createEmbeddingsClient({
     url: process.env.OLLAMA_URL || 'http://localhost:11434',
     model: process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text',
@@ -168,7 +170,7 @@ if (memoryEnabled && ollamaForMemory) {
   memoryService = createMemoryService({
     db: getDb(),
     embeddings,
-    ollama: ollamaForMemory,
+    ollama: ollama!,
     extractorModel: process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b',
     maxContextTokens,
   });
