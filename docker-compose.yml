@@ -11,7 +11,9 @@ services:
       - SEARXNG_BASE_URL=http://localhost:8888
 
   presidio-analyzer:
-    build: ./presidio
+    build:
+      context: ./presidio
+    platform: linux/arm64
     container_name: r2-presidio-analyzer
     ports:
       - "127.0.0.1:5002:3000"
