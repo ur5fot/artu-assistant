@@ -67,11 +67,12 @@ export async function startDiscordBot(
     deps._client ??
     new Client({
       intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.Guilds,
       ],
-      partials: [Partials.Channel, Partials.Message],
+      partials: [Partials.Channel, Partials.Message, Partials.User, Partials.GuildMember, Partials.ThreadMember, Partials.Reaction],
     });
 
   const timeoutMs = deps.requestTimeoutMs ?? 120_000;
@@ -80,6 +81,25 @@ export async function startDiscordBot(
   client.on('error', (err) => {
     console.error('[discord] client error:', err instanceof Error ? err.message : err);
   });
+  client.on('clientReady', async () => {
+    console.log('[discord] ready as', client.user?.tag);
+    // Pre-cache DM channels for whitelisted users. Without this, discord.js
+    // drops the first DM silently: MessageCreateAction.getChannel() can't
+    // resolve a DM channel from a MESSAGE_CREATE payload because the payload
+    // carries message.type, not channel.type — so createChannel() (Channels.js)
+    // returns undefined and the messageCreate event never fires.
+    for (const userId of deps.whitelist) {
+      try {
+        const user = await client.users.fetch(userId);
+        await user.createDM();
+      } catch (err) {
+        console.warn('[discord] failed to pre-cache DM for', userId, ':', err instanceof Error ? err.message : err);
+      }
+    }
+  });
+  client.on('warn', (m) => console.warn('[discord] warn:', m));
+  client.on('shardDisconnect', (e, id) => console.warn('[discord] shardDisconnect', id, e.code, e.reason));
+  client.on('shardError', (e) => console.error('[discord] shardError:', e.message));
 
   client.on('messageCreate', async (msg: Message) => {
     if (msg.author.bot) return;
