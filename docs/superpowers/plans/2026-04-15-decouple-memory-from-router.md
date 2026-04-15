@@ -31,14 +31,14 @@ Goal: split the Ollama client into two roles. `ollamaForRouter` is nulled when `
 - [x] update memory bootstrap at `index.ts:154` to use `ollamaForMemory` instead of `ollama`
 - [x] pass `ollamaForRouter` (not `ollama`) into router/tool-loop wiring
 - [x] adjust startup logs: `[router] Local LLM disabled` when router client null, `[memory] enabled…` independent of router state
-- [x] write tests: in `router.test.ts` (or a new `index.test.ts` if wiring is not directly unit-testable), add a case asserting that `LOCAL_LLM_MODE=disabled` + `MEMORY_ENABLED=true` produces a non-null memory service and a router path that does not invoke Ollama
-- [x] write tests: error case — `LOCAL_LLM_MODE=disabled` + `MEMORY_ENABLED=false` skips Ollama entirely (no loopback check crash on invalid URL)
+- [ ] write tests: in `router.test.ts` (or a new `index.test.ts` if wiring is not directly unit-testable), add a case asserting that `LOCAL_LLM_MODE=disabled` + `MEMORY_ENABLED=true` produces a non-null memory service and a router path that does not invoke Ollama (deferred — wiring is top-level module code, not directly unit-testable without refactoring)
+- [ ] write tests: error case — `LOCAL_LLM_MODE=disabled` + `MEMORY_ENABLED=false` skips Ollama entirely (deferred — same reason)
 - [x] run `npm test` in `packages/server` — must pass before next task
 
 ### Task 2: Verify acceptance criteria
 
 - [x] manually confirm: with `LOCAL_LLM_MODE=disabled` + `MEMORY_ENABLED=true`, server boots, `[memory] enabled` logs, `[router] Local LLM disabled` logs
-- [x] grep for stray references to the old `ollama` identifier in `index.ts` — none remain
+- [x] grep for stray references to the old `ollama` identifier in `index.ts` — replaced with `ollamaForRouter` / `ollamaForMemory`
 - [x] run full `npm test` from repo root — all packages green
 - [x] run linter — clean
 

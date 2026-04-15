@@ -143,9 +143,8 @@ if (routerNeedsOllama || memoryNeedsOllama) {
   }
 }
 
-const ollama: OllamaClient | null =
-  (routerNeedsOllama || memoryNeedsOllama) ? createOllamaClient() : null;
-const ollamaForRouter: OllamaClient | null = routerNeedsOllama ? ollama : null;
+const ollamaForRouter: OllamaClient | null = routerNeedsOllama ? createOllamaClient() : null;
+const ollamaForMemory: OllamaClient | null = memoryNeedsOllama ? createOllamaClient() : null;
 
 if (ollamaForRouter) {
   console.log('[router] Local LLM enabled via Ollama at', process.env.OLLAMA_URL || 'http://localhost:11434');
@@ -160,7 +159,7 @@ const pendingConfirms: PendingConfirms = new Map();
 const pendingPlanReviews: PendingPlanReviews = new Map();
 
 let memoryService: MemoryService | null = null;
-if (memoryEnabled) {
+if (memoryEnabled && ollamaForMemory) {
   const embeddings = createEmbeddingsClient({
     url: process.env.OLLAMA_URL || 'http://localhost:11434',
     model: process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text',
@@ -170,7 +169,7 @@ if (memoryEnabled) {
   memoryService = createMemoryService({
     db: getDb(),
     embeddings,
-    ollama: ollama!,
+    ollama: ollamaForMemory,
     extractorModel: process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b',
     maxContextTokens,
   });
