@@ -159,6 +159,7 @@ export function initDb(dbPath?: string): void {
   if (!cols.some((c) => c.name === 'source')) {
     db.exec(`ALTER TABLE chat_messages ADD COLUMN source TEXT`);
   }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_messages_source ON chat_messages(source, timestamp)`);
 
   // Migration: add importance / forgotten columns to memory_facts if missing.
   // SQLite can't do IF NOT EXISTS for columns, so we gate on PRAGMA table_info.
@@ -233,7 +234,7 @@ interface SaveMessageParams {
   toolCalls?: ToolCall[];
   piiEntities?: Array<{ type: string; original: string }>;
   timestamp: number;
-  source?: 'ollama' | 'claude';
+  source?: string;
 }
 
 export function saveMessage(params: SaveMessageParams): void {
@@ -252,19 +253,29 @@ export function saveMessage(params: SaveMessageParams): void {
   );
 }
 
-export function getMessages(): Array<{
+export function getMessages(source?: string): Array<{
   id: string;
   role: 'user' | 'assistant';
   content: string;
   toolCalls?: ToolCall[];
   piiEntities?: Array<{ type: string; original: string }>;
   timestamp: number;
-  source?: 'ollama' | 'claude';
+  source?: string;
 }> {
   const d = getDb();
-  const rows = d.prepare(
-    'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC'
-  ).all() as Array<{
+  let query: string;
+  let params: unknown[];
+  if (source === undefined) {
+    query = 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC';
+    params = [];
+  } else if (source === 'web') {
+    query = "SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source IS NULL OR source NOT LIKE 'discord:%' ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC";
+    params = [];
+  } else {
+    query = 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source = ? ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC';
+    params = [source];
+  }
+  const rows = d.prepare(query).all(...params) as Array<{
     message_id: string;
     role: string;
     content: string;
@@ -281,13 +292,19 @@ export function getMessages(): Array<{
     toolCalls: row.tool_calls ? JSON.parse(row.tool_calls) : undefined,
     piiEntities: row.pii_entities ? JSON.parse(row.pii_entities) : undefined,
     timestamp: row.timestamp,
-    source: row.source === 'ollama' || row.source === 'claude' ? row.source : undefined,
+    source: row.source ?? undefined,
   }));
 }
 
-export function clearMessages(): void {
+export function clearMessages(source?: string): void {
   const d = getDb();
-  d.prepare('DELETE FROM chat_messages').run();
+  if (source === undefined) {
+    d.prepare('DELETE FROM chat_messages').run();
+  } else if (source === 'web') {
+    d.prepare("DELETE FROM chat_messages WHERE source IS NULL OR source NOT LIKE 'discord:%'").run();
+  } else {
+    d.prepare('DELETE FROM chat_messages WHERE source = ?').run(source);
+  }
 }
 
 export type OverlayModel = 'claude' | 'ollama';

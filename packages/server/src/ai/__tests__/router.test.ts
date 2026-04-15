@@ -320,6 +320,25 @@ describe('runChatRequest', () => {
     expect(events.some((e) => e.type === 'memory_recalled')).toBe(false);
   });
 
+  it('works without source param', async () => {
+    process.env.LOCAL_LLM_MODE = 'disabled';
+    const fakeRunLoop = vi.fn(async ({ onEvent }) => {
+      onEvent({ type: 'done' });
+    });
+
+    await runChatRequest({
+      messages: [{ role: 'user', content: 'hi' }],
+      onEvent: () => {},
+      runLoop: fakeRunLoop as any,
+      ollama: null,
+      piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
+      memoryService: null,
+    });
+
+    expect(fakeRunLoop).toHaveBeenCalled();
+  });
+
   it('emits memory_recalled on claude fallback path', async () => {
     process.env.LOCAL_LLM_MODE = 'disabled';
     const memoryService = {

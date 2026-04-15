@@ -23,12 +23,14 @@ import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { createRegistry, discoverTools } from './tools/registry.js';
-import { initDb, cleanupAuditLog, closeDb, getDb } from './db.js';
+import { initDb, cleanupAuditLog, closeDb, getDb, saveMessage } from './db.js';
 import { createEmbeddingsClient } from './memory/embeddings.js';
 import { createMemoryService, type MemoryService } from './memory/service.js';
 import { errorHandler } from './errors.js';
 import { createPiiProxy, createPassthroughProxy } from './pii/proxy.js';
 import { PiiVault } from './pii/vault.js';
+import { startDiscordBot } from './channels/discord/bot.js';
+import { runChatRequest } from './ai/router.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
@@ -207,6 +209,42 @@ await discoverTools(registry, {
   reminderStore,
 });
 
+// Discord bot (optional — only starts if DISCORD_BOT_TOKEN is set)
+let discordBot: { stop(): Promise<void> } | null = null;
+const discordToken = process.env.DISCORD_BOT_TOKEN;
+if (discordToken) {
+  const rawIds = process.env.DISCORD_ALLOWED_USER_IDS || '';
+  const ids = rawIds.split(',').map((s) => s.trim()).filter(Boolean);
+  if (ids.length === 0) {
+    throw new Error('DISCORD_BOT_TOKEN set but DISCORD_ALLOWED_USER_IDS empty');
+  }
+  const whitelist = new Set(ids);
+  try {
+    discordBot = await startDiscordBot({
+      token: discordToken,
+      whitelist,
+      runChatRequest: (params) =>
+        runChatRequest({
+          ...params,
+          signal: params.signal,
+          piiProxy,
+          ollama: ollamaForRouter,
+          registry,
+          memoryService,
+          runLoop: runLoopFn,
+        }),
+      db: getDb(),
+      historyLimit: 50,
+      saveMessage,
+      memoryService,
+    });
+    console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
+  } catch (err) {
+    console.error('[discord] bot failed to start:', err instanceof Error ? err.message : err);
+    discordBot = null;
+  }
+}
+
 const chatRouter = createChatRouter({
   runLoop: ({ messages, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, piiProxy: pp }) =>
     runToolLoop({ messages, client, registry, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, piiProxy: pp }),
@@ -244,13 +282,13 @@ const server = app.listen(Number(PORT), '127.0.0.1', () => {
 });
 
 // Graceful shutdown on SIGTERM (from supervisor)
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('Worker received SIGTERM, shutting down...');
+  setTimeout(() => process.exit(1), 5000);
   stopScheduler();
+  await discordBot?.stop().catch(() => {});
   server.close(() => {
     closeDb();
     process.exit(0);
   });
-  // Force exit if close takes too long
-  setTimeout(() => process.exit(1), 5000);
 });
