@@ -204,6 +204,60 @@ describe('Database Module', () => {
       expect(messages[0].content).toBe('Hello');
     });
 
+    it('saves and retrieves source field', () => {
+      saveMessage({
+        messageId: 'msg-src-1',
+        role: 'user',
+        content: 'Hello from Discord',
+        timestamp: 1700000000000,
+        source: 'discord:1234',
+      });
+      saveMessage({
+        messageId: 'msg-src-2',
+        role: 'assistant',
+        content: 'Hi back',
+        timestamp: 1700000001000,
+        source: 'discord:1234',
+      });
+
+      const messages = getMessages('discord:1234');
+      expect(messages).toHaveLength(2);
+      expect(messages[0].source).toBe('discord:1234');
+      expect(messages[1].source).toBe('discord:1234');
+    });
+
+    it('getMessages without args returns all messages regardless of source', () => {
+      saveMessage({ messageId: 'msg-web', role: 'user', content: 'Hello web', timestamp: 1700000000000 });
+      saveMessage({ messageId: 'msg-claude', role: 'assistant', content: 'Hi from claude', timestamp: 1700000001000, source: 'claude' });
+      saveMessage({ messageId: 'msg-discord', role: 'user', content: 'Hello discord', timestamp: 1700000002000, source: 'discord:1234' });
+
+      const messages = getMessages();
+      expect(messages).toHaveLength(3);
+    });
+
+    it('getMessages with source filters by that source', () => {
+      saveMessage({ messageId: 'msg-web', role: 'user', content: 'Hello web', timestamp: 1700000000000 });
+      saveMessage({ messageId: 'msg-d1', role: 'user', content: 'Hello discord', timestamp: 1700000001000, source: 'discord:1234' });
+      saveMessage({ messageId: 'msg-d2', role: 'assistant', content: 'Hi back', timestamp: 1700000002000, source: 'discord:1234' });
+
+      const discordMsgs = getMessages('discord:1234');
+      expect(discordMsgs).toHaveLength(2);
+      expect(discordMsgs.every(m => m.source === 'discord:1234')).toBe(true);
+    });
+
+    it('source defaults to undefined when not provided', () => {
+      saveMessage({
+        messageId: 'msg-nosrc',
+        role: 'user',
+        content: 'Hello from web',
+        timestamp: 1700000000000,
+      });
+
+      const messages = getMessages();
+      expect(messages).toHaveLength(1);
+      expect(messages[0].source).toBeUndefined();
+    });
+
     it('clears all messages', () => {
       saveMessage({ messageId: 'msg-x', role: 'user', content: 'Hello', timestamp: 1700000000000 });
       saveMessage({ messageId: 'msg-y', role: 'assistant', content: 'Hi', timestamp: 1700000001000 });
@@ -211,6 +265,29 @@ describe('Database Module', () => {
 
       const messages = getMessages();
       expect(messages).toHaveLength(0);
+    });
+
+    it('getMessages("web") returns non-discord messages only', () => {
+      saveMessage({ messageId: 'web-u', role: 'user', content: 'web msg', timestamp: 1700000000000 });
+      saveMessage({ messageId: 'web-a', role: 'assistant', content: 'web reply', timestamp: 1700000001000, source: 'claude' });
+      saveMessage({ messageId: 'dc-u', role: 'user', content: 'discord msg', timestamp: 1700000002000, source: 'discord:123' });
+
+      const webMsgs = getMessages('web');
+      expect(webMsgs).toHaveLength(2);
+      expect(webMsgs.every(m => !m.source?.startsWith('discord:'))).toBe(true);
+    });
+
+    it('clearMessages("web") preserves discord messages', () => {
+      saveMessage({ messageId: 'web-1', role: 'user', content: 'web msg', timestamp: 1700000000000 });
+      saveMessage({ messageId: 'web-2', role: 'assistant', content: 'web reply', timestamp: 1700000001000, source: 'claude' });
+      saveMessage({ messageId: 'dc-1', role: 'user', content: 'discord msg', timestamp: 1700000002000, source: 'discord:123' });
+      saveMessage({ messageId: 'dc-2', role: 'assistant', content: 'discord reply', timestamp: 1700000003000, source: 'discord:123' });
+
+      clearMessages('web');
+
+      const remaining = getMessages();
+      expect(remaining).toHaveLength(2);
+      expect(remaining.every(m => m.source?.startsWith('discord:'))).toBe(true);
     });
   });
 
