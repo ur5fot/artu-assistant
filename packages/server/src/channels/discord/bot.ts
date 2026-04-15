@@ -97,6 +97,7 @@ export async function startDiscordBot(
 
   async function handleMessage(msg: Message): Promise<void> {
     let typingInterval: ReturnType<typeof setInterval> | undefined;
+    let sendSucceeded = false;
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), timeoutMs);
     try {
@@ -117,6 +118,7 @@ export async function startDiscordBot(
         content: string;
       }>;
       rows.reverse();
+      while (rows.length > 0 && rows[0].role === 'assistant') rows.shift();
 
       const messages: MessageParam[] = rows.map((r) => ({
         role: r.role as 'user' | 'assistant',
@@ -133,7 +135,6 @@ export async function startDiscordBot(
       });
 
       let buffer = '';
-      let sendSucceeded = false;
       let replyPromise: Promise<void> | null = null;
 
       await deps.runChatRequest({
@@ -196,11 +197,13 @@ export async function startDiscordBot(
         '[discord] messageCreate handler error:',
         err instanceof Error ? err.message : err,
       );
-      try {
-        const dmChannel = msg.channel as DMChannel;
-        await dmChannel.send('⚠️ Something went wrong. Please try again later.');
-      } catch {
-        // ignore send failure
+      if (!sendSucceeded) {
+        try {
+          const dmChannel = msg.channel as DMChannel;
+          await dmChannel.send('⚠️ Something went wrong. Please try again later.');
+        } catch {
+          // ignore send failure
+        }
       }
     }
   }
