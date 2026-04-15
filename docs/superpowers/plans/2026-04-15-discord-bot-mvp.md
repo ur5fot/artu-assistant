@@ -67,13 +67,13 @@ MVP scope: DM only, whitelist only, no streaming (full reply sent on `done`), no
 
 ### Task 4: Wire bot into server bootstrap
 
-- [ ] in `packages/server/src/index.ts`, after memory service init (~line 175), before tool discovery, read `process.env.DISCORD_BOT_TOKEN`
-- [ ] if token present: parse `DISCORD_ALLOWED_USER_IDS` (comma-separated), throw `Error('DISCORD_BOT_TOKEN set but DISCORD_ALLOWED_USER_IDS empty')` if empty after trim/filter
-- [ ] call `startDiscordBot({...})` and keep the handle in a module-scoped variable
-- [ ] log `[discord] bot started, whitelist size: N`
-- [ ] in SIGTERM/SIGINT shutdown handler (next to `stopScheduler()`), call `await discordBot?.stop()`
-- [ ] write/update index bootstrap tests only if they already exist — otherwise skip (existing tests do not cover index.ts wiring)
-- [ ] run `npm test` — must pass before next task
+- [x] in `packages/server/src/index.ts`, after memory service init (~line 175), before tool discovery, read `process.env.DISCORD_BOT_TOKEN`
+- [x] if token present: parse `DISCORD_ALLOWED_USER_IDS` (comma-separated), throw `Error('DISCORD_BOT_TOKEN set but DISCORD_ALLOWED_USER_IDS empty')` if empty after trim/filter
+- [x] call `startDiscordBot({...})` and keep the handle in a module-scoped variable
+- [x] log `[discord] bot started, whitelist size: N`
+- [x] in SIGTERM/SIGINT shutdown handler (next to `stopScheduler()`), call `await discordBot?.stop()`
+- [x] write/update index bootstrap tests only if they already exist — otherwise skip (existing tests do not cover index.ts wiring)
+- [x] run `npm test` — must pass before next task
 
 ### Task 5: Docs + env example
 
