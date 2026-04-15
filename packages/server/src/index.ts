@@ -107,13 +107,17 @@ if (piiMode === 'disabled') {
 // Setup
 const client = createClaudeClient();
 const localLlmMode = (process.env.LOCAL_LLM_MODE || 'enabled') as 'enabled' | 'disabled';
+const memoryEnabled = (process.env.MEMORY_ENABLED ?? 'true') !== 'false';
+
+const routerNeedsOllama = localLlmMode !== 'disabled';
+const memoryNeedsOllama = memoryEnabled;
 
 // Router intentionally skips PII anonymization for the Ollama path on the
 // assumption that Ollama runs on the user's machine. If OLLAMA_URL points at a
 // non-loopback host, that assumption breaks and raw user content (including
 // PII) would cross the network. Refuse to start unless the operator has
 // explicitly opted in via OLLAMA_ALLOW_REMOTE=1.
-if (localLlmMode !== 'disabled') {
+if (routerNeedsOllama || memoryNeedsOllama) {
   const rawUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
   try {
     const parsed = new URL(rawUrl);
@@ -127,7 +131,7 @@ if (localLlmMode !== 'disabled') {
     if (!isLoopback && process.env.OLLAMA_ALLOW_REMOTE !== '1') {
       throw new Error(
         `OLLAMA_URL=${rawUrl} is not loopback. The Ollama path sends unmasked PII. ` +
-          `Set OLLAMA_ALLOW_REMOTE=1 to acknowledge, or set LOCAL_LLM_MODE=disabled.`,
+          `Set OLLAMA_ALLOW_REMOTE=1 to acknowledge, or set LOCAL_LLM_MODE=disabled and MEMORY_ENABLED=false.`,
       );
     }
   } catch (err) {
@@ -138,8 +142,10 @@ if (localLlmMode !== 'disabled') {
   }
 }
 
-const ollama: OllamaClient | null = localLlmMode === 'disabled' ? null : createOllamaClient();
-if (ollama) {
+const ollamaForRouter: OllamaClient | null = routerNeedsOllama ? createOllamaClient() : null;
+const ollamaForMemory: OllamaClient | null = memoryNeedsOllama ? createOllamaClient() : null;
+
+if (ollamaForRouter) {
   console.log('[router] Local LLM enabled via Ollama at', process.env.OLLAMA_URL || 'http://localhost:11434');
 } else {
   console.log('[router] Local LLM disabled — all chat goes to Claude');
@@ -151,9 +157,8 @@ const registry = createRegistry();
 const pendingConfirms: PendingConfirms = new Map();
 const pendingPlanReviews: PendingPlanReviews = new Map();
 
-const memoryEnabled = (process.env.MEMORY_ENABLED ?? 'true') !== 'false';
 let memoryService: MemoryService | null = null;
-if (memoryEnabled && ollama) {
+if (memoryEnabled && ollamaForMemory) {
   const embeddings = createEmbeddingsClient({
     url: process.env.OLLAMA_URL || 'http://localhost:11434',
     model: process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text',
@@ -163,7 +168,7 @@ if (memoryEnabled && ollama) {
   memoryService = createMemoryService({
     db: getDb(),
     embeddings,
-    ollama,
+    ollama: ollamaForMemory,
     extractorModel: process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b',
     maxContextTokens,
   });
@@ -207,7 +212,7 @@ const chatRouter = createChatRouter({
   pendingConfirms,
   pendingPlanReviews,
   piiProxy,
-  ollama,
+  ollama: ollamaForRouter,
   registry,
   memoryService,
 });
