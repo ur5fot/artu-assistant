@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/presidio-analyzer:2.2.355
+FROM mcr.microsoft.com/presidio-analyzer:2.2.362
 
 RUN pip install --no-cache-dir \
     https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz \
