@@ -23,7 +23,7 @@ import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { createRegistry, discoverTools } from './tools/registry.js';
-import { initDb, cleanupAuditLog, closeDb, getDb, saveMessage } from './db.js';
+import { initDb, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, closeDb, getDb, saveMessage } from './db.js';
 import { createEmbeddingsClient } from './memory/embeddings.js';
 import { createMemoryService, type MemoryService } from './memory/service.js';
 import { errorHandler } from './errors.js';
@@ -56,6 +56,12 @@ app.use(express.json({ limit: '10mb' }));
 // Initialize database
 initDb();
 cleanupAuditLog();
+{
+  const deleted = cleanupOldChatMessages();
+  if (deleted > 0) {
+    console.log(`[db] cleanupOldChatMessages: deleted ${deleted} rows older than CHAT_HISTORY_RETENTION_DAYS`);
+  }
+}
 
 // Initialize PII proxy
 const piiMode = (process.env.PII_MODE || 'optional') as 'required' | 'optional' | 'disabled';
@@ -234,7 +240,7 @@ if (discordToken) {
           runLoop: runLoopFn,
         }),
       db: getDb(),
-      historyLimit: 50,
+      historyLimit: getChatHistoryLimit(),
       saveMessage,
       memoryService,
     });
