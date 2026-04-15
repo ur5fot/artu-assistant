@@ -291,6 +291,8 @@ export function clearMessages(source?: string): void {
   const d = getDb();
   if (source === undefined) {
     d.prepare('DELETE FROM chat_messages').run();
+  } else if (source === 'web') {
+    d.prepare("DELETE FROM chat_messages WHERE source IS NULL OR source NOT LIKE 'discord:%'").run();
   } else {
     d.prepare('DELETE FROM chat_messages WHERE source IS ?').run(source ?? null);
   }

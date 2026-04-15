@@ -266,6 +266,19 @@ describe('Database Module', () => {
       const messages = getMessages();
       expect(messages).toHaveLength(0);
     });
+
+    it('clearMessages("web") preserves discord messages', () => {
+      saveMessage({ messageId: 'web-1', role: 'user', content: 'web msg', timestamp: 1700000000000 });
+      saveMessage({ messageId: 'web-2', role: 'assistant', content: 'web reply', timestamp: 1700000001000, source: 'claude' });
+      saveMessage({ messageId: 'dc-1', role: 'user', content: 'discord msg', timestamp: 1700000002000, source: 'discord:123' });
+      saveMessage({ messageId: 'dc-2', role: 'assistant', content: 'discord reply', timestamp: 1700000003000, source: 'discord:123' });
+
+      clearMessages('web');
+
+      const remaining = getMessages();
+      expect(remaining).toHaveLength(2);
+      expect(remaining.every(m => m.source?.startsWith('discord:'))).toBe(true);
+    });
   });
 
   describe('Prompt Overlays', () => {

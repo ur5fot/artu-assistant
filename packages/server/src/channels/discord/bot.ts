@@ -80,7 +80,7 @@ export async function startDiscordBot(
 
       const rows = deps.db
         .prepare(
-          'SELECT role, content FROM chat_messages WHERE source = ? ORDER BY timestamp DESC LIMIT ?',
+          'SELECT role, content FROM chat_messages WHERE source = ? ORDER BY timestamp DESC, id DESC LIMIT ?',
         )
         .all(source, deps.historyLimit) as Array<{
         role: string;
@@ -103,7 +103,6 @@ export async function startDiscordBot(
       });
 
       let buffer = '';
-      let replySent = false;
       let replyPromise: Promise<void> | null = null;
 
       await deps.runChatRequest({
@@ -114,7 +113,6 @@ export async function startDiscordBot(
           } else if (event.type === 'done') {
             if (buffer) {
               replyPromise = sendReply(dmChannel, buffer)
-                .then(() => { replySent = true; })
                 .catch((err) => {
                   console.error('[discord] failed to send reply:', err);
                 });
@@ -132,7 +130,7 @@ export async function startDiscordBot(
 
       await replyPromise;
 
-      if (buffer && replySent) {
+      if (buffer) {
         deps.saveMessage({
           messageId: crypto.randomUUID(),
           role: 'assistant',
