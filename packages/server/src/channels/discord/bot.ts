@@ -149,6 +149,7 @@ export async function startDiscordBot(
 
       let buffer = '';
       let replyPromise: Promise<void> | null = null;
+      let errorSent = false;
 
       await deps.runChatRequest({
         messages,
@@ -156,14 +157,15 @@ export async function startDiscordBot(
         onEvent: (event: SSEEvent) => {
           if (event.type === 'text_delta') {
             buffer += event.content;
-          } else if (event.type === 'done') {
+          } else if (event.type === 'done' && !errorSent) {
             const text = buffer || '(No response generated.)';
             replyPromise = sendReply(dmChannel, text)
               .then(() => { sendSucceeded = true; })
               .catch((err) => {
                 console.error('[discord] failed to send reply:', err);
               });
-          } else if (event.type === 'error') {
+          } else if (event.type === 'error' && !errorSent) {
+            errorSent = true;
             console.error('[discord] chat error event:', event.message);
             dmChannel
               .send('⚠️ Something went wrong. Please try again later.')
