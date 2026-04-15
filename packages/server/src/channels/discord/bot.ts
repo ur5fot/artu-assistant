@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import type { SSEEvent } from '@r2/shared';
 import type Database from 'better-sqlite3';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
+import type { MemoryService } from '../../memory/service.js';
 
 export interface DiscordBotDeps {
   token: string;
@@ -27,6 +28,7 @@ export interface DiscordBotDeps {
     timestamp: number;
     source: string;
   }) => void;
+  memoryService: MemoryService | null;
   /** Override the Client instance (testing only). */
   _client?: Client;
 }
@@ -66,6 +68,7 @@ export async function startDiscordBot(
     });
 
   client.on('messageCreate', async (msg: Message) => {
+    let typingInterval: ReturnType<typeof setInterval> | undefined;
     try {
       if (msg.author.bot) return;
       if (msg.channel.type !== ChannelType.DM) return;
@@ -75,6 +78,9 @@ export async function startDiscordBot(
 
       const dmChannel = msg.channel as DMChannel;
       await dmChannel.sendTyping();
+      typingInterval = setInterval(() => {
+        dmChannel.sendTyping().catch(() => {});
+      }, 8_000);
 
       const source = `discord:${msg.author.id}`;
 
@@ -128,6 +134,8 @@ export async function startDiscordBot(
         },
       });
 
+      clearInterval(typingInterval);
+
       await replyPromise;
 
       if (buffer) {
@@ -138,8 +146,21 @@ export async function startDiscordBot(
           timestamp: Date.now(),
           source,
         });
+
+        if (deps.memoryService) {
+          deps.memoryService
+            .indexTurn({
+              userMessage: msg.content,
+              assistantMessage: buffer,
+              timestamp: Date.now(),
+            })
+            .catch((err) =>
+              console.warn('[discord] indexTurn failed:', err instanceof Error ? err.message : err),
+            );
+        }
       }
     } catch (err) {
+      clearInterval(typingInterval);
       console.error(
         '[discord] messageCreate handler error:',
         err instanceof Error ? err.message : err,

@@ -7,7 +7,7 @@ export function createMessagesRouter(): Router {
 
   router.get('/messages', (_req: Request, res: Response) => {
     try {
-      const messages = getMessages().filter(m => !m.source?.startsWith('discord:'));
+      const messages = getMessages('web');
       res.json(messages);
     } catch (err) {
       console.error('Failed to get messages:', err instanceof Error ? err.message : err);

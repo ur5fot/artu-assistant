@@ -263,10 +263,19 @@ export function getMessages(source?: string): Array<{
   source?: string;
 }> {
   const d = getDb();
-  const query = source === undefined
-    ? 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC'
-    : 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source IS ? ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC';
-  const rows = (source === undefined ? d.prepare(query).all() : d.prepare(query).all(source ?? null)) as Array<{
+  let query: string;
+  let params: unknown[];
+  if (source === undefined) {
+    query = 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC';
+    params = [];
+  } else if (source === 'web') {
+    query = "SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source IS NULL OR source NOT LIKE 'discord:%' ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC";
+    params = [];
+  } else {
+    query = 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source IS ? ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC';
+    params = [source ?? null];
+  }
+  const rows = (params.length === 0 ? d.prepare(query).all() : d.prepare(query).all(...params)) as Array<{
     message_id: string;
     role: string;
     content: string;

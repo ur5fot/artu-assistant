@@ -54,6 +54,7 @@ async function setup(overrides: Partial<DiscordBotDeps> = {}) {
     db: db as any,
     historyLimit: 50,
     saveMessage: saveMsgFn as any,
+    memoryService: null,
     _client: client as Client,
     ...overrides,
   };

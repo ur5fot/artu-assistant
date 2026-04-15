@@ -235,6 +235,7 @@ if (discordToken) {
       db: getDb(),
       historyLimit: 50,
       saveMessage,
+      memoryService,
     });
     console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
   } catch (err) {
