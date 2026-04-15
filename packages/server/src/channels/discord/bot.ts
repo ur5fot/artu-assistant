@@ -11,6 +11,7 @@ import type { SSEEvent } from '@r2/shared';
 import type Database from 'better-sqlite3';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { MemoryService } from '../../memory/service.js';
+import { truncateMessages } from '../../routes/chat.js';
 
 export interface DiscordBotDeps {
   token: string;
@@ -33,6 +34,8 @@ export interface DiscordBotDeps {
   /** Request timeout in ms (default 120_000). Prevents hangs when
    *  confirm/plan-review tools fire with no UI to resolve them. */
   requestTimeoutMs?: number;
+  /** Chat context budget in chars (default 60000). */
+  contextBudgetChars?: number;
   /** Override the Client instance (testing only). */
   _client?: Client;
 }
@@ -120,17 +123,21 @@ export async function startDiscordBot(
       rows.reverse();
       while (rows.length > 0 && rows[0].role === 'assistant') rows.shift();
 
-      const messages: MessageParam[] = [];
+      const built: Array<{ role: 'user' | 'assistant'; content: string }> = [];
       for (const r of rows) {
         const role = r.role as 'user' | 'assistant';
-        const last = messages[messages.length - 1];
+        const last = built[built.length - 1];
         if (last && last.role === role) {
           last.content += '\n' + r.content;
         } else {
-          messages.push({ role, content: r.content });
+          built.push({ role, content: r.content });
         }
       }
-      messages.push({ role: 'user', content: msg.content });
+      built.push({ role: 'user', content: msg.content });
+
+      const budgetRaw = deps.contextBudgetChars ?? Number(process.env.CHAT_CONTEXT_BUDGET_CHARS);
+      const contextBudget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? budgetRaw : 60000;
+      const messages: MessageParam[] = truncateMessages(built, contextBudget);
 
       deps.saveMessage({
         messageId: crypto.randomUUID(),
@@ -150,13 +157,12 @@ export async function startDiscordBot(
           if (event.type === 'text_delta') {
             buffer += event.content;
           } else if (event.type === 'done') {
-            if (buffer) {
-              replyPromise = sendReply(dmChannel, buffer)
-                .then(() => { sendSucceeded = true; })
-                .catch((err) => {
-                  console.error('[discord] failed to send reply:', err);
-                });
-            }
+            const text = buffer || '(No response generated.)';
+            replyPromise = sendReply(dmChannel, text)
+              .then(() => { sendSucceeded = true; })
+              .catch((err) => {
+                console.error('[discord] failed to send reply:', err);
+              });
           } else if (event.type === 'error') {
             console.error('[discord] chat error event:', event.message);
             dmChannel
@@ -214,7 +220,22 @@ export async function startDiscordBot(
     }
   }
 
-  await client.login(deps.token);
+  const LOGIN_TIMEOUT_MS = 30_000;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      client.login(deps.token).then((v) => {
+        clearTimeout(timeoutId);
+        return v;
+      }),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Discord login timed out')), LOGIN_TIMEOUT_MS);
+      }),
+    ]);
+  } catch (err) {
+    client.destroy().catch(() => {});
+    throw err;
+  }
 
   return {
     stop: async () => {

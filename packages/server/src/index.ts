@@ -284,12 +284,11 @@ const server = app.listen(Number(PORT), '127.0.0.1', () => {
 // Graceful shutdown on SIGTERM (from supervisor)
 process.on('SIGTERM', async () => {
   console.log('Worker received SIGTERM, shutting down...');
+  setTimeout(() => process.exit(1), 5000);
   stopScheduler();
-  await discordBot?.stop();
+  await discordBot?.stop().catch(() => {});
   server.close(() => {
     closeDb();
     process.exit(0);
   });
-  // Force exit if close takes too long
-  setTimeout(() => process.exit(1), 5000);
 });
