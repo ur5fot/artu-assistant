@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { initDb, logToolCall, cleanupAuditLog, getDb, closeDb, getPermissionRule, savePermissionRule, clearPermissionRules, saveMessage, getMessages, clearMessages, getOverlay, setOverlay, clearOverlay, PROMPT_OVERLAY_MAX_LENGTH } from './db.js';
+import { initDb, logToolCall, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, getDb, closeDb, getPermissionRule, savePermissionRule, clearPermissionRules, saveMessage, getMessages, clearMessages, getOverlay, setOverlay, clearOverlay, PROMPT_OVERLAY_MAX_LENGTH } from './db.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -274,6 +274,79 @@ describe('Database Module', () => {
 
       const all = getMessages();
       expect(all).toHaveLength(3);
+    });
+
+    describe('CHAT_HISTORY_LIMIT', () => {
+      const prev = process.env.CHAT_HISTORY_LIMIT;
+      afterEach(() => {
+        if (prev === undefined) delete process.env.CHAT_HISTORY_LIMIT;
+        else process.env.CHAT_HISTORY_LIMIT = prev;
+      });
+
+      it('defaults to 500 when env is unset', () => {
+        delete process.env.CHAT_HISTORY_LIMIT;
+        expect(getChatHistoryLimit()).toBe(500);
+      });
+
+      it('accepts a positive integer from env', () => {
+        process.env.CHAT_HISTORY_LIMIT = '50';
+        expect(getChatHistoryLimit()).toBe(50);
+      });
+
+      it('falls back to default on invalid values', () => {
+        process.env.CHAT_HISTORY_LIMIT = 'abc';
+        expect(getChatHistoryLimit()).toBe(500);
+        process.env.CHAT_HISTORY_LIMIT = '0';
+        expect(getChatHistoryLimit()).toBe(500);
+        process.env.CHAT_HISTORY_LIMIT = '-5';
+        expect(getChatHistoryLimit()).toBe(500);
+      });
+
+      it('getMessages respects the limit', () => {
+        process.env.CHAT_HISTORY_LIMIT = '2';
+        for (let i = 0; i < 5; i++) {
+          saveMessage({ messageId: `m-${i}`, role: 'user', content: `m${i}`, timestamp: 1700000000000 + i });
+        }
+        const msgs = getMessages();
+        expect(msgs).toHaveLength(2);
+        // The two most recent messages are returned in ascending order.
+        expect(msgs.map((m) => m.content)).toEqual(['m3', 'm4']);
+      });
+    });
+
+    describe('cleanupOldChatMessages', () => {
+      const prev = process.env.CHAT_HISTORY_RETENTION_DAYS;
+      afterEach(() => {
+        if (prev === undefined) delete process.env.CHAT_HISTORY_RETENTION_DAYS;
+        else process.env.CHAT_HISTORY_RETENTION_DAYS = prev;
+      });
+
+      it('is a no-op when env is unset, 0, or invalid', () => {
+        saveMessage({ messageId: 'old', role: 'user', content: 'old', timestamp: Date.now() - 100 * 24 * 60 * 60 * 1000 });
+        delete process.env.CHAT_HISTORY_RETENTION_DAYS;
+        expect(cleanupOldChatMessages()).toBe(0);
+        process.env.CHAT_HISTORY_RETENTION_DAYS = '0';
+        expect(cleanupOldChatMessages()).toBe(0);
+        process.env.CHAT_HISTORY_RETENTION_DAYS = 'abc';
+        expect(cleanupOldChatMessages()).toBe(0);
+        expect(getMessages()).toHaveLength(1);
+      });
+
+      it('deletes rows older than the cutoff and keeps recent ones', () => {
+        const now = Date.now();
+        const oneDay = 24 * 60 * 60 * 1000;
+        saveMessage({ messageId: 'old-1', role: 'user', content: 'old1', timestamp: now - 60 * oneDay });
+        saveMessage({ messageId: 'old-2', role: 'assistant', content: 'old2', timestamp: now - 45 * oneDay });
+        saveMessage({ messageId: 'new-1', role: 'user', content: 'new1', timestamp: now - 5 * oneDay });
+
+        process.env.CHAT_HISTORY_RETENTION_DAYS = '30';
+        const deleted = cleanupOldChatMessages();
+        expect(deleted).toBe(2);
+
+        const remaining = getMessages();
+        expect(remaining).toHaveLength(1);
+        expect(remaining[0].content).toBe('new1');
+      });
     });
   });
 
