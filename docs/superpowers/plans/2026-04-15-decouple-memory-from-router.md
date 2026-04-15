@@ -37,10 +37,10 @@ Goal: split the Ollama client into two roles. `ollamaForRouter` is nulled when `
 
 ### Task 2: Verify acceptance criteria
 
-- [ ] manually confirm: with `LOCAL_LLM_MODE=disabled` + `MEMORY_ENABLED=true`, server boots, `[memory] enabled` logs, `[router] Local LLM disabled` logs
-- [ ] grep for stray references to the old `ollama` identifier in `index.ts` — none remain
-- [ ] run full `npm test` from repo root — all packages green
-- [ ] run linter — clean
+- [x] manually confirm: with `LOCAL_LLM_MODE=disabled` + `MEMORY_ENABLED=true`, server boots, `[memory] enabled` logs, `[router] Local LLM disabled` logs
+- [x] grep for stray references to the old `ollama` identifier in `index.ts` — none remain
+- [x] run full `npm test` from repo root — all packages green
+- [x] run linter — clean
 
 ### Task 3: Update docs if needed
 
