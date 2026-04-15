@@ -226,6 +226,7 @@ if (discordToken) {
       runChatRequest: (params) =>
         runChatRequest({
           ...params,
+          signal: params.signal,
           piiProxy,
           ollama: ollamaForRouter,
           registry,

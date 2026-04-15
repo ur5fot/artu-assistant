@@ -18,6 +18,7 @@ export interface DiscordBotDeps {
   runChatRequest: (params: {
     messages: MessageParam[];
     onEvent: (event: SSEEvent) => void;
+    signal?: AbortSignal;
   }) => Promise<void>;
   db: Database.Database;
   historyLimit: number;
@@ -29,6 +30,9 @@ export interface DiscordBotDeps {
     source: string;
   }) => void;
   memoryService: MemoryService | null;
+  /** Request timeout in ms (default 120_000). Prevents hangs when
+   *  confirm/plan-review tools fire with no UI to resolve them. */
+  requestTimeoutMs?: number;
   /** Override the Client instance (testing only). */
   _client?: Client;
 }
@@ -67,15 +71,35 @@ export async function startDiscordBot(
       partials: [Partials.Channel, Partials.Message],
     });
 
+  const timeoutMs = deps.requestTimeoutMs ?? 120_000;
+  const userQueues = new Map<string, Promise<void>>();
+
+  client.on('error', (err) => {
+    console.error('[discord] client error:', err instanceof Error ? err.message : err);
+  });
+
   client.on('messageCreate', async (msg: Message) => {
+    if (msg.author.bot) return;
+    if (msg.channel.type !== ChannelType.DM) return;
+    if (!deps.whitelist.has(msg.author.id)) return;
+    if (!msg.content.trim()) return;
+
+    const userId = msg.author.id;
+    const prev = userQueues.get(userId) ?? Promise.resolve();
+    const safe = prev.then(() => handleMessage(msg)).catch(() => {});
+    userQueues.set(userId, safe);
+    safe.then(() => {
+      if (userQueues.get(userId) === safe) {
+        userQueues.delete(userId);
+      }
+    });
+  });
+
+  async function handleMessage(msg: Message): Promise<void> {
     let typingInterval: ReturnType<typeof setInterval> | undefined;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), timeoutMs);
     try {
-      if (msg.author.bot) return;
-      if (msg.channel.type !== ChannelType.DM) return;
-      if (!deps.whitelist.has(msg.author.id)) return;
-
-      if (!msg.content.trim()) return;
-
       const dmChannel = msg.channel as DMChannel;
       await dmChannel.sendTyping();
       typingInterval = setInterval(() => {
@@ -109,16 +133,19 @@ export async function startDiscordBot(
       });
 
       let buffer = '';
+      let sendSucceeded = false;
       let replyPromise: Promise<void> | null = null;
 
       await deps.runChatRequest({
         messages,
+        signal: ac.signal,
         onEvent: (event: SSEEvent) => {
           if (event.type === 'text_delta') {
             buffer += event.content;
           } else if (event.type === 'done') {
             if (buffer) {
               replyPromise = sendReply(dmChannel, buffer)
+                .then(() => { sendSucceeded = true; })
                 .catch((err) => {
                   console.error('[discord] failed to send reply:', err);
                 });
@@ -135,10 +162,13 @@ export async function startDiscordBot(
       });
 
       clearInterval(typingInterval);
+      clearTimeout(timer);
 
       await replyPromise;
 
-      if (buffer) {
+      if (ac.signal.aborted && !sendSucceeded) {
+        await sendReply(dmChannel, '⏱️ Request timed out. Please try again.');
+      } else if (buffer && sendSucceeded) {
         deps.saveMessage({
           messageId: crypto.randomUUID(),
           role: 'assistant',
@@ -161,6 +191,7 @@ export async function startDiscordBot(
       }
     } catch (err) {
       clearInterval(typingInterval);
+      clearTimeout(timer);
       console.error(
         '[discord] messageCreate handler error:',
         err instanceof Error ? err.message : err,
@@ -172,7 +203,7 @@ export async function startDiscordBot(
         // ignore send failure
       }
     }
-  });
+  }
 
   await client.login(deps.token);
 
