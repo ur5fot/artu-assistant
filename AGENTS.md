@@ -513,9 +513,10 @@ R2 can receive messages via Discord DMs in addition to the web UI. The bot is wh
 1. Go to https://discord.com/developers/applications and create a new Application.
 2. Under **Bot**, click "Reset Token" and copy the token into `DISCORD_BOT_TOKEN` in `.env`.
 3. Enable **Message Content Intent** on the Bot page (required for reading DM text).
-4. Under **OAuth2 → URL Generator**, select scope `bot` (no permissions needed for DMs). Open the generated URL to invite the bot to your account.
-5. In Discord client, enable **Developer Mode** (Settings → Advanced → Developer Mode). Right-click your profile → **Copy User ID**. Add the ID to `DISCORD_ALLOWED_USER_IDS` in `.env` (comma-separated for multiple users).
-6. Restart the server. Send a DM to the bot to verify.
+4. Create a private Discord server for yourself if you don't already have one (sidebar `+` → Create My Own → For me and my friends). Discord does not allow inviting bots directly to DMs — you and the bot must share at least one server before DMs are possible.
+5. Under **OAuth2 → URL Generator**, select scope `bot` and permission `Send Messages`. Open the generated URL and authorize the bot into your private server from step 4.
+6. In Discord client, enable **Developer Mode** (Settings → Advanced → Developer Mode). Right-click your profile → **Copy User ID**. Add the ID to `DISCORD_ALLOWED_USER_IDS` in `.env` (comma-separated for multiple users).
+7. Restart the server. Open your private server, find the bot in the member list, click it → **Message**, and send a DM to verify. The bot will only appear in your Direct Messages sidebar after you send it the first message.
 
 ### Env vars
 

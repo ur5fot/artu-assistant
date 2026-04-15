@@ -55,8 +55,9 @@ only configured user IDs can interact with it.
 1. Create a Discord application at https://discord.com/developers/applications
 2. Add a bot, enable the **Message Content** intent
 3. Copy the bot token into `DISCORD_BOT_TOKEN` in `.env`
-4. Add your Discord user ID to `DISCORD_ALLOWED_USER_IDS` in `.env`
-5. Invite the bot via OAuth2 URL Generator (scope: `bot`)
-6. Restart the server and send a DM to the bot
+4. Add your Discord user ID to `DISCORD_ALLOWED_USER_IDS` in `.env` (enable Developer Mode → right-click self → Copy User ID)
+5. Create a private Discord server (you and the bot must share one — Discord has no way to invite a bot directly to DMs)
+6. Invite the bot via OAuth2 URL Generator (scope `bot`, permission `Send Messages`) into that server
+7. Restart the server, find the bot in your private server's member list, click → **Message** to start a DM
 
 See `AGENTS.md` for detailed setup instructions.
