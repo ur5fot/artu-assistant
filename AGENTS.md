@@ -501,6 +501,28 @@ MEMORY_EXTRACT_MODEL=qwen2.5:7b
 MEMORY_MAX_CONTEXT_TOKENS=2000     # budget for auto-retrieval prefix
 ```
 
+## Discord Bot (DM channel)
+
+R2 can receive messages via Discord DMs in addition to the web UI. The bot is whitelist-gated: only configured user IDs can interact with it; all other DMs are silently ignored.
+
+### Setup
+
+1. Go to https://discord.com/developers/applications and create a new Application.
+2. Under **Bot**, click "Reset Token" and copy the token into `DISCORD_BOT_TOKEN` in `.env`.
+3. Enable **Message Content Intent** on the Bot page (required for reading DM text).
+4. Under **OAuth2 → URL Generator**, select scope `bot` (no permissions needed for DMs). Open the generated URL to invite the bot to your account.
+5. In Discord client, enable **Developer Mode** (Settings → Advanced → Developer Mode). Right-click your profile → **Copy User ID**. Add the ID to `DISCORD_ALLOWED_USER_IDS` in `.env` (comma-separated for multiple users).
+6. Restart the server. Send a DM to the bot to verify.
+
+### Env vars
+
+- `DISCORD_BOT_TOKEN` — bot token; if unset the bot does not start
+- `DISCORD_ALLOWED_USER_IDS` — comma-separated Discord user IDs; required when token is set
+
+### Architecture
+
+The adapter lives in `packages/server/src/channels/discord/bot.ts`. It plugs directly into `runChatRequest` with `source='discord:<userId>'`, reusing the full pipeline (tool loop, memory, PII). Messages are isolated from web chat via the `source` column in `chat_messages`.
+
 ## Self-deploy flow (Phase 3C+3D)
 
 1. `code_task` spawns ralphex in a dev worktree, commits to `dev`.

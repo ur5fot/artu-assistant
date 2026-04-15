@@ -77,10 +77,10 @@ MVP scope: DM only, whitelist only, no streaming (full reply sent on `done`), no
 
 ### Task 5: Docs + env example
 
-- [ ] `.env.example`: add commented `DISCORD_BOT_TOKEN=` and `DISCORD_ALLOWED_USER_IDS=` with one-line hint
-- [ ] `AGENTS.md`: add short section under the existing env/config area describing how to create a bot in Discord Developer Portal and how to find a user ID (Developer Mode → right-click → Copy ID)
-- [ ] run full `npm test` from repo root — all green
-- [ ] run typecheck — clean
+- [x] `.env.example`: add commented `DISCORD_BOT_TOKEN=` and `DISCORD_ALLOWED_USER_IDS=` with one-line hint
+- [x] `AGENTS.md`: add short section under the existing env/config area describing how to create a bot in Discord Developer Portal and how to find a user ID (Developer Mode → right-click → Copy ID)
+- [x] run full `npm test` from repo root — all green
+- [x] run typecheck — clean
 
 ### Task 6: Verify acceptance criteria
 

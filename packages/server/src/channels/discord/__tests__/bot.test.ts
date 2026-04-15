@@ -106,7 +106,7 @@ describe('Discord bot', () => {
     ];
     const db = makeFakeDb(historyRows);
 
-    const runChatRequest = vi.fn<any>(async ({ onEvent }) => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: { onEvent: (e: SSEEvent) => void }) => {
       onEvent({ type: 'text_delta', content: 'reply' } as SSEEvent);
       onEvent({ type: 'done' } as SSEEvent);
     });
@@ -122,7 +122,7 @@ describe('Discord bot', () => {
 
     expect(runChatRequest).toHaveBeenCalledTimes(1);
 
-    const call = runChatRequest.mock.calls[0][0];
+    const call = runChatRequest.mock.calls[0]![0] as { source: string; messages: Array<{ role: string; content: string }> };
     expect(call.source).toBe('discord:123');
     expect(call.messages).toEqual([
       { role: 'user', content: 'prev question' },
@@ -132,7 +132,7 @@ describe('Discord bot', () => {
   });
 
   it('accumulates text_delta and sends full text on done', async () => {
-    const runChatRequest = vi.fn<any>(async ({ onEvent }) => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: { onEvent: (e: SSEEvent) => void }) => {
       onEvent({ type: 'text_delta', content: 'hello ' } as SSEEvent);
       onEvent({ type: 'text_delta', content: 'world' } as SSEEvent);
       onEvent({ type: 'done' } as SSEEvent);
@@ -150,7 +150,7 @@ describe('Discord bot', () => {
   it('splits long messages into chunks <= 2000 chars', async () => {
     const longText = 'word '.repeat(500).trim();
 
-    const runChatRequest = vi.fn<any>(async ({ onEvent }) => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: { onEvent: (e: SSEEvent) => void }) => {
       onEvent({ type: 'text_delta', content: longText } as SSEEvent);
       onEvent({ type: 'done' } as SSEEvent);
     });
@@ -172,7 +172,7 @@ describe('Discord bot', () => {
   });
 
   it('sends error message on error event', async () => {
-    const runChatRequest = vi.fn<any>(async ({ onEvent }) => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: { onEvent: (e: SSEEvent) => void }) => {
       onEvent({ type: 'error', message: 'something broke' } as SSEEvent);
     });
 
