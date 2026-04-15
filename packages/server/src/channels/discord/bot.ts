@@ -120,10 +120,16 @@ export async function startDiscordBot(
       rows.reverse();
       while (rows.length > 0 && rows[0].role === 'assistant') rows.shift();
 
-      const messages: MessageParam[] = rows.map((r) => ({
-        role: r.role as 'user' | 'assistant',
-        content: r.content,
-      }));
+      const messages: MessageParam[] = [];
+      for (const r of rows) {
+        const role = r.role as 'user' | 'assistant';
+        const last = messages[messages.length - 1];
+        if (last && last.role === role) {
+          last.content += '\n' + r.content;
+        } else {
+          messages.push({ role, content: r.content });
+        }
+      }
       messages.push({ role: 'user', content: msg.content });
 
       deps.saveMessage({

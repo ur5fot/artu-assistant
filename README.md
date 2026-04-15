@@ -46,3 +46,17 @@ Tailscale tailnet as the dev machine.
    The app launches in standalone mode (no browser chrome) and uses the
    placeholder R2 icon. Replace icons in `packages/client/public/icon-*.png`
    when a real logo is ready.
+
+### Discord bot
+
+R2 can also respond via Discord direct messages. The bot is whitelist-gated —
+only configured user IDs can interact with it.
+
+1. Create a Discord application at https://discord.com/developers/applications
+2. Add a bot, enable the **Message Content** intent
+3. Copy the bot token into `DISCORD_BOT_TOKEN` in `.env`
+4. Add your Discord user ID to `DISCORD_ALLOWED_USER_IDS` in `.env`
+5. Invite the bot via OAuth2 URL Generator (scope: `bot`)
+6. Restart the server and send a DM to the bot
+
+See `AGENTS.md` for detailed setup instructions.

@@ -275,7 +275,7 @@ export function getMessages(source?: string): Array<{
     query = 'SELECT message_id, role, content, tool_calls, pii_entities, timestamp, source FROM (SELECT id, message_id, role, content, tool_calls, pii_entities, timestamp, source FROM chat_messages WHERE source = ? ORDER BY timestamp DESC, id DESC LIMIT 500) ORDER BY timestamp ASC, id ASC';
     params = [source];
   }
-  const rows = (params.length === 0 ? d.prepare(query).all() : d.prepare(query).all(...params)) as Array<{
+  const rows = d.prepare(query).all(...params) as Array<{
     message_id: string;
     role: string;
     content: string;
