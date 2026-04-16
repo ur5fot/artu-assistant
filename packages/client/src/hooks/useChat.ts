@@ -33,7 +33,13 @@ export interface PendingPlanReview {
 }
 
 // Replace-or-append a message by ID, preserving its position in the array.
+// Fast path: check last element first (common case during streaming).
 const upsertMessage = (prev: Message[], msg: Message): Message[] => {
+  if (prev.length > 0 && prev[prev.length - 1].id === msg.id) {
+    const result = prev.slice(0, -1);
+    result.push(msg);
+    return result;
+  }
   const idx = prev.findIndex((m) => m.id === msg.id);
   if (idx >= 0) {
     const result = [...prev];
@@ -451,7 +457,7 @@ export function useChat() {
     setMessages((prev) => {
       const next = prev.map((m) =>
         m.reminder?.id === id
-          ? { ...m, reminder: { ...m.reminder!, status: 'dismissed' as const } }
+          ? { ...m, reminder: { ...m.reminder!, status: 'paused' as const } }
           : m,
       );
       if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
