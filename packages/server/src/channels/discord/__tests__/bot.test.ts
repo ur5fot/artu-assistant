@@ -272,6 +272,55 @@ describe('retry on network error', () => {
   });
 });
 
+describe('reminder delivery', () => {
+  it('sends DM on reminder_ring to whitelisted users', async () => {
+    const reminderBus = new EventEmitter();
+    const client = makeFakeClient();
+    const fakeDm = makeDmChannel();
+    (client as any).users = {
+      fetch: vi.fn().mockResolvedValue({
+        createDM: vi.fn().mockResolvedValue(fakeDm),
+      }),
+      cache: new Map([['123', {
+        createDM: vi.fn().mockResolvedValue(fakeDm),
+      }]]),
+    };
+
+    await setup({ _client: client as any, reminderBus });
+
+    client.emit('clientReady');
+    await delay(100);
+
+    reminderBus.emit('push', { type: 'reminder_ring', id: 1, text: 'Buy fish' });
+    await delay(100);
+
+    expect(fakeDm.send).toHaveBeenCalledWith('⏰ Buy fish');
+  });
+
+  it('sends DM on reminder_done', async () => {
+    const reminderBus = new EventEmitter();
+    const client = makeFakeClient();
+    const fakeDm = makeDmChannel();
+    (client as any).users = {
+      fetch: vi.fn().mockResolvedValue({
+        createDM: vi.fn().mockResolvedValue(fakeDm),
+      }),
+      cache: new Map([['123', {
+        createDM: vi.fn().mockResolvedValue(fakeDm),
+      }]]),
+    };
+
+    await setup({ _client: client as any, reminderBus });
+    client.emit('clientReady');
+    await delay(100);
+
+    reminderBus.emit('push', { type: 'reminder_done', id: 1 });
+    await delay(100);
+
+    expect(fakeDm.send).toHaveBeenCalledWith('⏰ пропущено: напоминание #1');
+  });
+});
+
 describe('sendReply', () => {
   it('sends short text in one message', async () => {
     const ch = makeDmChannel();

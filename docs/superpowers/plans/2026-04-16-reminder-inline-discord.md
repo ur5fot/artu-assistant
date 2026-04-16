@@ -50,7 +50,7 @@ git commit -m "feat(shared): add ReminderInfo type to Message"
 - Modify: `packages/server/src/index.ts:228-246`
 - Test: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Write test for reminder_ring DM delivery**
+- [x] **Step 1: Write test for reminder_ring DM delivery**
 
 In `packages/server/src/channels/discord/__tests__/bot.test.ts`, add inside `describe('Discord bot', ...)`:
 
@@ -104,12 +104,12 @@ describe('reminder delivery', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd packages/server && npx vitest run src/channels/discord/__tests__/bot.test.ts`
 Expected: FAIL — `reminderBus` not in deps
 
-- [ ] **Step 3: Add reminderBus to DiscordBotDeps and implement listener**
+- [x] **Step 3: Add reminderBus to DiscordBotDeps and implement listener**
 
 In `packages/server/src/channels/discord/bot.ts`:
 
@@ -191,7 +191,7 @@ reminderListener = (event: ServerPushEvent) => {
 deps.reminderBus.on('push', reminderListener);
 ```
 
-- [ ] **Step 4: Pass reminderBus in index.ts**
+- [x] **Step 4: Pass reminderBus in index.ts**
 
 In `packages/server/src/index.ts`, add `reminderBus` to the `startDiscordBot` deps object (~line 228):
 
@@ -205,17 +205,17 @@ discordBot = await startDiscordBot({
 });
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `cd packages/server && npx vitest run src/channels/discord/__tests__/bot.test.ts`
 Expected: PASS
 
-- [ ] **Step 6: Run full server tests**
+- [x] **Step 6: Run full server tests**
 
 Run: `cd packages/server && npm test`
 Expected: all pass
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts packages/server/src/index.ts

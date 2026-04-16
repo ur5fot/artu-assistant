@@ -7,7 +7,8 @@ import {
   type DMChannel,
 } from 'discord.js';
 import crypto from 'node:crypto';
-import type { SSEEvent } from '@r2/shared';
+import type { SSEEvent, ServerPushEvent } from '@r2/shared';
+import type { EventEmitter } from 'node:events';
 import type Database from 'better-sqlite3';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { MemoryService } from '../../memory/service.js';
@@ -38,6 +39,8 @@ export interface DiscordBotDeps {
   contextBudgetChars?: number;
   /** Override the Client instance (testing only). */
   _client?: Client;
+  /** Optional reminder event bus — when provided, reminder events are forwarded as Discord DMs. */
+  reminderBus?: EventEmitter;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -279,6 +282,25 @@ export async function startDiscordBot(
     }
   }
 
+  // Subscribe to reminder events and forward to Discord DMs
+  let reminderListener: ((event: ServerPushEvent) => void) | null = null;
+  if (deps.reminderBus) {
+    reminderListener = (event: ServerPushEvent) => {
+      if (event.type !== 'reminder_ring' && event.type !== 'reminder_done') return;
+      const text = event.type === 'reminder_ring'
+        ? `⏰ ${event.text}`
+        : `⏰ пропущено: напоминание #${event.id}`;
+      for (const userId of deps.whitelist) {
+        const user = client.users.cache.get(userId);
+        if (!user) continue;
+        user.createDM().then((dm) => dm.send(text)).catch((err) =>
+          console.error('[discord] reminder DM failed:', err instanceof Error ? err.message : err),
+        );
+      }
+    };
+    deps.reminderBus.on('push', reminderListener);
+  }
+
   const LOGIN_TIMEOUT_MS = 30_000;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -298,6 +320,9 @@ export async function startDiscordBot(
 
   return {
     stop: async () => {
+      if (reminderListener && deps.reminderBus) {
+        deps.reminderBus.off('push', reminderListener);
+      }
       await client.destroy();
     },
   };
