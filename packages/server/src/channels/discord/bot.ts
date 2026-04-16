@@ -287,6 +287,7 @@ export async function startDiscordBot(
   if (deps.reminderBus) {
     reminderListener = (event: ServerPushEvent) => {
       if (event.type !== 'reminder_ring' && event.type !== 'reminder_done') return;
+      if (!client.isReady()) return;
       const text = event.type === 'reminder_ring'
         ? `⏰ ${event.text}`
         : `⏰ пропущено: напоминание #${event.id}`;

@@ -9,6 +9,7 @@ function makeFakeClient() {
   return Object.assign(emitter, {
     login: vi.fn().mockResolvedValue('token'),
     destroy: vi.fn().mockResolvedValue(undefined),
+    isReady: vi.fn().mockReturnValue(true),
   }) as unknown as Client;
 }
 

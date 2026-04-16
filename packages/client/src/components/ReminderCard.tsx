@@ -18,8 +18,8 @@ export function ReminderCard({ reminder, onDismiss, onSnooze }: Props) {
 
   return (
     <div style={{
-      background: '#f8f8f8',
-      border: '1px solid #e5e5e5',
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
       borderLeft: `4px solid ${borderColors[reminder.status]}`,
       borderRadius: 10,
       padding: 12,
@@ -53,8 +53,8 @@ export function ReminderCard({ reminder, onDismiss, onSnooze }: Props) {
           <button
             onClick={() => onDismiss(reminder.id)}
             style={{
-              padding: '4px 12px', borderRadius: 6, border: '1px solid #ccc',
-              background: '#fff', cursor: 'pointer', fontSize: 12,
+              padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'var(--card-bg)', cursor: 'pointer', fontSize: 12, color: 'var(--text)',
             }}
           >
             ✓ Выключить
@@ -62,8 +62,8 @@ export function ReminderCard({ reminder, onDismiss, onSnooze }: Props) {
           <button
             onClick={() => onSnooze(reminder.id)}
             style={{
-              padding: '4px 12px', borderRadius: 6, border: '1px solid #ccc',
-              background: '#fff', cursor: 'pointer', fontSize: 12,
+              padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'var(--card-bg)', cursor: 'pointer', fontSize: 12, color: 'var(--text)',
             }}
           >
             😴 Через 10 мин

@@ -432,23 +432,25 @@ export function useChat() {
           ];
         });
       } else if (data.type === 'reminder_stop_ring') {
-        alarm.stopLoop();
-        setMessages((prev) =>
-          prev.map((m) =>
+        setMessages((prev) => {
+          const next = prev.map((m) =>
             m.reminder?.id === data.id
               ? { ...m, reminder: { ...m.reminder!, status: 'paused' as const } }
               : m,
-          ),
-        );
+          );
+          if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
+          return next;
+        });
       } else if (data.type === 'reminder_done') {
-        alarm.stopLoop();
-        setMessages((prev) =>
-          prev.map((m) =>
+        setMessages((prev) => {
+          const next = prev.map((m) =>
             m.reminder?.id === data.id
               ? { ...m, reminder: { ...m.reminder!, status: 'done' as const } }
               : m,
-          ),
-        );
+          );
+          if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
+          return next;
+        });
       }
     };
     src.addEventListener('message', onMessage);
@@ -467,14 +469,15 @@ export function useChat() {
       });
       if (!res.ok) return;
     } catch { return; }
-    alarm.stopLoop();
-    setMessages((prev) =>
-      prev.map((m) =>
+    setMessages((prev) => {
+      const next = prev.map((m) =>
         m.reminder?.id === id
           ? { ...m, reminder: { ...m.reminder!, status: 'dismissed' as const } }
           : m,
-      ),
-    );
+      );
+      if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
+      return next;
+    });
   }, [alarm]);
 
   const snoozeReminder = useCallback(async (id: number) => {
@@ -486,14 +489,15 @@ export function useChat() {
       });
       if (!res.ok) return;
     } catch { return; }
-    alarm.stopLoop();
-    setMessages((prev) =>
-      prev.map((m) =>
+    setMessages((prev) => {
+      const next = prev.map((m) =>
         m.reminder?.id === id
           ? { ...m, reminder: { ...m.reminder!, status: 'dismissed' as const } }
           : m,
-      ),
-    );
+      );
+      if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
+      return next;
+    });
   }, [alarm]);
 
   return {
