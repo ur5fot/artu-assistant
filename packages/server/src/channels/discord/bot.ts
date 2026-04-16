@@ -111,7 +111,8 @@ export async function startDiscordBot(
     for (const userId of deps.whitelist) {
       try {
         const user = await client.users.fetch(userId);
-        await user.createDM();
+        const dm = await user.createDM();
+        console.log('[discord] pre-cached DM channel for', userId, '→', dm.id);
       } catch (err) {
         console.warn('[discord] failed to pre-cache DM for', userId, ':', err instanceof Error ? err.message : err);
       }

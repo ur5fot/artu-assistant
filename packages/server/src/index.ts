@@ -244,6 +244,7 @@ if (discordToken) {
       saveMessage,
       memoryService,
       reminderBus,
+      requestTimeoutMs: Number(process.env.DISCORD_REQUEST_TIMEOUT_MS) || 300_000,
     });
     console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
   } catch (err) {
