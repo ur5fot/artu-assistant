@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { ChannelType, Client } from 'discord.js';
 import type { SSEEvent } from '@r2/shared';
-import { startDiscordBot, sendReply, type DiscordBotDeps } from '../bot.js';
+import { startDiscordBot, sendReply, isRetryableError, type DiscordBotDeps } from '../bot.js';
 
 function makeFakeClient() {
   const emitter = new EventEmitter();
@@ -212,6 +212,63 @@ describe('Discord bot', () => {
     const { bot, client } = await setup();
     await bot.stop();
     expect((client as any).destroy).toHaveBeenCalled();
+  });
+});
+
+describe('isRetryableError', () => {
+  it('returns true for network-related errors', () => {
+    expect(isRetryableError(new Error('Connect Timeout Error'))).toBe(true);
+    expect(isRetryableError(new Error('ECONNREFUSED'))).toBe(true);
+    expect(isRetryableError(new Error('ECONNRESET'))).toBe(true);
+    expect(isRetryableError(new Error('ENOTFOUND'))).toBe(true);
+    expect(isRetryableError(new Error('socket hang up'))).toBe(true);
+    expect(isRetryableError(new Error('fetch failed'))).toBe(true);
+    expect(isRetryableError(new Error('network error'))).toBe(true);
+  });
+
+  it('returns false for non-network errors', () => {
+    expect(isRetryableError(new Error('Invalid API key'))).toBe(false);
+    expect(isRetryableError(new Error('Rate limited'))).toBe(false);
+    expect(isRetryableError('string error')).toBe(false);
+    expect(isRetryableError(null)).toBe(false);
+  });
+});
+
+describe('retry on network error', () => {
+  it('retries on retryable error and succeeds on second attempt', async () => {
+    let callCount = 0;
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: { onEvent: (e: SSEEvent) => void }) => {
+      callCount++;
+      if (callCount === 1) {
+        throw new Error('Connect Timeout Error (attempted address: discord.com:443, timeout: 10000ms)');
+      }
+      onEvent({ type: 'text_delta', content: 'ok' } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const { client } = await setup({ runChatRequest: runChatRequest as any });
+    const { msg, channel } = makeMessage({ content: 'test' });
+
+    client.emit('messageCreate', msg as any);
+    await delay(1500);
+
+    expect(runChatRequest).toHaveBeenCalledTimes(2);
+    expect(channel.send).toHaveBeenCalledWith('ok');
+  });
+
+  it('does not retry on non-retryable errors', async () => {
+    const runChatRequest = vi.fn<any>(async () => {
+      throw new Error('Invalid API key');
+    });
+
+    const { client } = await setup({ runChatRequest: runChatRequest as any });
+    const { msg, channel } = makeMessage({ content: 'test' });
+
+    client.emit('messageCreate', msg as any);
+    await delay(100);
+
+    expect(runChatRequest).toHaveBeenCalledTimes(1);
+    expect(channel.send).toHaveBeenCalledWith('⚠️ Something went wrong. Please try again later.');
   });
 });
 
