@@ -549,17 +549,17 @@ git commit -m "refactor(client): remove ReminderAlarm popup, replaced by inline 
 **Files:**
 - All
 
-- [ ] **Step 1: Run full server tests**
+- [x] **Step 1: Run full server tests**
 
 Run: `cd packages/server && npm test`
 Expected: all pass
 
-- [ ] **Step 2: Run full client build**
+- [x] **Step 2: Run full client build**
 
 Run: `cd packages/client && npx tsc --noEmit`
 Expected: clean
 
-- [ ] **Step 3: Manual E2E test**
+- [x] **Step 3: Manual E2E test**
 
 1. Start `npm run dev`
 2. In web chat, tell R2: "напомни через 1 минуту тест"
@@ -570,7 +570,7 @@ Expected: clean
 4. In Discord DM, verify `⏰ тест` message arrives
 5. Test snooze — verify alarm repeats after 10 min
 
-- [ ] **Step 4: Commit and merge**
+- [x] **Step 4: Commit and merge**
 
 ```bash
 git checkout dev && git merge master --no-edit
