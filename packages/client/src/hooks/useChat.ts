@@ -32,6 +32,17 @@ export interface PendingPlanReview {
   plan: string;
 }
 
+// Replace-or-append a message by ID, preserving its position in the array.
+const upsertMessage = (prev: Message[], msg: Message): Message[] => {
+  const idx = prev.findIndex((m) => m.id === msg.id);
+  if (idx >= 0) {
+    const result = [...prev];
+    result[idx] = msg;
+    return result;
+  }
+  return [...prev, msg];
+};
+
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -96,42 +107,30 @@ export function useChat() {
         switch (event.type) {
           case 'text_delta':
             assistantText += event.content;
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'tool_call_start':
             toolCalls.push(event.toolCall);
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: [...toolCalls],
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: [...toolCalls],
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'tool_call_result': {
@@ -140,22 +139,16 @@ export function useChat() {
               tc.result = event.result;
               tc.status = event.result.success ? 'done' : 'error';
             }
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: [...toolCalls],
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: [...toolCalls],
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
           }
 
@@ -171,22 +164,16 @@ export function useChat() {
             });
             // Don't push to toolCalls — tool_call_start already added this tool call.
             // Just trigger a re-render so MessageBubble picks up the pending confirm.
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: [...toolCalls],
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: [...toolCalls],
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'tool_plan_review':
@@ -195,105 +182,75 @@ export function useChat() {
               next.set(event.id, { callId: event.id, task: event.task, plan: event.plan });
               return next;
             });
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: [...toolCalls],
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: [...toolCalls],
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'tool_progress': {
             const tc = toolCalls.find((t) => t.id === event.id);
             if (tc) tc.progress = event.message;
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: [...toolCalls],
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: [...toolCalls],
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
           }
 
           case 'assistant_source':
             source = event.source;
             setLastSource(event.source);
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'memory_recalled':
             recalledFacts = event.facts;
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'pii_masked':
             piiEntities = event.entities;
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'error':
@@ -401,8 +358,10 @@ export function useChat() {
       });
   }, []);
 
-  // Listen to server push events (reminders) via a dedicated EventSource
+  // Listen to server push events (reminders) via a dedicated EventSource.
+  // Wait for history to load first to avoid snapshot events racing with /api/messages.
   useEffect(() => {
+    if (!historyLoaded) return;
     const src = new EventSource('/api/events');
     const onMessage = (ev: MessageEvent) => {
       let data: ServerPushEvent;
@@ -434,7 +393,7 @@ export function useChat() {
       } else if (data.type === 'reminder_stop_ring') {
         setMessages((prev) => {
           const next = prev.map((m) =>
-            m.reminder?.id === data.id
+            m.reminder?.id === data.id && m.reminder.status !== 'dismissed'
               ? { ...m, reminder: { ...m.reminder!, status: 'paused' as const } }
               : m,
           );
@@ -444,7 +403,7 @@ export function useChat() {
       } else if (data.type === 'reminder_done') {
         setMessages((prev) => {
           const next = prev.map((m) =>
-            m.reminder?.id === data.id
+            m.reminder?.id === data.id && m.reminder.status !== 'dismissed'
               ? { ...m, reminder: { ...m.reminder!, status: 'done' as const } }
               : m,
           );
@@ -458,7 +417,7 @@ export function useChat() {
       src.close();
       alarm.stopLoop();
     };
-  }, [alarm]);
+  }, [alarm, historyLoaded]);
 
   const dismissReminder = useCallback(async (id: number) => {
     try {

@@ -315,6 +315,9 @@ export async function startDiscordBot(
       }),
     ]);
   } catch (err) {
+    if (reminderListener && deps.reminderBus) {
+      deps.reminderBus.off('push', reminderListener);
+    }
     client.destroy().catch(() => {});
     throw err;
   }
