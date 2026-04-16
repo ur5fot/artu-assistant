@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { Message, ToolCall, RecalledFact } from '@r2/shared';
+import type { Message, ToolCall, RecalledFact, ServerPushEvent } from '@r2/shared';
 import { connectSSE, type SSEConnection } from '../utils/sse';
+import { createAlarmAudio, type AlarmAudio } from '../lib/alarm-audio';
 
 // crypto.randomUUID is gated behind secure context (HTTPS / localhost). When
 // the app is served over plain HTTP on a non-localhost host (e.g. Tailscale
@@ -41,6 +42,11 @@ export function useChat() {
   const [lastResponseTime, setLastResponseTime] = useState<number | null>(null);
   const [lastSource, setLastSource] = useState<'ollama' | 'claude' | null>(null);
   const connectionRef = useRef<SSEConnection | null>(null);
+  const alarmRef = useRef<AlarmAudio | null>(null);
+  if (alarmRef.current === null) {
+    alarmRef.current = createAlarmAudio();
+  }
+  const alarm = alarmRef.current;
 
   const sendingRef = useRef(false);
   const sendStartRef = useRef<number>(0);
@@ -395,8 +401,100 @@ export function useChat() {
       });
   }, []);
 
-  const dismissReminder = useCallback((_id: number) => {}, []);
-  const snoozeReminder = useCallback((_id: number) => {}, []);
+  // Listen to server push events (reminders) via a dedicated EventSource
+  useEffect(() => {
+    const src = new EventSource('/api/events');
+    const onMessage = (ev: MessageEvent) => {
+      let data: ServerPushEvent;
+      try { data = JSON.parse(ev.data); } catch { return; }
+
+      if (data.type === 'reminder_ring') {
+        alarm.startLoop();
+        const reminderId = `reminder-${data.id}`;
+        setMessages((prev) => {
+          const existing = prev.find((m) => m.id === reminderId);
+          if (existing) {
+            return prev.map((m) =>
+              m.id === reminderId
+                ? { ...m, reminder: { id: data.id, text: data.text, status: 'ringing' as const } }
+                : m,
+            );
+          }
+          return [
+            ...prev,
+            {
+              id: reminderId,
+              role: 'assistant' as const,
+              content: '',
+              timestamp: Date.now(),
+              reminder: { id: data.id, text: data.text, status: 'ringing' as const },
+            },
+          ];
+        });
+      } else if (data.type === 'reminder_stop_ring') {
+        alarm.stopLoop();
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.reminder?.id === data.id
+              ? { ...m, reminder: { ...m.reminder!, status: 'paused' as const } }
+              : m,
+          ),
+        );
+      } else if (data.type === 'reminder_done') {
+        alarm.stopLoop();
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.reminder?.id === data.id
+              ? { ...m, reminder: { ...m.reminder!, status: 'done' as const } }
+              : m,
+          ),
+        );
+      }
+    };
+    src.addEventListener('message', onMessage);
+    return () => {
+      src.close();
+      alarm.stopLoop();
+    };
+  }, [alarm]);
+
+  const dismissReminder = useCallback(async (id: number) => {
+    try {
+      const res = await fetch('/api/reminder/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) return;
+    } catch { return; }
+    alarm.stopLoop();
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.reminder?.id === id
+          ? { ...m, reminder: { ...m.reminder!, status: 'dismissed' as const } }
+          : m,
+      ),
+    );
+  }, [alarm]);
+
+  const snoozeReminder = useCallback(async (id: number) => {
+    try {
+      const res = await fetch('/api/reminder/snooze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) return;
+    } catch { return; }
+    alarm.stopLoop();
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.reminder?.id === id
+          ? { ...m, reminder: { ...m.reminder!, status: 'dismissed' as const } }
+          : m,
+      ),
+    );
+  }, [alarm]);
 
   return {
     messages,

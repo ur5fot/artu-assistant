@@ -369,7 +369,7 @@ git commit -m "feat(client): render ReminderCard inline in MessageBubble"
 **Files:**
 - Modify: `packages/client/src/hooks/useChat.ts`
 
-- [ ] **Step 1: Add reminder EventSource listener and handlers**
+- [x] **Step 1: Add reminder EventSource listener and handlers**
 
 In `packages/client/src/hooks/useChat.ts`:
 
@@ -490,12 +490,12 @@ const snoozeReminder = useCallback(async (id: number) => {
 
 Add `dismissReminder` and `snoozeReminder` to the return object.
 
-- [ ] **Step 2: Verify build**
+- [x] **Step 2: Verify build**
 
 Run: `cd packages/client && npx tsc --noEmit`
 Expected: clean
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/client/src/hooks/useChat.ts
