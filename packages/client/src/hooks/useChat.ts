@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { Message, ToolCall, RecalledFact } from '@r2/shared';
+import type { Message, ToolCall, RecalledFact, ServerPushEvent } from '@r2/shared';
 import { connectSSE, type SSEConnection } from '../utils/sse';
+import { createAlarmAudio, type AlarmAudio } from '../lib/alarm-audio';
 
 // crypto.randomUUID is gated behind secure context (HTTPS / localhost). When
 // the app is served over plain HTTP on a non-localhost host (e.g. Tailscale
@@ -31,6 +32,23 @@ export interface PendingPlanReview {
   plan: string;
 }
 
+// Replace-or-append a message by ID, preserving its position in the array.
+// Fast path: check last element first (common case during streaming).
+const upsertMessage = (prev: Message[], msg: Message): Message[] => {
+  if (prev.length > 0 && prev[prev.length - 1].id === msg.id) {
+    const result = prev.slice(0, -1);
+    result.push(msg);
+    return result;
+  }
+  const idx = prev.findIndex((m) => m.id === msg.id);
+  if (idx >= 0) {
+    const result = [...prev];
+    result[idx] = msg;
+    return result;
+  }
+  return [...prev, msg];
+};
+
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,6 +59,11 @@ export function useChat() {
   const [lastResponseTime, setLastResponseTime] = useState<number | null>(null);
   const [lastSource, setLastSource] = useState<'ollama' | 'claude' | null>(null);
   const connectionRef = useRef<SSEConnection | null>(null);
+  const alarmRef = useRef<AlarmAudio | null>(null);
+  if (alarmRef.current === null) {
+    alarmRef.current = createAlarmAudio();
+  }
+  const alarm = alarmRef.current;
 
   const sendingRef = useRef(false);
   const sendStartRef = useRef<number>(0);
@@ -90,42 +113,30 @@ export function useChat() {
         switch (event.type) {
           case 'text_delta':
             assistantText += event.content;
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'tool_call_start':
             toolCalls.push(event.toolCall);
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: [...toolCalls],
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: [...toolCalls],
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'tool_call_result': {
@@ -134,22 +145,16 @@ export function useChat() {
               tc.result = event.result;
               tc.status = event.result.success ? 'done' : 'error';
             }
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: [...toolCalls],
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: [...toolCalls],
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
           }
 
@@ -165,22 +170,16 @@ export function useChat() {
             });
             // Don't push to toolCalls — tool_call_start already added this tool call.
             // Just trigger a re-render so MessageBubble picks up the pending confirm.
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: [...toolCalls],
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: [...toolCalls],
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'tool_plan_review':
@@ -189,105 +188,75 @@ export function useChat() {
               next.set(event.id, { callId: event.id, task: event.task, plan: event.plan });
               return next;
             });
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: [...toolCalls],
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: [...toolCalls],
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'tool_progress': {
             const tc = toolCalls.find((t) => t.id === event.id);
             if (tc) tc.progress = event.message;
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: [...toolCalls],
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: [...toolCalls],
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
           }
 
           case 'assistant_source':
             source = event.source;
             setLastSource(event.source);
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'memory_recalled':
             recalledFacts = event.facts;
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'pii_masked':
             piiEntities = event.entities;
-            setMessages((prev) => {
-              const base = prev[prev.length - 1]?.id === assistantId ? prev.slice(0, -1) : prev;
-              return [
-                ...base,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: assistantText,
-                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
-                  timestamp: Date.now(),
-                  piiEntities,
-                  source,
-                  recalledFacts,
-                },
-              ];
-            });
+            setMessages((prev) => upsertMessage(prev, {
+              id: assistantId,
+              role: 'assistant' as const,
+              content: assistantText,
+              toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+              timestamp: Date.now(),
+              piiEntities,
+              source,
+              recalledFacts,
+            }));
             break;
 
           case 'error':
@@ -395,6 +364,117 @@ export function useChat() {
       });
   }, []);
 
+  // Listen to server push events (reminders) via a dedicated EventSource.
+  // Wait for history to load first to avoid snapshot events racing with /api/messages.
+  useEffect(() => {
+    if (!historyLoaded) return;
+    const src = new EventSource('/api/events');
+    const onMessage = (ev: MessageEvent) => {
+      let data: ServerPushEvent;
+      try { data = JSON.parse(ev.data); } catch { return; }
+
+      if (data.type === 'reminder_ring') {
+        alarm.startLoop();
+        const reminderId = `reminder-${data.id}`;
+        setMessages((prev) => {
+          const existing = prev.find((m) => m.id === reminderId);
+          if (existing) {
+            return prev.map((m) =>
+              m.id === reminderId
+                ? { ...m, reminder: { id: data.id, text: data.text, status: 'ringing' as const } }
+                : m,
+            );
+          }
+          return [
+            ...prev,
+            {
+              id: reminderId,
+              role: 'assistant' as const,
+              content: '',
+              timestamp: Date.now(),
+              reminder: { id: data.id, text: data.text, status: 'ringing' as const },
+            },
+          ];
+        });
+      } else if (data.type === 'reminder_stop_ring') {
+        setMessages((prev) => {
+          const next = prev.map((m) =>
+            m.reminder?.id === data.id && m.reminder.status !== 'dismissed'
+              ? { ...m, reminder: { ...m.reminder!, status: 'paused' as const } }
+              : m,
+          );
+          if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
+          return next;
+        });
+      } else if (data.type === 'reminder_done') {
+        setMessages((prev) => {
+          const next = prev.map((m) =>
+            m.reminder?.id === data.id && m.reminder.status !== 'dismissed'
+              ? { ...m, reminder: { ...m.reminder!, status: 'done' as const } }
+              : m,
+          );
+          if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
+          return next;
+        });
+      } else if (data.type === 'reminder_dismissed') {
+        setMessages((prev) => {
+          const next = prev.map((m) =>
+            m.reminder?.id === data.id
+              ? { ...m, reminder: { ...m.reminder!, status: 'dismissed' as const } }
+              : m,
+          );
+          if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
+          return next;
+        });
+      }
+    };
+    src.addEventListener('message', onMessage);
+    return () => {
+      src.close();
+      alarm.stopLoop();
+    };
+  }, [alarm, historyLoaded]);
+
+  const dismissReminder = useCallback(async (id: number) => {
+    try {
+      const res = await fetch('/api/reminder/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) return;
+    } catch { return; }
+    setMessages((prev) => {
+      const next = prev.map((m) =>
+        m.reminder?.id === id
+          ? { ...m, reminder: { ...m.reminder!, status: 'dismissed' as const } }
+          : m,
+      );
+      if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
+      return next;
+    });
+  }, [alarm]);
+
+  const snoozeReminder = useCallback(async (id: number) => {
+    try {
+      const res = await fetch('/api/reminder/snooze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) return;
+    } catch { return; }
+    setMessages((prev) => {
+      const next = prev.map((m) =>
+        m.reminder?.id === id
+          ? { ...m, reminder: { ...m.reminder!, status: 'done' as const } }
+          : m,
+      );
+      if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
+      return next;
+    });
+  }, [alarm]);
+
   return {
     messages,
     loading,
@@ -408,5 +488,7 @@ export function useChat() {
     historyLoaded,
     lastResponseTime,
     lastSource,
+    dismissReminder,
+    snoozeReminder,
   };
 }

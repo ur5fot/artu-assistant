@@ -9,6 +9,7 @@ function makeFakeClient() {
   return Object.assign(emitter, {
     login: vi.fn().mockResolvedValue('token'),
     destroy: vi.fn().mockResolvedValue(undefined),
+    isReady: vi.fn().mockReturnValue(true),
   }) as unknown as Client;
 }
 
@@ -269,6 +270,49 @@ describe('retry on network error', () => {
 
     expect(runChatRequest).toHaveBeenCalledTimes(1);
     expect(channel.send).toHaveBeenCalledWith('⚠️ Something went wrong. Please try again later.');
+  });
+});
+
+describe('reminder delivery', () => {
+  it('sends DM on reminder_ring to whitelisted users', async () => {
+    const reminderBus = new EventEmitter();
+    const client = makeFakeClient();
+    const fakeDm = makeDmChannel();
+    const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
+    (client as any).users = {
+      fetch: vi.fn().mockResolvedValue(fakeUser),
+      cache: new Map([['123', fakeUser]]),
+    };
+
+    await setup({ _client: client as any, reminderBus });
+
+    (client as any).emit('clientReady');
+    await delay(100);
+
+    reminderBus.emit('push', { type: 'reminder_ring', id: 1, text: 'Buy fish' });
+    await delay(100);
+
+    expect(fakeDm.send).toHaveBeenCalledWith('⏰ Buy fish');
+  });
+
+  it('sends DM on reminder_done', async () => {
+    const reminderBus = new EventEmitter();
+    const client = makeFakeClient();
+    const fakeDm = makeDmChannel();
+    const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
+    (client as any).users = {
+      fetch: vi.fn().mockResolvedValue(fakeUser),
+      cache: new Map([['123', fakeUser]]),
+    };
+
+    await setup({ _client: client as any, reminderBus });
+    (client as any).emit('clientReady');
+    await delay(100);
+
+    reminderBus.emit('push', { type: 'reminder_done', id: 1 });
+    await delay(100);
+
+    expect(fakeDm.send).toHaveBeenCalledWith('⏰ пропущено: напоминание #1');
   });
 });
 

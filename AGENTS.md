@@ -451,7 +451,8 @@ Memory starts empty on first deploy — pre-existing `chat_messages` are NOT re-
   - `packages/server/src/reminders/` — `recurrence.ts` (next-fire calculator), `store.ts` (SQLite CRUD + state machine), `scheduler.ts` (idempotent background tick), `bus.ts` (EventEmitter singleton)
   - `packages/server/src/routes/events.ts` — Server-Sent Events endpoint `/api/events` (20s heartbeat, EventSource-compatible)
   - `packages/server/src/routes/reminder.ts` — POST `/api/reminder/dismiss`, POST `/api/reminder/snooze`
-  - `packages/client/src/components/ReminderAlarm.tsx` + `lib/alarm-audio.ts` — singleton modal + Web Audio API pulsed tone (880 Hz, no binary asset)
+  - `packages/client/src/components/ReminderCard.tsx` — inline reminder card rendered in MessageBubble (dismiss/snooze buttons, status-colored border)
+  - `packages/client/src/lib/alarm-audio.ts` — Web Audio API pulsed tone (880 Hz, no binary asset), managed by useChat hook
   - Alarm cycle: 60s ring → 2 min pause → 60s ring → 2 min pause → 60s ring → done (3 rings total before "пропущено")
   - Schedule discriminated union: `once` / `daily` / `weekly` / `monthly`, LLM translates natural language → structured params (qwen escalates `reminder_create` to Claude via `provider: 'claude'` because qwen2.5 is unreliable at datetime arithmetic / weekday numbering)
   - State machine is idempotent across server restarts: state lives in SQLite, scheduler tick resumes from whatever row state it finds on next tick after reboot
@@ -526,6 +527,8 @@ R2 can receive messages via Discord DMs in addition to the web UI. The bot is wh
 ### Architecture
 
 The adapter lives in `packages/server/src/channels/discord/bot.ts`. It plugs directly into `runChatRequest` with `source='discord:<userId>'`, reusing the full pipeline (tool loop, memory, PII). Messages are isolated from web chat via the `source` column in `chat_messages`.
+
+The Discord bot also subscribes to `reminderBus` and forwards `reminder_ring`/`reminder_done` events as DMs to all whitelisted users. No additional configuration beyond the standard Discord bot setup is required.
 
 ## Self-deploy flow (Phase 3C+3D)
 

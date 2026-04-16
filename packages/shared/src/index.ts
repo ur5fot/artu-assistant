@@ -7,5 +7,6 @@ export type {
   PlanReviewResponse,
   ToolDefinition,
   RecalledFact,
+  ReminderInfo,
   ServerPushEvent,
 } from './types.js';
