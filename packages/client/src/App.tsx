@@ -1,5 +1,4 @@
 import { Chat } from './components/Chat';
-import { ReminderAlarm } from './components/ReminderAlarm';
 import { useSupervisor } from './hooks/useSupervisor';
 import { useTheme } from './hooks/useTheme';
 
@@ -54,7 +53,6 @@ export default function App() {
       display: 'flex',
       flexDirection: 'column',
     }}>
-      <ReminderAlarm />
       <StatusBar workerStatus={workerStatus} />
       <header style={{
         padding: '16px 20px',

@@ -15,7 +15,7 @@
 **Files:**
 - Modify: `packages/shared/src/types.ts:7-16`
 
-- [ ] **Step 1: Add ReminderInfo type and extend Message**
+- [x] **Step 1: Add ReminderInfo type and extend Message**
 
 In `packages/shared/src/types.ts`, add after `RecalledFact` interface (before `Message`):
 
@@ -29,12 +29,12 @@ export interface ReminderInfo {
 
 Add `reminder?: ReminderInfo;` to the `Message` interface after `recalledFacts`.
 
-- [ ] **Step 2: Verify build**
+- [x] **Step 2: Verify build**
 
 Run: `npm run -w @r2/shared build`
 Expected: clean build
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/shared/src/types.ts
@@ -50,7 +50,7 @@ git commit -m "feat(shared): add ReminderInfo type to Message"
 - Modify: `packages/server/src/index.ts:228-246`
 - Test: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Write test for reminder_ring DM delivery**
+- [x] **Step 1: Write test for reminder_ring DM delivery**
 
 In `packages/server/src/channels/discord/__tests__/bot.test.ts`, add inside `describe('Discord bot', ...)`:
 
@@ -104,12 +104,12 @@ describe('reminder delivery', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd packages/server && npx vitest run src/channels/discord/__tests__/bot.test.ts`
 Expected: FAIL — `reminderBus` not in deps
 
-- [ ] **Step 3: Add reminderBus to DiscordBotDeps and implement listener**
+- [x] **Step 3: Add reminderBus to DiscordBotDeps and implement listener**
 
 In `packages/server/src/channels/discord/bot.ts`:
 
@@ -191,7 +191,7 @@ reminderListener = (event: ServerPushEvent) => {
 deps.reminderBus.on('push', reminderListener);
 ```
 
-- [ ] **Step 4: Pass reminderBus in index.ts**
+- [x] **Step 4: Pass reminderBus in index.ts**
 
 In `packages/server/src/index.ts`, add `reminderBus` to the `startDiscordBot` deps object (~line 228):
 
@@ -205,17 +205,17 @@ discordBot = await startDiscordBot({
 });
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `cd packages/server && npx vitest run src/channels/discord/__tests__/bot.test.ts`
 Expected: PASS
 
-- [ ] **Step 6: Run full server tests**
+- [x] **Step 6: Run full server tests**
 
 Run: `cd packages/server && npm test`
 Expected: all pass
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts packages/server/src/index.ts
@@ -229,7 +229,7 @@ git commit -m "feat(discord): deliver reminders via DM on reminder_ring/done"
 **Files:**
 - Create: `packages/client/src/components/ReminderCard.tsx`
 
-- [ ] **Step 1: Create the component**
+- [x] **Step 1: Create the component**
 
 Create `packages/client/src/components/ReminderCard.tsx`:
 
@@ -311,7 +311,7 @@ export function ReminderCard({ reminder, onDismiss, onSnooze }: Props) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add packages/client/src/components/ReminderCard.tsx
@@ -325,7 +325,7 @@ git commit -m "feat(client): add ReminderCard component with dismiss/snooze"
 **Files:**
 - Modify: `packages/client/src/components/MessageBubble.tsx`
 
-- [ ] **Step 1: Add ReminderCard rendering**
+- [x] **Step 1: Add ReminderCard rendering**
 
 In `packages/client/src/components/MessageBubble.tsx`:
 
@@ -351,11 +351,11 @@ In the JSX, right before the `{message.content && (` block, add:
 )}
 ```
 
-- [ ] **Step 2: Update Chat.tsx to pass handlers**
+- [x] **Step 2: Update Chat.tsx to pass handlers**
 
 Find `packages/client/src/components/Chat.tsx` and pass `onDismissReminder` and `onSnoozeReminder` from useChat to MessageBubble. (Implementation depends on what Chat.tsx looks like — the handlers will come from the useChat hook in Task 5.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/client/src/components/MessageBubble.tsx packages/client/src/components/Chat.tsx
@@ -369,7 +369,7 @@ git commit -m "feat(client): render ReminderCard inline in MessageBubble"
 **Files:**
 - Modify: `packages/client/src/hooks/useChat.ts`
 
-- [ ] **Step 1: Add reminder EventSource listener and handlers**
+- [x] **Step 1: Add reminder EventSource listener and handlers**
 
 In `packages/client/src/hooks/useChat.ts`:
 
@@ -490,12 +490,12 @@ const snoozeReminder = useCallback(async (id: number) => {
 
 Add `dismissReminder` and `snoozeReminder` to the return object.
 
-- [ ] **Step 2: Verify build**
+- [x] **Step 2: Verify build**
 
 Run: `cd packages/client && npx tsc --noEmit`
 Expected: clean
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/client/src/hooks/useChat.ts
@@ -511,7 +511,7 @@ git commit -m "feat(client): listen to reminder SSE events, play audio, manage l
 - Delete: `packages/client/src/components/__tests__/ReminderAlarm.test.tsx`
 - Modify: `packages/client/src/App.tsx`
 
-- [ ] **Step 1: Remove from App.tsx**
+- [x] **Step 1: Remove from App.tsx**
 
 In `packages/client/src/App.tsx`, remove the import line:
 ```ts
@@ -523,19 +523,19 @@ Remove the usage in JSX:
 <ReminderAlarm />
 ```
 
-- [ ] **Step 2: Delete the files**
+- [x] **Step 2: Delete the files**
 
 ```bash
 rm packages/client/src/components/ReminderAlarm.tsx
 rm packages/client/src/components/__tests__/ReminderAlarm.test.tsx
 ```
 
-- [ ] **Step 3: Verify build**
+- [x] **Step 3: Verify build**
 
 Run: `cd packages/client && npx tsc --noEmit`
 Expected: clean (no broken imports)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A
@@ -549,17 +549,17 @@ git commit -m "refactor(client): remove ReminderAlarm popup, replaced by inline 
 **Files:**
 - All
 
-- [ ] **Step 1: Run full server tests**
+- [x] **Step 1: Run full server tests**
 
 Run: `cd packages/server && npm test`
 Expected: all pass
 
-- [ ] **Step 2: Run full client build**
+- [x] **Step 2: Run full client build**
 
 Run: `cd packages/client && npx tsc --noEmit`
 Expected: clean
 
-- [ ] **Step 3: Manual E2E test**
+- [x] **Step 3: Manual E2E test**
 
 1. Start `npm run dev`
 2. In web chat, tell R2: "напомни через 1 минуту тест"
@@ -570,7 +570,7 @@ Expected: clean
 4. In Discord DM, verify `⏰ тест` message arrives
 5. Test snooze — verify alarm repeats after 10 min
 
-- [ ] **Step 4: Commit and merge**
+- [x] **Step 4: Commit and merge**
 
 ```bash
 git checkout dev && git merge master --no-edit

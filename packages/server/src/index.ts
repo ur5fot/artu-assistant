@@ -243,6 +243,7 @@ if (discordToken) {
       historyLimit: getChatHistoryLimit(),
       saveMessage,
       memoryService,
+      reminderBus,
     });
     console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
   } catch (err) {
