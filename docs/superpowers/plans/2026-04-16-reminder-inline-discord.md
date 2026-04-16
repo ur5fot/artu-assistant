@@ -229,7 +229,7 @@ git commit -m "feat(discord): deliver reminders via DM on reminder_ring/done"
 **Files:**
 - Create: `packages/client/src/components/ReminderCard.tsx`
 
-- [ ] **Step 1: Create the component**
+- [x] **Step 1: Create the component**
 
 Create `packages/client/src/components/ReminderCard.tsx`:
 
@@ -311,7 +311,7 @@ export function ReminderCard({ reminder, onDismiss, onSnooze }: Props) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add packages/client/src/components/ReminderCard.tsx
