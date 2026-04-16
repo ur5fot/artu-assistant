@@ -409,7 +409,7 @@ export function useChat() {
       } else if (data.type === 'reminder_done') {
         setMessages((prev) => {
           const next = prev.map((m) =>
-            m.reminder?.id === data.id && m.reminder.status !== 'dismissed'
+            m.reminder?.id === data.id && m.reminder.status !== 'dismissed' && m.reminder.status !== 'paused'
               ? { ...m, reminder: { ...m.reminder!, status: 'done' as const } }
               : m,
           );
