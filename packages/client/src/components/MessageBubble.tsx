@@ -6,6 +6,7 @@ import { MemoryRecalledCard } from './MemoryRecalledCard';
 import { ToolCallCard } from './ToolCallCard';
 import { PermissionCard } from './PermissionCard';
 import { PlanReviewCard } from './PlanReviewCard';
+import { ReminderCard } from './ReminderCard';
 import type { PendingConfirm, PendingPlanReview } from '../hooks/useChat';
 
 interface Props {
@@ -15,6 +16,8 @@ interface Props {
   onRespond: (callId: string, allowed: boolean, remember: boolean) => Promise<boolean>;
   onRespondPlanReview: (callId: string, approved: boolean, editedPlan?: string) => Promise<boolean>;
   onForgetFact?: (key: string) => void;
+  onDismissReminder?: (id: number) => void;
+  onSnoozeReminder?: (id: number) => void;
 }
 
 const markdownStyles = `
@@ -49,7 +52,7 @@ const markdownStyles = `
 .r2-markdown hr { border: none; border-top: 1px solid rgba(0,0,0,0.1); margin: 8px 0; }
 `;
 
-export function MessageBubble({ message, pendingConfirms, pendingPlanReviews, onRespond, onRespondPlanReview, onForgetFact }: Props) {
+export function MessageBubble({ message, pendingConfirms, pendingPlanReviews, onRespond, onRespondPlanReview, onForgetFact, onDismissReminder, onSnoozeReminder }: Props) {
   const isUser = message.role === 'user';
 
   return (
@@ -90,6 +93,13 @@ export function MessageBubble({ message, pendingConfirms, pendingPlanReviews, on
         }
         return <ToolCallCard key={tc.id} toolCall={tc} />;
       })}
+      {message.reminder && (
+        <ReminderCard
+          reminder={message.reminder}
+          onDismiss={onDismissReminder ?? (() => {})}
+          onSnooze={onSnoozeReminder ?? (() => {})}
+        />
+      )}
       {message.piiEntities && message.piiEntities.length > 0 && (
         <PiiBadge entities={message.piiEntities} />
       )}

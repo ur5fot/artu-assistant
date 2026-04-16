@@ -395,6 +395,9 @@ export function useChat() {
       });
   }, []);
 
+  const dismissReminder = useCallback((_id: number) => {}, []);
+  const snoozeReminder = useCallback((_id: number) => {}, []);
+
   return {
     messages,
     loading,
@@ -408,5 +411,7 @@ export function useChat() {
     historyLoaded,
     lastResponseTime,
     lastSource,
+    dismissReminder,
+    snoozeReminder,
   };
 }

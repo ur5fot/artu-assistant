@@ -325,7 +325,7 @@ git commit -m "feat(client): add ReminderCard component with dismiss/snooze"
 **Files:**
 - Modify: `packages/client/src/components/MessageBubble.tsx`
 
-- [ ] **Step 1: Add ReminderCard rendering**
+- [x] **Step 1: Add ReminderCard rendering**
 
 In `packages/client/src/components/MessageBubble.tsx`:
 
@@ -351,11 +351,11 @@ In the JSX, right before the `{message.content && (` block, add:
 )}
 ```
 
-- [ ] **Step 2: Update Chat.tsx to pass handlers**
+- [x] **Step 2: Update Chat.tsx to pass handlers**
 
 Find `packages/client/src/components/Chat.tsx` and pass `onDismissReminder` and `onSnoozeReminder` from useChat to MessageBubble. (Implementation depends on what Chat.tsx looks like — the handlers will come from the useChat hook in Task 5.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/client/src/components/MessageBubble.tsx packages/client/src/components/Chat.tsx

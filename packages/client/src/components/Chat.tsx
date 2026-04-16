@@ -6,7 +6,7 @@ import { StatusBar } from './StatusBar';
 import { CommandPalette } from './CommandPalette';
 
 export function Chat() {
-  const { messages, loading, error, send, pendingConfirms, respondToConfirm, pendingPlanReviews, respondToPlanReview, historyLoaded, lastResponseTime, lastSource } = useChat();
+  const { messages, loading, error, send, pendingConfirms, respondToConfirm, pendingPlanReviews, respondToPlanReview, historyLoaded, lastResponseTime, lastSource, dismissReminder, snoozeReminder } = useChat();
   const bottomRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<ChatInputHandle>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -83,6 +83,8 @@ export function Chat() {
             onRespond={respondToConfirm}
             onRespondPlanReview={respondToPlanReview}
             onForgetFact={handleForgetFact}
+            onDismissReminder={dismissReminder}
+            onSnoozeReminder={snoozeReminder}
           />
         ))}
         {loading && (
