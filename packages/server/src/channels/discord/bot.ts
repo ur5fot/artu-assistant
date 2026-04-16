@@ -40,6 +40,23 @@ export interface DiscordBotDeps {
   _client?: Client;
 }
 
+const RETRY_DELAYS = [1000, 3000];
+
+export function isRetryableError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes('timeout') ||
+    msg.includes('econnrefused') ||
+    msg.includes('econnreset') ||
+    msg.includes('enotfound') ||
+    msg.includes('socket hang up') ||
+    msg.includes('fetch failed') ||
+    msg.includes('network') ||
+    msg.includes('connect timeout')
+  );
+}
+
 export async function sendReply(channel: DMChannel, text: string): Promise<void> {
   const MAX = 2000;
   if (text.length <= MAX) {
@@ -175,30 +192,46 @@ export async function startDiscordBot(
       let replyPromise: Promise<void> | null = null;
       let errorSent = false;
 
-      await deps.runChatRequest({
-        messages,
-        signal: ac.signal,
-        onEvent: (event: SSEEvent) => {
-          if (event.type === 'text_delta') {
-            buffer += event.content;
-          } else if (event.type === 'done' && !errorSent) {
-            const text = buffer || '(No response generated.)';
-            replyPromise = sendReply(dmChannel, text)
-              .then(() => { sendSucceeded = true; })
-              .catch((err) => {
-                console.error('[discord] failed to send reply:', err);
-              });
-          } else if (event.type === 'error' && !errorSent) {
-            errorSent = true;
-            console.error('[discord] chat error event:', event.message);
-            dmChannel
-              .send('⚠️ Something went wrong. Please try again later.')
-              .catch((err) =>
-                console.error('[discord] failed to send error:', err),
-              );
+      for (let attempt = 0; ; attempt++) {
+        buffer = '';
+        replyPromise = null;
+        errorSent = false;
+
+        try {
+          await deps.runChatRequest({
+            messages,
+            signal: ac.signal,
+            onEvent: (event: SSEEvent) => {
+              if (event.type === 'text_delta') {
+                buffer += event.content;
+              } else if (event.type === 'done' && !errorSent) {
+                const text = buffer || '(No response generated.)';
+                replyPromise = sendReply(dmChannel, text)
+                  .then(() => { sendSucceeded = true; })
+                  .catch((err) => {
+                    console.error('[discord] failed to send reply:', err);
+                  });
+              } else if (event.type === 'error' && !errorSent) {
+                errorSent = true;
+                console.error('[discord] chat error event:', event.message);
+                dmChannel
+                  .send('⚠️ Something went wrong. Please try again later.')
+                  .catch((err) =>
+                    console.error('[discord] failed to send error:', err),
+                  );
+              }
+            },
+          });
+          break;
+        } catch (err) {
+          if (attempt >= RETRY_DELAYS.length || ac.signal.aborted || !isRetryableError(err)) {
+            throw err;
           }
-        },
-      });
+          const delay = RETRY_DELAYS[attempt]!;
+          console.warn(`[discord] retrying in ${delay}ms (attempt ${attempt + 1}/${RETRY_DELAYS.length}):`, err instanceof Error ? err.message : err);
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
 
       clearInterval(typingInterval);
       clearTimeout(timer);
