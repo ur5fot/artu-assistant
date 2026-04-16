@@ -511,7 +511,7 @@ git commit -m "feat(client): listen to reminder SSE events, play audio, manage l
 - Delete: `packages/client/src/components/__tests__/ReminderAlarm.test.tsx`
 - Modify: `packages/client/src/App.tsx`
 
-- [ ] **Step 1: Remove from App.tsx**
+- [x] **Step 1: Remove from App.tsx**
 
 In `packages/client/src/App.tsx`, remove the import line:
 ```ts
@@ -523,19 +523,19 @@ Remove the usage in JSX:
 <ReminderAlarm />
 ```
 
-- [ ] **Step 2: Delete the files**
+- [x] **Step 2: Delete the files**
 
 ```bash
 rm packages/client/src/components/ReminderAlarm.tsx
 rm packages/client/src/components/__tests__/ReminderAlarm.test.tsx
 ```
 
-- [ ] **Step 3: Verify build**
+- [x] **Step 3: Verify build**
 
 Run: `cd packages/client && npx tsc --noEmit`
 Expected: clean (no broken imports)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A
