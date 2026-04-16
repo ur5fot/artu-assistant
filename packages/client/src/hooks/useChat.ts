@@ -467,7 +467,7 @@ export function useChat() {
     setMessages((prev) => {
       const next = prev.map((m) =>
         m.reminder?.id === id
-          ? { ...m, reminder: { ...m.reminder!, status: 'paused' as const } }
+          ? { ...m, reminder: { ...m.reminder!, status: 'done' as const } }
           : m,
       );
       if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();

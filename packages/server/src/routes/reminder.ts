@@ -23,7 +23,6 @@ export function createReminderRouter(deps: ReminderRouterDeps): Router {
       return;
     }
     store.dismiss(id, Date.now());
-    bus.emit('push', { type: 'reminder_stop_ring', id });
     bus.emit('push', { type: 'reminder_dismissed', id });
     res.json({ ok: true });
   });
