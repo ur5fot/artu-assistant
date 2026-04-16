@@ -4,6 +4,12 @@ export interface RecalledFact {
   importance: number;
 }
 
+export interface ReminderInfo {
+  id: number;
+  text: string;
+  status: 'ringing' | 'paused' | 'done' | 'dismissed';
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -13,6 +19,7 @@ export interface Message {
   piiEntities?: Array<{ type: string; original: string }>;
   source?: 'ollama' | 'claude';
   recalledFacts?: RecalledFact[];
+  reminder?: ReminderInfo;
 }
 
 export interface ToolCall {

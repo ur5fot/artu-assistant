@@ -15,7 +15,7 @@
 **Files:**
 - Modify: `packages/shared/src/types.ts:7-16`
 
-- [ ] **Step 1: Add ReminderInfo type and extend Message**
+- [x] **Step 1: Add ReminderInfo type and extend Message**
 
 In `packages/shared/src/types.ts`, add after `RecalledFact` interface (before `Message`):
 
@@ -29,12 +29,12 @@ export interface ReminderInfo {
 
 Add `reminder?: ReminderInfo;` to the `Message` interface after `recalledFacts`.
 
-- [ ] **Step 2: Verify build**
+- [x] **Step 2: Verify build**
 
 Run: `npm run -w @r2/shared build`
 Expected: clean build
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/shared/src/types.ts
