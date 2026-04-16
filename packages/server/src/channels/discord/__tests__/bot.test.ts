@@ -278,18 +278,15 @@ describe('reminder delivery', () => {
     const reminderBus = new EventEmitter();
     const client = makeFakeClient();
     const fakeDm = makeDmChannel();
+    const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
     (client as any).users = {
-      fetch: vi.fn().mockResolvedValue({
-        createDM: vi.fn().mockResolvedValue(fakeDm),
-      }),
-      cache: new Map([['123', {
-        createDM: vi.fn().mockResolvedValue(fakeDm),
-      }]]),
+      fetch: vi.fn().mockResolvedValue(fakeUser),
+      cache: new Map([['123', fakeUser]]),
     };
 
     await setup({ _client: client as any, reminderBus });
 
-    client.emit('clientReady');
+    (client as any).emit('clientReady');
     await delay(100);
 
     reminderBus.emit('push', { type: 'reminder_ring', id: 1, text: 'Buy fish' });
@@ -302,17 +299,14 @@ describe('reminder delivery', () => {
     const reminderBus = new EventEmitter();
     const client = makeFakeClient();
     const fakeDm = makeDmChannel();
+    const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
     (client as any).users = {
-      fetch: vi.fn().mockResolvedValue({
-        createDM: vi.fn().mockResolvedValue(fakeDm),
-      }),
-      cache: new Map([['123', {
-        createDM: vi.fn().mockResolvedValue(fakeDm),
-      }]]),
+      fetch: vi.fn().mockResolvedValue(fakeUser),
+      cache: new Map([['123', fakeUser]]),
     };
 
     await setup({ _client: client as any, reminderBus });
-    client.emit('clientReady');
+    (client as any).emit('clientReady');
     await delay(100);
 
     reminderBus.emit('push', { type: 'reminder_done', id: 1 });

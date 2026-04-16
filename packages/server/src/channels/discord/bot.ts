@@ -292,9 +292,9 @@ export async function startDiscordBot(
         ? `⏰ ${event.text}`
         : `⏰ пропущено: напоминание #${event.id}`;
       for (const userId of deps.whitelist) {
-        const user = client.users.cache.get(userId);
-        if (!user) continue;
-        user.createDM().then((dm) => dm.send(text)).catch((err) =>
+        client.users.fetch(userId).then((user) =>
+          user.createDM().then((dm) => dm.send(text)),
+        ).catch((err) =>
           console.error('[discord] reminder DM failed:', err instanceof Error ? err.message : err),
         );
       }

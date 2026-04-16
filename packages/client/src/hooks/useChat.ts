@@ -416,6 +416,16 @@ export function useChat() {
           if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
           return next;
         });
+      } else if (data.type === 'reminder_dismissed') {
+        setMessages((prev) => {
+          const next = prev.map((m) =>
+            m.reminder?.id === data.id
+              ? { ...m, reminder: { ...m.reminder!, status: 'dismissed' as const } }
+              : m,
+          );
+          if (!next.some((m) => m.reminder?.status === 'ringing')) alarm.stopLoop();
+          return next;
+        });
       }
     };
     src.addEventListener('message', onMessage);
