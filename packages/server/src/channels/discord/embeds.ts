@@ -108,7 +108,7 @@ export function buildPlanReviewChunks(opts: {
   callId: string;
   plan: string;
 }): PlanReviewChunk[] {
-  const lines = opts.plan.split('\n');
+  const rawLines = opts.plan.split('\n');
   const chunks: string[] = [];
   let buf: string[] = [];
   let bufLen = 0;
@@ -116,6 +116,20 @@ export function buildPlanReviewChunks(opts: {
   // Leave room for header line + fence overhead
   const firstChunkBudget = DISCORD_MESSAGE_LIMIT - 60 - CODE_FENCE_OVERHEAD;
   const restChunkBudget = DISCORD_MESSAGE_LIMIT - CODE_FENCE_OVERHEAD;
+
+  // Hard-split any line longer than the smallest budget — a single >2000-char
+  // line (e.g. minified JSON) would otherwise produce a chunk that exceeds
+  // Discord's message limit and make the entire send fail with 50035.
+  const lines: string[] = [];
+  for (const line of rawLines) {
+    if (line.length <= restChunkBudget) {
+      lines.push(line);
+      continue;
+    }
+    for (let i = 0; i < line.length; i += restChunkBudget) {
+      lines.push(line.slice(i, i + restChunkBudget));
+    }
+  }
 
   const flush = () => {
     if (buf.length === 0) return;

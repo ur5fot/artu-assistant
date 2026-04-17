@@ -9,6 +9,28 @@ import {
   buildPermissionEmbed,
 } from './embeds.js';
 
+// Discord hard-limits a single reply to 2000 chars; leave a tail for the
+// "…N more" marker so a long list degrades gracefully instead of 50035-ing.
+const SLASH_REPLY_LIMIT = 1900;
+
+function truncateLines(lines: string[]): string {
+  if (lines.length === 0) return '';
+  const out: string[] = [];
+  let used = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const added = (out.length === 0 ? 0 : 1) + line.length;
+    if (used + added > SLASH_REPLY_LIMIT) {
+      const remaining = lines.length - i;
+      out.push(`…${remaining} more`);
+      return out.join('\n');
+    }
+    out.push(line);
+    used += added;
+  }
+  return out.join('\n');
+}
+
 export interface InteractionDeps {
   whitelist: Set<string>;
   reminderService: ReminderService;
@@ -183,7 +205,9 @@ async function routeSlashCommand(
     const list = deps.commandService.listReminders();
     const content = list.length === 0
       ? 'No active reminders.'
-      : list.map((r) => `#${r.id} · ${r.text} · ${new Date(r.next_fire_at_ms).toISOString()}`).join('\n');
+      : truncateLines(
+          list.map((r) => `#${r.id} · ${r.text} · ${new Date(r.next_fire_at_ms).toISOString()}`),
+        );
     await (ixn as any).reply({ flags: MessageFlags.Ephemeral, content });
     return;
   }
@@ -194,9 +218,11 @@ async function routeSlashCommand(
       ? 'Memory not available.'
       : result.entries.length === 0
         ? 'No memory entries.'
-        : result.entries
-            .map((e) => `- ${e.text}${e.timestamp ? ` (${new Date(e.timestamp).toISOString()})` : ''}`)
-            .join('\n');
+        : truncateLines(
+            result.entries.map(
+              (e) => `- ${e.text}${e.timestamp ? ` (${new Date(e.timestamp).toISOString()})` : ''}`,
+            ),
+          );
     await (ixn as any).reply({ flags: MessageFlags.Ephemeral, content });
     return;
   }

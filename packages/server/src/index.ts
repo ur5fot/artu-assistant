@@ -250,6 +250,8 @@ if (discordToken) {
         runChatRequest({
           ...params,
           signal: params.signal,
+          pendingConfirms,
+          pendingPlanReviews,
           piiProxy,
           ollama: ollamaForRouter,
           registry,

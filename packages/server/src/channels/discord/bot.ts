@@ -441,8 +441,10 @@ export async function startDiscordBot(
     }
   }
 
-  // Track message ids for reminder embeds so we can edit them on dismiss/snooze/done
-  const reminderMessages = new Map<number, string[]>();
+  // Track per-user message ids for reminder embeds so we can edit only the
+  // owning user's DM on dismiss/snooze/done. Flat arrays without userId
+  // scoping cause O(users²) cross-user fetches that always 404 silently.
+  const reminderMessages = new Map<number, Array<{ userId: string; msgId: string }>>();
 
   let reminderListener: ((event: ServerPushEvent) => void) | null = null;
   if (deps.reminderBus) {
@@ -450,25 +452,19 @@ export async function startDiscordBot(
       id: number,
       state: 'dismissed' | 'missed' | 'snoozed',
     ) => {
-      const ids = reminderMessages.get(id) ?? [];
-      if (ids.length === 0) return;
-      for (const userId of deps.whitelist) {
+      const entries = reminderMessages.get(id) ?? [];
+      if (entries.length === 0) return;
+      for (const { userId, msgId } of entries) {
         try {
           const user = await client.users.fetch(userId);
           const dm = await user.createDM();
-          for (const msgId of ids) {
-            try {
-              const stored = await dm.messages.fetch(msgId);
-              const currentTitle = stored.embeds?.[0]?.title ?? '';
-              const currentText = currentTitle.replace(/^⏰\s*/, '');
-              const { embed } = buildReminderEmbed({ id, text: currentText, state });
-              await stored.edit({ embeds: [embed], components: [] });
-            } catch (err) {
-              // message gone or no permission — ignore
-            }
-          }
+          const stored = await dm.messages.fetch(msgId);
+          const currentTitle = stored.embeds?.[0]?.title ?? '';
+          const currentText = currentTitle.replace(/^⏰\s*/, '');
+          const { embed } = buildReminderEmbed({ id, text: currentText, state });
+          await stored.edit({ embeds: [embed], components: [] });
         } catch (err) {
-          // user/dm unreachable — ignore
+          // user/dm/message gone or no permission — ignore
         }
       }
       reminderMessages.delete(id);
@@ -489,7 +485,7 @@ export async function startDiscordBot(
             .then((dm) => dm.send({ embeds: [embed], components }))
             .then((sent) => {
               const list = reminderMessages.get(event.id) ?? [];
-              list.push(sent.id);
+              list.push({ userId, msgId: sent.id });
               reminderMessages.set(event.id, list);
             })
             .catch((err) =>
