@@ -75,13 +75,28 @@ export function isRetryableError(err: unknown): boolean {
   );
 }
 
+const SECRET_KEY_RE = /(token|secret|password|passwd|authorization|auth|api[_-]?key|credential|private[_-]?key|session|cookie)/i;
+
 function summarizeArgs(input: Record<string, unknown>): string {
   const pairs: string[] = [];
+  let total = 0;
   for (const [k, v] of Object.entries(input)) {
-    const val = typeof v === 'string' ? v : JSON.stringify(v);
-    const short = val.length > 100 ? val.slice(0, 100) + '…' : val;
-    pairs.push(`${k}: \`${short}\``);
-    if (pairs.join('\n').length > 1500) break;
+    let short: string;
+    if (SECRET_KEY_RE.test(k)) {
+      short = '[redacted]';
+    } else {
+      let val: string;
+      try {
+        val = typeof v === 'string' ? v : JSON.stringify(v);
+      } catch {
+        val = '[unserializable]';
+      }
+      short = val.length > 100 ? val.slice(0, 100) + '…' : val;
+    }
+    const line = `${k}: \`${short}\``;
+    if (total + line.length + 1 > 1500) break;
+    pairs.push(line);
+    total += line.length + 1;
   }
   return pairs.join('\n');
 }
@@ -261,6 +276,12 @@ export async function startDiscordBot(
       };
 
       for (let attempt = 0; ; attempt++) {
+        // If the previous attempt already produced visible output (text, embeds)
+        // do not retry — the user would see duplicated text or dangling embed
+        // references with a stale callId. Fall through to the outer error path.
+        if (attempt > 0 && (sendSucceeded || pendingEmbedMsgs.length > 0)) {
+          throw new Error('retry aborted: prior attempt already emitted output');
+        }
         buffer = '';
         assistantText = '';
         errorSent = false;

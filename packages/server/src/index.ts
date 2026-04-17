@@ -265,7 +265,10 @@ if (discordToken) {
       permissionService,
       planReviewService,
       commandService,
-      requestTimeoutMs: Number(process.env.DISCORD_REQUEST_TIMEOUT_MS) || 300_000,
+      requestTimeoutMs: (() => {
+        const n = Number(process.env.DISCORD_REQUEST_TIMEOUT_MS);
+        return Number.isFinite(n) && n > 0 ? n : 300_000;
+      })(),
     });
     console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
   } catch (err) {

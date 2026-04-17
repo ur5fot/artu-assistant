@@ -17,13 +17,22 @@ export interface InteractionDeps {
   commandService: CommandService;
 }
 
+// Parses the description rendered by buildPermissionEmbed —
+// "Tool: `<name>`\n<argsSummary>" — back into its original parts so
+// we can rebuild the embed without nesting a prior description inside itself.
+function parsePermissionDescription(description: string): { toolName: string; argsSummary: string } {
+  const match = description.match(/^Tool: `([^`]*)`\n?([\s\S]*)$/);
+  if (!match) return { toolName: '', argsSummary: description };
+  return { toolName: match[1] ?? '', argsSummary: match[2] ?? '' };
+}
+
 export async function routeInteraction(
   interaction: Interaction,
   deps: InteractionDeps,
 ): Promise<void> {
   if (!deps.whitelist.has(interaction.user.id)) {
     if ('reply' in interaction && typeof (interaction as any).reply === 'function') {
-      await (interaction as any).reply({ content: 'Not authorized.', ephemeral: true, flags: MessageFlags.Ephemeral });
+      await (interaction as any).reply({ content: 'Not authorized.', flags: MessageFlags.Ephemeral });
     }
     return;
   }
@@ -72,10 +81,14 @@ async function routeButton(
   if (domain === 'perm') {
     const callId = rawId ?? '';
     if (!deps.permissionService.hasPending(callId)) {
+      const msgEmbed = (ixn as any).message?.embeds?.[0];
+      const { toolName, argsSummary } = parsePermissionDescription(
+        msgEmbed?.description ?? '',
+      );
       const { embed } = buildPermissionEmbed({
         callId,
-        toolName: '',
-        argsSummary: '',
+        toolName,
+        argsSummary,
         state: 'expired',
       });
       await (ixn as any).update({ embeds: [embed], components: [] });
@@ -90,10 +103,13 @@ async function routeButton(
     else return;
     deps.permissionService.resolveConfirm(callId, allowed, remember);
     const msgEmbed = (ixn as any).message?.embeds?.[0];
+    const { toolName, argsSummary } = parsePermissionDescription(
+      msgEmbed?.description ?? '',
+    );
     const { embed } = buildPermissionEmbed({
       callId,
-      toolName: msgEmbed?.title ?? '',
-      argsSummary: msgEmbed?.description ?? '',
+      toolName,
+      argsSummary,
       state: finalState,
     });
     await (ixn as any).update({ embeds: [embed], components: [] });
@@ -136,7 +152,7 @@ async function routeSlashCommand(
   const name = ixn.commandName;
   if (name === 'clear') {
     await (ixn as any).reply({
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
       content: 'Clear all chat history?',
       components: [
         {
@@ -153,7 +169,7 @@ async function routeSlashCommand(
   if (name === 'status') {
     const s = deps.commandService.status();
     await (ixn as any).reply({
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
       content:
         `**Status**\n` +
         `Model: \`${s.model}\`\n` +
@@ -168,7 +184,7 @@ async function routeSlashCommand(
     const content = list.length === 0
       ? 'No active reminders.'
       : list.map((r) => `#${r.id} · ${r.text} · ${new Date(r.next_fire_at_ms).toISOString()}`).join('\n');
-    await (ixn as any).reply({ ephemeral: true, content });
+    await (ixn as any).reply({ flags: MessageFlags.Ephemeral, content });
     return;
   }
   if (name === 'memory') {
@@ -181,7 +197,7 @@ async function routeSlashCommand(
         : result.entries
             .map((e) => `- ${e.text}${e.timestamp ? ` (${new Date(e.timestamp).toISOString()})` : ''}`)
             .join('\n');
-    await (ixn as any).reply({ ephemeral: true, content });
+    await (ixn as any).reply({ flags: MessageFlags.Ephemeral, content });
     return;
   }
 }

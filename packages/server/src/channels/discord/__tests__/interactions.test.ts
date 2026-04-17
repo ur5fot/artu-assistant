@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { MessageFlags } from 'discord.js';
 import { routeInteraction } from '../interactions.js';
 import type { ReminderService } from '../../../services/reminder-service.js';
 import type { PermissionService } from '../../../services/permission-service.js';
@@ -50,7 +51,7 @@ describe('routeInteraction — reminder buttons', () => {
     const deps = makeDeps();
     const ixn = makeButtonInteraction({ user: { id: 'evil' } });
     await routeInteraction(ixn, deps);
-    expect(ixn.reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }));
+    expect(ixn.reply).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.Ephemeral }));
     expect(deps.reminderService.dismiss).not.toHaveBeenCalled();
   });
 
@@ -176,7 +177,7 @@ describe('routeInteraction — slash commands', () => {
     await routeInteraction(ixn, deps);
     expect(deps.commandService.status).toHaveBeenCalled();
     expect(ixn.reply).toHaveBeenCalledWith(
-      expect.objectContaining({ ephemeral: true }),
+      expect.objectContaining({ flags: MessageFlags.Ephemeral }),
     );
   });
 
@@ -193,7 +194,7 @@ describe('routeInteraction — slash commands', () => {
     const ixn = makeSlashInteraction({ commandName: 'reminders' });
     await routeInteraction(ixn, deps);
     expect(ixn.reply).toHaveBeenCalledWith(
-      expect.objectContaining({ ephemeral: true, content: expect.stringContaining('a') }),
+      expect.objectContaining({ flags: MessageFlags.Ephemeral, content: expect.stringContaining('a') }),
     );
   });
 
@@ -213,7 +214,7 @@ describe('routeInteraction — slash commands', () => {
     await routeInteraction(ixn, deps);
     expect(ixn.reply).toHaveBeenCalledWith(
       expect.objectContaining({
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
         content: expect.stringContaining('Clear'),
         components: expect.any(Array),
       }),
