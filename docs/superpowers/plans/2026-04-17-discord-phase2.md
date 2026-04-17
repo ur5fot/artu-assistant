@@ -723,7 +723,7 @@ git commit -m "feat(discord): buildDiffAttachment factory"
 - Modify: `packages/server/src/channels/discord/embeds.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/embeds.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `embeds.test.ts`:
 
@@ -775,9 +775,9 @@ describe('buildPermissionsListReply', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests** — expect FAIL.
+- [x] **Step 2: Run tests** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `embeds.ts`:
 
@@ -820,9 +820,9 @@ export function buildPermissionsListReply(
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/embeds.ts packages/server/src/channels/discord/__tests__/embeds.test.ts

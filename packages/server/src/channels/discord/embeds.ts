@@ -205,3 +205,42 @@ export function buildPlanReviewChunks(opts: {
 
   return out;
 }
+
+export interface PermissionsListReply {
+  content: string;
+  embeds: EmbedBuilder[];
+  components: ActionRowBuilder<ButtonBuilder>[];
+}
+
+const MAX_REVOKE_BUTTONS = 5;
+
+export function buildPermissionsListReply(
+  rules: Array<{ toolName: string; allowed: boolean }>,
+): PermissionsListReply {
+  if (rules.length === 0) {
+    return { content: 'No saved permission rules.', embeds: [], components: [] };
+  }
+
+  const lines = rules.map((r) => `${r.allowed ? '✅' : '❌'} \`${r.toolName}\``);
+  const embed = new EmbedBuilder()
+    .setTitle('📋 Saved permission rules')
+    .setDescription(lines.join('\n'));
+
+  const visible = rules.slice(0, MAX_REVOKE_BUTTONS);
+  if (rules.length > MAX_REVOKE_BUTTONS) {
+    embed.setFooter({
+      text: `Showing ${MAX_REVOKE_BUTTONS} of ${rules.length}. Revoke some and re-open /permissions.`,
+    });
+  }
+
+  const rows = visible.map((r) =>
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`perm_rule:revoke:${r.toolName}`)
+        .setLabel(`Revoke ${r.toolName}`)
+        .setStyle(ButtonStyle.Danger),
+    ),
+  );
+
+  return { content: '', embeds: [embed], components: rows };
+}
