@@ -1081,7 +1081,7 @@ git commit -m "chore(index): instantiate command-service"
 - Create: `packages/server/src/channels/discord/embeds.ts`
 - Create: `packages/server/src/channels/discord/__tests__/embeds.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // packages/server/src/channels/discord/__tests__/embeds.test.ts
@@ -1141,9 +1141,9 @@ describe('buildReminderEmbed', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/channels/discord/embeds.ts`:
 
@@ -1197,9 +1197,9 @@ export function buildReminderEmbed(opts: {
 }
 ```
 
-- [ ] **Step 4: Run tests** — 4 passing.
+- [x] **Step 4: Run tests** — 4 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/embeds.ts packages/server/src/channels/discord/__tests__/embeds.test.ts
