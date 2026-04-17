@@ -1,113 +1,52 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
-import Database from 'better-sqlite3';
+import request from 'supertest';
 import { createReminderRouter } from '../reminder.js';
-import { createReminderStore } from '../../reminders/store.js';
-import { reminderBus } from '../../reminders/bus.js';
+import type { ReminderService } from '../../services/reminder-service.js';
 
-function freshDb(): Database.Database {
-  const db = new Database(':memory:');
-  db.exec(`
-    CREATE TABLE reminders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      text TEXT NOT NULL,
-      schedule_json TEXT NOT NULL,
-      next_fire_at_ms INTEGER NOT NULL,
-      cycle_stage TEXT NOT NULL DEFAULT 'idle',
-      cycle_num INTEGER NOT NULL DEFAULT 0,
-      cycle_stage_ends_at_ms INTEGER,
-      active INTEGER NOT NULL DEFAULT 1,
-      created_at INTEGER NOT NULL
-    );
-  `);
-  return db;
+function makeService(overrides: Partial<ReminderService> = {}): ReminderService {
+  return {
+    dismiss: vi.fn().mockReturnValue({ ok: true }),
+    snooze: vi.fn().mockReturnValue({ ok: true, snoozedId: 42 }),
+    list: vi.fn().mockReturnValue([]),
+    ...overrides,
+  } as ReminderService;
 }
 
-async function post(app: express.Express, path: string, body: unknown): Promise<{ status: number; body: any }> {
-  return new Promise((resolve) => {
-    const req: any = {
-      method: 'POST',
-      url: path,
-      headers: { 'content-type': 'application/json' },
-      body,
-    };
-    const res: any = {
-      statusCode: 200,
-      setHeader: () => {},
-      status(code: number) { res.statusCode = code; return res; },
-      json(obj: any) { resolve({ status: res.statusCode, body: obj }); return res; },
-      send(data: any) { resolve({ status: res.statusCode, body: data }); return res; },
-    };
-    (app as any).handle(req, res);
-  });
+function makeApp(service: ReminderService) {
+  const app = express();
+  app.use(express.json());
+  app.use('/', createReminderRouter({ service }));
+  return app;
 }
 
-describe('reminder routes', () => {
-  let db: Database.Database;
-  let app: express.Express;
-
-  beforeEach(() => {
-    db = freshDb();
-    const store = createReminderStore({ db });
-    app = express();
-    app.use(express.json());
-    app.use('/api/reminder', createReminderRouter({ store, bus: reminderBus }));
-  });
-
-  it('POST /api/reminder/dismiss returns ok for an existing reminder', async () => {
-    const store = createReminderStore({ db });
-    const id = store.create('drink', { kind: 'once', at_iso: new Date(Date.now() + 60_000).toISOString() });
-    store.beginRing(id, Date.now());
-    const res = await post(app, '/api/reminder/dismiss', { id });
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-    const row = db.prepare('SELECT active FROM reminders WHERE id = ?').get(id) as any;
-    expect(row.active).toBe(0);
-  });
-
-  it('POST /api/reminder/dismiss 400 when body missing id', async () => {
-    const res = await post(app, '/api/reminder/dismiss', {});
+describe('reminder router', () => {
+  it('POST /dismiss — 400 on invalid id', async () => {
+    const app = makeApp(makeService());
+    const res = await request(app).post('/dismiss').send({ id: 'x' });
     expect(res.status).toBe(400);
   });
 
-  it('POST /api/reminder/dismiss works during paused phase', async () => {
-    const store = createReminderStore({ db });
-    const id = store.create('drink', { kind: 'once', at_iso: new Date(Date.now() + 60_000).toISOString() });
-    store.beginRing(id, Date.now());
-    store.advanceRingingToPaused(id, Date.now() + 60_000);
-    const res = await post(app, '/api/reminder/dismiss', { id });
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-  });
-
-  it('POST /api/reminder/dismiss 404 when reminder is idle', async () => {
-    const store = createReminderStore({ db });
-    const id = store.create('drink', { kind: 'once', at_iso: new Date(Date.now() + 60_000).toISOString() });
-    const res = await post(app, '/api/reminder/dismiss', { id });
+  it('POST /dismiss — 404 when service returns not_found', async () => {
+    const service = makeService({ dismiss: vi.fn().mockReturnValue({ ok: false, reason: 'not_found' }) });
+    const app = makeApp(service);
+    const res = await request(app).post('/dismiss').send({ id: 5 });
     expect(res.status).toBe(404);
   });
 
-  it('POST /api/reminder/snooze works during paused phase', async () => {
-    const store = createReminderStore({ db });
-    const id = store.create('drink', { kind: 'daily', hour: 9, minute: 0 });
-    store.beginRing(id, Date.now());
-    store.advanceRingingToPaused(id, Date.now() + 60_000);
-    const res = await post(app, '/api/reminder/snooze', { id });
+  it('POST /dismiss — 200 on success', async () => {
+    const service = makeService();
+    const app = makeApp(service);
+    const res = await request(app).post('/dismiss').send({ id: 5 });
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
+    expect(service.dismiss).toHaveBeenCalledWith(5);
   });
 
-  it('POST /api/reminder/snooze creates a new one-shot 10 minutes out', async () => {
-    const store = createReminderStore({ db });
-    const id = store.create('drink', { kind: 'daily', hour: 9, minute: 0 });
-    store.beginRing(id, Date.now());
-    const res = await post(app, '/api/reminder/snooze', { id });
+  it('POST /snooze — 200 with snoozedId', async () => {
+    const service = makeService({ snooze: vi.fn().mockReturnValue({ ok: true, snoozedId: 77 }) });
+    const app = makeApp(service);
+    const res = await request(app).post('/snooze').send({ id: 5 });
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(typeof res.body.snoozedId).toBe('number');
-    const rows = db.prepare('SELECT id, schedule_json FROM reminders').all() as any[];
-    expect(rows).toHaveLength(2);
-    const snoozed = rows.find((r) => r.id !== id)!;
-    expect(JSON.parse(snoozed.schedule_json).kind).toBe('once');
+    expect(res.body).toEqual({ ok: true, snoozedId: 77 });
   });
 });

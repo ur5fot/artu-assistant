@@ -18,6 +18,7 @@ import { createReminderStore } from './reminders/store.js';
 import { startScheduler } from './reminders/scheduler.js';
 import { reminderBus } from './reminders/bus.js';
 import { createReminderRouter } from './routes/reminder.js';
+import { createReminderService } from './services/reminder-service.js';
 import { createEventsRouter } from './routes/events.js';
 import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
@@ -160,6 +161,7 @@ if (ollamaForRouter) {
   console.log('[router] Local LLM disabled — all chat goes to Claude');
 }
 const reminderStore = createReminderStore({ db: getDb() });
+const reminderService = createReminderService({ store: reminderStore, bus: reminderBus });
 const stopScheduler = startScheduler({ store: reminderStore, db: getDb(), bus: reminderBus });
 
 const registry = createRegistry();
@@ -271,7 +273,7 @@ app.use('/api', createPermissionsRouter());
 app.use('/api', createMessagesRouter());
 app.use('/api', createMergeRouter());
 app.use('/api', createCommandsRouter(registry));
-app.use('/api/reminder', createReminderRouter({ store: reminderStore, bus: reminderBus }));
+app.use('/api/reminder', createReminderRouter({ service: reminderService }));
 app.use('/api/events', createEventsRouter({ bus: reminderBus, store: reminderStore }));
 if (piiVault) {
   app.use('/api', createPiiRouter(piiVault));

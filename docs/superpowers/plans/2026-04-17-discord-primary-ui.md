@@ -224,7 +224,7 @@ git commit -m "feat(services): add reminder-service wrapping store + bus"
 - Modify: `packages/server/src/routes/reminder.ts`
 - Test: `packages/server/src/routes/__tests__/reminder.test.ts` (new)
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/routes/__tests__/reminder.test.ts`:
 
@@ -283,7 +283,7 @@ describe('reminder router', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/routes/__tests__/reminder.test.ts
@@ -291,7 +291,7 @@ npx vitest run --root packages/server packages/server/src/routes/__tests__/remin
 
 Expected: FAIL — router still takes old `{ store, bus }` deps.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace contents of `packages/server/src/routes/reminder.ts`:
 
@@ -339,7 +339,7 @@ export function createReminderRouter(deps: Deps): Router {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/routes/__tests__/reminder.test.ts
@@ -347,7 +347,7 @@ npx vitest run --root packages/server packages/server/src/routes/__tests__/remin
 
 Expected: 4 passing.
 
-- [ ] **Step 5: Update `index.ts` wiring temporarily (compile fix only)**
+- [x] **Step 5: Update `index.ts` wiring temporarily (compile fix only)**
 
 Edit `packages/server/src/index.ts` — change the reminder router line:
 
@@ -362,7 +362,7 @@ app.use('/api/reminder', createReminderRouter({ service: reminderService }));
 
 (Place `createReminderService` call near where `reminderStore` is constructed, above `app.use`.)
 
-- [ ] **Step 6: Verify server still compiles**
+- [x] **Step 6: Verify server still compiles**
 
 ```bash
 npx vitest run --root packages/server
@@ -370,7 +370,7 @@ npx vitest run --root packages/server
 
 Expected: full server test suite passes.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/routes/reminder.ts packages/server/src/routes/__tests__/reminder.test.ts packages/server/src/index.ts
