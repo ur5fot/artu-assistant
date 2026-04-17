@@ -1214,7 +1214,7 @@ git commit -m "feat(discord): reminder embed factory"
 - Modify: `packages/server/src/channels/discord/bot.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Extend `DiscordBotDeps`**
+- [x] **Step 1: Extend `DiscordBotDeps`**
 
 In `bot.ts`, change `DiscordBotDeps`:
 
@@ -1234,7 +1234,7 @@ Also import the embed factory:
 import { buildReminderEmbed } from './embeds.js';
 ```
 
-- [ ] **Step 2: Update reminder listener**
+- [x] **Step 2: Update reminder listener**
 
 Replace the block starting `if (deps.reminderBus)` with:
 
@@ -1273,7 +1273,7 @@ if (deps.reminderBus) {
 }
 ```
 
-- [ ] **Step 3: Update existing `bot.test.ts` expectations**
+- [x] **Step 3: Update existing `bot.test.ts` expectations**
 
 In `bot.test.ts`, any test that asserted `dm.send('⏰ Купити рибу')` or similar plain-text reminder assertions now must assert on `dm.send({ embeds: [...], components: [...] })`. Update to:
 
@@ -1286,7 +1286,7 @@ expect(dmChannel.send).toHaveBeenCalledWith(
 );
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -1294,7 +1294,7 @@ npx vitest run --root packages/server
 
 Expected: passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts

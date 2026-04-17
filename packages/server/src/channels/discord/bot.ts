@@ -12,7 +12,9 @@ import type { EventEmitter } from 'node:events';
 import type Database from 'better-sqlite3';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { MemoryService } from '../../memory/service.js';
+import type { ReminderService } from '../../services/reminder-service.js';
 import { truncateMessages } from '../../routes/chat.js';
+import { buildReminderEmbed } from './embeds.js';
 
 export interface DiscordBotDeps {
   token: string;
@@ -41,6 +43,8 @@ export interface DiscordBotDeps {
   _client?: Client;
   /** Optional reminder event bus — when provided, reminder events are forwarded as Discord DMs. */
   reminderBus?: EventEmitter;
+  /** Reminder service — resolves reminder actions (dismiss/snooze) triggered by Discord buttons. */
+  reminderService?: ReminderService;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -283,22 +287,36 @@ export async function startDiscordBot(
     }
   }
 
-  // Subscribe to reminder events and forward to Discord DMs
+  // Track message ids for reminder embeds so we can edit them on dismiss/snooze/done
+  const reminderMessages = new Map<number, string[]>();
+
   let reminderListener: ((event: ServerPushEvent) => void) | null = null;
   if (deps.reminderBus) {
     reminderListener = (event: ServerPushEvent) => {
-      if (event.type !== 'reminder_ring' && event.type !== 'reminder_done') return;
       if (!client.isReady()) return;
-      const text = event.type === 'reminder_ring'
-        ? `⏰ ${event.text}`
-        : `⏰ пропущено: напоминание #${event.id}`;
-      for (const userId of deps.whitelist) {
-        client.users.fetch(userId).then((user) =>
-          user.createDM().then((dm) => dm.send(text)),
-        ).catch((err) =>
-          console.error('[discord] reminder DM failed:', err instanceof Error ? err.message : err),
-        );
+      if (event.type === 'reminder_ring') {
+        const { embed, components } = buildReminderEmbed({
+          id: event.id,
+          text: event.text,
+          state: 'ringing',
+        });
+        for (const userId of deps.whitelist) {
+          client.users
+            .fetch(userId)
+            .then((u) => u.createDM())
+            .then((dm) => dm.send({ embeds: [embed], components }))
+            .then((sent) => {
+              const list = reminderMessages.get(event.id) ?? [];
+              list.push(sent.id);
+              reminderMessages.set(event.id, list);
+            })
+            .catch((err) =>
+              console.error('[discord] reminder DM failed:', err instanceof Error ? err.message : err),
+            );
+        }
       }
+      // reminder_done / reminder_stop_ring / reminder_dismissed handling
+      // added in later steps once interaction handler exists.
     };
     deps.reminderBus.on('push', reminderListener);
   }

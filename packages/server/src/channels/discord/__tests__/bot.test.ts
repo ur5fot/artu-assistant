@@ -274,10 +274,11 @@ describe('retry on network error', () => {
 });
 
 describe('reminder delivery', () => {
-  it('sends DM on reminder_ring to whitelisted users', async () => {
+  it('sends embed DM with buttons on reminder_ring to whitelisted users', async () => {
     const reminderBus = new EventEmitter();
     const client = makeFakeClient();
     const fakeDm = makeDmChannel();
+    fakeDm.send = vi.fn().mockResolvedValue({ id: 'msg-1' });
     const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
     (client as any).users = {
       fetch: vi.fn().mockResolvedValue(fakeUser),
@@ -292,10 +293,15 @@ describe('reminder delivery', () => {
     reminderBus.emit('push', { type: 'reminder_ring', id: 1, text: 'Buy fish' });
     await delay(100);
 
-    expect(fakeDm.send).toHaveBeenCalledWith('⏰ Buy fish');
+    expect(fakeDm.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: expect.any(Array),
+        components: expect.any(Array),
+      }),
+    );
   });
 
-  it('sends DM on reminder_done', async () => {
+  it('does not send on reminder_done (handled via embed edit in later task)', async () => {
     const reminderBus = new EventEmitter();
     const client = makeFakeClient();
     const fakeDm = makeDmChannel();
@@ -312,7 +318,7 @@ describe('reminder delivery', () => {
     reminderBus.emit('push', { type: 'reminder_done', id: 1 });
     await delay(100);
 
-    expect(fakeDm.send).toHaveBeenCalledWith('⏰ пропущено: напоминание #1');
+    expect(fakeDm.send).not.toHaveBeenCalled();
   });
 });
 
