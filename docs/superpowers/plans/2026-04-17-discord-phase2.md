@@ -836,7 +836,7 @@ git commit -m "feat(discord): buildPermissionsListReply factory"
 **Files:**
 - Modify: `packages/server/src/channels/discord/slash-commands.ts`
 
-- [ ] **Step 1: Edit**
+- [x] **Step 1: Edit**
 
 Inside `SLASH_COMMAND_DEFINITIONS` array, append:
 
@@ -849,7 +849,7 @@ new SlashCommandBuilder()
 
 (Place before the final `.map((b) => b.toJSON())`.)
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -857,7 +857,7 @@ npx vitest run --root packages/server
 
 Expected: all green (no slash-command test directly asserts list; Task 8 validates via interaction router).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/slash-commands.ts
