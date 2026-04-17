@@ -21,6 +21,7 @@ import { createReminderRouter } from './routes/reminder.js';
 import { createReminderService } from './services/reminder-service.js';
 import { createPermissionService } from './services/permission-service.js';
 import { createPlanReviewService } from './services/plan-review-service.js';
+import { createCommandService } from './services/command-service.js';
 import { createEventsRouter } from './routes/events.js';
 import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
@@ -191,6 +192,18 @@ if (memoryEnabled && ollamaForMemory) {
 } else {
   console.log('[memory] disabled');
 }
+
+const serverStartedAt = Date.now();
+const commandService = createCommandService({
+  db: getDb(),
+  reminderService,
+  permissionService,
+  memoryService,
+  pendingConfirmsCount: () => pendingConfirms.size,
+  modelName: process.env.MODEL_NAME || 'claude-opus-4-7',
+  startedAt: serverStartedAt,
+});
+void commandService; // wired to Discord slash handlers in Task 17
 
 // Bound runLoop closure — tool factories use this for recursive agent calls
 const runLoopFn = (params: {

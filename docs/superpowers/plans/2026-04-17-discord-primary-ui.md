@@ -1037,7 +1037,7 @@ git commit -m "feat(services): add command-service for slash commands"
 **Files:**
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Edit index.ts**
+- [x] **Step 1: Edit index.ts**
 
 Near where the other services are constructed, add:
 
@@ -1058,7 +1058,7 @@ const commandService = createCommandService({
 
 No route changes in this step — command-service is used only by Discord slash handlers (Task 14).
 
-- [ ] **Step 2: Verify compile + tests**
+- [x] **Step 2: Verify compile + tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -1066,7 +1066,7 @@ npx vitest run --root packages/server
 
 Expected: all green.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/index.ts
