@@ -13,8 +13,12 @@ import type Database from 'better-sqlite3';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { MemoryService } from '../../memory/service.js';
 import type { ReminderService } from '../../services/reminder-service.js';
+import type { PermissionService } from '../../services/permission-service.js';
+import type { PlanReviewService } from '../../services/plan-review-service.js';
+import type { CommandService } from '../../services/command-service.js';
 import { truncateMessages } from '../../routes/chat.js';
-import { buildReminderEmbed } from './embeds.js';
+import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
+import { routeInteraction } from './interactions.js';
 
 export interface DiscordBotDeps {
   token: string;
@@ -45,6 +49,12 @@ export interface DiscordBotDeps {
   reminderBus?: EventEmitter;
   /** Reminder service — resolves reminder actions (dismiss/snooze) triggered by Discord buttons. */
   reminderService?: ReminderService;
+  /** Permission service — resolves tool confirm requests triggered by Discord buttons. */
+  permissionService?: PermissionService;
+  /** Plan review service — resolves plan reviews triggered by Discord buttons. */
+  planReviewService?: PlanReviewService;
+  /** Command service — slash command implementations. */
+  commandService?: CommandService;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -62,6 +72,17 @@ export function isRetryableError(err: unknown): boolean {
     msg.includes('network') ||
     msg.includes('connect timeout')
   );
+}
+
+function summarizeArgs(input: Record<string, unknown>): string {
+  const pairs: string[] = [];
+  for (const [k, v] of Object.entries(input)) {
+    const val = typeof v === 'string' ? v : JSON.stringify(v);
+    const short = val.length > 100 ? val.slice(0, 100) + '…' : val;
+    pairs.push(`${k}: \`${short}\``);
+    if (pairs.join('\n').length > 1500) break;
+  }
+  return pairs.join('\n');
 }
 
 export async function sendReply(channel: DMChannel, text: string): Promise<void> {
@@ -125,6 +146,24 @@ export async function startDiscordBot(
   client.on('warn', (m) => console.warn('[discord] warn:', m));
   client.on('shardDisconnect', (e, id) => console.warn('[discord] shardDisconnect', id, e.code, e.reason));
   client.on('shardError', (e) => console.error('[discord] shardError:', e.message));
+
+  client.on('interactionCreate', async (interaction) => {
+    try {
+      if (!deps.reminderService || !deps.permissionService || !deps.planReviewService || !deps.commandService) {
+        console.warn('[discord] interaction received but services not wired');
+        return;
+      }
+      await routeInteraction(interaction, {
+        whitelist: deps.whitelist,
+        reminderService: deps.reminderService,
+        permissionService: deps.permissionService,
+        planReviewService: deps.planReviewService,
+        commandService: deps.commandService,
+      });
+    } catch (err) {
+      console.error('[discord] interaction error:', err instanceof Error ? err.message : err);
+    }
+  });
 
   client.on('messageCreate', async (msg: Message) => {
     if (msg.author.bot) return;
@@ -197,39 +236,74 @@ export async function startDiscordBot(
       });
 
       let buffer = '';
-      let replyPromise: Promise<void> | null = null;
+      let assistantText = '';
       let errorSent = false;
+      let sendChain: Promise<void> = Promise.resolve();
+
+      const flush = async () => {
+        if (!buffer) return;
+        await sendReply(dmChannel, buffer);
+        sendSucceeded = true;
+        buffer = '';
+      };
 
       for (let attempt = 0; ; attempt++) {
         buffer = '';
-        replyPromise = null;
+        assistantText = '';
         errorSent = false;
+        sendChain = Promise.resolve();
 
         try {
           await deps.runChatRequest({
             messages,
             signal: ac.signal,
             onEvent: (event: SSEEvent) => {
-              if (event.type === 'text_delta') {
-                buffer += event.content;
-              } else if (event.type === 'done' && !errorSent) {
-                const text = buffer || '(No response generated.)';
-                replyPromise = sendReply(dmChannel, text)
-                  .then(() => { sendSucceeded = true; })
-                  .catch((err) => {
-                    console.error('[discord] failed to send reply:', err);
-                  });
-              } else if (event.type === 'error' && !errorSent) {
-                errorSent = true;
-                console.error('[discord] chat error event:', event.message);
-                dmChannel
-                  .send('⚠️ Something went wrong. Please try again later.')
-                  .catch((err) =>
-                    console.error('[discord] failed to send error:', err),
-                  );
-              }
+              sendChain = sendChain
+                .then(async () => {
+                  if (event.type === 'text_delta') {
+                    buffer += event.content;
+                    assistantText += event.content;
+                    return;
+                  }
+                  if (event.type === 'tool_confirm_request') {
+                    await flush();
+                    const argsSummary = summarizeArgs(event.toolCall.input);
+                    const { embed, components } = buildPermissionEmbed({
+                      callId: event.toolCall.id,
+                      toolName: event.toolCall.name,
+                      argsSummary,
+                      state: 'pending',
+                    });
+                    await dmChannel.send({ embeds: [embed], components });
+                    return;
+                  }
+                  if (event.type === 'tool_plan_review') {
+                    await flush();
+                    const chunks = buildPlanReviewChunks({ callId: event.id, plan: event.plan });
+                    for (const c of chunks) {
+                      await dmChannel.send({
+                        content: c.content ?? '',
+                        components: c.components ?? [],
+                      });
+                    }
+                    return;
+                  }
+                  if (event.type === 'done' && !errorSent) {
+                    await flush();
+                    return;
+                  }
+                  if (event.type === 'error' && !errorSent) {
+                    errorSent = true;
+                    console.error('[discord] chat error event:', event.message);
+                    await flush();
+                    await dmChannel.send('⚠️ Something went wrong. Please try again later.');
+                    return;
+                  }
+                })
+                .catch((err) => console.error('[discord] onEvent chain error:', err));
             },
           });
+          await sendChain;
           break;
         } catch (err) {
           if (attempt >= RETRY_DELAYS.length || ac.signal.aborted || !isRetryableError(err)) {
@@ -244,15 +318,13 @@ export async function startDiscordBot(
       clearInterval(typingInterval);
       clearTimeout(timer);
 
-      await replyPromise;
-
       if (ac.signal.aborted && !sendSucceeded) {
         await sendReply(dmChannel, '⏱️ Request timed out. Please try again.');
-      } else if (buffer && sendSucceeded) {
+      } else if (assistantText && sendSucceeded) {
         deps.saveMessage({
           messageId: crypto.randomUUID(),
           role: 'assistant',
-          content: buffer,
+          content: assistantText,
           timestamp: Date.now(),
           source,
         });
@@ -261,7 +333,7 @@ export async function startDiscordBot(
           deps.memoryService
             .indexTurn({
               userMessage: msg.content,
-              assistantMessage: buffer,
+              assistantMessage: assistantText,
               timestamp: Date.now(),
             })
             .catch((err) =>

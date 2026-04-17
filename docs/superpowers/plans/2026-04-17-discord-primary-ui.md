@@ -1932,7 +1932,7 @@ git commit -m "test(discord): permission and plan-review interaction tests"
 
 This is the central change that makes Discord usable mid-stream.
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Add to `bot.test.ts`:
 
@@ -1993,9 +1993,9 @@ describe('mid-stream tool_confirm_request handling', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL (bot doesn't handle `tool_confirm_request` yet).
+- [x] **Step 2: Run test** — expect FAIL (bot doesn't handle `tool_confirm_request` yet).
 
-- [ ] **Step 3: Extend `DiscordBotDeps` with all services**
+- [x] **Step 3: Extend `DiscordBotDeps` with all services**
 
 ```ts
 export interface DiscordBotDeps {
@@ -2027,7 +2027,7 @@ import { buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
 import { routeInteraction } from './interactions.js';
 ```
 
-- [ ] **Step 4: Refactor `onEvent` inside `handleMessage`**
+- [x] **Step 4: Refactor `onEvent` inside `handleMessage`**
 
 Replace the current `onEvent` inline closure with:
 
@@ -2113,7 +2113,7 @@ let sendChain: Promise<void> = Promise.resolve();
 
 before the retry loop.
 
-- [ ] **Step 5: Add `interactionCreate` hook**
+- [x] **Step 5: Add `interactionCreate` hook**
 
 In `startDiscordBot`, after other event wires:
 
@@ -2133,7 +2133,7 @@ client.on('interactionCreate', async (interaction) => {
 });
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/channels/discord
@@ -2141,7 +2141,7 @@ npx vitest run --root packages/server packages/server/src/channels/discord
 
 Expected: all existing + new tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts
