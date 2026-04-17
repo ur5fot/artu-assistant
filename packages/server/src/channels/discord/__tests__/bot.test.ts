@@ -1102,6 +1102,84 @@ describe('tool_call_result handling', () => {
   });
 });
 
+describe('escalation prefix', () => {
+  it('ollama → claude: prefix on first flush', async () => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: any) => {
+      onEvent({ type: 'assistant_source', source: 'ollama' } as SSEEvent);
+      onEvent({ type: 'text_delta', content: 'hi' } as SSEEvent);
+      onEvent({ type: 'assistant_source', source: 'claude' } as SSEEvent);
+      onEvent({ type: 'text_delta', content: ' world' } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+    const { msg, channel } = makeMessage({ author: { bot: false, id: '123' } });
+
+    client.emit('messageCreate', msg as any);
+    await delay(100);
+
+    const textCalls = (channel.send as any).mock.calls
+      .filter((c: any[]) => typeof c[0] === 'string');
+    expect(textCalls.length).toBe(1);
+    expect(textCalls[0][0]).toBe('🔵 claude\n\nhi world');
+  });
+
+  it('claude only (no prior ollama): no prefix', async () => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: any) => {
+      onEvent({ type: 'assistant_source', source: 'claude' } as SSEEvent);
+      onEvent({ type: 'text_delta', content: 'hello' } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+    const { msg, channel } = makeMessage({ author: { bot: false, id: '123' } });
+
+    client.emit('messageCreate', msg as any);
+    await delay(100);
+
+    const textCalls = (channel.send as any).mock.calls
+      .filter((c: any[]) => typeof c[0] === 'string');
+    expect(textCalls.length).toBe(1);
+    expect(textCalls[0][0]).toBe('hello');
+  });
+});
+
 describe('sendReply', () => {
   it('sends short text in one message', async () => {
     const ch = makeDmChannel();

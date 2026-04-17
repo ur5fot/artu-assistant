@@ -326,10 +326,17 @@ export async function startDiscordBot(
       // stream finishes so retry/outer-catch can send a user-visible fallback
       // instead of silently leaving sendSucceeded=false.
       let sendError: unknown = null;
+      let sawOllama = false;
+      let escalated = false;
 
       const flush = async () => {
         if (!buffer) return;
-        await sendReply(dmChannel, buffer);
+        let text = buffer;
+        if (escalated) {
+          text = `🔵 claude\n\n${text}`;
+          escalated = false;
+        }
+        await sendReply(dmChannel, text);
         sendSucceeded = true;
         buffer = '';
       };
@@ -346,6 +353,8 @@ export async function startDiscordBot(
         errorSent = false;
         sendChain = Promise.resolve();
         sendError = null;
+        sawOllama = false;
+        escalated = false;
 
         try {
           await deps.runChatRequest({
@@ -356,6 +365,14 @@ export async function startDiscordBot(
                 if (event.type === 'text_delta') {
                   buffer += event.content;
                   assistantText += event.content;
+                  return;
+                }
+                if (event.type === 'assistant_source') {
+                  if (event.source === 'ollama') {
+                    sawOllama = true;
+                  } else if (event.source === 'claude' && sawOllama) {
+                    escalated = true;
+                  }
                   return;
                 }
                 if (event.type === 'tool_call_start') {
