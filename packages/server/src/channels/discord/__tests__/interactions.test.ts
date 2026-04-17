@@ -87,3 +87,69 @@ describe('routeInteraction — reminder buttons', () => {
     );
   });
 });
+
+describe('routeInteraction — permission buttons', () => {
+  it('perm:allow_once resolves with allowed=true, remember=false', async () => {
+    const deps = makeDeps();
+    const ixn = makeButtonInteraction({
+      customId: 'perm:allow_once:call-42',
+      message: { embeds: [{ title: '🔐 Permission request', description: 'Tool: x' }] },
+    });
+    await routeInteraction(ixn, deps);
+    expect(deps.permissionService.resolveConfirm).toHaveBeenCalledWith('call-42', true, false);
+    expect(ixn.update).toHaveBeenCalledWith(
+      expect.objectContaining({ components: [] }),
+    );
+  });
+
+  it('perm:allow_always resolves with allowed=true, remember=true', async () => {
+    const deps = makeDeps();
+    const ixn = makeButtonInteraction({
+      customId: 'perm:allow_always:call-42',
+      message: { embeds: [{}] },
+    });
+    await routeInteraction(ixn, deps);
+    expect(deps.permissionService.resolveConfirm).toHaveBeenCalledWith('call-42', true, true);
+  });
+
+  it('perm:deny resolves with allowed=false', async () => {
+    const deps = makeDeps();
+    const ixn = makeButtonInteraction({
+      customId: 'perm:deny:call-42',
+      message: { embeds: [{}] },
+    });
+    await routeInteraction(ixn, deps);
+    expect(deps.permissionService.resolveConfirm).toHaveBeenCalledWith('call-42', false, false);
+  });
+
+  it('perm:* — expired when service has no pending entry', async () => {
+    const deps = makeDeps({
+      permissionService: {
+        hasPending: vi.fn().mockReturnValue(false),
+        resolveConfirm: vi.fn(),
+      } as unknown as PermissionService,
+    });
+    const ixn = makeButtonInteraction({
+      customId: 'perm:allow_once:gone',
+      message: { embeds: [{}] },
+    });
+    await routeInteraction(ixn, deps);
+    expect(deps.permissionService.resolveConfirm).not.toHaveBeenCalled();
+    expect(ixn.update).toHaveBeenCalled();
+  });
+});
+
+describe('routeInteraction — plan review buttons', () => {
+  it('plan:approve resolves', async () => {
+    const deps = makeDeps();
+    const ixn = makeButtonInteraction({ customId: 'plan:approve:pp-1', message: { embeds: [{}] } });
+    await routeInteraction(ixn, deps);
+    expect(deps.planReviewService.resolveReview).toHaveBeenCalledWith('pp-1', true);
+  });
+  it('plan:reject resolves', async () => {
+    const deps = makeDeps();
+    const ixn = makeButtonInteraction({ customId: 'plan:reject:pp-1', message: { embeds: [{}] } });
+    await routeInteraction(ixn, deps);
+    expect(deps.planReviewService.resolveReview).toHaveBeenCalledWith('pp-1', false);
+  });
+});

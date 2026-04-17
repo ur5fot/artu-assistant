@@ -1841,7 +1841,7 @@ git commit -m "feat(discord): interaction router + reminder button handlers"
 
 Already mostly implemented in Task 13; this task adds dedicated tests.
 
-- [ ] **Step 1: Add tests**
+- [x] **Step 1: Add tests**
 
 Append to `interactions.test.ts`:
 
@@ -1913,9 +1913,9 @@ describe('routeInteraction — plan review buttons', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests** — all passing.
+- [x] **Step 2: Run tests** — all passing.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/__tests__/interactions.test.ts
