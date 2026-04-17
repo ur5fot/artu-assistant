@@ -286,7 +286,7 @@ git commit -m "feat(services): command-service listPermissionRules / revokePermi
 
 This task introduces the module with just the `running` state. Progress/done/error added in Task 4.
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/channels/discord/__tests__/tool-embeds.test.ts`:
 
@@ -336,13 +336,13 @@ describe('buildToolCallEmbed — running', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL (module does not exist).
+- [x] **Step 2: Run test** — expect FAIL (module does not exist).
 
 ```bash
 npx vitest run --root packages/server packages/server/src/channels/discord/__tests__/tool-embeds.test.ts
 ```
 
-- [ ] **Step 3: Implement minimal module**
+- [x] **Step 3: Implement minimal module**
 
 Create `packages/server/src/channels/discord/tool-embeds.ts`:
 
@@ -391,9 +391,9 @@ export function buildToolCallEmbed(opts: BuildToolCallEmbedOpts): EmbedBuilder |
 }
 ```
 
-- [ ] **Step 4: Run test** — expect 3 passing.
+- [x] **Step 4: Run test** — expect 3 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/tool-embeds.ts packages/server/src/channels/discord/__tests__/tool-embeds.test.ts
