@@ -2156,7 +2156,7 @@ git commit -m "feat(discord): mid-stream flush + permission/plan-review embeds i
 - Create: `packages/server/src/channels/discord/slash-commands.ts`
 - Modify: `packages/server/src/channels/discord/bot.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 Create `packages/server/src/channels/discord/slash-commands.ts`:
 
@@ -2186,7 +2186,7 @@ export const SLASH_COMMAND_DEFINITIONS = [
 ].map((b) => b.toJSON());
 ```
 
-- [ ] **Step 2: Register on `clientReady` in `bot.ts`**
+- [x] **Step 2: Register on `clientReady` in `bot.ts`**
 
 Inside the existing `clientReady` handler, after pre-caching DM channels:
 
@@ -2207,7 +2207,7 @@ Import:
 import { SLASH_COMMAND_DEFINITIONS } from './slash-commands.js';
 ```
 
-- [ ] **Step 3: Run server tests**
+- [x] **Step 3: Run server tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -2215,7 +2215,7 @@ npx vitest run --root packages/server
 
 Expected: green. (Bot tests that construct a fake client don't hit `application.commands.set` — it is guarded by `client.application`.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/slash-commands.ts packages/server/src/channels/discord/bot.ts

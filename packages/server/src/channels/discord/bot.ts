@@ -19,6 +19,7 @@ import type { CommandService } from '../../services/command-service.js';
 import { truncateMessages } from '../../routes/chat.js';
 import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
 import { routeInteraction } from './interactions.js';
+import { SLASH_COMMAND_DEFINITIONS } from './slash-commands.js';
 
 export interface DiscordBotDeps {
   token: string;
@@ -141,6 +142,14 @@ export async function startDiscordBot(
       } catch (err) {
         console.warn('[discord] failed to pre-cache DM for', userId, ':', err instanceof Error ? err.message : err);
       }
+    }
+    try {
+      if (client.application) {
+        await client.application.commands.set(SLASH_COMMAND_DEFINITIONS);
+        console.log('[discord] slash commands registered');
+      }
+    } catch (err) {
+      console.error('[discord] slash command registration failed:', err instanceof Error ? err.message : err);
     }
   });
   client.on('warn', (m) => console.warn('[discord] warn:', m));
