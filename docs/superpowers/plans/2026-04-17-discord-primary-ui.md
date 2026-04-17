@@ -825,7 +825,7 @@ git commit -m "refactor(routes): plan-review route uses plan-review-service"
 
 Also: locate the existing "clear chat history" logic. Check `packages/server/src/db.ts` for a function; if absent, use `DELETE FROM chat_messages` directly.
 
-- [ ] **Step 1: Inspect `db.ts`**
+- [x] **Step 1: Inspect `db.ts`**
 
 ```bash
 grep -n "chat_messages" packages/server/src/db.ts
@@ -833,7 +833,7 @@ grep -n "chat_messages" packages/server/src/db.ts
 
 Expected: find `saveMessage`, history retention. If no `clearChatHistory` exists, the service defines it.
 
-- [ ] **Step 2: Write failing test**
+- [x] **Step 2: Write failing test**
 
 ```ts
 // packages/server/src/services/__tests__/command-service.test.ts
@@ -906,9 +906,9 @@ describe('command-service', () => {
 });
 ```
 
-- [ ] **Step 3: Run test** — expect FAIL.
+- [x] **Step 3: Run test** — expect FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 Create `packages/server/src/services/command-service.ts`:
 
@@ -1011,7 +1011,7 @@ export function createCommandService(deps: Deps): CommandService {
 
 **Note:** `MemoryService`'s exact API must be verified before wiring. Before Step 5, inspect `packages/server/src/memory/service.ts` to see which methods exist (`searchSimilar`, `listRecent`, etc.). If both methods don't exist, replace with the nearest equivalents and update tests accordingly.
 
-- [ ] **Step 5: Verify MemoryService API**
+- [x] **Step 5: Verify MemoryService API**
 
 ```bash
 grep -n "export" packages/server/src/memory/service.ts
@@ -1019,11 +1019,11 @@ grep -n "export" packages/server/src/memory/service.ts
 
 Read matching methods and adjust `listMemory` to call the real API. If the current memory service has no search / listRecent, keep the `{ available: false, entries: [] }` fallback and add a TODO-free comment inside the code saying the method is not yet wired.
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Expected: 4 passing.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/services/command-service.ts packages/server/src/services/__tests__/command-service.test.ts
