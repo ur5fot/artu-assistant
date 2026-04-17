@@ -1593,7 +1593,7 @@ git commit -m "feat(discord): plan-review multi-message chunk builder"
 - Create: `packages/server/src/channels/discord/interactions.ts`
 - Create: `packages/server/src/channels/discord/__tests__/interactions.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ts
 // packages/server/src/channels/discord/__tests__/interactions.test.ts
@@ -1688,9 +1688,9 @@ describe('routeInteraction — reminder buttons', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/channels/discord/interactions.ts`:
 
@@ -1823,9 +1823,9 @@ async function routeSlashCommand(
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/interactions.ts packages/server/src/channels/discord/__tests__/interactions.test.ts
