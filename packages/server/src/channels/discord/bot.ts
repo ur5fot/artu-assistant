@@ -196,6 +196,10 @@ export async function startDiscordBot(
     let sendSucceeded = false;
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), timeoutMs);
+    type PendingEmbed =
+      | { callId: string; kind: 'perm'; messageIds: string[]; toolName: string; argsSummary: string }
+      | { callId: string; kind: 'plan'; messageIds: string[] };
+    const pendingEmbedMsgs: PendingEmbed[] = [];
     try {
       const dmChannel = msg.channel as DMChannel;
       await dmChannel.sendTyping();
@@ -283,18 +287,32 @@ export async function startDiscordBot(
                       argsSummary,
                       state: 'pending',
                     });
-                    await dmChannel.send({ embeds: [embed], components });
+                    const sent = await dmChannel.send({ embeds: [embed], components });
+                    pendingEmbedMsgs.push({
+                      callId: event.toolCall.id,
+                      kind: 'perm',
+                      messageIds: [sent.id],
+                      toolName: event.toolCall.name,
+                      argsSummary,
+                    });
                     return;
                   }
                   if (event.type === 'tool_plan_review') {
                     await flush();
                     const chunks = buildPlanReviewChunks({ callId: event.id, plan: event.plan });
+                    const sentIds: string[] = [];
                     for (const c of chunks) {
-                      await dmChannel.send({
+                      const sent = await dmChannel.send({
                         content: c.content ?? '',
                         components: c.components ?? [],
                       });
+                      sentIds.push(sent.id);
                     }
+                    pendingEmbedMsgs.push({
+                      callId: event.id,
+                      kind: 'plan',
+                      messageIds: sentIds,
+                    });
                     return;
                   }
                   if (event.type === 'done' && !errorSent) {
@@ -357,6 +375,39 @@ export async function startDiscordBot(
         '[discord] messageCreate handler error:',
         err instanceof Error ? err.message : err,
       );
+      try {
+        const dmChannel = msg.channel as DMChannel;
+        for (const pe of pendingEmbedMsgs) {
+          // Skip embeds that were already resolved by a button click —
+          // interactions.ts already edited them to their resolved state.
+          if (pe.kind === 'perm' && deps.permissionService && !deps.permissionService.hasPending(pe.callId)) {
+            continue;
+          }
+          if (pe.kind === 'plan' && deps.planReviewService && !deps.planReviewService.hasPending(pe.callId)) {
+            continue;
+          }
+          for (const mid of pe.messageIds) {
+            try {
+              const m = await dmChannel.messages.fetch(mid);
+              if (pe.kind === 'perm') {
+                const { embed } = buildPermissionEmbed({
+                  callId: pe.callId,
+                  toolName: pe.toolName,
+                  argsSummary: pe.argsSummary,
+                  state: 'expired',
+                });
+                await m.edit({ embeds: [embed], components: [] });
+              } else {
+                await m.edit({ components: [], content: '⚠️ expired' });
+              }
+            } catch {
+              // message gone or no permission — ignore
+            }
+          }
+        }
+      } catch {
+        // channel unreachable — ignore
+      }
       if (!sendSucceeded) {
         try {
           const dmChannel = msg.channel as DMChannel;

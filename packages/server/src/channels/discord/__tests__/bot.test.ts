@@ -14,9 +14,10 @@ function makeFakeClient() {
 }
 
 function makeDmChannel() {
+  let nextId = 0;
   return {
     type: ChannelType.DM,
-    send: vi.fn().mockResolvedValue(undefined),
+    send: vi.fn().mockImplementation(async () => ({ id: `msg-${++nextId}` })),
     sendTyping: vi.fn().mockResolvedValue(undefined),
   };
 }

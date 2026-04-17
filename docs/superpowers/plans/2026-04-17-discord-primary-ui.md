@@ -2552,7 +2552,7 @@ git commit -m "feat(discord): edit reminder embeds on done/dismiss/snooze"
 
 When the request timeout aborts mid-flow (e.g. user never clicks an approve button), edit any permission/plan-review messages the bot sent for this request to "expired."
 
-- [ ] **Step 1: Track pending embed message ids per request**
+- [x] **Step 1: Track pending embed message ids per request**
 
 Inside `handleMessage`, before the retry loop:
 
@@ -2569,7 +2569,7 @@ pendingEmbedMsgs.push({ callId: event.toolCall.id, kind: 'perm', messageIds: [se
 
 When sending a plan review group: collect all sent ids under one entry.
 
-- [ ] **Step 2: On timeout / error, edit them**
+- [x] **Step 2: On timeout / error, edit them**
 
 In the `catch (err)` block at the bottom of `handleMessage`, after `clearInterval(typingInterval)`:
 
@@ -2596,11 +2596,11 @@ for (const pe of pendingEmbedMsgs) {
 
 Also make sure the late click path (`hasPending` returning false) in `interactions.ts` already handles this — it does (Task 13).
 
-- [ ] **Step 3: Run tests**
+- [x] **Step 3: Run tests**
 
 Expected: existing tests still pass. No new unit test here — this is defensive code paths exercised in manual E2E.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts
