@@ -385,7 +385,7 @@ git commit -m "refactor(routes): reminder route uses reminder-service"
 - Create: `packages/server/src/services/permission-service.ts`
 - Create: `packages/server/src/services/__tests__/permission-service.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // packages/server/src/services/__tests__/permission-service.test.ts
@@ -420,13 +420,13 @@ describe('permission-service', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/services/__tests__/permission-service.test.ts
 ```
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/services/permission-service.ts`:
 
@@ -463,11 +463,11 @@ export function createPermissionService(deps: Deps): PermissionService {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Expected: 3 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/services/permission-service.ts packages/server/src/services/__tests__/permission-service.test.ts
