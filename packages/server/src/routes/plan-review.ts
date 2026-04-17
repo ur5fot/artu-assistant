@@ -1,12 +1,17 @@
-import { Router } from 'express';
-import type { Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import type { PlanReviewResponse } from '@r2/shared';
+import type { PlanReviewService } from '../services/plan-review-service.js';
 
 export type { PlanReviewResponse };
 export type PendingPlanReviews = Map<string, (response: PlanReviewResponse) => void>;
 
-export function createPlanReviewRouter(pendingPlanReviews: PendingPlanReviews): Router {
+interface Deps {
+  service: PlanReviewService;
+}
+
+export function createPlanReviewRouter(deps: Deps): Router {
   const router = Router();
+  const { service } = deps;
 
   router.post('/plan-review', (req: Request, res: Response) => {
     const { callId, approved, editedPlan } = req.body;
@@ -20,17 +25,15 @@ export function createPlanReviewRouter(pendingPlanReviews: PendingPlanReviews): 
       return;
     }
 
-    const resolve = pendingPlanReviews.get(callId);
-    if (!resolve) {
+    const result = service.resolveReview(
+      callId,
+      approved,
+      typeof editedPlan === 'string' ? editedPlan : undefined,
+    );
+    if (!result.ok) {
       res.status(404).json({ error: `Pending plan review "${callId}" not found` });
       return;
     }
-
-    pendingPlanReviews.delete(callId);
-    resolve({
-      approved,
-      editedPlan: typeof editedPlan === 'string' ? editedPlan : undefined,
-    });
     res.json({ ok: true });
   });
 

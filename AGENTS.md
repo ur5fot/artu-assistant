@@ -261,7 +261,7 @@ Usage:
 
 ### GET /api/events (Server-Sent Events)
 
-Постійний SSE-потік server→client push-подій. `EventSource('/api/events')` з клієнта. Heartbeat `:heartbeat` кожні 20s. Події: `reminder_ring`, `reminder_stop_ring`, `reminder_done` (див. `ServerPushEvent` у `@r2/shared`).
+Постійний SSE-потік server→client push-подій. `EventSource('/api/events')` з клієнта. Heartbeat `:heartbeat` кожні 20s. Події: `reminder_ring`, `reminder_stop_ring`, `reminder_done`, `reminder_dismissed`, `reminder_snoozed` (див. `ServerPushEvent` у `@r2/shared`).
 
 ### POST /api/reminder/dismiss
 
@@ -493,6 +493,7 @@ CLAUDE_HAIKU_MODEL=claude-haiku-4-5-20251001  # evaluator model
 # Discord bot (DM-only, whitelist-gated)
 DISCORD_BOT_TOKEN=                 # bot token; if unset the bot does not start
 DISCORD_ALLOWED_USER_IDS=          # comma-separated Discord user IDs; required when token is set
+DISCORD_REQUEST_TIMEOUT_MS=300000  # per-message request timeout; on expiry unresolved permission/plan-review embeds are edited to "⚠️ expired"
 # Local LLM router (Phase 4G)
 LOCAL_LLM_MODE=enabled            # enabled | disabled (chat router only; memory independent)
 OLLAMA_URL=http://localhost:11434
@@ -523,12 +524,30 @@ R2 can receive messages via Discord DMs in addition to the web UI. The bot is wh
 
 - `DISCORD_BOT_TOKEN` — bot token; if unset the bot does not start
 - `DISCORD_ALLOWED_USER_IDS` — comma-separated Discord user IDs; required when token is set
+- `DISCORD_REQUEST_TIMEOUT_MS` — per-message request timeout in ms (default 300000); on expiry unresolved permission/plan-review embeds are edited to `⚠️ expired`
+
+### Slash commands
+
+Available in DM with the bot:
+
+- `/clear` — Clear all chat history (confirms Yes/No)
+- `/status` — Show model, uptime, active reminders, pending permissions
+- `/reminders` — List active reminders
+- `/memory [query]` — List recent memory entries, or search when query provided
+
+### Interactive embeds
+
+- `reminder_ring` → embed with "Dismiss" / "Snooze 10m" buttons
+- `tool_confirm_request` → embed with "Allow once" / "Allow always" / "Deny" buttons
+- `tool_plan_review` → multi-chunk plan + "Approve" / "Reject" buttons
+
+Embeds are edited in place on resolution (success/denial) or request timeout (→ `⚠️ expired`). Button interactions land on `interactionCreate` and are routed through `channels/discord/interactions.ts` to services (`reminder-service`, `permission-service`, `plan-review-service`, `command-service`).
 
 ### Architecture
 
 The adapter lives in `packages/server/src/channels/discord/bot.ts`. It plugs directly into `runChatRequest` with `source='discord:<userId>'`, reusing the full pipeline (tool loop, memory, PII). Messages are isolated from web chat via the `source` column in `chat_messages`.
 
-The Discord bot also subscribes to `reminderBus` and forwards `reminder_ring`/`reminder_done` events as DMs to all whitelisted users. No additional configuration beyond the standard Discord bot setup is required.
+The Discord bot also subscribes to `reminderBus` and forwards `reminder_ring` events as interactive embeds to all whitelisted users; on `reminder_done`/`reminder_dismissed`/`reminder_snoozed` the corresponding embed is edited in place for the owning user. No additional configuration beyond the standard Discord bot setup is required.
 
 ## Self-deploy flow (Phase 3C+3D)
 

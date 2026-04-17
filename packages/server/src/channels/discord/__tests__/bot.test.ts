@@ -14,9 +14,10 @@ function makeFakeClient() {
 }
 
 function makeDmChannel() {
+  let nextId = 0;
   return {
     type: ChannelType.DM,
-    send: vi.fn().mockResolvedValue(undefined),
+    send: vi.fn().mockImplementation(async () => ({ id: `msg-${++nextId}` })),
     sendTyping: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -274,10 +275,11 @@ describe('retry on network error', () => {
 });
 
 describe('reminder delivery', () => {
-  it('sends DM on reminder_ring to whitelisted users', async () => {
+  it('sends embed DM with buttons on reminder_ring to whitelisted users', async () => {
     const reminderBus = new EventEmitter();
     const client = makeFakeClient();
     const fakeDm = makeDmChannel();
+    fakeDm.send = vi.fn().mockResolvedValue({ id: 'msg-1' });
     const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
     (client as any).users = {
       fetch: vi.fn().mockResolvedValue(fakeUser),
@@ -292,10 +294,15 @@ describe('reminder delivery', () => {
     reminderBus.emit('push', { type: 'reminder_ring', id: 1, text: 'Buy fish' });
     await delay(100);
 
-    expect(fakeDm.send).toHaveBeenCalledWith('⏰ Buy fish');
+    expect(fakeDm.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: expect.any(Array),
+        components: expect.any(Array),
+      }),
+    );
   });
 
-  it('sends DM on reminder_done', async () => {
+  it('does not send or edit anything on reminder_done when no ringing embed stored', async () => {
     const reminderBus = new EventEmitter();
     const client = makeFakeClient();
     const fakeDm = makeDmChannel();
@@ -312,7 +319,356 @@ describe('reminder delivery', () => {
     reminderBus.emit('push', { type: 'reminder_done', id: 1 });
     await delay(100);
 
-    expect(fakeDm.send).toHaveBeenCalledWith('⏰ пропущено: напоминание #1');
+    expect(fakeDm.send).not.toHaveBeenCalled();
+  });
+
+  async function setupRingAndCapture(eventType: 'reminder_done' | 'reminder_dismissed' | 'reminder_snoozed') {
+    const reminderBus = new EventEmitter();
+    const client = makeFakeClient();
+    const fakeDm = makeDmChannel();
+
+    const storedMsg = {
+      embeds: [{ title: '⏰ Buy fish' }],
+      edit: vi.fn().mockResolvedValue(undefined),
+    };
+    (fakeDm as any).messages = {
+      fetch: vi.fn().mockResolvedValue(storedMsg),
+    };
+    fakeDm.send = vi.fn().mockResolvedValue({ id: 'msg-1' });
+
+    const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
+    (client as any).users = {
+      fetch: vi.fn().mockResolvedValue(fakeUser),
+      cache: new Map([['123', fakeUser]]),
+    };
+
+    await setup({ _client: client as any, reminderBus });
+    (client as any).emit('clientReady');
+    await delay(50);
+
+    reminderBus.emit('push', { type: 'reminder_ring', id: 7, text: 'Buy fish' });
+    await delay(100);
+
+    reminderBus.emit('push', { type: eventType, id: 7 });
+    await delay(100);
+
+    return { fakeDm, storedMsg };
+  }
+
+  it('edits stored ringing embed to missed on reminder_done', async () => {
+    const { fakeDm, storedMsg } = await setupRingAndCapture('reminder_done');
+    expect((fakeDm as any).messages.fetch).toHaveBeenCalledWith('msg-1');
+    expect(storedMsg.edit).toHaveBeenCalledTimes(1);
+    const editArg = storedMsg.edit.mock.calls[0][0] as { embeds: any[]; components: any[] };
+    expect(editArg.components).toEqual([]);
+    const embedData = editArg.embeds[0].data ?? editArg.embeds[0];
+    expect(embedData.title).toBe('⏰ Buy fish');
+    expect(embedData.footer?.text).toContain('missed');
+  });
+
+  it('edits stored ringing embed to dismissed on reminder_dismissed', async () => {
+    const { storedMsg } = await setupRingAndCapture('reminder_dismissed');
+    expect(storedMsg.edit).toHaveBeenCalledTimes(1);
+    const editArg = storedMsg.edit.mock.calls[0][0] as { embeds: any[]; components: any[] };
+    const embedData = editArg.embeds[0].data ?? editArg.embeds[0];
+    expect(embedData.footer?.text).toContain('Dismissed');
+    expect(editArg.components).toEqual([]);
+  });
+
+  it('edits stored ringing embed to snoozed on reminder_snoozed', async () => {
+    const { storedMsg } = await setupRingAndCapture('reminder_snoozed');
+    expect(storedMsg.edit).toHaveBeenCalledTimes(1);
+    const editArg = storedMsg.edit.mock.calls[0][0] as { embeds: any[]; components: any[] };
+    const embedData = editArg.embeds[0].data ?? editArg.embeds[0];
+    expect(embedData.footer?.text).toContain('Snoozed');
+    expect(editArg.components).toEqual([]);
+  });
+
+  it('clears terminal state on new reminder_ring — recurring reminder re-rings keep buttons', async () => {
+    const reminderBus = new EventEmitter();
+    const client = makeFakeClient();
+    const fakeDm = makeDmChannel();
+    const storedMsg = {
+      embeds: [{ title: '⏰ Buy fish' }],
+      edit: vi.fn().mockResolvedValue(undefined),
+    };
+    (fakeDm as any).messages = { fetch: vi.fn().mockResolvedValue(storedMsg) };
+    const sendCalls: Array<{ id: string; edit: ReturnType<typeof vi.fn> }> = [];
+    fakeDm.send = vi.fn().mockImplementation(async () => {
+      const msg = { id: `msg-${sendCalls.length + 1}`, edit: vi.fn().mockResolvedValue(undefined) };
+      sendCalls.push(msg);
+      return msg;
+    });
+    const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
+    (client as any).users = {
+      fetch: vi.fn().mockResolvedValue(fakeUser),
+      cache: new Map([['123', fakeUser]]),
+    };
+
+    await setup({ _client: client as any, reminderBus });
+    (client as any).emit('clientReady');
+    await delay(50);
+
+    // First cycle: ring, then dismiss (sets terminal for id 7).
+    reminderBus.emit('push', { type: 'reminder_ring', id: 7, text: 'Buy fish' });
+    await delay(100);
+    reminderBus.emit('push', { type: 'reminder_dismissed', id: 7 });
+    await delay(100);
+
+    // Recurring reminder: scheduler fires the same id again.
+    reminderBus.emit('push', { type: 'reminder_ring', id: 7, text: 'Buy fish' });
+    await delay(100);
+
+    // The freshly-sent DM for the new cycle must NOT be immediately edited to
+    // a terminal state; the user needs the actionable buttons.
+    expect(sendCalls).toHaveLength(2);
+    expect(sendCalls[1]!.edit).not.toHaveBeenCalled();
+  });
+
+  it('ignores scheduler reminder_stop_ring — does not mislabel cycle pause as snoozed', async () => {
+    const reminderBus = new EventEmitter();
+    const client = makeFakeClient();
+    const fakeDm = makeDmChannel();
+    const storedMsg = {
+      embeds: [{ title: '⏰ Buy fish' }],
+      edit: vi.fn().mockResolvedValue(undefined),
+    };
+    (fakeDm as any).messages = { fetch: vi.fn().mockResolvedValue(storedMsg) };
+    fakeDm.send = vi.fn().mockResolvedValue({ id: 'msg-1' });
+    const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
+    (client as any).users = {
+      fetch: vi.fn().mockResolvedValue(fakeUser),
+      cache: new Map([['123', fakeUser]]),
+    };
+
+    await setup({ _client: client as any, reminderBus });
+    (client as any).emit('clientReady');
+    await delay(50);
+
+    reminderBus.emit('push', { type: 'reminder_ring', id: 7, text: 'Buy fish' });
+    await delay(100);
+
+    reminderBus.emit('push', { type: 'reminder_stop_ring', id: 7 });
+    await delay(100);
+
+    expect(storedMsg.edit).not.toHaveBeenCalled();
+  });
+
+});
+
+describe('mid-stream tool_confirm_request handling', () => {
+  it('flushes buffer, sends permission embed, then continues stream', async () => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: { onEvent: (e: SSEEvent) => void }) => {
+      onEvent({ type: 'text_delta', content: 'before ' } as SSEEvent);
+      onEvent({
+        type: 'tool_confirm_request',
+        toolCall: {
+          id: 'c-1',
+          name: 'files.write',
+          input: { path: '/tmp/x' },
+          status: 'running',
+        },
+        level: 'confirm',
+      } as SSEEvent);
+      onEvent({ type: 'text_delta', content: 'after' } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn().mockReturnValue(true),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: {
+        dismiss: vi.fn(),
+        snooze: vi.fn(),
+        list: vi.fn(),
+      } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        status: vi.fn(),
+        clearHistory: vi.fn(),
+        listReminders: vi.fn(),
+        listMemory: vi.fn(),
+      } as any,
+    });
+
+    const { msg, channel } = makeMessage();
+    client.emit('messageCreate', msg as any);
+    await delay(100);
+
+    const calls = (channel.send as any).mock.calls;
+    const textsSent = calls
+      .map((c: any[]) => (typeof c[0] === 'string' ? c[0] : ''))
+      .filter(Boolean);
+    const embedsSent = calls.filter(
+      (c: any[]) => typeof c[0] === 'object' && c[0] !== null && 'embeds' in c[0],
+    );
+    expect(textsSent).toEqual(expect.arrayContaining(['before ']));
+    expect(embedsSent.length).toBeGreaterThan(0);
+    expect(textsSent).toEqual(expect.arrayContaining(['after']));
+  });
+
+  it('flushes buffer and sends plan-review chunks on tool_plan_review', async () => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: { onEvent: (e: SSEEvent) => void }) => {
+      onEvent({ type: 'text_delta', content: 'analyzing ' } as SSEEvent);
+      onEvent({
+        type: 'tool_plan_review',
+        id: 'p-1',
+        task: 'refactor',
+        plan: 'step 1\nstep 2',
+      } as SSEEvent);
+      onEvent({ type: 'text_delta', content: 'next' } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: {
+        dismiss: vi.fn(),
+        snooze: vi.fn(),
+        list: vi.fn(),
+      } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        status: vi.fn(),
+        clearHistory: vi.fn(),
+        listReminders: vi.fn(),
+        listMemory: vi.fn(),
+      } as any,
+    });
+
+    const { msg, channel } = makeMessage();
+    client.emit('messageCreate', msg as any);
+    await delay(100);
+
+    const calls = (channel.send as any).mock.calls;
+    const textsSent = calls
+      .map((c: any[]) => (typeof c[0] === 'string' ? c[0] : ''))
+      .filter(Boolean);
+    expect(textsSent).toEqual(expect.arrayContaining(['analyzing ']));
+    const planChunkSent = calls.some(
+      (c: any[]) => typeof c[0] === 'object' && c[0] !== null && typeof c[0].content === 'string' && c[0].content.includes('📋 Plan review'),
+    );
+    expect(planChunkSent).toBe(true);
+    expect(textsSent).toEqual(expect.arrayContaining(['next']));
+  });
+
+  it('expires unresolved permission embed when runChatRequest finishes without user click', async () => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: { onEvent: (e: SSEEvent) => void }) => {
+      onEvent({
+        type: 'tool_confirm_request',
+        toolCall: {
+          id: 'c-99',
+          name: 'files.write',
+          input: { path: '/tmp/x' },
+          status: 'running',
+        },
+        level: 'confirm',
+      } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    // isResolvedByUser returns false — user never clicked the button.
+    // The finally block should expire the stored embed.
+    const sentEmbed = { id: 'perm-msg-1' };
+    const channel = makeDmChannel();
+    const fetchedMsg = { edit: vi.fn().mockResolvedValue(undefined) };
+    (channel as any).messages = { fetch: vi.fn().mockResolvedValue(fetchedMsg) };
+    channel.send = vi.fn().mockResolvedValue(sentEmbed);
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn().mockReturnValue(false),
+        isResolvedByUser: vi.fn().mockReturnValue(false),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(false),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        status: vi.fn(),
+        clearHistory: vi.fn(),
+        listReminders: vi.fn(),
+        listMemory: vi.fn(),
+      } as any,
+    });
+
+    const msg = {
+      author: { bot: false, id: '123' },
+      channel,
+      content: 'do a risky thing',
+    };
+    client.emit('messageCreate', msg as any);
+    await delay(150);
+
+    expect(fetchedMsg.edit).toHaveBeenCalled();
+    const editArg = (fetchedMsg.edit.mock.calls[0] as any[])[0] as { embeds: any[]; components: any[] };
+    const embedData = editArg.embeds[0].data ?? editArg.embeds[0];
+    expect(embedData.footer?.text).toContain('expired');
+    expect(editArg.components).toEqual([]);
+  });
+});
+
+describe('interactionCreate routing', () => {
+  it('delegates button interaction to routeInteraction', async () => {
+    const reminderService = {
+      dismiss: vi.fn().mockReturnValue({ ok: true }),
+      snooze: vi.fn(),
+      list: vi.fn(),
+    };
+    const { client } = await setup({
+      reminderService: reminderService as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(false),
+        resolveConfirm: vi.fn(),
+      } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(false),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        status: vi.fn(),
+        clearHistory: vi.fn(),
+        listReminders: vi.fn(),
+        listMemory: vi.fn(),
+      } as any,
+    });
+
+    const fakeInteraction = {
+      user: { id: '123' },
+      customId: 'reminder:dismiss:42',
+      isButton: () => true,
+      isChatInputCommand: () => false,
+      update: vi.fn().mockResolvedValue(undefined),
+      message: { embeds: [{ title: '⏰ Buy fish' }] },
+    };
+    client.emit('interactionCreate', fakeInteraction as any);
+    await delay(50);
+
+    expect(reminderService.dismiss).toHaveBeenCalledWith(42);
+    expect(fakeInteraction.update).toHaveBeenCalled();
   });
 });
 

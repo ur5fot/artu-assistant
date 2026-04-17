@@ -1,14 +1,12 @@
 import { Router, type Request, type Response } from 'express';
-import type { EventEmitter } from 'node:events';
-import type { ReminderStore } from '../reminders/store.js';
+import type { ReminderService } from '../services/reminder-service.js';
 
-interface ReminderRouterDeps {
-  store: ReminderStore;
-  bus: EventEmitter;
+interface Deps {
+  service: ReminderService;
 }
 
-export function createReminderRouter(deps: ReminderRouterDeps): Router {
-  const { store, bus } = deps;
+export function createReminderRouter(deps: Deps): Router {
+  const { service } = deps;
   const router = Router();
 
   router.post('/dismiss', (req: Request, res: Response) => {
@@ -17,13 +15,11 @@ export function createReminderRouter(deps: ReminderRouterDeps): Router {
       res.status(400).json({ error: 'id is required' });
       return;
     }
-    const existed = store.getById(id);
-    if (!existed || !existed.active || (existed.cycle_stage !== 'ringing' && existed.cycle_stage !== 'paused')) {
+    const result = service.dismiss(id);
+    if (!result.ok) {
       res.status(404).json({ error: 'not found' });
       return;
     }
-    store.dismiss(id, Date.now());
-    bus.emit('push', { type: 'reminder_dismissed', id });
     res.json({ ok: true });
   });
 
@@ -33,14 +29,12 @@ export function createReminderRouter(deps: ReminderRouterDeps): Router {
       res.status(400).json({ error: 'id is required' });
       return;
     }
-    const existed = store.getById(id);
-    if (!existed || !existed.active || (existed.cycle_stage !== 'ringing' && existed.cycle_stage !== 'paused')) {
+    const result = service.snooze(id);
+    if (!result.ok) {
       res.status(404).json({ error: 'not found' });
       return;
     }
-    const snoozedId = store.snooze(id, Date.now());
-    bus.emit('push', { type: 'reminder_stop_ring', id });
-    res.json({ ok: true, snoozedId });
+    res.json({ ok: true, snoozedId: result.snoozedId });
   });
 
   return router;
