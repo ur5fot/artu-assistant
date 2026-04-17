@@ -231,6 +231,10 @@ export async function startDiscordBot(
     const applyProgressEdit = async (callId: string, progress: string) => {
       const entry = toolCallMessages.get(callId);
       if (!entry || entry.final) return;
+      // Update lastEditAt up-front: if the edit fails, the cooldown still
+      // applies so we don't hammer Discord by retrying on every subsequent
+      // progress event.
+      entry.lastEditAt = Date.now();
       try {
         const dmChannel = msg.channel as DMChannel;
         const msgRef = await dmChannel.messages.fetch(entry.messageId);
@@ -245,7 +249,6 @@ export async function startDiscordBot(
           progress,
         });
         if (embed) await msgRef.edit({ embeds: [embed] });
-        entry.lastEditAt = Date.now();
       } catch {
         // Message deleted or Discord hiccup — ignore.
       }
@@ -342,10 +345,11 @@ export async function startDiscordBot(
       };
 
       for (let attempt = 0; ; attempt++) {
-        // If the previous attempt already produced visible output (text, embeds)
-        // do not retry — the user would see duplicated text or dangling embed
-        // references with a stale callId. Fall through to the outer error path.
-        if (attempt > 0 && (sendSucceeded || pendingEmbedMsgs.length > 0)) {
+        // If the previous attempt already produced visible output (text, embeds,
+        // tool-call embeds) do not retry — the user would see duplicated text
+        // or the freshly-sent embeds from attempt N+1 would leave attempt N's
+        // tool-call embeds orphaned in "running" state forever.
+        if (attempt > 0 && (sendSucceeded || pendingEmbedMsgs.length > 0 || toolCallMessages.size > 0)) {
           throw new Error('retry aborted: prior attempt already emitted output');
         }
         buffer = '';
@@ -441,9 +445,11 @@ export async function startDiscordBot(
                             err instanceof Error ? err.message : err);
                         }
                       } else if (diff && 'oversize' in diff) {
-                        const commitSha = data.commit ?? event.id;
+                        const suffix = data.commit
+                          ? `, saved in commit \`${data.commit.slice(0, 7)}\``
+                          : '';
                         try {
-                          await dmChannel.send(`⚠️ diff too large to attach, saved in commit \`${commitSha.slice(0, 7)}\``);
+                          await dmChannel.send(`⚠️ diff too large to attach${suffix}`);
                         } catch {
                           // ignore
                         }

@@ -99,7 +99,7 @@ export function buildToolCallEmbed(opts: BuildToolCallEmbedOpts): EmbedBuilder |
   }
 
   const display = opts.toolCall.result?.display?.content;
-  embed.setDescription(truncate(display ?? 'done', Math.min(DESCRIPTION_MAX, 500)));
+  embed.setDescription(truncate(display ?? 'done', 500));
   return embed;
 }
 

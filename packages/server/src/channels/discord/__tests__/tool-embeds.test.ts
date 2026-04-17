@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from '../tool-embeds.js';
+import { buildToolCallEmbed, buildDiffAttachment } from '../tool-embeds.js';
 import type { ToolCall } from '@r2/shared';
 
 function mkTool(overrides: Partial<ToolCall> = {}): ToolCall {
@@ -12,18 +12,19 @@ function mkTool(overrides: Partial<ToolCall> = {}): ToolCall {
   };
 }
 
-describe('SILENT_TOOLS', () => {
-  it('contains memory_search and memory_save', () => {
-    expect(SILENT_TOOLS).toContain('memory_search');
-    expect(SILENT_TOOLS).toContain('memory_save');
-  });
-});
-
 describe('buildToolCallEmbed — running', () => {
-  it('returns null for silent tools', () => {
+  it('returns null for silent tools (memory_search)', () => {
     const result = buildToolCallEmbed({
       state: 'running',
       toolCall: mkTool({ name: 'memory_search' }),
+    });
+    expect(result).toBeNull();
+  });
+
+  it('returns null for silent tools (memory_save)', () => {
+    const result = buildToolCallEmbed({
+      state: 'running',
+      toolCall: mkTool({ name: 'memory_save' }),
     });
     expect(result).toBeNull();
   });

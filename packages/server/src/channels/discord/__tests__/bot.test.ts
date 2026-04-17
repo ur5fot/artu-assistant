@@ -755,7 +755,7 @@ describe('tool_call_start handling', () => {
 });
 
 describe('tool_progress handling (debounced)', () => {
-  it('fires immediate edit on first progress, then respects 800ms cooldown', async () => {
+  it('progress events within 800ms cooldown collapse to one trailing edit', async () => {
     const editMock = vi.fn().mockResolvedValue(undefined);
     const runChatRequest = vi.fn<any>(async ({ onEvent }: any) => {
       onEvent({

@@ -273,7 +273,7 @@ describe('routeInteraction — /permissions', () => {
     await routeInteraction(ixn, deps);
     expect(ixn.reply).toHaveBeenCalledWith(
       expect.objectContaining({
-        flags: expect.anything(),
+        flags: MessageFlags.Ephemeral,
         content: 'No saved permission rules.',
       }),
     );
@@ -295,6 +295,7 @@ describe('routeInteraction — /permissions', () => {
     const ixn = makeSlashInteraction({ commandName: 'permissions' });
     await routeInteraction(ixn, deps);
     const call = (ixn.reply as any).mock.calls[0][0];
+    expect(call.flags).toBe(MessageFlags.Ephemeral);
     expect(call.embeds).toBeDefined();
     expect(call.components?.length).toBeGreaterThan(0);
   });
