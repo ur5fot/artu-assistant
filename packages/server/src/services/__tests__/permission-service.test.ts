@@ -26,4 +26,21 @@ describe('permission-service', () => {
     const svc = createPermissionService({ pending });
     expect(svc.resolveConfirm('c-x', true, false)).toEqual({ ok: false, reason: 'not_found' });
   });
+
+  it('isResolvedByUser: true only after resolveConfirm, distinguishes from abort-clearing', () => {
+    const pending: PendingConfirms = new Map();
+    pending.set('c1', () => {});
+    pending.set('c2', () => {});
+    const svc = createPermissionService({ pending });
+
+    expect(svc.isResolvedByUser('c1')).toBe(false);
+    expect(svc.isResolvedByUser('c2')).toBe(false);
+
+    svc.resolveConfirm('c1', true, false);
+    // c2 cleared by abort (simulated: direct delete, bypassing service)
+    pending.delete('c2');
+
+    expect(svc.isResolvedByUser('c1')).toBe(true);
+    expect(svc.isResolvedByUser('c2')).toBe(false);
+  });
 });

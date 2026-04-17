@@ -32,7 +32,12 @@ export function createReminderService(deps: Deps): ReminderService {
       const row = store.getById(id);
       if (!isActionable(row)) return { ok: false, reason: 'not_found' };
       const snoozedId = store.snooze(id, now());
+      // `reminder_stop_ring` keeps web audio parity (silences the alarm);
+      // `reminder_snoozed` is a distinct signal so Discord can mark the embed
+      // as snoozed without colliding with the scheduler's internal
+      // ringing→paused transition, which also emits reminder_stop_ring.
       bus.emit('push', { type: 'reminder_stop_ring', id });
+      bus.emit('push', { type: 'reminder_snoozed', id });
       return { ok: true, snoozedId };
     },
     list() {

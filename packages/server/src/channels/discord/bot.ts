@@ -363,9 +363,6 @@ export async function startDiscordBot(
         }
       }
 
-      clearInterval(typingInterval);
-      clearTimeout(timer);
-
       if (ac.signal.aborted && !sendSucceeded) {
         await sendReply(dmChannel, '⏱️ Request timed out. Please try again.');
       } else if (assistantText && sendSucceeded) {
@@ -390,21 +387,33 @@ export async function startDiscordBot(
         }
       }
     } catch (err) {
-      clearInterval(typingInterval);
-      clearTimeout(timer);
       console.error(
         '[discord] messageCreate handler error:',
         err instanceof Error ? err.message : err,
       );
+      if (!sendSucceeded) {
+        try {
+          const dmChannel = msg.channel as DMChannel;
+          await dmChannel.send('⚠️ Something went wrong. Please try again later.');
+        } catch {
+          // ignore send failure
+        }
+      }
+    } finally {
+      clearInterval(typingInterval);
+      clearTimeout(timer);
+      // Expire any pending permission/plan-review embeds that the user never
+      // resolved. Runs on all exit paths (success, error, timeout) so
+      // aborted-but-not-thrown flows (e.g. AbortController fires mid-stream
+      // and runChatRequest returns without throwing) don't leave dangling
+      // "Allow / Deny" buttons in the DM.
       try {
         const dmChannel = msg.channel as DMChannel;
         for (const pe of pendingEmbedMsgs) {
-          // Skip embeds that were already resolved by a button click —
-          // interactions.ts already edited them to their resolved state.
-          if (pe.kind === 'perm' && deps.permissionService && !deps.permissionService.hasPending(pe.callId)) {
+          if (pe.kind === 'perm' && deps.permissionService?.isResolvedByUser(pe.callId)) {
             continue;
           }
-          if (pe.kind === 'plan' && deps.planReviewService && !deps.planReviewService.hasPending(pe.callId)) {
+          if (pe.kind === 'plan' && deps.planReviewService?.isResolvedByUser(pe.callId)) {
             continue;
           }
           for (const mid of pe.messageIds) {
@@ -428,14 +437,6 @@ export async function startDiscordBot(
         }
       } catch {
         // channel unreachable — ignore
-      }
-      if (!sendSucceeded) {
-        try {
-          const dmChannel = msg.channel as DMChannel;
-          await dmChannel.send('⚠️ Something went wrong. Please try again later.');
-        } catch {
-          // ignore send failure
-        }
       }
     }
   }
@@ -503,11 +504,15 @@ export async function startDiscordBot(
         editStored(event.id, 'dismissed').catch((err) =>
           console.error('[discord] reminder edit failed:', err instanceof Error ? err.message : err),
         );
-      } else if (event.type === 'reminder_stop_ring') {
+      } else if (event.type === 'reminder_snoozed') {
         editStored(event.id, 'snoozed').catch((err) =>
           console.error('[discord] reminder edit failed:', err instanceof Error ? err.message : err),
         );
       }
+      // `reminder_stop_ring` is intentionally ignored: the scheduler emits it
+      // on every ringing→paused transition within a multi-cycle reminder,
+      // which is not user-initiated snooze. User snooze emits the distinct
+      // `reminder_snoozed` event handled above.
     };
     deps.reminderBus.on('push', reminderListener);
   }

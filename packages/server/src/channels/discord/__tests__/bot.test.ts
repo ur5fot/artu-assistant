@@ -322,7 +322,7 @@ describe('reminder delivery', () => {
     expect(fakeDm.send).not.toHaveBeenCalled();
   });
 
-  async function setupRingAndCapture(eventType: 'reminder_done' | 'reminder_dismissed' | 'reminder_stop_ring') {
+  async function setupRingAndCapture(eventType: 'reminder_done' | 'reminder_dismissed' | 'reminder_snoozed') {
     const reminderBus = new EventEmitter();
     const client = makeFakeClient();
     const fakeDm = makeDmChannel();
@@ -375,13 +375,42 @@ describe('reminder delivery', () => {
     expect(editArg.components).toEqual([]);
   });
 
-  it('edits stored ringing embed to snoozed on reminder_stop_ring', async () => {
-    const { storedMsg } = await setupRingAndCapture('reminder_stop_ring');
+  it('edits stored ringing embed to snoozed on reminder_snoozed', async () => {
+    const { storedMsg } = await setupRingAndCapture('reminder_snoozed');
     expect(storedMsg.edit).toHaveBeenCalledTimes(1);
     const editArg = storedMsg.edit.mock.calls[0][0] as { embeds: any[]; components: any[] };
     const embedData = editArg.embeds[0].data ?? editArg.embeds[0];
     expect(embedData.footer?.text).toContain('Snoozed');
     expect(editArg.components).toEqual([]);
+  });
+
+  it('ignores scheduler reminder_stop_ring — does not mislabel cycle pause as snoozed', async () => {
+    const reminderBus = new EventEmitter();
+    const client = makeFakeClient();
+    const fakeDm = makeDmChannel();
+    const storedMsg = {
+      embeds: [{ title: '⏰ Buy fish' }],
+      edit: vi.fn().mockResolvedValue(undefined),
+    };
+    (fakeDm as any).messages = { fetch: vi.fn().mockResolvedValue(storedMsg) };
+    fakeDm.send = vi.fn().mockResolvedValue({ id: 'msg-1' });
+    const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
+    (client as any).users = {
+      fetch: vi.fn().mockResolvedValue(fakeUser),
+      cache: new Map([['123', fakeUser]]),
+    };
+
+    await setup({ _client: client as any, reminderBus });
+    (client as any).emit('clientReady');
+    await delay(50);
+
+    reminderBus.emit('push', { type: 'reminder_ring', id: 7, text: 'Buy fish' });
+    await delay(100);
+
+    reminderBus.emit('push', { type: 'reminder_stop_ring', id: 7 });
+    await delay(100);
+
+    expect(storedMsg.edit).not.toHaveBeenCalled();
   });
 
 });
@@ -408,6 +437,7 @@ describe('mid-stream tool_confirm_request handling', () => {
       runChatRequest: runChatRequest as any,
       permissionService: {
         hasPending: vi.fn().mockReturnValue(true),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
         resolveConfirm: vi.fn(),
       } as any,
       reminderService: {
@@ -417,6 +447,7 @@ describe('mid-stream tool_confirm_request handling', () => {
       } as any,
       planReviewService: {
         hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
         resolveReview: vi.fn(),
       } as any,
       commandService: {
@@ -460,6 +491,7 @@ describe('mid-stream tool_confirm_request handling', () => {
       runChatRequest: runChatRequest as any,
       permissionService: {
         hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
         resolveConfirm: vi.fn(),
       } as any,
       reminderService: {
@@ -469,6 +501,7 @@ describe('mid-stream tool_confirm_request handling', () => {
       } as any,
       planReviewService: {
         hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
         resolveReview: vi.fn(),
       } as any,
       commandService: {
@@ -494,6 +527,65 @@ describe('mid-stream tool_confirm_request handling', () => {
     expect(planChunkSent).toBe(true);
     expect(textsSent).toEqual(expect.arrayContaining(['next']));
   });
+
+  it('expires unresolved permission embed when runChatRequest finishes without user click', async () => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: { onEvent: (e: SSEEvent) => void }) => {
+      onEvent({
+        type: 'tool_confirm_request',
+        toolCall: {
+          id: 'c-99',
+          name: 'files.write',
+          input: { path: '/tmp/x' },
+          status: 'running',
+        },
+        level: 'confirm',
+      } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    // isResolvedByUser returns false — user never clicked the button.
+    // The finally block should expire the stored embed.
+    const sentEmbed = { id: 'perm-msg-1' };
+    const channel = makeDmChannel();
+    const fetchedMsg = { edit: vi.fn().mockResolvedValue(undefined) };
+    (channel as any).messages = { fetch: vi.fn().mockResolvedValue(fetchedMsg) };
+    channel.send = vi.fn().mockResolvedValue(sentEmbed);
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn().mockReturnValue(false),
+        isResolvedByUser: vi.fn().mockReturnValue(false),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(false),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        status: vi.fn(),
+        clearHistory: vi.fn(),
+        listReminders: vi.fn(),
+        listMemory: vi.fn(),
+      } as any,
+    });
+
+    const msg = {
+      author: { bot: false, id: '123' },
+      channel,
+      content: 'do a risky thing',
+    };
+    client.emit('messageCreate', msg as any);
+    await delay(150);
+
+    expect(fetchedMsg.edit).toHaveBeenCalled();
+    const editArg = (fetchedMsg.edit.mock.calls[0] as any[])[0] as { embeds: any[]; components: any[] };
+    const embedData = editArg.embeds[0].data ?? editArg.embeds[0];
+    expect(embedData.footer?.text).toContain('expired');
+    expect(editArg.components).toEqual([]);
+  });
 });
 
 describe('interactionCreate routing', () => {
@@ -507,10 +599,12 @@ describe('interactionCreate routing', () => {
       reminderService: reminderService as any,
       permissionService: {
         hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(false),
         resolveConfirm: vi.fn(),
       } as any,
       planReviewService: {
         hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(false),
         resolveReview: vi.fn(),
       } as any,
       commandService: {

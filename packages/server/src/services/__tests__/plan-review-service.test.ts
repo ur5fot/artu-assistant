@@ -34,4 +34,19 @@ describe('plan-review-service', () => {
     const svc = createPlanReviewService({ pending: new Map() });
     expect(svc.resolveReview('xx', false)).toEqual({ ok: false, reason: 'not_found' });
   });
+
+  it('isResolvedByUser: true only after resolveReview, distinguishes from abort-clearing', () => {
+    const pending: PendingPlanReviews = new Map();
+    pending.set('p1', () => {});
+    pending.set('p2', () => {});
+    const svc = createPlanReviewService({ pending });
+
+    expect(svc.isResolvedByUser('p1')).toBe(false);
+
+    svc.resolveReview('p1', true);
+    pending.delete('p2');
+
+    expect(svc.isResolvedByUser('p1')).toBe(true);
+    expect(svc.isResolvedByUser('p2')).toBe(false);
+  });
 });

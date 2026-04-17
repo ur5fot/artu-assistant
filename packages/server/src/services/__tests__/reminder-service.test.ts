@@ -50,7 +50,7 @@ describe('reminder-service', () => {
     expect(events).toEqual([{ type: 'reminder_dismissed', id: 1 }]);
   });
 
-  it('snooze: returns snoozedId and emits reminder_stop_ring', () => {
+  it('snooze: returns snoozedId and emits reminder_stop_ring + reminder_snoozed', () => {
     const row = { id: 1, active: true, cycle_stage: 'ringing' } as ReminderRow;
     const store = makeStore({
       getById: vi.fn().mockReturnValue(row),
@@ -61,7 +61,10 @@ describe('reminder-service', () => {
     bus.on('push', (e) => events.push(e));
     const service = createReminderService({ store, bus });
     expect(service.snooze(1)).toEqual({ ok: true, snoozedId: 99 });
-    expect(events).toEqual([{ type: 'reminder_stop_ring', id: 1 }]);
+    expect(events).toEqual([
+      { type: 'reminder_stop_ring', id: 1 },
+      { type: 'reminder_snoozed', id: 1 },
+    ]);
   });
 
   it('list: delegates to store.list', () => {
