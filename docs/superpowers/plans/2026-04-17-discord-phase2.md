@@ -146,7 +146,7 @@ git commit -m "feat(db): add listPermissionRules and deletePermissionRule"
 - Modify: `packages/server/src/services/command-service.ts`
 - Modify: `packages/server/src/services/__tests__/command-service.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `packages/server/src/services/__tests__/command-service.test.ts`:
 
@@ -209,7 +209,7 @@ describe('command-service — permission rules', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/services/__tests__/command-service.test.ts
@@ -217,7 +217,7 @@ npx vitest run --root packages/server packages/server/src/services/__tests__/com
 
 Expected: FAIL — `listPermissionRules is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `packages/server/src/services/command-service.ts`. Extend the `CommandService` interface and the returned object:
 
@@ -261,7 +261,7 @@ revokePermissionRule(toolName: string) {
 },
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/services
@@ -269,7 +269,7 @@ npx vitest run --root packages/server packages/server/src/services
 
 Expected: all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/services/command-service.ts packages/server/src/services/__tests__/command-service.test.ts
