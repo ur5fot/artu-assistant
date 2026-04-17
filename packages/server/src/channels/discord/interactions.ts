@@ -114,12 +114,74 @@ async function routeButton(
     });
     return;
   }
+
+  if (domain === 'clear') {
+    if (action === 'yes') {
+      const r = deps.commandService.clearHistory();
+      await (ixn as any).update({
+        content: `🗑️ Cleared ${r.deleted} messages.`,
+        components: [],
+      });
+    } else if (action === 'no') {
+      await (ixn as any).update({ content: 'Cancelled.', components: [] });
+    }
+    return;
+  }
 }
 
 async function routeSlashCommand(
   ixn: ChatInputCommandInteraction,
-  _deps: InteractionDeps,
+  deps: InteractionDeps,
 ): Promise<void> {
-  // implemented in Task 17
-  await (ixn as any).reply({ content: 'Not yet implemented', ephemeral: true, flags: MessageFlags.Ephemeral });
+  const name = ixn.commandName;
+  if (name === 'clear') {
+    await (ixn as any).reply({
+      ephemeral: true,
+      content: 'Clear all chat history?',
+      components: [
+        {
+          type: 1,
+          components: [
+            { type: 2, style: 4, label: 'Yes, clear', custom_id: 'clear:yes' },
+            { type: 2, style: 2, label: 'No', custom_id: 'clear:no' },
+          ],
+        },
+      ],
+    });
+    return;
+  }
+  if (name === 'status') {
+    const s = deps.commandService.status();
+    await (ixn as any).reply({
+      ephemeral: true,
+      content:
+        `**Status**\n` +
+        `Model: \`${s.model}\`\n` +
+        `Uptime: ${s.uptimeSeconds}s\n` +
+        `Active reminders: ${s.activeReminders}\n` +
+        `Pending permissions: ${s.pendingPermissions}`,
+    });
+    return;
+  }
+  if (name === 'reminders') {
+    const list = deps.commandService.listReminders();
+    const content = list.length === 0
+      ? 'No active reminders.'
+      : list.map((r) => `#${r.id} · ${r.text} · ${new Date(r.next_fire_at_ms).toISOString()}`).join('\n');
+    await (ixn as any).reply({ ephemeral: true, content });
+    return;
+  }
+  if (name === 'memory') {
+    const query = (ixn as any).options.getString('query') ?? undefined;
+    const result = await deps.commandService.listMemory(query);
+    const content = !result.available
+      ? 'Memory not available.'
+      : result.entries.length === 0
+        ? 'No memory entries.'
+        : result.entries
+            .map((e) => `- ${e.text}${e.timestamp ? ` (${new Date(e.timestamp).toISOString()})` : ''}`)
+            .join('\n');
+    await (ixn as any).reply({ ephemeral: true, content });
+    return;
+  }
 }

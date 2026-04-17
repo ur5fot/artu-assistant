@@ -2230,7 +2230,7 @@ git commit -m "feat(discord): slash command definitions + registration"
 - Modify: `packages/server/src/channels/discord/interactions.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/interactions.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `interactions.test.ts`:
 
@@ -2315,9 +2315,9 @@ describe('routeInteraction — slash commands', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement slash-command branch**
+- [x] **Step 3: Implement slash-command branch**
 
 Replace the stub in `interactions.ts`:
 
@@ -2397,9 +2397,9 @@ if (domain === 'clear') {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/interactions.ts packages/server/src/channels/discord/__tests__/interactions.test.ts

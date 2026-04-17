@@ -153,3 +153,82 @@ describe('routeInteraction — plan review buttons', () => {
     expect(deps.planReviewService.resolveReview).toHaveBeenCalledWith('pp-1', false);
   });
 });
+
+function makeSlashInteraction(overrides: Record<string, any> = {}) {
+  return {
+    isButton: () => false,
+    isChatInputCommand: () => true,
+    user: { id: 'user-1' },
+    commandName: 'status',
+    options: { getString: vi.fn().mockReturnValue(null) },
+    reply: vi.fn().mockResolvedValue(undefined),
+    deferReply: vi.fn().mockResolvedValue(undefined),
+    editReply: vi.fn().mockResolvedValue(undefined),
+    followUp: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  } as any;
+}
+
+describe('routeInteraction — slash commands', () => {
+  it('/status: ephemeral reply with status info', async () => {
+    const deps = makeDeps();
+    const ixn = makeSlashInteraction({ commandName: 'status' });
+    await routeInteraction(ixn, deps);
+    expect(deps.commandService.status).toHaveBeenCalled();
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ ephemeral: true }),
+    );
+  });
+
+  it('/reminders: ephemeral list', async () => {
+    const deps = makeDeps({
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(),
+        listReminders: vi.fn().mockReturnValue([
+          { id: 1, text: 'a', next_fire_at_ms: 1000 },
+        ]),
+        listMemory: vi.fn().mockResolvedValue({ available: false, entries: [] }),
+      } as any,
+    });
+    const ixn = makeSlashInteraction({ commandName: 'reminders' });
+    await routeInteraction(ixn, deps);
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ ephemeral: true, content: expect.stringContaining('a') }),
+    );
+  });
+
+  it('/memory with query: calls listMemory with query', async () => {
+    const deps = makeDeps();
+    const ixn = makeSlashInteraction({
+      commandName: 'memory',
+      options: { getString: vi.fn().mockReturnValue('hello') },
+    });
+    await routeInteraction(ixn, deps);
+    expect(deps.commandService.listMemory).toHaveBeenCalledWith('hello');
+  });
+
+  it('/clear: ephemeral confirm with Yes/No buttons', async () => {
+    const deps = makeDeps();
+    const ixn = makeSlashInteraction({ commandName: 'clear' });
+    await routeInteraction(ixn, deps);
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ephemeral: true,
+        content: expect.stringContaining('Clear'),
+        components: expect.any(Array),
+      }),
+    );
+    expect(deps.commandService.clearHistory).not.toHaveBeenCalled();
+  });
+
+  it('button clear:yes: calls clearHistory, edits reply', async () => {
+    const deps = makeDeps();
+    const ixn = makeButtonInteraction({
+      customId: 'clear:yes',
+      update: vi.fn().mockResolvedValue(undefined),
+    });
+    await routeInteraction(ixn, deps);
+    expect(deps.commandService.clearHistory).toHaveBeenCalled();
+    expect(ixn.update).toHaveBeenCalled();
+  });
+});
