@@ -218,12 +218,57 @@ export async function startDiscordBot(
     const pendingEmbedMsgs: PendingEmbed[] = [];
     type ToolCallEntry = {
       messageId: string;
+      toolName: string;
       final: boolean;
       lastEditAt: number;
       pendingTimer: ReturnType<typeof setTimeout> | null;
       latestProgress: string | null;
     };
     const toolCallMessages = new Map<string, ToolCallEntry>();
+    const PROGRESS_DEBOUNCE_MS = 800;
+
+    const applyProgressEdit = async (callId: string, progress: string) => {
+      const entry = toolCallMessages.get(callId);
+      if (!entry || entry.final) return;
+      try {
+        const dmChannel = msg.channel as DMChannel;
+        const msgRef = await dmChannel.messages.fetch(entry.messageId);
+        const embed = buildToolCallEmbed({
+          state: 'progress',
+          toolCall: {
+            id: callId,
+            name: entry.toolName,
+            input: {},
+            status: 'running',
+          },
+          progress,
+        });
+        if (embed) await msgRef.edit({ embeds: [embed] });
+        entry.lastEditAt = Date.now();
+      } catch {
+        // Message deleted or Discord hiccup — ignore.
+      }
+    };
+
+    const onProgress = (callId: string, progress: string) => {
+      const entry = toolCallMessages.get(callId);
+      if (!entry || entry.final) return;
+      const elapsed = Date.now() - entry.lastEditAt;
+      if (elapsed >= PROGRESS_DEBOUNCE_MS) {
+        void applyProgressEdit(callId, progress);
+        return;
+      }
+      entry.latestProgress = progress;
+      if (!entry.pendingTimer) {
+        const delay = PROGRESS_DEBOUNCE_MS - elapsed;
+        entry.pendingTimer = setTimeout(() => {
+          entry.pendingTimer = null;
+          const latest = entry.latestProgress ?? progress;
+          entry.latestProgress = null;
+          void applyProgressEdit(callId, latest);
+        }, delay);
+      }
+    };
     try {
       const dmChannel = msg.channel as DMChannel;
       await dmChannel.sendTyping();
@@ -320,11 +365,16 @@ export async function startDiscordBot(
                   const sent = await dmChannel.send({ embeds: [embed] });
                   toolCallMessages.set(event.toolCall.id, {
                     messageId: sent.id,
+                    toolName: event.toolCall.name,
                     final: false,
                     lastEditAt: Date.now(),
                     pendingTimer: null,
                     latestProgress: null,
                   });
+                  return;
+                }
+                if (event.type === 'tool_progress') {
+                  onProgress(event.id, event.message);
                   return;
                 }
                 if (event.type === 'tool_confirm_request') {

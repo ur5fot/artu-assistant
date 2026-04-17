@@ -1197,7 +1197,7 @@ git commit -m "feat(discord): send tool-call embed on tool_call_start"
 - Modify: `packages/server/src/channels/discord/bot.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append to `bot.test.ts`:
 
@@ -1251,9 +1251,9 @@ describe('tool_progress handling (debounced)', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add a helper inside `handleMessage` (near other helpers):
 
@@ -1345,9 +1345,9 @@ toolCallMessages.set(event.toolCall.id, {
 });
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts

@@ -754,6 +754,132 @@ describe('tool_call_start handling', () => {
   });
 });
 
+describe('tool_progress handling (debounced)', () => {
+  it('fires immediate edit on first progress, then respects 800ms cooldown', async () => {
+    const editMock = vi.fn().mockResolvedValue(undefined);
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: any) => {
+      onEvent({
+        type: 'tool_call_start',
+        toolCall: { id: 'c-1', name: 'file_write', input: {}, status: 'running' },
+      } as SSEEvent);
+      onEvent({ type: 'tool_progress', id: 'c-1', message: 'step 1' } as SSEEvent);
+      onEvent({ type: 'tool_progress', id: 'c-1', message: 'step 2' } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const channel = makeDmChannel();
+    (channel.send as any).mockResolvedValue({ id: 'sent-1', edit: editMock });
+    (channel as any).messages = {
+      fetch: vi.fn().mockResolvedValue({ edit: editMock }),
+    };
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+
+    const msg = {
+      author: { bot: false, id: '123' },
+      channel,
+      content: 'do work',
+    };
+    client.emit('messageCreate', msg as any);
+    // Wait longer than the 800ms debounce so the trailing edit fires.
+    await delay(1100);
+
+    // Two rapid progress events should collapse to a single trailing edit.
+    expect(editMock.mock.calls.length).toBeGreaterThanOrEqual(1);
+    // Verify that a progress-state embed was edited (title retains 🔧 and
+    // description matches one of the progress messages).
+    const progressEdit = editMock.mock.calls.find((c: any[]) => {
+      const arg = c[0];
+      if (!arg || !Array.isArray(arg.embeds)) return false;
+      const e = arg.embeds[0]?.toJSON?.() ?? arg.embeds[0];
+      return e?.title === '🔧 file_write' && typeof e?.description === 'string';
+    });
+    expect(progressEdit).toBeDefined();
+  });
+
+  it('rapid progress events are coalesced: trailing edit uses latest message', async () => {
+    const editMock = vi.fn().mockResolvedValue(undefined);
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: any) => {
+      onEvent({
+        type: 'tool_call_start',
+        toolCall: { id: 'c-2', name: 'file_write', input: {}, status: 'running' },
+      } as SSEEvent);
+      // Fire three progresses back-to-back — within the 800ms cooldown.
+      onEvent({ type: 'tool_progress', id: 'c-2', message: 'a' } as SSEEvent);
+      onEvent({ type: 'tool_progress', id: 'c-2', message: 'b' } as SSEEvent);
+      onEvent({ type: 'tool_progress', id: 'c-2', message: 'c' } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const channel = makeDmChannel();
+    (channel.send as any).mockResolvedValue({ id: 'sent-2', edit: editMock });
+    (channel as any).messages = {
+      fetch: vi.fn().mockResolvedValue({ edit: editMock }),
+    };
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+
+    const msg = {
+      author: { bot: false, id: '123' },
+      channel,
+      content: 'do work',
+    };
+    client.emit('messageCreate', msg as any);
+    // Wait longer than the 800ms cooldown so trailing edit lands.
+    await delay(1100);
+
+    // Collect description strings from edit calls.
+    const progressDescs = editMock.mock.calls
+      .map((c: any[]) => {
+        const e = c[0]?.embeds?.[0]?.toJSON?.() ?? c[0]?.embeds?.[0];
+        return e?.description;
+      })
+      .filter((d: any) => typeof d === 'string');
+
+    // Three rapid progress events should NOT yield three progress edits.
+    const countForMsg = (m: string) => progressDescs.filter((d: string) => d === m).length;
+    expect(countForMsg('a') + countForMsg('b') + countForMsg('c')).toBeLessThanOrEqual(2);
+    // The latest progress ("c") should have landed on the trailing edit.
+    expect(progressDescs).toContain('c');
+  });
+});
+
 describe('sendReply', () => {
   it('sends short text in one message', async () => {
     const ch = makeDmChannel();
