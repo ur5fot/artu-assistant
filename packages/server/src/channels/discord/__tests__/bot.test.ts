@@ -672,6 +672,88 @@ describe('interactionCreate routing', () => {
   });
 });
 
+describe('tool_call_start handling', () => {
+  it('sends a tool-call embed and tracks messageId', async () => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: any) => {
+      onEvent({
+        type: 'tool_call_start',
+        toolCall: { id: 'c-1', name: 'file_write', input: { path: '/tmp/x' }, status: 'running' },
+      } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+    const { msg, channel } = makeMessage({ author: { bot: false, id: '123' } });
+
+    client.emit('messageCreate', msg as any);
+    await delay(100);
+
+    const embedCalls = (channel.send as any).mock.calls.filter(
+      (c: any[]) => typeof c[0] === 'object' && c[0] !== null && 'embeds' in c[0],
+    );
+    expect(embedCalls.length).toBeGreaterThan(0);
+    const firstEmbed = embedCalls[0][0].embeds[0];
+    expect(firstEmbed.toJSON().title).toBe('🔧 file_write');
+  });
+
+  it('silent tool (memory_search): no embed sent', async () => {
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: any) => {
+      onEvent({
+        type: 'tool_call_start',
+        toolCall: { id: 'c-1', name: 'memory_search', input: {}, status: 'running' },
+      } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+    const { msg, channel } = makeMessage({ author: { bot: false, id: '123' } });
+
+    client.emit('messageCreate', msg as any);
+    await delay(100);
+
+    const embedCalls = (channel.send as any).mock.calls.filter(
+      (c: any[]) => typeof c[0] === 'object' && c[0] !== null && 'embeds' in c[0],
+    );
+    expect(embedCalls.length).toBe(0);
+  });
+});
+
 describe('sendReply', () => {
   it('sends short text in one message', async () => {
     const ch = makeDmChannel();

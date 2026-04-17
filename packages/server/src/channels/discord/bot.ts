@@ -18,6 +18,7 @@ import type { PlanReviewService } from '../../services/plan-review-service.js';
 import type { CommandService } from '../../services/command-service.js';
 import { truncateMessages } from '../../routes/chat.js';
 import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
+import { buildToolCallEmbed, SILENT_TOOLS } from './tool-embeds.js';
 import { routeInteraction } from './interactions.js';
 import { SLASH_COMMAND_DEFINITIONS } from './slash-commands.js';
 
@@ -215,6 +216,14 @@ export async function startDiscordBot(
       | { callId: string; kind: 'perm'; messageIds: string[]; toolName: string; argsSummary: string }
       | { callId: string; kind: 'plan'; messageIds: string[] };
     const pendingEmbedMsgs: PendingEmbed[] = [];
+    type ToolCallEntry = {
+      messageId: string;
+      final: boolean;
+      lastEditAt: number;
+      pendingTimer: ReturnType<typeof setTimeout> | null;
+      latestProgress: string | null;
+    };
+    const toolCallMessages = new Map<string, ToolCallEntry>();
     try {
       const dmChannel = msg.channel as DMChannel;
       await dmChannel.sendTyping();
@@ -301,6 +310,21 @@ export async function startDiscordBot(
                 if (event.type === 'text_delta') {
                   buffer += event.content;
                   assistantText += event.content;
+                  return;
+                }
+                if (event.type === 'tool_call_start') {
+                  if (SILENT_TOOLS.includes(event.toolCall.name)) return;
+                  const embed = buildToolCallEmbed({ state: 'running', toolCall: event.toolCall });
+                  if (!embed) return;
+                  await flush();
+                  const sent = await dmChannel.send({ embeds: [embed] });
+                  toolCallMessages.set(event.toolCall.id, {
+                    messageId: sent.id,
+                    final: false,
+                    lastEditAt: Date.now(),
+                    pendingTimer: null,
+                    latestProgress: null,
+                  });
                   return;
                 }
                 if (event.type === 'tool_confirm_request') {
