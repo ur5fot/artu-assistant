@@ -7,12 +7,22 @@ import {
 
 export type ReminderState = 'ringing' | 'dismissed' | 'snoozed' | 'missed';
 
+// Discord embed title hard limit is 256 chars. A user-authored reminder may
+// legitimately exceed that (especially if the LLM generates a verbose one);
+// setTitle throws RangeError past the limit, so truncate at render.
+const EMBED_TITLE_LIMIT = 256;
+
 export function buildReminderEmbed(opts: {
   id: number;
   text: string;
   state: ReminderState;
 }): { embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder>[] } {
-  const embed = new EmbedBuilder().setTitle(`⏰ ${opts.text}`);
+  const rawTitle = `⏰ ${opts.text}`;
+  const title =
+    rawTitle.length > EMBED_TITLE_LIMIT
+      ? rawTitle.slice(0, EMBED_TITLE_LIMIT - 1) + '…'
+      : rawTitle;
+  const embed = new EmbedBuilder().setTitle(title);
 
   switch (opts.state) {
     case 'ringing':

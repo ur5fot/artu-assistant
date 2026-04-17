@@ -212,6 +212,10 @@ async function routeSlashCommand(
     return;
   }
   if (name === 'memory') {
+    // Memory search runs an Ollama embeddings call which routinely exceeds
+    // Discord's 3s interaction-token window on a cold model. Defer first so
+    // the subsequent editReply is not rejected as "Unknown interaction".
+    await (ixn as any).deferReply({ flags: MessageFlags.Ephemeral });
     const query = (ixn as any).options.getString('query') ?? undefined;
     const result = await deps.commandService.listMemory(query);
     const content = !result.available
@@ -223,7 +227,7 @@ async function routeSlashCommand(
               (e) => `- ${e.text}${e.timestamp ? ` (${new Date(e.timestamp).toISOString()})` : ''}`,
             ),
           );
-    await (ixn as any).reply({ flags: MessageFlags.Ephemeral, content });
+    await (ixn as any).editReply({ content });
     return;
   }
 }
