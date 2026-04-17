@@ -109,28 +109,19 @@ async function routeButton(
 
   if (domain === 'perm') {
     const callId = rawId ?? '';
-    if (!deps.permissionService.hasPending(callId)) {
-      const msgEmbed = (ixn as any).message?.embeds?.[0];
-      const { toolName, argsSummary } = parsePermissionDescription(
-        msgEmbed?.description ?? '',
-      );
-      const { embed } = buildPermissionEmbed({
-        callId,
-        toolName,
-        argsSummary,
-        state: 'expired',
-      });
-      await (ixn as any).update({ embeds: [embed], components: [] });
-      return;
-    }
     let allowed = false;
     let remember = false;
-    let finalState: 'allowed_once' | 'allowed_always' | 'denied' = 'denied';
-    if (action === 'allow_once') { allowed = true; finalState = 'allowed_once'; }
-    else if (action === 'allow_always') { allowed = true; remember = true; finalState = 'allowed_always'; }
-    else if (action === 'deny') { allowed = false; finalState = 'denied'; }
+    let intendedState: 'allowed_once' | 'allowed_always' | 'denied';
+    if (action === 'allow_once') { allowed = true; intendedState = 'allowed_once'; }
+    else if (action === 'allow_always') { allowed = true; remember = true; intendedState = 'allowed_always'; }
+    else if (action === 'deny') { allowed = false; intendedState = 'denied'; }
     else return;
-    deps.permissionService.resolveConfirm(callId, allowed, remember);
+    // Use resolveConfirm's return as the single source of truth for whether
+    // the pending entry was actually resolved. A prior hasPending() check
+    // would race with timeout/abort clearing the entry between the check
+    // and the resolve call, causing the UI to claim success while the
+    // backend already moved on.
+    const result = deps.permissionService.resolveConfirm(callId, allowed, remember);
     const msgEmbed = (ixn as any).message?.embeds?.[0];
     const { toolName, argsSummary } = parsePermissionDescription(
       msgEmbed?.description ?? '',
@@ -139,7 +130,7 @@ async function routeButton(
       callId,
       toolName,
       argsSummary,
-      state: finalState,
+      state: result.ok ? intendedState : 'expired',
     });
     await (ixn as any).update({ embeds: [embed], components: [] });
     return;
@@ -147,15 +138,14 @@ async function routeButton(
 
   if (domain === 'plan') {
     const callId = rawId ?? '';
-    if (!deps.planReviewService.hasPending(callId)) {
-      await (ixn as any).update({ components: [], content: '⚠️ expired' });
-      return;
-    }
-    const approved = action === 'approve';
-    deps.planReviewService.resolveReview(callId, approved);
+    let approved: boolean;
+    if (action === 'approve') approved = true;
+    else if (action === 'reject') approved = false;
+    else return;
+    const result = deps.planReviewService.resolveReview(callId, approved);
     await (ixn as any).update({
       components: [],
-      content: approved ? '✓ approved' : '✗ rejected',
+      content: result.ok ? (approved ? '✓ approved' : '✗ rejected') : '⚠️ expired',
     });
     return;
   }

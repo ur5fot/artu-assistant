@@ -123,11 +123,11 @@ describe('routeInteraction — permission buttons', () => {
     expect(deps.permissionService.resolveConfirm).toHaveBeenCalledWith('call-42', false, false);
   });
 
-  it('perm:* — expired when service has no pending entry', async () => {
+  it('perm:* — expired when resolveConfirm reports no pending entry', async () => {
     const deps = makeDeps({
       permissionService: {
         hasPending: vi.fn().mockReturnValue(false),
-        resolveConfirm: vi.fn(),
+        resolveConfirm: vi.fn().mockReturnValue({ ok: false, reason: 'not_found' }),
       } as unknown as PermissionService,
     });
     const ixn = makeButtonInteraction({
@@ -135,7 +135,10 @@ describe('routeInteraction — permission buttons', () => {
       message: { embeds: [{}] },
     });
     await routeInteraction(ixn, deps);
-    expect(deps.permissionService.resolveConfirm).not.toHaveBeenCalled();
+    // We still call resolveConfirm — it's the single source of truth for
+    // whether the entry is pending, avoiding a TOCTOU window between a
+    // prior hasPending() check and the resolve call.
+    expect(deps.permissionService.resolveConfirm).toHaveBeenCalled();
     expect(ixn.update).toHaveBeenCalled();
   });
 });

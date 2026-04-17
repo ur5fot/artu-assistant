@@ -267,6 +267,10 @@ export async function startDiscordBot(
       let assistantText = '';
       let errorSent = false;
       let sendChain: Promise<void> = Promise.resolve();
+      // First error observed inside the chain — we surface it after the
+      // stream finishes so retry/outer-catch can send a user-visible fallback
+      // instead of silently leaving sendSucceeded=false.
+      let sendError: unknown = null;
 
       const flush = async () => {
         if (!buffer) return;
@@ -286,72 +290,81 @@ export async function startDiscordBot(
         assistantText = '';
         errorSent = false;
         sendChain = Promise.resolve();
+        sendError = null;
 
         try {
           await deps.runChatRequest({
             messages,
             signal: ac.signal,
             onEvent: (event: SSEEvent) => {
-              sendChain = sendChain
-                .then(async () => {
-                  if (event.type === 'text_delta') {
-                    buffer += event.content;
-                    assistantText += event.content;
-                    return;
-                  }
-                  if (event.type === 'tool_confirm_request') {
-                    await flush();
-                    const argsSummary = summarizeArgs(event.toolCall.input);
-                    const { embed, components } = buildPermissionEmbed({
-                      callId: event.toolCall.id,
-                      toolName: event.toolCall.name,
-                      argsSummary,
-                      state: 'pending',
+              sendChain = sendChain.then(async () => {
+                if (event.type === 'text_delta') {
+                  buffer += event.content;
+                  assistantText += event.content;
+                  return;
+                }
+                if (event.type === 'tool_confirm_request') {
+                  await flush();
+                  const argsSummary = summarizeArgs(event.toolCall.input);
+                  const { embed, components } = buildPermissionEmbed({
+                    callId: event.toolCall.id,
+                    toolName: event.toolCall.name,
+                    argsSummary,
+                    state: 'pending',
+                  });
+                  const sent = await dmChannel.send({ embeds: [embed], components });
+                  pendingEmbedMsgs.push({
+                    callId: event.toolCall.id,
+                    kind: 'perm',
+                    messageIds: [sent.id],
+                    toolName: event.toolCall.name,
+                    argsSummary,
+                  });
+                  return;
+                }
+                if (event.type === 'tool_plan_review') {
+                  await flush();
+                  const chunks = buildPlanReviewChunks({ callId: event.id, plan: event.plan });
+                  const sentIds: string[] = [];
+                  for (const c of chunks) {
+                    const sent = await dmChannel.send({
+                      content: c.content ?? '',
+                      components: c.components ?? [],
                     });
-                    const sent = await dmChannel.send({ embeds: [embed], components });
-                    pendingEmbedMsgs.push({
-                      callId: event.toolCall.id,
-                      kind: 'perm',
-                      messageIds: [sent.id],
-                      toolName: event.toolCall.name,
-                      argsSummary,
-                    });
-                    return;
+                    sentIds.push(sent.id);
                   }
-                  if (event.type === 'tool_plan_review') {
-                    await flush();
-                    const chunks = buildPlanReviewChunks({ callId: event.id, plan: event.plan });
-                    const sentIds: string[] = [];
-                    for (const c of chunks) {
-                      const sent = await dmChannel.send({
-                        content: c.content ?? '',
-                        components: c.components ?? [],
-                      });
-                      sentIds.push(sent.id);
-                    }
-                    pendingEmbedMsgs.push({
-                      callId: event.id,
-                      kind: 'plan',
-                      messageIds: sentIds,
-                    });
-                    return;
-                  }
-                  if (event.type === 'done' && !errorSent) {
-                    await flush();
-                    return;
-                  }
-                  if (event.type === 'error' && !errorSent) {
-                    errorSent = true;
-                    console.error('[discord] chat error event:', event.message);
-                    await flush();
-                    await dmChannel.send('⚠️ Something went wrong. Please try again later.');
-                    return;
-                  }
-                })
-                .catch((err) => console.error('[discord] onEvent chain error:', err));
+                  pendingEmbedMsgs.push({
+                    callId: event.id,
+                    kind: 'plan',
+                    messageIds: sentIds,
+                  });
+                  return;
+                }
+                if (event.type === 'done' && !errorSent) {
+                  await flush();
+                  return;
+                }
+                if (event.type === 'error' && !errorSent) {
+                  errorSent = true;
+                  console.error('[discord] chat error event:', event.message);
+                  await flush();
+                  await dmChannel.send('⚠️ Something went wrong. Please try again later.');
+                  return;
+                }
+              }).catch((err) => {
+                // Capture (don't swallow) the first chain error. Previously we
+                // only console.error'd here, which let the request complete
+                // with sendSucceeded=false and no user-visible error — the
+                // user would receive neither assistant output nor a failure
+                // message. The captured error is rethrown after `await
+                // sendChain` so retry/outer-catch can produce a fallback.
+                if (!sendError) sendError = err;
+                console.error('[discord] onEvent chain error:', err);
+              });
             },
           });
           await sendChain;
+          if (sendError) throw sendError;
           break;
         } catch (err) {
           if (attempt >= RETRY_DELAYS.length || ac.signal.aborted || !isRetryableError(err)) {
@@ -458,15 +471,41 @@ export async function startDiscordBot(
   // owning user's DM on dismiss/snooze/done. Flat arrays without userId
   // scoping cause O(users²) cross-user fetches that always 404 silently.
   const reminderMessages = new Map<number, Array<{ userId: string; msgId: string }>>();
+  // Terminal state per reminder id. Set when editStored runs so that
+  // late-arriving DM sends (whose `.then` callback may fire AFTER dismiss/
+  // snooze/done was already handled) can edit themselves to the final state
+  // instead of being appended to an already-deleted messages list and left
+  // stuck in "ringing".
+  // Relies on JS Map insertion-order iteration: delete-then-set on an existing
+  // key moves it to the end, so a single Map doubles as both state store and
+  // LRU queue. A separate FIFO array would let duplicate ids accumulate (via
+  // recurring reminders reusing the same id), and evicting the stale duplicate
+  // would kill the freshly-set terminal state.
+  const reminderTerminal = new Map<number, 'dismissed' | 'missed' | 'snoozed'>();
+  const REMINDER_TERMINAL_MAX = 1024;
 
   let reminderListener: ((event: ServerPushEvent) => void) | null = null;
   if (deps.reminderBus) {
+    const markTerminal = (id: number, state: 'dismissed' | 'missed' | 'snoozed') => {
+      reminderTerminal.delete(id);
+      reminderTerminal.set(id, state);
+      while (reminderTerminal.size > REMINDER_TERMINAL_MAX) {
+        const oldest = reminderTerminal.keys().next().value as number | undefined;
+        if (oldest === undefined) break;
+        reminderTerminal.delete(oldest);
+      }
+    };
+
     const editStored = async (
       id: number,
       state: 'dismissed' | 'missed' | 'snoozed',
     ) => {
+      markTerminal(id, state);
       const entries = reminderMessages.get(id) ?? [];
-      if (entries.length === 0) return;
+      if (entries.length === 0) {
+        reminderMessages.delete(id);
+        return;
+      }
       for (const { userId, msgId } of entries) {
         try {
           const user = await client.users.fetch(userId);
@@ -486,6 +525,11 @@ export async function startDiscordBot(
     reminderListener = (event: ServerPushEvent) => {
       if (!client.isReady()) return;
       if (event.type === 'reminder_ring') {
+        // Recurring reminders keep the same id across cycles. A prior
+        // dismissed/missed/snoozed would otherwise leave a stale terminal
+        // entry here, causing the freshly-sent DM for this new cycle to be
+        // instantly edited to terminal state with no actionable buttons.
+        reminderTerminal.delete(event.id);
         const { embed, components } = buildReminderEmbed({
           id: event.id,
           text: event.text,
@@ -500,12 +544,33 @@ export async function startDiscordBot(
           list = [];
           reminderMessages.set(event.id, list);
         }
+        const ringId = event.id;
+        const ringText = event.text;
         for (const userId of deps.whitelist) {
           client.users
             .fetch(userId)
             .then((u) => u.createDM())
             .then((dm) => dm.send({ embeds: [embed], components }))
-            .then((sent) => {
+            .then(async (sent) => {
+              // If the reminder resolved (dismiss/snooze/done) while this
+              // DM was still in flight, editStored already ran and deleted
+              // the message list — push would be orphaned and the button
+              // would stay stuck. Edit this just-sent message to the final
+              // state instead.
+              const terminal = reminderTerminal.get(ringId);
+              if (terminal) {
+                const { embed: finalEmbed } = buildReminderEmbed({
+                  id: ringId,
+                  text: ringText,
+                  state: terminal,
+                });
+                try {
+                  await sent.edit({ embeds: [finalEmbed], components: [] });
+                } catch {
+                  // message gone or no permission — ignore
+                }
+                return;
+              }
               list!.push({ userId, msgId: sent.id });
             })
             .catch((err) =>

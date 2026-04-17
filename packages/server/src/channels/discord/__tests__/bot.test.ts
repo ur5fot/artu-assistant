@@ -384,6 +384,47 @@ describe('reminder delivery', () => {
     expect(editArg.components).toEqual([]);
   });
 
+  it('clears terminal state on new reminder_ring — recurring reminder re-rings keep buttons', async () => {
+    const reminderBus = new EventEmitter();
+    const client = makeFakeClient();
+    const fakeDm = makeDmChannel();
+    const storedMsg = {
+      embeds: [{ title: '⏰ Buy fish' }],
+      edit: vi.fn().mockResolvedValue(undefined),
+    };
+    (fakeDm as any).messages = { fetch: vi.fn().mockResolvedValue(storedMsg) };
+    const sendCalls: Array<{ id: string; edit: ReturnType<typeof vi.fn> }> = [];
+    fakeDm.send = vi.fn().mockImplementation(async () => {
+      const msg = { id: `msg-${sendCalls.length + 1}`, edit: vi.fn().mockResolvedValue(undefined) };
+      sendCalls.push(msg);
+      return msg;
+    });
+    const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
+    (client as any).users = {
+      fetch: vi.fn().mockResolvedValue(fakeUser),
+      cache: new Map([['123', fakeUser]]),
+    };
+
+    await setup({ _client: client as any, reminderBus });
+    (client as any).emit('clientReady');
+    await delay(50);
+
+    // First cycle: ring, then dismiss (sets terminal for id 7).
+    reminderBus.emit('push', { type: 'reminder_ring', id: 7, text: 'Buy fish' });
+    await delay(100);
+    reminderBus.emit('push', { type: 'reminder_dismissed', id: 7 });
+    await delay(100);
+
+    // Recurring reminder: scheduler fires the same id again.
+    reminderBus.emit('push', { type: 'reminder_ring', id: 7, text: 'Buy fish' });
+    await delay(100);
+
+    // The freshly-sent DM for the new cycle must NOT be immediately edited to
+    // a terminal state; the user needs the actionable buttons.
+    expect(sendCalls).toHaveLength(2);
+    expect(sendCalls[1]!.edit).not.toHaveBeenCalled();
+  });
+
   it('ignores scheduler reminder_stop_ring — does not mislabel cycle pause as snoozed', async () => {
     const reminderBus = new EventEmitter();
     const client = makeFakeClient();
