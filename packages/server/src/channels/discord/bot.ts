@@ -416,10 +416,10 @@ export async function startDiscordBot(
           if (pe.kind === 'plan' && deps.planReviewService?.isResolvedByUser(pe.callId)) {
             continue;
           }
-          for (const mid of pe.messageIds) {
-            try {
-              const m = await dmChannel.messages.fetch(mid);
-              if (pe.kind === 'perm') {
+          if (pe.kind === 'perm') {
+            for (const mid of pe.messageIds) {
+              try {
+                const m = await dmChannel.messages.fetch(mid);
                 const { embed } = buildPermissionEmbed({
                   callId: pe.callId,
                   toolName: pe.toolName,
@@ -427,11 +427,24 @@ export async function startDiscordBot(
                   state: 'expired',
                 });
                 await m.edit({ embeds: [embed], components: [] });
-              } else {
-                await m.edit({ components: [], content: '⚠️ expired' });
+              } catch {
+                // message gone or no permission — ignore
               }
-            } catch {
-              // message gone or no permission — ignore
+            }
+          } else {
+            // Plan review: earlier chunks carry the plan text (inside code
+            // fences) and have no buttons. Overwriting them with "expired"
+            // deletes the plan the user may still want to read. Only the last
+            // chunk has the Approve/Reject buttons — edit that one to clear
+            // components and mark the review as expired.
+            const lastId = pe.messageIds[pe.messageIds.length - 1];
+            if (lastId) {
+              try {
+                const m = await dmChannel.messages.fetch(lastId);
+                await m.edit({ components: [], content: '⚠️ Plan review expired' });
+              } catch {
+                // message gone or no permission — ignore
+              }
             }
           }
         }
