@@ -102,3 +102,31 @@ export function buildToolCallEmbed(opts: BuildToolCallEmbedOpts): EmbedBuilder |
   embed.setDescription(truncate(display ?? 'done', Math.min(DESCRIPTION_MAX, 500)));
   return embed;
 }
+
+const DISCORD_UPLOAD_LIMIT_BYTES = 24 * 1024 * 1024;
+
+export interface DiffAttachment {
+  attachment: Buffer;
+  name: string;
+}
+
+export interface DiffAttachmentOversize {
+  oversize: true;
+}
+
+export function buildDiffAttachment(opts: {
+  callId: string;
+  fullDiff: string;
+  commit?: string;
+}): DiffAttachment | DiffAttachmentOversize | null {
+  if (!opts.fullDiff) return null;
+  const buf = Buffer.from(opts.fullDiff, 'utf-8');
+  if (buf.byteLength > DISCORD_UPLOAD_LIMIT_BYTES) {
+    return { oversize: true };
+  }
+  const nameKey = opts.commit ? opts.commit.slice(0, 7) : opts.callId;
+  return {
+    attachment: buf,
+    name: `code_task_${nameKey}.diff`,
+  };
+}

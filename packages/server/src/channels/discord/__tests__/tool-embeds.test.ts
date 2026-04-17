@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildToolCallEmbed, SILENT_TOOLS } from '../tool-embeds.js';
+import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from '../tool-embeds.js';
 import type { ToolCall } from '@r2/shared';
 
 function mkTool(overrides: Partial<ToolCall> = {}): ToolCall {
@@ -147,5 +147,36 @@ describe('buildToolCallEmbed — code_task special', () => {
     expect(filesField?.value).toContain('src/a.ts');
     expect(filesField?.value).toContain('+5');
     expect(filesField?.value).toContain('-1');
+  });
+});
+
+describe('buildDiffAttachment', () => {
+  const smallDiff = '--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new\n';
+
+  it('returns attachment with commit-prefixed name when commit present', () => {
+    const result = buildDiffAttachment({
+      callId: 'x',
+      fullDiff: smallDiff,
+      commit: 'abcdef1234567890',
+    });
+    expect(result).not.toBeNull();
+    expect((result as any).name).toBe('code_task_abcdef1.diff');
+    expect((result as any).attachment).toBeInstanceOf(Buffer);
+    expect(((result as any).attachment as Buffer).toString('utf-8')).toBe(smallDiff);
+  });
+
+  it('falls back to callId when no commit', () => {
+    const result = buildDiffAttachment({ callId: 'call-77', fullDiff: smallDiff });
+    expect((result as any).name).toBe('code_task_call-77.diff');
+  });
+
+  it('returns null when fullDiff empty', () => {
+    expect(buildDiffAttachment({ callId: 'x', fullDiff: '' })).toBeNull();
+  });
+
+  it('returns { oversize: true } when diff > 24 MB', () => {
+    const huge = 'x'.repeat(25 * 1024 * 1024);
+    const result = buildDiffAttachment({ callId: 'x', fullDiff: huge });
+    expect(result).toEqual({ oversize: true });
   });
 });

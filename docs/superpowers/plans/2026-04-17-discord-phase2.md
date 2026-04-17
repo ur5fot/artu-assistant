@@ -631,7 +631,7 @@ git commit -m "feat(discord): tool-embed progress/done/error states + code_task 
 - Modify: `packages/server/src/channels/discord/tool-embeds.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/tool-embeds.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append:
 
@@ -670,9 +670,9 @@ describe('buildDiffAttachment', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests** — expect FAIL.
+- [x] **Step 2: Run tests** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `tool-embeds.ts`:
 
@@ -706,9 +706,9 @@ export function buildDiffAttachment(opts: {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/tool-embeds.ts packages/server/src/channels/discord/__tests__/tool-embeds.test.ts
