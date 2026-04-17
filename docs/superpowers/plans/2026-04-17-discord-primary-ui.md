@@ -617,7 +617,7 @@ git commit -m "refactor(routes): confirm route uses permission-service"
 - Create: `packages/server/src/services/plan-review-service.ts`
 - Create: `packages/server/src/services/__tests__/plan-review-service.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // packages/server/src/services/__tests__/plan-review-service.test.ts
@@ -660,9 +660,9 @@ describe('plan-review-service', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL
+- [x] **Step 2: Run test** — expect FAIL
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/services/plan-review-service.ts`:
 
@@ -699,9 +699,9 @@ export function createPlanReviewService(deps: Deps): PlanReviewService {
 }
 ```
 
-- [ ] **Step 4: Run tests** — 4 passing.
+- [x] **Step 4: Run tests** — 4 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/services/plan-review-service.ts packages/server/src/services/__tests__/plan-review-service.test.ts
