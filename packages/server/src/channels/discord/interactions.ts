@@ -7,6 +7,7 @@ import type { CommandService } from '../../services/command-service.js';
 import {
   buildReminderEmbed,
   buildPermissionEmbed,
+  buildPermissionsListReply,
 } from './embeds.js';
 
 // Discord hard-limits a single reply to 2000 chars; leave a tail for the
@@ -162,6 +163,27 @@ async function routeButton(
     }
     return;
   }
+
+  if (domain === 'perm_rule' && action === 'revoke') {
+    const toolName = rawId ?? '';
+    deps.commandService.revokePermissionRule(toolName);
+    const remaining = deps.commandService.listPermissionRules();
+    if (remaining.length === 0) {
+      await (ixn as any).update({
+        content: 'No saved permission rules left.',
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+    const reply = buildPermissionsListReply(remaining);
+    await (ixn as any).update({
+      content: reply.content,
+      embeds: reply.embeds,
+      components: reply.components,
+    });
+    return;
+  }
 }
 
 async function routeSlashCommand(
@@ -206,6 +228,17 @@ async function routeSlashCommand(
           list.map((r) => `#${r.id} · ${r.text} · ${new Date(r.next_fire_at_ms).toISOString()}`),
         );
     await (ixn as any).reply({ flags: MessageFlags.Ephemeral, content });
+    return;
+  }
+  if (name === 'permissions') {
+    const rules = deps.commandService.listPermissionRules();
+    const reply = buildPermissionsListReply(rules);
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: reply.content,
+      embeds: reply.embeds,
+      components: reply.components,
+    });
     return;
   }
   if (name === 'memory') {

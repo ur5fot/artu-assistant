@@ -29,6 +29,8 @@ function makeDeps(overrides: Partial<Parameters<typeof routeInteraction>[1]> = {
       }),
       listReminders: vi.fn().mockReturnValue([]),
       listMemory: vi.fn().mockResolvedValue({ available: false, entries: [] }),
+      listPermissionRules: vi.fn().mockReturnValue([]),
+      revokePermissionRule: vi.fn().mockReturnValue({ ok: true }),
     } as unknown as CommandService,
     ...overrides,
   };
@@ -252,5 +254,96 @@ describe('routeInteraction — slash commands', () => {
     await routeInteraction(ixn, deps);
     expect(deps.commandService.clearHistory).toHaveBeenCalled();
     expect(ixn.update).toHaveBeenCalled();
+  });
+});
+
+describe('routeInteraction — /permissions', () => {
+  it('empty rules: ephemeral "No saved permission rules."', async () => {
+    const deps = makeDeps({
+      commandService: {
+        clearHistory: vi.fn(),
+        status: vi.fn(),
+        listReminders: vi.fn(),
+        listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+    const ixn = makeSlashInteraction({ commandName: 'permissions' });
+    await routeInteraction(ixn, deps);
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: expect.anything(),
+        content: 'No saved permission rules.',
+      }),
+    );
+  });
+
+  it('non-empty rules: ephemeral embed + revoke buttons', async () => {
+    const deps = makeDeps({
+      commandService: {
+        clearHistory: vi.fn(),
+        status: vi.fn(),
+        listReminders: vi.fn(),
+        listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([
+          { toolName: 'files_write', allowed: true },
+        ]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+    const ixn = makeSlashInteraction({ commandName: 'permissions' });
+    await routeInteraction(ixn, deps);
+    const call = (ixn.reply as any).mock.calls[0][0];
+    expect(call.embeds).toBeDefined();
+    expect(call.components?.length).toBeGreaterThan(0);
+  });
+});
+
+describe('routeInteraction — perm_rule:revoke', () => {
+  it('existing rule: calls service, updates message with refreshed list', async () => {
+    const deps = makeDeps({
+      commandService: {
+        clearHistory: vi.fn(),
+        status: vi.fn(),
+        listReminders: vi.fn(),
+        listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValueOnce([
+          { toolName: 'a', allowed: true },
+          { toolName: 'b', allowed: true },
+        ]).mockReturnValueOnce([{ toolName: 'b', allowed: true }]),
+        revokePermissionRule: vi.fn().mockReturnValue({ ok: true }),
+      } as any,
+    });
+    const ixn = makeButtonInteraction({
+      customId: 'perm_rule:revoke:a',
+      message: { embeds: [{}] },
+    });
+    await routeInteraction(ixn, deps);
+    expect(deps.commandService.revokePermissionRule).toHaveBeenCalledWith('a');
+    expect(ixn.update).toHaveBeenCalled();
+  });
+
+  it('unknown rule: still refreshes list (no-op revoke)', async () => {
+    const deps = makeDeps({
+      commandService: {
+        clearHistory: vi.fn(),
+        status: vi.fn(),
+        listReminders: vi.fn(),
+        listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi
+          .fn()
+          .mockReturnValue({ ok: false, reason: 'not_found' }),
+      } as any,
+    });
+    const ixn = makeButtonInteraction({
+      customId: 'perm_rule:revoke:ghost',
+      message: { embeds: [{}] },
+    });
+    await routeInteraction(ixn, deps);
+    expect(ixn.update).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'No saved permission rules left.', components: [] }),
+    );
   });
 });

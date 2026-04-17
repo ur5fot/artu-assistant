@@ -872,7 +872,7 @@ git commit -m "feat(discord): register /permissions slash command"
 - Modify: `packages/server/src/channels/discord/interactions.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/interactions.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `interactions.test.ts`:
 
@@ -969,9 +969,9 @@ describe('routeInteraction — perm_rule:revoke', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests** — expect FAIL (handler not yet implemented).
+- [x] **Step 2: Run tests** — expect FAIL (handler not yet implemented).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `packages/server/src/channels/discord/interactions.ts`.
 
@@ -1031,9 +1031,9 @@ revokePermissionRule: vi.fn().mockReturnValue({ ok: true }),
 
 to the default `commandService` in `makeDeps`.
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/interactions.ts packages/server/src/channels/discord/__tests__/interactions.test.ts
