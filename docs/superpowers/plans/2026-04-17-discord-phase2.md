@@ -52,7 +52,7 @@
 - Modify: `packages/server/src/db.ts`
 - Modify: `packages/server/src/db.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `packages/server/src/db.test.ts`:
 
@@ -93,7 +93,7 @@ describe('permission rules CRUD', () => {
 
 Imports at the top of `db.test.ts` may already exist — only add the new names (`listPermissionRules`, `deletePermissionRule`) and reuse existing ones.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/db.test.ts
@@ -101,7 +101,7 @@ npx vitest run --root packages/server packages/server/src/db.test.ts
 
 Expected: FAIL with `listPermissionRules is not a function` (or similar).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `packages/server/src/db.ts`. After the existing `clearPermissionRules` function:
 
@@ -123,7 +123,7 @@ export function deletePermissionRule(toolName: string): boolean {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/db.test.ts
@@ -131,7 +131,7 @@ npx vitest run --root packages/server packages/server/src/db.test.ts
 
 Expected: all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/db.test.ts
