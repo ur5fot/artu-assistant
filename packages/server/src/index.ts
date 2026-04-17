@@ -20,6 +20,7 @@ import { reminderBus } from './reminders/bus.js';
 import { createReminderRouter } from './routes/reminder.js';
 import { createReminderService } from './services/reminder-service.js';
 import { createPermissionService } from './services/permission-service.js';
+import { createPlanReviewService } from './services/plan-review-service.js';
 import { createEventsRouter } from './routes/events.js';
 import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
@@ -169,6 +170,7 @@ const registry = createRegistry();
 const pendingConfirms: PendingConfirms = new Map();
 const permissionService = createPermissionService({ pending: pendingConfirms });
 const pendingPlanReviews: PendingPlanReviews = new Map();
+const planReviewService = createPlanReviewService({ pending: pendingPlanReviews });
 
 let memoryService: MemoryService | null = null;
 if (memoryEnabled && ollamaForMemory) {
@@ -270,7 +272,7 @@ const chatRouter = createChatRouter({
 
 app.use('/api', chatRouter);
 app.use('/api', createConfirmRouter({ service: permissionService }));
-app.use('/api', createPlanReviewRouter(pendingPlanReviews));
+app.use('/api', createPlanReviewRouter({ service: planReviewService }));
 app.use('/api', createPermissionsRouter());
 app.use('/api', createMessagesRouter());
 app.use('/api', createMergeRouter());

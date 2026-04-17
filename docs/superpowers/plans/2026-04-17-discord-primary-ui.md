@@ -717,7 +717,7 @@ git commit -m "feat(services): add plan-review-service"
 - Modify: `packages/server/src/routes/plan-review.test.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Update test file**
+- [x] **Step 1: Update test file**
 
 Open `packages/server/src/routes/plan-review.test.ts`. Replace the app setup with a service-based version (mirroring Task 4):
 
@@ -746,9 +746,9 @@ function makeApp(service: PlanReviewService) {
 
 Keep existing test cases (invalid body, success, editedPlan), update them to use `makeApp(makeService(...))`. Add a new case for the not-found branch.
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace `packages/server/src/routes/plan-review.ts`:
 
@@ -794,7 +794,7 @@ export function createPlanReviewRouter(deps: Deps): Router {
 }
 ```
 
-- [ ] **Step 4: Update `index.ts`**
+- [x] **Step 4: Update `index.ts`**
 
 Add plan-review service wiring:
 
@@ -806,9 +806,9 @@ const planReviewService = createPlanReviewService({ pending: pendingPlanReviews 
 app.use('/api', createPlanReviewRouter({ service: planReviewService }));
 ```
 
-- [ ] **Step 5: Run full server tests** — expect all passing.
+- [x] **Step 5: Run full server tests** — expect all passing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/routes/plan-review.ts packages/server/src/routes/plan-review.test.ts packages/server/src/index.ts
