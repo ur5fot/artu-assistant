@@ -1362,7 +1362,7 @@ git commit -m "feat(discord): debounced tool_progress edits (800ms)"
 - Modify: `packages/server/src/channels/discord/bot.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `bot.test.ts`:
 
@@ -1466,9 +1466,9 @@ describe('tool_call_result handling', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Inside `handleMessage` `onEvent`, add branch for `tool_call_result`:
 
@@ -1559,9 +1559,9 @@ const toolCallSnapshot = {
 
 Update `applyProgressEdit` likewise to pass `entry.toolInput`.
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts

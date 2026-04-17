@@ -18,7 +18,7 @@ import type { PlanReviewService } from '../../services/plan-review-service.js';
 import type { CommandService } from '../../services/command-service.js';
 import { truncateMessages } from '../../routes/chat.js';
 import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
-import { buildToolCallEmbed, SILENT_TOOLS } from './tool-embeds.js';
+import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from './tool-embeds.js';
 import { routeInteraction } from './interactions.js';
 import { SLASH_COMMAND_DEFINITIONS } from './slash-commands.js';
 
@@ -219,6 +219,7 @@ export async function startDiscordBot(
     type ToolCallEntry = {
       messageId: string;
       toolName: string;
+      toolInput: Record<string, unknown>;
       final: boolean;
       lastEditAt: number;
       pendingTimer: ReturnType<typeof setTimeout> | null;
@@ -238,7 +239,7 @@ export async function startDiscordBot(
           toolCall: {
             id: callId,
             name: entry.toolName,
-            input: {},
+            input: entry.toolInput,
             status: 'running',
           },
           progress,
@@ -366,6 +367,7 @@ export async function startDiscordBot(
                   toolCallMessages.set(event.toolCall.id, {
                     messageId: sent.id,
                     toolName: event.toolCall.name,
+                    toolInput: event.toolCall.input,
                     final: false,
                     lastEditAt: Date.now(),
                     pendingTimer: null,
@@ -375,6 +377,62 @@ export async function startDiscordBot(
                 }
                 if (event.type === 'tool_progress') {
                   onProgress(event.id, event.message);
+                  return;
+                }
+                if (event.type === 'tool_call_result') {
+                  const entry = toolCallMessages.get(event.id);
+                  if (!entry || entry.final) return;
+                  if (entry.pendingTimer) {
+                    clearTimeout(entry.pendingTimer);
+                    entry.pendingTimer = null;
+                    entry.latestProgress = null;
+                  }
+                  const isSuccess = event.result.success;
+                  const state = isSuccess ? ('done' as const) : ('error' as const);
+                  const toolCallSnapshot = {
+                    id: event.id,
+                    name: entry.toolName,
+                    input: entry.toolInput,
+                    status: state,
+                    result: event.result,
+                  };
+                  const embed = buildToolCallEmbed({ state, toolCall: toolCallSnapshot });
+                  try {
+                    const msgRef = await dmChannel.messages.fetch(entry.messageId);
+                    if (embed) await msgRef.edit({ embeds: [embed] });
+                  } catch {
+                    // Message gone or no permission — ignore.
+                  }
+                  entry.final = true;
+
+                  if (isSuccess && entry.toolName === 'code_task') {
+                    const data = (event.result.data ?? {}) as {
+                      fullDiff?: string;
+                      commit?: string;
+                    };
+                    if (typeof data.fullDiff === 'string' && data.fullDiff.length > 0) {
+                      const diff = buildDiffAttachment({
+                        callId: event.id,
+                        fullDiff: data.fullDiff,
+                        commit: data.commit,
+                      });
+                      if (diff && 'attachment' in diff) {
+                        try {
+                          await dmChannel.send({ files: [{ attachment: diff.attachment, name: diff.name }] });
+                        } catch (err) {
+                          console.error('[discord] diff attachment failed:',
+                            err instanceof Error ? err.message : err);
+                        }
+                      } else if (diff && 'oversize' in diff) {
+                        const commitSha = data.commit ?? event.id;
+                        try {
+                          await dmChannel.send(`⚠️ diff too large to attach, saved in commit \`${commitSha.slice(0, 7)}\``);
+                        } catch {
+                          // ignore
+                        }
+                      }
+                    }
+                  }
                   return;
                 }
                 if (event.type === 'tool_confirm_request') {

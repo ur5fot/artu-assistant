@@ -880,6 +880,228 @@ describe('tool_progress handling (debounced)', () => {
   });
 });
 
+describe('tool_call_result handling', () => {
+  it('done result: edits embed to done state', async () => {
+    const editMock = vi.fn().mockResolvedValue(undefined);
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: any) => {
+      onEvent({
+        type: 'tool_call_start',
+        toolCall: { id: 'c-1', name: 'file_write', input: { path: '/tmp/x' }, status: 'running' },
+      } as SSEEvent);
+      onEvent({
+        type: 'tool_call_result',
+        id: 'c-1',
+        result: { success: true, display: { type: 'text', content: 'wrote 42 bytes' } },
+      } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const channel = makeDmChannel();
+    (channel.send as any).mockResolvedValue({ id: 'sent-1', edit: editMock });
+    (channel as any).messages = { fetch: vi.fn().mockResolvedValue({ edit: editMock }) };
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+
+    const msg = {
+      author: { bot: false, id: '123' },
+      channel,
+      content: 'do work',
+    };
+    client.emit('messageCreate', msg as any);
+    await delay(100);
+
+    expect(editMock).toHaveBeenCalled();
+    const lastCall = editMock.mock.calls[editMock.mock.calls.length - 1];
+    const lastEmbed = lastCall[0].embeds[0].toJSON();
+    expect(lastEmbed.title).toBe('✅ file_write');
+  });
+
+  it('error result: edits embed to error state', async () => {
+    const editMock = vi.fn().mockResolvedValue(undefined);
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: any) => {
+      onEvent({
+        type: 'tool_call_start',
+        toolCall: { id: 'c-err', name: 'file_write', input: {}, status: 'running' },
+      } as SSEEvent);
+      onEvent({
+        type: 'tool_call_result',
+        id: 'c-err',
+        result: { success: false, error: 'permission denied' },
+      } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const channel = makeDmChannel();
+    (channel.send as any).mockResolvedValue({ id: 'sent-err', edit: editMock });
+    (channel as any).messages = { fetch: vi.fn().mockResolvedValue({ edit: editMock }) };
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+
+    const msg = {
+      author: { bot: false, id: '123' },
+      channel,
+      content: 'do work',
+    };
+    client.emit('messageCreate', msg as any);
+    await delay(100);
+
+    const lastCall = editMock.mock.calls[editMock.mock.calls.length - 1];
+    const lastEmbed = lastCall[0].embeds[0].toJSON();
+    expect(lastEmbed.title).toBe('❌ file_write');
+  });
+
+  it('code_task with fullDiff: sends attachment follow-up', async () => {
+    const editMock = vi.fn().mockResolvedValue(undefined);
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: any) => {
+      onEvent({
+        type: 'tool_call_start',
+        toolCall: { id: 'c-1', name: 'code_task', input: { task: 't' }, status: 'running' },
+      } as SSEEvent);
+      onEvent({
+        type: 'tool_call_result',
+        id: 'c-1',
+        result: {
+          success: true,
+          data: {
+            commit: 'abcdef1234',
+            files: [{ path: 'a.ts', added: 1, removed: 0 }],
+            fullDiff: '--- a\n+++ b\n@@ @@\n-old\n+new\n',
+          },
+        },
+      } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const channel = makeDmChannel();
+    (channel.send as any).mockResolvedValue({ id: 'sent-1', edit: editMock });
+    (channel as any).messages = { fetch: vi.fn().mockResolvedValue({ edit: editMock }) };
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+
+    const msg = {
+      author: { bot: false, id: '123' },
+      channel,
+      content: 'refactor',
+    };
+    client.emit('messageCreate', msg as any);
+    await delay(100);
+
+    const fileCalls = (channel.send as any).mock.calls.filter(
+      (c: any[]) => typeof c[0] === 'object' && c[0] !== null && 'files' in c[0],
+    );
+    expect(fileCalls.length).toBe(1);
+    const attachment = fileCalls[0][0].files[0];
+    expect(attachment.name).toBe('code_task_abcdef1.diff');
+  });
+
+  it('code_task without fullDiff: no attachment follow-up', async () => {
+    const editMock = vi.fn().mockResolvedValue(undefined);
+    const runChatRequest = vi.fn<any>(async ({ onEvent }: any) => {
+      onEvent({
+        type: 'tool_call_start',
+        toolCall: { id: 'c-2', name: 'code_task', input: { task: 't' }, status: 'running' },
+      } as SSEEvent);
+      onEvent({
+        type: 'tool_call_result',
+        id: 'c-2',
+        result: { success: true, data: { commit: 'deadbeef' } },
+      } as SSEEvent);
+      onEvent({ type: 'done' } as SSEEvent);
+    });
+
+    const channel = makeDmChannel();
+    (channel.send as any).mockResolvedValue({ id: 'sent-2', edit: editMock });
+    (channel as any).messages = { fetch: vi.fn().mockResolvedValue({ edit: editMock }) };
+
+    const { client } = await setup({
+      runChatRequest: runChatRequest as any,
+      permissionService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveConfirm: vi.fn(),
+      } as any,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      planReviewService: {
+        hasPending: vi.fn(),
+        isResolvedByUser: vi.fn().mockReturnValue(true),
+        resolveReview: vi.fn(),
+      } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]),
+        revokePermissionRule: vi.fn(),
+      } as any,
+    });
+
+    const msg = {
+      author: { bot: false, id: '123' },
+      channel,
+      content: 'refactor',
+    };
+    client.emit('messageCreate', msg as any);
+    await delay(100);
+
+    const fileCalls = (channel.send as any).mock.calls.filter(
+      (c: any[]) => typeof c[0] === 'object' && c[0] !== null && 'files' in c[0],
+    );
+    expect(fileCalls.length).toBe(0);
+  });
+});
+
 describe('sendReply', () => {
   it('sends short text in one message', async () => {
     const ch = makeDmChannel();
