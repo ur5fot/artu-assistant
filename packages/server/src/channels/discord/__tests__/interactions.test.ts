@@ -208,6 +208,24 @@ describe('routeInteraction — slash commands', () => {
     expect(deps.commandService.listMemory).toHaveBeenCalledWith('hello');
   });
 
+  it('/memory: when listMemory throws, editReply with error instead of leaving defer stuck', async () => {
+    const deps = makeDeps({
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(),
+        listMemory: vi.fn().mockRejectedValue(new Error('ollama down')),
+      } as any,
+    });
+    const ixn = makeSlashInteraction({
+      commandName: 'memory',
+      options: { getString: vi.fn().mockReturnValue('x') },
+    });
+    await routeInteraction(ixn, deps);
+    expect(ixn.deferReply).toHaveBeenCalled();
+    expect(ixn.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('ollama down') }),
+    );
+  });
+
   it('/clear: ephemeral confirm with Yes/No buttons', async () => {
     const deps = makeDeps();
     const ixn = makeSlashInteraction({ commandName: 'clear' });

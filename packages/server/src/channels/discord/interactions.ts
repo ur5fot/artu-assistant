@@ -224,17 +224,25 @@ async function routeSlashCommand(
     // the subsequent editReply is not rejected as "Unknown interaction".
     await (ixn as any).deferReply({ flags: MessageFlags.Ephemeral });
     const query = (ixn as any).options.getString('query') ?? undefined;
-    const result = await deps.commandService.listMemory(query);
-    const content = !result.available
-      ? 'Memory not available.'
-      : result.entries.length === 0
-        ? 'No memory entries.'
-        : truncateLines(
-            result.entries.map(
-              (e) => `- ${e.text}${e.timestamp ? ` (${new Date(e.timestamp).toISOString()})` : ''}`,
-            ),
-          );
-    await (ixn as any).editReply({ content });
+    try {
+      const result = await deps.commandService.listMemory(query);
+      const content = !result.available
+        ? 'Memory not available.'
+        : result.entries.length === 0
+          ? 'No memory entries.'
+          : truncateLines(
+              result.entries.map(
+                (e) => `- ${e.text}${e.timestamp ? ` (${new Date(e.timestamp).toISOString()})` : ''}`,
+              ),
+            );
+      await (ixn as any).editReply({ content });
+    } catch (err) {
+      // Without this catch the outer bot.ts handler only logs, leaving the
+      // deferred ephemeral reply stuck on "thinking..." until Discord's
+      // 15-minute token expires.
+      const msg = err instanceof Error ? err.message : String(err);
+      await (ixn as any).editReply({ content: `Memory lookup failed: ${msg}` });
+    }
     return;
   }
 }
