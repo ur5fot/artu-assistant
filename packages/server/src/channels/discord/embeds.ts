@@ -34,7 +34,7 @@ export function buildReminderEmbed(opts: {
             new ButtonBuilder()
               .setCustomId(`reminder:dismiss:${opts.id}`)
               .setLabel('Dismiss')
-              .setEmoji('✓')
+              .setEmoji('✅')
               .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
               .setCustomId(`reminder:snooze:${opts.id}`)
