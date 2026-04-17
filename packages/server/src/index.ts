@@ -203,8 +203,6 @@ const commandService = createCommandService({
   modelName: process.env.MODEL_NAME || 'claude-opus-4-7',
   startedAt: serverStartedAt,
 });
-void commandService; // wired to Discord slash handlers in Task 17
-
 // Bound runLoop closure — tool factories use this for recursive agent calls
 const runLoopFn = (params: {
   messages: any;
@@ -263,6 +261,10 @@ if (discordToken) {
       saveMessage,
       memoryService,
       reminderBus,
+      reminderService,
+      permissionService,
+      planReviewService,
+      commandService,
       requestTimeoutMs: Number(process.env.DISCORD_REQUEST_TIMEOUT_MS) || 300_000,
     });
     console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);

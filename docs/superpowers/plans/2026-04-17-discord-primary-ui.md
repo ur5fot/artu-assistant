@@ -2413,7 +2413,7 @@ git commit -m "feat(discord): slash command handlers (clear/status/reminders/mem
 **Files:**
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Update `startDiscordBot` call**
+- [x] **Step 1: Update `startDiscordBot` call**
 
 ```ts
 discordBot = await startDiscordBot({
@@ -2442,7 +2442,7 @@ discordBot = await startDiscordBot({
 });
 ```
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
 
 ```bash
 npx vitest run --root packages/server
@@ -2450,7 +2450,7 @@ npx vitest run --root packages/server
 
 Expected: all green.
 
-- [ ] **Step 3: Build check**
+- [x] **Step 3: Build check**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm run build -w @r2/server
@@ -2458,7 +2458,7 @@ cd /Users/dim/code/R2-D2 && npm run build -w @r2/server
 
 Expected: no TypeScript errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/index.ts
