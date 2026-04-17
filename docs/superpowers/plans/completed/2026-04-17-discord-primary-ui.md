@@ -64,7 +64,7 @@ Web client (`packages/client/**`) — frozen. SSE events continue to flow to web
 - Create: `packages/server/src/services/reminder-service.ts`
 - Create: `packages/server/src/services/__tests__/reminder-service.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/server/src/services/__tests__/reminder-service.test.ts`:
 
@@ -144,7 +144,7 @@ describe('reminder-service', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npx vitest run --root packages/server packages/server/src/services/__tests__/reminder-service.test.ts
@@ -152,7 +152,7 @@ cd /Users/dim/code/R2-D2 && npx vitest run --root packages/server packages/serve
 
 Expected: FAIL — "Failed to resolve import '../reminder-service.js'".
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `packages/server/src/services/reminder-service.ts`:
 
@@ -201,7 +201,7 @@ export function createReminderService(deps: Deps): ReminderService {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/services/__tests__/reminder-service.test.ts
@@ -209,7 +209,7 @@ npx vitest run --root packages/server packages/server/src/services/__tests__/rem
 
 Expected: 5 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/services/reminder-service.ts packages/server/src/services/__tests__/reminder-service.test.ts
@@ -224,7 +224,7 @@ git commit -m "feat(services): add reminder-service wrapping store + bus"
 - Modify: `packages/server/src/routes/reminder.ts`
 - Test: `packages/server/src/routes/__tests__/reminder.test.ts` (new)
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/routes/__tests__/reminder.test.ts`:
 
@@ -283,7 +283,7 @@ describe('reminder router', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/routes/__tests__/reminder.test.ts
@@ -291,7 +291,7 @@ npx vitest run --root packages/server packages/server/src/routes/__tests__/remin
 
 Expected: FAIL — router still takes old `{ store, bus }` deps.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace contents of `packages/server/src/routes/reminder.ts`:
 
@@ -339,7 +339,7 @@ export function createReminderRouter(deps: Deps): Router {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/routes/__tests__/reminder.test.ts
@@ -347,7 +347,7 @@ npx vitest run --root packages/server packages/server/src/routes/__tests__/remin
 
 Expected: 4 passing.
 
-- [ ] **Step 5: Update `index.ts` wiring temporarily (compile fix only)**
+- [x] **Step 5: Update `index.ts` wiring temporarily (compile fix only)**
 
 Edit `packages/server/src/index.ts` — change the reminder router line:
 
@@ -362,7 +362,7 @@ app.use('/api/reminder', createReminderRouter({ service: reminderService }));
 
 (Place `createReminderService` call near where `reminderStore` is constructed, above `app.use`.)
 
-- [ ] **Step 6: Verify server still compiles**
+- [x] **Step 6: Verify server still compiles**
 
 ```bash
 npx vitest run --root packages/server
@@ -370,7 +370,7 @@ npx vitest run --root packages/server
 
 Expected: full server test suite passes.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/routes/reminder.ts packages/server/src/routes/__tests__/reminder.test.ts packages/server/src/index.ts
@@ -385,7 +385,7 @@ git commit -m "refactor(routes): reminder route uses reminder-service"
 - Create: `packages/server/src/services/permission-service.ts`
 - Create: `packages/server/src/services/__tests__/permission-service.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // packages/server/src/services/__tests__/permission-service.test.ts
@@ -420,13 +420,13 @@ describe('permission-service', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/services/__tests__/permission-service.test.ts
 ```
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/services/permission-service.ts`:
 
@@ -463,11 +463,11 @@ export function createPermissionService(deps: Deps): PermissionService {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Expected: 3 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/services/permission-service.ts packages/server/src/services/__tests__/permission-service.test.ts
@@ -483,7 +483,7 @@ git commit -m "feat(services): add permission-service wrapping pendingConfirms"
 - Modify: `packages/server/src/routes/__tests__/confirm.test.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Update existing test file**
+- [x] **Step 1: Update existing test file**
 
 Open `packages/server/src/routes/__tests__/confirm.test.ts`. Replace the parts that construct the router with a service-based version. Keep existing test cases (invalid body, 404, success).
 
@@ -527,13 +527,13 @@ it('POST /confirm — 404 when service returns not_found', async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/routes/__tests__/confirm.test.ts
 ```
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace `packages/server/src/routes/confirm.ts`:
 
@@ -582,7 +582,7 @@ export function createConfirmRouter(deps: Deps): Router {
 
 Note: keep `ConfirmResponse` and `PendingConfirms` exports — they are still used by `tool-helpers.ts` and `permission-service.ts`.
 
-- [ ] **Step 4: Update `index.ts`**
+- [x] **Step 4: Update `index.ts`**
 
 Add the permission service near where `pendingConfirms` is created, then pass to router:
 
@@ -594,7 +594,7 @@ const permissionService = createPermissionService({ pending: pendingConfirms });
 app.use('/api', createConfirmRouter({ service: permissionService }));
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -602,7 +602,7 @@ npx vitest run --root packages/server
 
 Expected: all green (confirm tests updated, rest unaffected).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/routes/confirm.ts packages/server/src/routes/__tests__/confirm.test.ts packages/server/src/index.ts
@@ -617,7 +617,7 @@ git commit -m "refactor(routes): confirm route uses permission-service"
 - Create: `packages/server/src/services/plan-review-service.ts`
 - Create: `packages/server/src/services/__tests__/plan-review-service.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // packages/server/src/services/__tests__/plan-review-service.test.ts
@@ -660,9 +660,9 @@ describe('plan-review-service', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL
+- [x] **Step 2: Run test** — expect FAIL
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/services/plan-review-service.ts`:
 
@@ -699,9 +699,9 @@ export function createPlanReviewService(deps: Deps): PlanReviewService {
 }
 ```
 
-- [ ] **Step 4: Run tests** — 4 passing.
+- [x] **Step 4: Run tests** — 4 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/services/plan-review-service.ts packages/server/src/services/__tests__/plan-review-service.test.ts
@@ -717,7 +717,7 @@ git commit -m "feat(services): add plan-review-service"
 - Modify: `packages/server/src/routes/plan-review.test.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Update test file**
+- [x] **Step 1: Update test file**
 
 Open `packages/server/src/routes/plan-review.test.ts`. Replace the app setup with a service-based version (mirroring Task 4):
 
@@ -746,9 +746,9 @@ function makeApp(service: PlanReviewService) {
 
 Keep existing test cases (invalid body, success, editedPlan), update them to use `makeApp(makeService(...))`. Add a new case for the not-found branch.
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace `packages/server/src/routes/plan-review.ts`:
 
@@ -794,7 +794,7 @@ export function createPlanReviewRouter(deps: Deps): Router {
 }
 ```
 
-- [ ] **Step 4: Update `index.ts`**
+- [x] **Step 4: Update `index.ts`**
 
 Add plan-review service wiring:
 
@@ -806,9 +806,9 @@ const planReviewService = createPlanReviewService({ pending: pendingPlanReviews 
 app.use('/api', createPlanReviewRouter({ service: planReviewService }));
 ```
 
-- [ ] **Step 5: Run full server tests** — expect all passing.
+- [x] **Step 5: Run full server tests** — expect all passing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/routes/plan-review.ts packages/server/src/routes/plan-review.test.ts packages/server/src/index.ts
@@ -825,7 +825,7 @@ git commit -m "refactor(routes): plan-review route uses plan-review-service"
 
 Also: locate the existing "clear chat history" logic. Check `packages/server/src/db.ts` for a function; if absent, use `DELETE FROM chat_messages` directly.
 
-- [ ] **Step 1: Inspect `db.ts`**
+- [x] **Step 1: Inspect `db.ts`**
 
 ```bash
 grep -n "chat_messages" packages/server/src/db.ts
@@ -833,7 +833,7 @@ grep -n "chat_messages" packages/server/src/db.ts
 
 Expected: find `saveMessage`, history retention. If no `clearChatHistory` exists, the service defines it.
 
-- [ ] **Step 2: Write failing test**
+- [x] **Step 2: Write failing test**
 
 ```ts
 // packages/server/src/services/__tests__/command-service.test.ts
@@ -906,9 +906,9 @@ describe('command-service', () => {
 });
 ```
 
-- [ ] **Step 3: Run test** — expect FAIL.
+- [x] **Step 3: Run test** — expect FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 Create `packages/server/src/services/command-service.ts`:
 
@@ -1011,7 +1011,7 @@ export function createCommandService(deps: Deps): CommandService {
 
 **Note:** `MemoryService`'s exact API must be verified before wiring. Before Step 5, inspect `packages/server/src/memory/service.ts` to see which methods exist (`searchSimilar`, `listRecent`, etc.). If both methods don't exist, replace with the nearest equivalents and update tests accordingly.
 
-- [ ] **Step 5: Verify MemoryService API**
+- [x] **Step 5: Verify MemoryService API**
 
 ```bash
 grep -n "export" packages/server/src/memory/service.ts
@@ -1019,11 +1019,11 @@ grep -n "export" packages/server/src/memory/service.ts
 
 Read matching methods and adjust `listMemory` to call the real API. If the current memory service has no search / listRecent, keep the `{ available: false, entries: [] }` fallback and add a TODO-free comment inside the code saying the method is not yet wired.
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Expected: 4 passing.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/services/command-service.ts packages/server/src/services/__tests__/command-service.test.ts
@@ -1037,7 +1037,7 @@ git commit -m "feat(services): add command-service for slash commands"
 **Files:**
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Edit index.ts**
+- [x] **Step 1: Edit index.ts**
 
 Near where the other services are constructed, add:
 
@@ -1058,7 +1058,7 @@ const commandService = createCommandService({
 
 No route changes in this step — command-service is used only by Discord slash handlers (Task 14).
 
-- [ ] **Step 2: Verify compile + tests**
+- [x] **Step 2: Verify compile + tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -1066,7 +1066,7 @@ npx vitest run --root packages/server
 
 Expected: all green.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/index.ts
@@ -1081,7 +1081,7 @@ git commit -m "chore(index): instantiate command-service"
 - Create: `packages/server/src/channels/discord/embeds.ts`
 - Create: `packages/server/src/channels/discord/__tests__/embeds.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // packages/server/src/channels/discord/__tests__/embeds.test.ts
@@ -1141,9 +1141,9 @@ describe('buildReminderEmbed', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/channels/discord/embeds.ts`:
 
@@ -1197,9 +1197,9 @@ export function buildReminderEmbed(opts: {
 }
 ```
 
-- [ ] **Step 4: Run tests** — 4 passing.
+- [x] **Step 4: Run tests** — 4 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/embeds.ts packages/server/src/channels/discord/__tests__/embeds.test.ts
@@ -1214,7 +1214,7 @@ git commit -m "feat(discord): reminder embed factory"
 - Modify: `packages/server/src/channels/discord/bot.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Extend `DiscordBotDeps`**
+- [x] **Step 1: Extend `DiscordBotDeps`**
 
 In `bot.ts`, change `DiscordBotDeps`:
 
@@ -1234,7 +1234,7 @@ Also import the embed factory:
 import { buildReminderEmbed } from './embeds.js';
 ```
 
-- [ ] **Step 2: Update reminder listener**
+- [x] **Step 2: Update reminder listener**
 
 Replace the block starting `if (deps.reminderBus)` with:
 
@@ -1273,7 +1273,7 @@ if (deps.reminderBus) {
 }
 ```
 
-- [ ] **Step 3: Update existing `bot.test.ts` expectations**
+- [x] **Step 3: Update existing `bot.test.ts` expectations**
 
 In `bot.test.ts`, any test that asserted `dm.send('⏰ Купити рибу')` or similar plain-text reminder assertions now must assert on `dm.send({ embeds: [...], components: [...] })`. Update to:
 
@@ -1286,7 +1286,7 @@ expect(dmChannel.send).toHaveBeenCalledWith(
 );
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -1294,7 +1294,7 @@ npx vitest run --root packages/server
 
 Expected: passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts
@@ -1309,7 +1309,7 @@ git commit -m "feat(discord): reminder_ring sends embed with buttons"
 - Modify: `packages/server/src/channels/discord/embeds.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/embeds.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `embeds.test.ts`:
 
@@ -1362,9 +1362,9 @@ describe('buildPermissionEmbed', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `embeds.ts`:
 
@@ -1419,9 +1419,9 @@ export function buildPermissionEmbed(opts: {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/embeds.ts packages/server/src/channels/discord/__tests__/embeds.test.ts
@@ -1436,7 +1436,7 @@ git commit -m "feat(discord): permission embed factory"
 - Modify: `packages/server/src/channels/discord/embeds.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/embeds.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `embeds.test.ts`:
 
@@ -1484,9 +1484,9 @@ describe('buildPlanReviewChunks', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `embeds.ts`:
 
@@ -1576,9 +1576,9 @@ export function buildPlanReviewChunks(opts: {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing. If the "splits into multiple chunks" test fails on the header format, tweak the header assertion to match the actual `(1/N)` output.
+- [x] **Step 4: Run tests** — all passing. If the "splits into multiple chunks" test fails on the header format, tweak the header assertion to match the actual `(1/N)` output.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/embeds.ts packages/server/src/channels/discord/__tests__/embeds.test.ts
@@ -1593,7 +1593,7 @@ git commit -m "feat(discord): plan-review multi-message chunk builder"
 - Create: `packages/server/src/channels/discord/interactions.ts`
 - Create: `packages/server/src/channels/discord/__tests__/interactions.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ts
 // packages/server/src/channels/discord/__tests__/interactions.test.ts
@@ -1688,9 +1688,9 @@ describe('routeInteraction — reminder buttons', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/channels/discord/interactions.ts`:
 
@@ -1823,9 +1823,9 @@ async function routeSlashCommand(
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/interactions.ts packages/server/src/channels/discord/__tests__/interactions.test.ts
@@ -1841,7 +1841,7 @@ git commit -m "feat(discord): interaction router + reminder button handlers"
 
 Already mostly implemented in Task 13; this task adds dedicated tests.
 
-- [ ] **Step 1: Add tests**
+- [x] **Step 1: Add tests**
 
 Append to `interactions.test.ts`:
 
@@ -1913,9 +1913,9 @@ describe('routeInteraction — plan review buttons', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests** — all passing.
+- [x] **Step 2: Run tests** — all passing.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/__tests__/interactions.test.ts
@@ -1932,7 +1932,7 @@ git commit -m "test(discord): permission and plan-review interaction tests"
 
 This is the central change that makes Discord usable mid-stream.
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Add to `bot.test.ts`:
 
@@ -1993,9 +1993,9 @@ describe('mid-stream tool_confirm_request handling', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL (bot doesn't handle `tool_confirm_request` yet).
+- [x] **Step 2: Run test** — expect FAIL (bot doesn't handle `tool_confirm_request` yet).
 
-- [ ] **Step 3: Extend `DiscordBotDeps` with all services**
+- [x] **Step 3: Extend `DiscordBotDeps` with all services**
 
 ```ts
 export interface DiscordBotDeps {
@@ -2027,7 +2027,7 @@ import { buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
 import { routeInteraction } from './interactions.js';
 ```
 
-- [ ] **Step 4: Refactor `onEvent` inside `handleMessage`**
+- [x] **Step 4: Refactor `onEvent` inside `handleMessage`**
 
 Replace the current `onEvent` inline closure with:
 
@@ -2113,7 +2113,7 @@ let sendChain: Promise<void> = Promise.resolve();
 
 before the retry loop.
 
-- [ ] **Step 5: Add `interactionCreate` hook**
+- [x] **Step 5: Add `interactionCreate` hook**
 
 In `startDiscordBot`, after other event wires:
 
@@ -2133,7 +2133,7 @@ client.on('interactionCreate', async (interaction) => {
 });
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/channels/discord
@@ -2141,7 +2141,7 @@ npx vitest run --root packages/server packages/server/src/channels/discord
 
 Expected: all existing + new tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts
@@ -2156,7 +2156,7 @@ git commit -m "feat(discord): mid-stream flush + permission/plan-review embeds i
 - Create: `packages/server/src/channels/discord/slash-commands.ts`
 - Modify: `packages/server/src/channels/discord/bot.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 Create `packages/server/src/channels/discord/slash-commands.ts`:
 
@@ -2186,7 +2186,7 @@ export const SLASH_COMMAND_DEFINITIONS = [
 ].map((b) => b.toJSON());
 ```
 
-- [ ] **Step 2: Register on `clientReady` in `bot.ts`**
+- [x] **Step 2: Register on `clientReady` in `bot.ts`**
 
 Inside the existing `clientReady` handler, after pre-caching DM channels:
 
@@ -2207,7 +2207,7 @@ Import:
 import { SLASH_COMMAND_DEFINITIONS } from './slash-commands.js';
 ```
 
-- [ ] **Step 3: Run server tests**
+- [x] **Step 3: Run server tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -2215,7 +2215,7 @@ npx vitest run --root packages/server
 
 Expected: green. (Bot tests that construct a fake client don't hit `application.commands.set` — it is guarded by `client.application`.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/slash-commands.ts packages/server/src/channels/discord/bot.ts
@@ -2230,7 +2230,7 @@ git commit -m "feat(discord): slash command definitions + registration"
 - Modify: `packages/server/src/channels/discord/interactions.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/interactions.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `interactions.test.ts`:
 
@@ -2315,9 +2315,9 @@ describe('routeInteraction — slash commands', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement slash-command branch**
+- [x] **Step 3: Implement slash-command branch**
 
 Replace the stub in `interactions.ts`:
 
@@ -2397,9 +2397,9 @@ if (domain === 'clear') {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/interactions.ts packages/server/src/channels/discord/__tests__/interactions.test.ts
@@ -2413,7 +2413,7 @@ git commit -m "feat(discord): slash command handlers (clear/status/reminders/mem
 **Files:**
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Update `startDiscordBot` call**
+- [x] **Step 1: Update `startDiscordBot` call**
 
 ```ts
 discordBot = await startDiscordBot({
@@ -2442,7 +2442,7 @@ discordBot = await startDiscordBot({
 });
 ```
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
 
 ```bash
 npx vitest run --root packages/server
@@ -2450,7 +2450,7 @@ npx vitest run --root packages/server
 
 Expected: all green.
 
-- [ ] **Step 3: Build check**
+- [x] **Step 3: Build check**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm run build -w @r2/server
@@ -2458,7 +2458,7 @@ cd /Users/dim/code/R2-D2 && npm run build -w @r2/server
 
 Expected: no TypeScript errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/index.ts
@@ -2474,7 +2474,7 @@ git commit -m "chore(index): wire all services into Discord bot deps"
 
 Currently the bot sends the ringing embed but doesn't edit it when the reminder is dismissed from somewhere else (e.g. `reminder_done` via scheduler timeout). This task closes the loop.
 
-- [ ] **Step 1: Extend reminder listener**
+- [x] **Step 1: Extend reminder listener**
 
 Replace the `reminderListener` body to also handle `reminder_done` and `reminder_dismissed`:
 
@@ -2528,7 +2528,7 @@ reminderListener = (event: ServerPushEvent) => {
 };
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -2536,7 +2536,7 @@ npx vitest run --root packages/server
 
 Expected: green.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts
@@ -2552,7 +2552,7 @@ git commit -m "feat(discord): edit reminder embeds on done/dismiss/snooze"
 
 When the request timeout aborts mid-flow (e.g. user never clicks an approve button), edit any permission/plan-review messages the bot sent for this request to "expired."
 
-- [ ] **Step 1: Track pending embed message ids per request**
+- [x] **Step 1: Track pending embed message ids per request**
 
 Inside `handleMessage`, before the retry loop:
 
@@ -2569,7 +2569,7 @@ pendingEmbedMsgs.push({ callId: event.toolCall.id, kind: 'perm', messageIds: [se
 
 When sending a plan review group: collect all sent ids under one entry.
 
-- [ ] **Step 2: On timeout / error, edit them**
+- [x] **Step 2: On timeout / error, edit them**
 
 In the `catch (err)` block at the bottom of `handleMessage`, after `clearInterval(typingInterval)`:
 
@@ -2596,11 +2596,11 @@ for (const pe of pendingEmbedMsgs) {
 
 Also make sure the late click path (`hasPending` returning false) in `interactions.ts` already handles this — it does (Task 13).
 
-- [ ] **Step 3: Run tests**
+- [x] **Step 3: Run tests**
 
 Expected: existing tests still pass. No new unit test here — this is defensive code paths exercised in manual E2E.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts

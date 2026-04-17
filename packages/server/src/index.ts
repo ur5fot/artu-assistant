@@ -18,6 +18,10 @@ import { createReminderStore } from './reminders/store.js';
 import { startScheduler } from './reminders/scheduler.js';
 import { reminderBus } from './reminders/bus.js';
 import { createReminderRouter } from './routes/reminder.js';
+import { createReminderService } from './services/reminder-service.js';
+import { createPermissionService } from './services/permission-service.js';
+import { createPlanReviewService } from './services/plan-review-service.js';
+import { createCommandService } from './services/command-service.js';
 import { createEventsRouter } from './routes/events.js';
 import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
@@ -160,11 +164,14 @@ if (ollamaForRouter) {
   console.log('[router] Local LLM disabled — all chat goes to Claude');
 }
 const reminderStore = createReminderStore({ db: getDb() });
+const reminderService = createReminderService({ store: reminderStore, bus: reminderBus });
 const stopScheduler = startScheduler({ store: reminderStore, db: getDb(), bus: reminderBus });
 
 const registry = createRegistry();
 const pendingConfirms: PendingConfirms = new Map();
+const permissionService = createPermissionService({ pending: pendingConfirms });
 const pendingPlanReviews: PendingPlanReviews = new Map();
+const planReviewService = createPlanReviewService({ pending: pendingPlanReviews });
 
 let memoryService: MemoryService | null = null;
 if (memoryEnabled && ollamaForMemory) {
@@ -186,6 +193,17 @@ if (memoryEnabled && ollamaForMemory) {
   console.log('[memory] disabled');
 }
 
+const serverStartedAt = Date.now();
+const commandService = createCommandService({
+  db: getDb(),
+  reminderService,
+  permissionService,
+  memoryService,
+  pendingConfirmsCount: () => pendingConfirms.size,
+  pendingPlanReviewsCount: () => pendingPlanReviews.size,
+  modelName: process.env.MODEL_NAME || 'claude-opus-4-7',
+  startedAt: serverStartedAt,
+});
 // Bound runLoop closure — tool factories use this for recursive agent calls
 const runLoopFn = (params: {
   messages: any;
@@ -233,6 +251,8 @@ if (discordToken) {
         runChatRequest({
           ...params,
           signal: params.signal,
+          pendingConfirms,
+          pendingPlanReviews,
           piiProxy,
           ollama: ollamaForRouter,
           registry,
@@ -244,7 +264,14 @@ if (discordToken) {
       saveMessage,
       memoryService,
       reminderBus,
-      requestTimeoutMs: Number(process.env.DISCORD_REQUEST_TIMEOUT_MS) || 300_000,
+      reminderService,
+      permissionService,
+      planReviewService,
+      commandService,
+      requestTimeoutMs: (() => {
+        const n = Number(process.env.DISCORD_REQUEST_TIMEOUT_MS);
+        return Number.isFinite(n) && n > 0 ? n : 300_000;
+      })(),
     });
     console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
   } catch (err) {
@@ -265,13 +292,13 @@ const chatRouter = createChatRouter({
 });
 
 app.use('/api', chatRouter);
-app.use('/api', createConfirmRouter(pendingConfirms));
-app.use('/api', createPlanReviewRouter(pendingPlanReviews));
+app.use('/api', createConfirmRouter({ service: permissionService }));
+app.use('/api', createPlanReviewRouter({ service: planReviewService }));
 app.use('/api', createPermissionsRouter());
 app.use('/api', createMessagesRouter());
 app.use('/api', createMergeRouter());
 app.use('/api', createCommandsRouter(registry));
-app.use('/api/reminder', createReminderRouter({ store: reminderStore, bus: reminderBus }));
+app.use('/api/reminder', createReminderRouter({ service: reminderService }));
 app.use('/api/events', createEventsRouter({ bus: reminderBus, store: reminderStore }));
 if (piiVault) {
   app.use('/api', createPiiRouter(piiVault));

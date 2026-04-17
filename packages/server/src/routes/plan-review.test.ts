@@ -1,40 +1,51 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createPlanReviewRouter, type PendingPlanReviews } from './plan-review.js';
+import { createPlanReviewRouter } from './plan-review.js';
+import type { PlanReviewService } from '../services/plan-review-service.js';
+
+function makeService(overrides: Partial<PlanReviewService> = {}): PlanReviewService {
+  return {
+    hasPending: vi.fn().mockReturnValue(true),
+    resolveReview: vi.fn().mockReturnValue({ ok: true }),
+    ...overrides,
+  } as PlanReviewService;
+}
+
+function makeApp(service: PlanReviewService) {
+  const app = express();
+  app.use(express.json());
+  app.use('/api', createPlanReviewRouter({ service }));
+  return app;
+}
 
 describe('POST /api/plan-review', () => {
-  let app: express.Express;
-  let pending: PendingPlanReviews;
-
-  beforeEach(() => {
-    pending = new Map();
-    app = express();
-    app.use(express.json());
-    app.use('/api', createPlanReviewRouter(pending));
-  });
-
   it('rejects missing callId', async () => {
+    const app = makeApp(makeService());
     const res = await request(app).post('/api/plan-review').send({ approved: true });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/callId/);
   });
 
   it('rejects missing approved', async () => {
+    const app = makeApp(makeService());
     const res = await request(app).post('/api/plan-review').send({ callId: 'x' });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/approved/);
   });
 
-  it('returns 404 for unknown callId', async () => {
+  it('returns 404 when service returns not_found', async () => {
+    const service = makeService({
+      resolveReview: vi.fn().mockReturnValue({ ok: false, reason: 'not_found' }),
+    });
+    const app = makeApp(service);
     const res = await request(app).post('/api/plan-review').send({ callId: 'x', approved: true });
     expect(res.status).toBe(404);
   });
 
-  it('resolves pending and removes from map', async () => {
-    let received: any = null;
-    pending.set('c1', (r) => { received = r; });
-
+  it('resolves pending via service with editedPlan', async () => {
+    const service = makeService();
+    const app = makeApp(service);
     const res = await request(app).post('/api/plan-review').send({
       callId: 'c1',
       approved: true,
@@ -42,16 +53,14 @@ describe('POST /api/plan-review', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(received).toEqual({ approved: true, editedPlan: '# Plan' });
-    expect(pending.has('c1')).toBe(false);
+    expect(service.resolveReview).toHaveBeenCalledWith('c1', true, '# Plan');
   });
 
-  it('handles approved=false', async () => {
-    let received: any = null;
-    pending.set('c2', (r) => { received = r; });
-
+  it('handles approved=false with undefined editedPlan', async () => {
+    const service = makeService();
+    const app = makeApp(service);
     await request(app).post('/api/plan-review').send({ callId: 'c2', approved: false });
 
-    expect(received).toEqual({ approved: false, editedPlan: undefined });
+    expect(service.resolveReview).toHaveBeenCalledWith('c2', false, undefined);
   });
 });
