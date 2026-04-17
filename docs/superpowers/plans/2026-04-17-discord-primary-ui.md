@@ -64,7 +64,7 @@ Web client (`packages/client/**`) — frozen. SSE events continue to flow to web
 - Create: `packages/server/src/services/reminder-service.ts`
 - Create: `packages/server/src/services/__tests__/reminder-service.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/server/src/services/__tests__/reminder-service.test.ts`:
 
@@ -144,7 +144,7 @@ describe('reminder-service', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npx vitest run --root packages/server packages/server/src/services/__tests__/reminder-service.test.ts
@@ -152,7 +152,7 @@ cd /Users/dim/code/R2-D2 && npx vitest run --root packages/server packages/serve
 
 Expected: FAIL — "Failed to resolve import '../reminder-service.js'".
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `packages/server/src/services/reminder-service.ts`:
 
@@ -201,7 +201,7 @@ export function createReminderService(deps: Deps): ReminderService {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/services/__tests__/reminder-service.test.ts
@@ -209,7 +209,7 @@ npx vitest run --root packages/server packages/server/src/services/__tests__/rem
 
 Expected: 5 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/services/reminder-service.ts packages/server/src/services/__tests__/reminder-service.test.ts
