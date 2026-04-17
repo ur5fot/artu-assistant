@@ -408,7 +408,7 @@ git commit -m "feat(discord): tool-embeds module with running state"
 - Modify: `packages/server/src/channels/discord/tool-embeds.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/tool-embeds.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `tool-embeds.test.ts`:
 
@@ -522,9 +522,9 @@ describe('buildToolCallEmbed — code_task special', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests** — expect FAIL for progress/done/error/code_task specific.
+- [x] **Step 2: Run tests** — expect FAIL for progress/done/error/code_task specific.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace the body of `buildToolCallEmbed` in `tool-embeds.ts` with:
 
@@ -614,9 +614,9 @@ export function buildToolCallEmbed(opts: BuildToolCallEmbedOpts): EmbedBuilder |
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/tool-embeds.ts packages/server/src/channels/discord/__tests__/tool-embeds.test.ts

@@ -28,15 +28,77 @@ export function buildToolCallEmbed(opts: BuildToolCallEmbedOpts): EmbedBuilder |
   if (SILENT_TOOLS.includes(opts.toolCall.name)) return null;
 
   const embed = new EmbedBuilder();
+  const isCodeTask = opts.toolCall.name === 'code_task';
+  const taskText =
+    typeof opts.toolCall.input.task === 'string' ? opts.toolCall.input.task : '';
+
+  const iconByState: Record<ToolCallState, string> = {
+    running: '🔧',
+    progress: '🔧',
+    done: '✅',
+    error: '❌',
+  };
+  embed.setTitle(`${iconByState[opts.state]} ${opts.toolCall.name}`);
+
+  const colorByState: Record<ToolCallState, number> = {
+    running: COLORS.gray,
+    progress: COLORS.gray,
+    done: COLORS.green,
+    error: COLORS.red,
+  };
+  embed.setColor(colorByState[opts.state]);
 
   if (opts.state === 'running') {
-    embed
-      .setTitle(`🔧 ${opts.toolCall.name}`)
-      .setDescription('running…')
-      .setColor(COLORS.gray);
+    embed.setDescription(isCodeTask && taskText ? `Task: "${taskText}"` : 'running…');
     return embed;
   }
 
-  // Other states added in a later task.
+  if (opts.state === 'progress') {
+    embed.setDescription(truncate(opts.progress ?? 'working…', DESCRIPTION_MAX));
+    return embed;
+  }
+
+  if (opts.state === 'error') {
+    const msg = opts.toolCall.result?.error ?? 'Unknown error';
+    embed.setDescription(truncate(msg, DESCRIPTION_MAX));
+    return embed;
+  }
+
+  if (isCodeTask) {
+    const data = (opts.toolCall.result?.data ?? {}) as {
+      commit?: string;
+      mode?: string;
+      files?: Array<{ path: string; added: number; removed: number }>;
+      durationMs?: number;
+    };
+    if (taskText) {
+      embed.addFields({ name: 'Task', value: truncate(`"${taskText}"`, 1024) });
+    }
+    if (data.commit) {
+      const short = data.commit.slice(0, 7);
+      const mode = data.mode ?? 'once';
+      embed.addFields({ name: 'Commit', value: `\`${short}\` (${mode})` });
+    }
+    if (data.files && data.files.length > 0) {
+      const lines = data.files
+        .slice(0, 15)
+        .map((f) => `\`${f.path}\` +${f.added} -${f.removed}`);
+      if (data.files.length > 15) lines.push(`…and ${data.files.length - 15} more`);
+      embed.addFields({ name: 'Files', value: truncate(lines.join('\n'), 1024) });
+    }
+    if (data.durationMs) {
+      const sec = Math.round(data.durationMs / 1000);
+      const mins = Math.floor(sec / 60);
+      const secs = sec % 60;
+      embed.setFooter({ text: `duration: ${mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}` });
+    }
+    if ((embed.data.fields ?? []).length === 0) {
+      embed.setDescription('done');
+    }
+    return embed;
+  }
+
+  const display = opts.toolCall.result?.display?.content;
+  embed.setDescription(truncate(display ?? 'done', Math.min(DESCRIPTION_MAX, 500)));
   return embed;
 }
