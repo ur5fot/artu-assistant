@@ -1,5 +1,5 @@
-import { Router } from 'express';
-import type { Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
+import type { PermissionService } from '../services/permission-service.js';
 
 export interface ConfirmResponse {
   allowed: boolean;
@@ -8,8 +8,13 @@ export interface ConfirmResponse {
 
 export type PendingConfirms = Map<string, (response: ConfirmResponse) => void>;
 
-export function createConfirmRouter(pendingConfirms: PendingConfirms): Router {
+interface Deps {
+  service: PermissionService;
+}
+
+export function createConfirmRouter(deps: Deps): Router {
   const router = Router();
+  const { service } = deps;
 
   router.post('/confirm', (req: Request, res: Response) => {
     const { callId, allowed, remember } = req.body;
@@ -18,21 +23,16 @@ export function createConfirmRouter(pendingConfirms: PendingConfirms): Router {
       res.status(400).json({ error: 'callId (string) required' });
       return;
     }
-
     if (typeof allowed !== 'boolean') {
       res.status(400).json({ error: 'allowed (boolean) required' });
       return;
     }
 
-    const resolve = pendingConfirms.get(callId);
-    if (!resolve) {
+    const result = service.resolveConfirm(callId, allowed, !!remember);
+    if (!result.ok) {
       res.status(404).json({ error: `Pending confirm "${callId}" not found` });
       return;
     }
-
-    pendingConfirms.delete(callId);
-
-    resolve({ allowed, remember: !!remember });
     res.json({ ok: true });
   });
 

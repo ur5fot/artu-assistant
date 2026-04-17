@@ -483,7 +483,7 @@ git commit -m "feat(services): add permission-service wrapping pendingConfirms"
 - Modify: `packages/server/src/routes/__tests__/confirm.test.ts`
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Update existing test file**
+- [x] **Step 1: Update existing test file**
 
 Open `packages/server/src/routes/__tests__/confirm.test.ts`. Replace the parts that construct the router with a service-based version. Keep existing test cases (invalid body, 404, success).
 
@@ -527,13 +527,13 @@ it('POST /confirm — 404 when service returns not_found', async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/routes/__tests__/confirm.test.ts
 ```
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace `packages/server/src/routes/confirm.ts`:
 
@@ -582,7 +582,7 @@ export function createConfirmRouter(deps: Deps): Router {
 
 Note: keep `ConfirmResponse` and `PendingConfirms` exports — they are still used by `tool-helpers.ts` and `permission-service.ts`.
 
-- [ ] **Step 4: Update `index.ts`**
+- [x] **Step 4: Update `index.ts`**
 
 Add the permission service near where `pendingConfirms` is created, then pass to router:
 
@@ -594,7 +594,7 @@ const permissionService = createPermissionService({ pending: pendingConfirms });
 app.use('/api', createConfirmRouter({ service: permissionService }));
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -602,7 +602,7 @@ npx vitest run --root packages/server
 
 Expected: all green (confirm tests updated, rest unaffected).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/routes/confirm.ts packages/server/src/routes/__tests__/confirm.test.ts packages/server/src/index.ts
