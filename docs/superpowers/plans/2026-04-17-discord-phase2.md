@@ -1720,7 +1720,7 @@ git commit -m "feat(discord): 🔵 claude prefix on ollama→claude escalation"
 
 **Files:** all
 
-- [ ] **Step 1: Run full suite**
+- [x] **Step 1: Run full suite**
 
 ```bash
 npx vitest run --root packages/server
@@ -1728,7 +1728,7 @@ npx vitest run --root packages/server
 
 Expected: all passing. Any mock that previously omitted `listPermissionRules` / `revokePermissionRule` on `commandService` stubs in other tests must be updated.
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 npm run build -w @r2/server
@@ -1736,7 +1736,7 @@ npm run build -w @r2/server
 
 Expected: no TypeScript errors.
 
-- [ ] **Step 3: Lint / shared typecheck**
+- [x] **Step 3: Lint / shared typecheck**
 
 ```bash
 npx tsc -p packages/shared --noEmit && npx tsc -p packages/server --noEmit
@@ -1744,7 +1744,7 @@ npx tsc -p packages/shared --noEmit && npx tsc -p packages/server --noEmit
 
 Expected: clean.
 
-- [ ] **Step 4: Commit any stub fixes (if any made)**
+- [x] **Step 4: Commit any stub fixes (if any made)**
 
 ```bash
 git add -A
