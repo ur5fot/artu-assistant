@@ -19,7 +19,14 @@ function truncateLines(lines: string[]): string {
   let used = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
-    const added = (out.length === 0 ? 0 : 1) + line.length;
+    const sep = out.length === 0 ? 0 : 1;
+    if (out.length === 0 && line.length + sep > SLASH_REPLY_LIMIT) {
+      // Single line longer than the whole budget — slice it so we still return
+      // something useful rather than just "…N more".
+      const suffix = lines.length > 1 ? `\n…${lines.length - 1} more` : '';
+      return line.slice(0, SLASH_REPLY_LIMIT - suffix.length - 1) + '…' + suffix;
+    }
+    const added = sep + line.length;
     if (used + added > SLASH_REPLY_LIMIT) {
       const remaining = lines.length - i;
       out.push(`…${remaining} more`);
@@ -78,7 +85,7 @@ async function routeButton(
 
   if (domain === 'reminder') {
     const id = Number(rawId);
-    if (!Number.isInteger(id)) return;
+    if (!Number.isInteger(id) || id <= 0) return;
     if (action === 'dismiss') {
       const result = deps.reminderService.dismiss(id);
       const state = result.ok ? 'dismissed' : 'missed';
