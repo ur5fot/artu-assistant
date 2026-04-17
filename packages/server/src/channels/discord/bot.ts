@@ -373,6 +373,34 @@ export async function startDiscordBot(
 
   let reminderListener: ((event: ServerPushEvent) => void) | null = null;
   if (deps.reminderBus) {
+    const editStored = async (
+      id: number,
+      state: 'dismissed' | 'missed' | 'snoozed',
+    ) => {
+      const ids = reminderMessages.get(id) ?? [];
+      if (ids.length === 0) return;
+      for (const userId of deps.whitelist) {
+        try {
+          const user = await client.users.fetch(userId);
+          const dm = await user.createDM();
+          for (const msgId of ids) {
+            try {
+              const stored = await dm.messages.fetch(msgId);
+              const currentTitle = stored.embeds?.[0]?.title ?? '';
+              const currentText = currentTitle.replace(/^⏰\s*/, '');
+              const { embed } = buildReminderEmbed({ id, text: currentText, state });
+              await stored.edit({ embeds: [embed], components: [] });
+            } catch (err) {
+              // message gone or no permission — ignore
+            }
+          }
+        } catch (err) {
+          // user/dm unreachable — ignore
+        }
+      }
+      reminderMessages.delete(id);
+    };
+
     reminderListener = (event: ServerPushEvent) => {
       if (!client.isReady()) return;
       if (event.type === 'reminder_ring') {
@@ -395,9 +423,19 @@ export async function startDiscordBot(
               console.error('[discord] reminder DM failed:', err instanceof Error ? err.message : err),
             );
         }
+      } else if (event.type === 'reminder_done') {
+        editStored(event.id, 'missed').catch((err) =>
+          console.error('[discord] reminder edit failed:', err instanceof Error ? err.message : err),
+        );
+      } else if (event.type === 'reminder_dismissed') {
+        editStored(event.id, 'dismissed').catch((err) =>
+          console.error('[discord] reminder edit failed:', err instanceof Error ? err.message : err),
+        );
+      } else if (event.type === 'reminder_stop_ring') {
+        editStored(event.id, 'snoozed').catch((err) =>
+          console.error('[discord] reminder edit failed:', err instanceof Error ? err.message : err),
+        );
       }
-      // reminder_done / reminder_stop_ring / reminder_dismissed handling
-      // added in later steps once interaction handler exists.
     };
     deps.reminderBus.on('push', reminderListener);
   }

@@ -2474,7 +2474,7 @@ git commit -m "chore(index): wire all services into Discord bot deps"
 
 Currently the bot sends the ringing embed but doesn't edit it when the reminder is dismissed from somewhere else (e.g. `reminder_done` via scheduler timeout). This task closes the loop.
 
-- [ ] **Step 1: Extend reminder listener**
+- [x] **Step 1: Extend reminder listener**
 
 Replace the `reminderListener` body to also handle `reminder_done` and `reminder_dismissed`:
 
@@ -2528,7 +2528,7 @@ reminderListener = (event: ServerPushEvent) => {
 };
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -2536,7 +2536,7 @@ npx vitest run --root packages/server
 
 Expected: green.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts

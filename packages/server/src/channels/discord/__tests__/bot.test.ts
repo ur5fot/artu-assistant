@@ -301,7 +301,7 @@ describe('reminder delivery', () => {
     );
   });
 
-  it('does not send on reminder_done (handled via embed edit in later task)', async () => {
+  it('does not send or edit anything on reminder_done when no ringing embed stored', async () => {
     const reminderBus = new EventEmitter();
     const client = makeFakeClient();
     const fakeDm = makeDmChannel();
@@ -320,6 +320,69 @@ describe('reminder delivery', () => {
 
     expect(fakeDm.send).not.toHaveBeenCalled();
   });
+
+  async function setupRingAndCapture(eventType: 'reminder_done' | 'reminder_dismissed' | 'reminder_stop_ring') {
+    const reminderBus = new EventEmitter();
+    const client = makeFakeClient();
+    const fakeDm = makeDmChannel();
+
+    const storedMsg = {
+      embeds: [{ title: '⏰ Buy fish' }],
+      edit: vi.fn().mockResolvedValue(undefined),
+    };
+    (fakeDm as any).messages = {
+      fetch: vi.fn().mockResolvedValue(storedMsg),
+    };
+    fakeDm.send = vi.fn().mockResolvedValue({ id: 'msg-1' });
+
+    const fakeUser = { createDM: vi.fn().mockResolvedValue(fakeDm) };
+    (client as any).users = {
+      fetch: vi.fn().mockResolvedValue(fakeUser),
+      cache: new Map([['123', fakeUser]]),
+    };
+
+    await setup({ _client: client as any, reminderBus });
+    (client as any).emit('clientReady');
+    await delay(50);
+
+    reminderBus.emit('push', { type: 'reminder_ring', id: 7, text: 'Buy fish' });
+    await delay(100);
+
+    reminderBus.emit('push', { type: eventType, id: 7 });
+    await delay(100);
+
+    return { fakeDm, storedMsg };
+  }
+
+  it('edits stored ringing embed to missed on reminder_done', async () => {
+    const { fakeDm, storedMsg } = await setupRingAndCapture('reminder_done');
+    expect((fakeDm as any).messages.fetch).toHaveBeenCalledWith('msg-1');
+    expect(storedMsg.edit).toHaveBeenCalledTimes(1);
+    const editArg = storedMsg.edit.mock.calls[0][0] as { embeds: any[]; components: any[] };
+    expect(editArg.components).toEqual([]);
+    const embedData = editArg.embeds[0].data ?? editArg.embeds[0];
+    expect(embedData.title).toBe('⏰ Buy fish');
+    expect(embedData.footer?.text).toContain('missed');
+  });
+
+  it('edits stored ringing embed to dismissed on reminder_dismissed', async () => {
+    const { storedMsg } = await setupRingAndCapture('reminder_dismissed');
+    expect(storedMsg.edit).toHaveBeenCalledTimes(1);
+    const editArg = storedMsg.edit.mock.calls[0][0] as { embeds: any[]; components: any[] };
+    const embedData = editArg.embeds[0].data ?? editArg.embeds[0];
+    expect(embedData.footer?.text).toContain('Dismissed');
+    expect(editArg.components).toEqual([]);
+  });
+
+  it('edits stored ringing embed to snoozed on reminder_stop_ring', async () => {
+    const { storedMsg } = await setupRingAndCapture('reminder_stop_ring');
+    expect(storedMsg.edit).toHaveBeenCalledTimes(1);
+    const editArg = storedMsg.edit.mock.calls[0][0] as { embeds: any[]; components: any[] };
+    const embedData = editArg.embeds[0].data ?? editArg.embeds[0];
+    expect(embedData.footer?.text).toContain('Snoozed');
+    expect(editArg.components).toEqual([]);
+  });
+
 });
 
 describe('mid-stream tool_confirm_request handling', () => {
