@@ -44,13 +44,14 @@ describe('command-service', () => {
       permissionService: { hasPending: vi.fn() } as unknown as PermissionService,
       memoryService: null,
       pendingConfirmsCount: () => 2,
+      pendingPlanReviewsCount: () => 1,
       modelName: 'claude-opus-4-7',
       startedAt: Date.now() - 5000,
     });
     const s = svc.status();
     expect(s.model).toBe('claude-opus-4-7');
     expect(s.activeReminders).toBe(1);
-    expect(s.pendingPermissions).toBe(2);
+    expect(s.pendingPermissions).toBe(3);
     expect(s.uptimeSeconds).toBeGreaterThanOrEqual(4);
   });
 

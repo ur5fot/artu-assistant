@@ -478,15 +478,22 @@ export async function startDiscordBot(
           text: event.text,
           state: 'ringing',
         });
+        // Initialize the per-reminder list synchronously *before* launching
+        // any fetches. The .then() callbacks below run on different ticks; if
+        // each one did `get(id) ?? []` it could race with a sibling and
+        // overwrite its push, losing a user's msgId.
+        let list = reminderMessages.get(event.id);
+        if (!list) {
+          list = [];
+          reminderMessages.set(event.id, list);
+        }
         for (const userId of deps.whitelist) {
           client.users
             .fetch(userId)
             .then((u) => u.createDM())
             .then((dm) => dm.send({ embeds: [embed], components }))
             .then((sent) => {
-              const list = reminderMessages.get(event.id) ?? [];
-              list.push({ userId, msgId: sent.id });
-              reminderMessages.set(event.id, list);
+              list!.push({ userId, msgId: sent.id });
             })
             .catch((err) =>
               console.error('[discord] reminder DM failed:', err instanceof Error ? err.message : err),

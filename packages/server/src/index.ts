@@ -200,6 +200,7 @@ const commandService = createCommandService({
   permissionService,
   memoryService,
   pendingConfirmsCount: () => pendingConfirms.size,
+  pendingPlanReviewsCount: () => pendingPlanReviews.size,
   modelName: process.env.MODEL_NAME || 'claude-opus-4-7',
   startedAt: serverStartedAt,
 });

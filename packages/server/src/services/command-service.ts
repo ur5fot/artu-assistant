@@ -25,6 +25,7 @@ interface Deps {
   permissionService: PermissionService;
   memoryService: MemoryService | null;
   pendingConfirmsCount?: () => number;
+  pendingPlanReviewsCount?: () => number;
   modelName?: string;
   startedAt?: number;
 }
@@ -35,6 +36,7 @@ export function createCommandService(deps: Deps): CommandService {
     reminderService,
     memoryService,
     pendingConfirmsCount = () => 0,
+    pendingPlanReviewsCount = () => 0,
     modelName = 'unknown',
     startedAt = Date.now(),
   } = deps;
@@ -49,7 +51,7 @@ export function createCommandService(deps: Deps): CommandService {
         model: modelName,
         uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
         activeReminders: reminderService.list().length,
-        pendingPermissions: pendingConfirmsCount(),
+        pendingPermissions: pendingConfirmsCount() + pendingPlanReviewsCount(),
       };
     },
     listReminders() {
