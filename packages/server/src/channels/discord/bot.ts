@@ -238,6 +238,10 @@ export async function startDiscordBot(
       try {
         const dmChannel = msg.channel as DMChannel;
         const msgRef = await dmChannel.messages.fetch(entry.messageId);
+        // Re-check final AFTER the async fetch: a tool_call_result that runs
+        // while the fetch is in flight would otherwise be clobbered by this
+        // edit, flipping a completed embed back to "progress".
+        if (entry.final) return;
         const embed = buildToolCallEmbed({
           state: 'progress',
           toolCall: {
@@ -408,6 +412,10 @@ export async function startDiscordBot(
                     entry.pendingTimer = null;
                     entry.latestProgress = null;
                   }
+                  // Mark terminal BEFORE the async fetch so any in-flight
+                  // applyProgressEdit short-circuits after its own fetch
+                  // instead of racing to overwrite the terminal embed.
+                  entry.final = true;
                   const isSuccess = event.result.success;
                   const state = isSuccess ? ('done' as const) : ('error' as const);
                   const toolCallSnapshot = {
@@ -424,7 +432,6 @@ export async function startDiscordBot(
                   } catch {
                     // Message gone or no permission — ignore.
                   }
-                  entry.final = true;
 
                   if (isSuccess && entry.toolName === 'code_task') {
                     const data = (event.result.data ?? {}) as {
@@ -570,6 +577,18 @@ export async function startDiscordBot(
     } finally {
       clearInterval(typingInterval);
       clearTimeout(timer);
+      // Cancel any pending debounced progress edits and mark all live tool
+      // entries terminal so timer callbacks already in flight short-circuit.
+      // Without this, a setTimeout scheduled at request shutdown can fire
+      // 800 ms later and edit a Discord message belonging to a request that
+      // has already been considered done.
+      for (const entry of toolCallMessages.values()) {
+        if (entry.pendingTimer) {
+          clearTimeout(entry.pendingTimer);
+          entry.pendingTimer = null;
+          entry.latestProgress = null;
+        }
+      }
       // Expire any pending permission/plan-review embeds that the user never
       // resolved. Runs on all exit paths (success, error, timeout) so
       // aborted-but-not-thrown flows (e.g. AbortController fires mid-stream
@@ -577,6 +596,30 @@ export async function startDiscordBot(
       // "Allow / Deny" buttons in the DM.
       try {
         const dmChannel = msg.channel as DMChannel;
+        // Edit any tool-call embed still in "running"/"progress" state to an
+        // error embed. Otherwise a request that throws mid-stream (e.g.
+        // network error after tool_call_start, retry-aborted attempt) leaves
+        // a perpetual 🔧 running… embed in the DM.
+        for (const [callId, entry] of toolCallMessages) {
+          if (entry.final) continue;
+          entry.final = true;
+          try {
+            const m = await dmChannel.messages.fetch(entry.messageId);
+            const embed = buildToolCallEmbed({
+              state: 'error',
+              toolCall: {
+                id: callId,
+                name: entry.toolName,
+                input: entry.toolInput,
+                status: 'error',
+                result: { success: false, error: 'request ended before tool finished' },
+              },
+            });
+            if (embed) await m.edit({ embeds: [embed] });
+          } catch {
+            // message gone or no permission — ignore
+          }
+        }
         for (const pe of pendingEmbedMsgs) {
           if (pe.kind === 'perm' && deps.permissionService?.isResolvedByUser(pe.callId)) {
             continue;

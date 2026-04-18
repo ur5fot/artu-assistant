@@ -764,6 +764,14 @@ describe('tool_progress handling (debounced)', () => {
       } as SSEEvent);
       onEvent({ type: 'tool_progress', id: 'c-1', message: 'step 1' } as SSEEvent);
       onEvent({ type: 'tool_progress', id: 'c-1', message: 'step 2' } as SSEEvent);
+      // Let the 800ms trailing debounce fire before the request ends — the
+      // finally-block cleanup otherwise cancels the pending timer.
+      await new Promise((r) => setTimeout(r, 900));
+      onEvent({
+        type: 'tool_call_result',
+        id: 'c-1',
+        result: { success: true, display: { type: 'text', content: 'ok' } },
+      } as SSEEvent);
       onEvent({ type: 'done' } as SSEEvent);
     });
 
@@ -826,6 +834,14 @@ describe('tool_progress handling (debounced)', () => {
       onEvent({ type: 'tool_progress', id: 'c-2', message: 'a' } as SSEEvent);
       onEvent({ type: 'tool_progress', id: 'c-2', message: 'b' } as SSEEvent);
       onEvent({ type: 'tool_progress', id: 'c-2', message: 'c' } as SSEEvent);
+      // Wait past the debounce window so the trailing edit fires inside the
+      // request lifecycle (before tool_call_result / done / cleanup).
+      await new Promise((r) => setTimeout(r, 900));
+      onEvent({
+        type: 'tool_call_result',
+        id: 'c-2',
+        result: { success: true, display: { type: 'text', content: 'ok' } },
+      } as SSEEvent);
       onEvent({ type: 'done' } as SSEEvent);
     });
 

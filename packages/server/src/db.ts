@@ -227,22 +227,6 @@ export function clearPermissionRules(): void {
   d.prepare('DELETE FROM permission_rules').run();
 }
 
-export function listPermissionRules(): Array<{ toolName: string; allowed: boolean }> {
-  const d = getDb();
-  const rows = d
-    .prepare('SELECT tool_name, allowed FROM permission_rules ORDER BY tool_name')
-    .all() as Array<{ tool_name: string; allowed: number }>;
-  return rows.map((r) => ({ toolName: r.tool_name, allowed: r.allowed === 1 }));
-}
-
-export function deletePermissionRule(toolName: string): boolean {
-  const d = getDb();
-  const result = d
-    .prepare('DELETE FROM permission_rules WHERE tool_name = ?')
-    .run(toolName);
-  return result.changes > 0;
-}
-
 interface SaveMessageParams {
   messageId: string;
   role: 'user' | 'assistant';

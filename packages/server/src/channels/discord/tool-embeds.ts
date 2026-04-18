@@ -3,7 +3,11 @@ import type { ToolCall } from '@r2/shared';
 
 export type ToolCallState = 'running' | 'progress' | 'done' | 'error';
 
-export const SILENT_TOOLS: readonly string[] = ['memory_search', 'memory_save'];
+// 'router' is a synthetic tool emitted by the LLM router on ollama→claude
+// escalation. The escalation is already signalled to the user by the
+// `🔵 claude` prefix on the next assistant message; the embed would be
+// redundant noise.
+export const SILENT_TOOLS: readonly string[] = ['memory_search', 'memory_save', 'router'];
 
 const COLORS = {
   gray: 0x9aa0a6,
@@ -76,8 +80,8 @@ export function buildToolCallEmbed(opts: BuildToolCallEmbedOpts): EmbedBuilder |
     }
     if (data.commit) {
       const short = data.commit.slice(0, 7);
-      const mode = data.mode ?? 'once';
-      embed.addFields({ name: 'Commit', value: `\`${short}\` (${mode})` });
+      const value = data.mode ? `\`${short}\` (${data.mode})` : `\`${short}\``;
+      embed.addFields({ name: 'Commit', value });
     }
     if (data.files && data.files.length > 0) {
       const lines = data.files

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { initDb, logToolCall, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, getDb, closeDb, getPermissionRule, savePermissionRule, clearPermissionRules, listPermissionRules, deletePermissionRule, saveMessage, getMessages, clearMessages, getOverlay, setOverlay, clearOverlay, PROMPT_OVERLAY_MAX_LENGTH } from './db.js';
+import { initDb, logToolCall, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, getDb, closeDb, getPermissionRule, savePermissionRule, clearPermissionRules, saveMessage, getMessages, clearMessages, getOverlay, setOverlay, clearOverlay, PROMPT_OVERLAY_MAX_LENGTH } from './db.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -409,34 +409,4 @@ describe('Database Module', () => {
     });
   });
 
-  describe('permission rules CRUD', () => {
-    beforeEach(() => {
-      clearPermissionRules();
-    });
-
-    it('listPermissionRules: empty when none saved', () => {
-      expect(listPermissionRules()).toEqual([]);
-    });
-
-    it('listPermissionRules: returns rules sorted by tool_name', () => {
-      savePermissionRule('zzz', true);
-      savePermissionRule('aaa', false);
-      savePermissionRule('mmm', true);
-      expect(listPermissionRules()).toEqual([
-        { toolName: 'aaa', allowed: false },
-        { toolName: 'mmm', allowed: true },
-        { toolName: 'zzz', allowed: true },
-      ]);
-    });
-
-    it('deletePermissionRule: returns true when rule exists', () => {
-      savePermissionRule('foo', true);
-      expect(deletePermissionRule('foo')).toBe(true);
-      expect(listPermissionRules()).toEqual([]);
-    });
-
-    it('deletePermissionRule: returns false when rule does not exist', () => {
-      expect(deletePermissionRule('ghost')).toBe(false);
-    });
-  });
 });
