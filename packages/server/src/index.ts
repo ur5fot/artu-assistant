@@ -37,6 +37,7 @@ import { startDiscordBot } from './channels/discord/bot.js';
 import { runChatRequest } from './ai/router.js';
 import { createCognitionService } from './cognition/service.js';
 import { pulseHandler } from './cognition/handlers/pulse.js';
+import { createMorningBriefHandler } from './cognition/handlers/morningBrief.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
@@ -174,6 +175,9 @@ const cognitionService = createCognitionService({
   bus: reminderBus,
 });
 cognitionService.register(pulseHandler);
+cognitionService.register(
+  createMorningBriefHandler({ piiProxy, anthropic: client.anthropic }),
+);
 cognitionService.start();
 
 const registry = createRegistry();

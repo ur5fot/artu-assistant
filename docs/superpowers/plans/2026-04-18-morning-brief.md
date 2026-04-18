@@ -1002,7 +1002,7 @@ git commit -m "feat(cognition): morningBrief handler factory"
 
 **Why:** Handler должен быть зарегистрирован в cognitionService при старте приложения. Требует инстанс Anthropic.
 
-- [ ] **Step 1: Найти существующее создание Anthropic клиента**
+- [x] **Step 1: Найти существующее создание Anthropic клиента**
 
 ```bash
 grep -n "new Anthropic\|createClaudeClient" packages/server/src/index.ts
@@ -1010,7 +1010,7 @@ grep -n "new Anthropic\|createClaudeClient" packages/server/src/index.ts
 
 Если уже есть — переиспользовать `.anthropic`. Если нет — создаём новый инстанс рядом.
 
-- [ ] **Step 2: Добавить импорт и регистрацию**
+- [x] **Step 2: Добавить импорт и регистрацию**
 
 Найди в `packages/server/src/index.ts` блок:
 
@@ -1049,7 +1049,7 @@ cognitionService.register(
 );
 ```
 
-- [ ] **Step 3: Typecheck и full suite**
+- [x] **Step 3: Typecheck и full suite**
 
 ```bash
 npx tsc --noEmit -p packages/server && npx vitest run --root packages/server
@@ -1057,7 +1057,7 @@ npx tsc --noEmit -p packages/server && npx vitest run --root packages/server
 
 Все тесты должны пройти (включая новые handler'а).
 
-- [ ] **Step 4: Проверить что dev-сервер стартует**
+- [x] **Step 4: Проверить что dev-сервер стартует**
 
 ```bash
 timeout 5 npm --prefix packages/server run dev 2>&1 | head -50 || true
@@ -1067,7 +1067,7 @@ timeout 5 npm --prefix packages/server run dev 2>&1 | head -50 || true
 
 Если есть ошибка — смотри на trace и исправляй. Чаще всего: забыл импорт, опечатка в имени handler'а.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/index.ts
