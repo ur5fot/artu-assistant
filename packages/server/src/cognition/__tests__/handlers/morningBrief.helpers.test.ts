@@ -4,6 +4,7 @@ import {
   getTodayStartLocal,
   isSameLocalDate,
   hasUserActivityToday,
+  gatherData,
 } from '../../handlers/morningBrief.helpers.js';
 
 const TZ = 'Europe/Kyiv';
@@ -75,5 +76,74 @@ describe('hasUserActivityToday', () => {
       )
       .run(`m-${ts}`, ts);
     expect(hasUserActivityToday(getDb(), now, TZ)).toBe(false);
+  });
+});
+
+describe('gatherData', () => {
+  const now = Date.UTC(2026, 3, 18, 6, 0, 0); // 09:00 Kyiv 18th
+
+  it('returns reminders active=1 with next_fire_at_ms in today+tomorrow window', () => {
+    const todayStart = Date.UTC(2026, 3, 17, 21, 0, 0); // 00:00 Kyiv 18th
+    const tomorrowEnd = Date.UTC(2026, 3, 19, 21, 0, 0); // 00:00 Kyiv 20th
+
+    const db = getDb();
+    const insert = db.prepare(
+      "INSERT INTO reminders (text, schedule_json, next_fire_at_ms, active, created_at) VALUES (?, '{}', ?, ?, ?)",
+    );
+    insert.run('in-window today', todayStart + 5 * 3600_000, 1, now);
+    insert.run('in-window tomorrow', tomorrowEnd - 2 * 3600_000, 1, now);
+    insert.run('past', todayStart - 3600_000, 1, now);
+    insert.run('too far', tomorrowEnd + 3600_000, 1, now);
+    insert.run('disabled in-window', todayStart + 4 * 3600_000, 0, now);
+
+    const data = gatherData(db, now, TZ);
+    expect(data.reminders.map((r) => r.text).sort()).toEqual([
+      'in-window today',
+      'in-window tomorrow',
+    ]);
+  });
+
+  it('returns active memory_facts with last_mentioned_at within 14d', () => {
+    const db = getDb();
+    const insert = db.prepare(
+      'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by) VALUES (?, ?, ?, ?, ?)',
+    );
+    insert.run('user.activity', 'велосипед', now - 10 * 86400_000, now - 2 * 86400_000, null);
+    insert.run('user.age', '42', now - 30 * 86400_000, now - 30 * 86400_000, null); // stale
+    insert.run('user.note.x', 'нужно на работу', now, now, null);
+    const oldRes = insert.run('user.old', 'old', now, now, null);
+    const newerRes = insert.run('user.newer', 'newer', now, now, null);
+    db.prepare('UPDATE memory_facts SET superseded_by = ? WHERE id = ?').run(
+      newerRes.lastInsertRowid,
+      oldRes.lastInsertRowid,
+    );
+
+    const data = gatherData(db, now, TZ);
+    const keys = data.notes.map((n) => n.key).sort();
+    expect(keys).toContain('user.activity');
+    expect(keys).toContain('user.note.x');
+    expect(keys).toContain('user.newer');
+    expect(keys).not.toContain('user.age');
+    expect(keys).not.toContain('user.old');
+  });
+
+  it('returns recent chat messages last 48h, max 30, content truncated to 500', () => {
+    const db = getDb();
+    const insert = db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', ?, ?)",
+    );
+    for (let i = 0; i < 40; i += 1) {
+      insert.run(`m-${i}`, `msg ${i}`, now - i * 3600_000);
+    }
+    const longTs = now - 3600_000;
+    insert.run('long-msg', 'x'.repeat(1000), longTs);
+
+    const data = gatherData(db, now, TZ);
+    expect(data.recentContext.length).toBeLessThanOrEqual(30);
+    for (const m of data.recentContext) {
+      expect(m.ts).toBeGreaterThanOrEqual(now - 48 * 3600_000);
+    }
+    const longM = data.recentContext.find((m) => m.content.startsWith('xxxx'));
+    expect(longM?.content.length).toBe(500);
   });
 });

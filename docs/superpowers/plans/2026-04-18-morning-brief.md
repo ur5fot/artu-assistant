@@ -403,7 +403,7 @@ git commit -m "feat(cognition): morning brief helpers — date/tz + hasUserActiv
 
 **Why:** Handler нужно readonly-собрать данные из трёх таблиц — на основе существующих схем (`reminders.next_fire_at_ms`, `memory_facts.last_mentioned_at`, `chat_messages.created_at`). Чистая функция, легко покрывается snapshot-тестом.
 
-- [ ] **Step 1: Добавить failing тесты для `gatherData`**
+- [x] **Step 1: Добавить failing тесты для `gatherData`**
 
 В `packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts` добавь `gatherData` в существующий import из `../../handlers/morningBrief.helpers.js` (рядом с `getTodayStartLocal`, `isSameLocalDate`, `hasUserActivityToday`). Затем в конец файла дописать новый describe:
 
@@ -476,13 +476,13 @@ describe('gatherData', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL (`gatherData` not exported)**
+- [x] **Step 2: Run tests — expect FAIL (`gatherData` not exported)**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts
 ```
 
-- [ ] **Step 3: Реализовать `gatherData` и types**
+- [x] **Step 3: Реализовать `gatherData` и types**
 
 В `packages/server/src/cognition/handlers/morningBrief.helpers.ts` добавить:
 
@@ -538,13 +538,13 @@ export function gatherData(db: Database.Database, now: number, tz: string): Brie
 }
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.helpers.ts packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts
