@@ -42,7 +42,7 @@
 
 **Why:** `morningBrief.trigger` должен читать `chat_messages` чтобы определить «было ли сообщение сегодня». Текущая сигнатура `trigger(state: HandlerState) => boolean` не даёт доступа к БД. Минимальное расширение: добавить второй аргумент `ctx: TriggerContext` и разрешить `Promise<boolean>`.
 
-- [ ] **Step 1: Обновить тест диспетчера — ожидать await на триггер и ctx.db**
+- [x] **Step 1: Обновить тест диспетчера — ожидать await на триггер и ctx.db**
 
 В `packages/server/src/cognition/__tests__/dispatcher.test.ts` добавь новый тест сразу после существующих (не удаляя их):
 
@@ -69,7 +69,7 @@ it('awaits async triggers and passes db in ctx', async () => {
 });
 ```
 
-- [ ] **Step 2: Запустить тесты — ожидать FAIL (сигнатура не позволяет, db не в deps)**
+- [x] **Step 2: Запустить тесты — ожидать FAIL (сигнатура не позволяет, db не в deps)**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition/__tests__/dispatcher.test.ts
@@ -77,7 +77,7 @@ npx vitest run --root packages/server packages/server/src/cognition/__tests__/di
 
 Ожидается ошибка TypeScript (`trigger` принимает 1 аргумент; `db` не в Deps) или runtime fail.
 
-- [ ] **Step 3: Расширить тип `Handler` и добавить `TriggerContext`**
+- [x] **Step 3: Расширить тип `Handler` и добавить `TriggerContext`**
 
 В `packages/server/src/cognition/types.ts` замени `Handler`:
 
@@ -95,7 +95,7 @@ export interface Handler {
 
 (оставь остальные экспорты без изменений; импорт `Database` уже есть).
 
-- [ ] **Step 4: Обновить dispatcher — добавить `db` в Deps, передавать ctx, await триггер**
+- [x] **Step 4: Обновить dispatcher — добавить `db` в Deps, передавать ctx, await триггер**
 
 Замени содержимое `packages/server/src/cognition/dispatcher.ts`:
 
@@ -144,7 +144,7 @@ export function createDispatcher(deps: Deps): Dispatcher {
 }
 ```
 
-- [ ] **Step 5: Пробросить `db` в dispatcher из service.ts**
+- [x] **Step 5: Пробросить `db` в dispatcher из service.ts**
 
 В `packages/server/src/cognition/service.ts` найди строку `const dispatcher = createDispatcher({ registry, queue, store });` и замени:
 
@@ -152,7 +152,7 @@ export function createDispatcher(deps: Deps): Dispatcher {
 const dispatcher = createDispatcher({ registry, queue, store, db: deps.db });
 ```
 
-- [ ] **Step 6: Обновить pulse handler — принимать второй аргумент**
+- [x] **Step 6: Обновить pulse handler — принимать второй аргумент**
 
 В `packages/server/src/cognition/handlers/pulse.ts` замени объявление trigger:
 
@@ -165,13 +165,13 @@ trigger: (state, _ctx) => {
 
 (TypeScript требует соответствия сигнатуре. `_ctx` с underscore — unused arg).
 
-- [ ] **Step 7: Обновить существующие тесты dispatcher — fixtures передают `db`**
+- [x] **Step 7: Обновить существующие тесты dispatcher — fixtures передают `db`**
 
 В `packages/server/src/cognition/__tests__/dispatcher.test.ts` найди ВСЕ вхождения `createDispatcher({ registry, queue, store })` и замени на `createDispatcher({ registry, queue, store, db: getDb() })`. Обычно это происходит в 2-3 местах внутри `describe('Dispatcher')`.
 
 Если какой-то тест вызывает `handler.trigger(state)` напрямую — обнови до `handler.trigger(state, { db: getDb() })`.
 
-- [ ] **Step 8: Проверить — нет ли прямых вызовов trigger в других тестах**
+- [x] **Step 8: Проверить — нет ли прямых вызовов trigger в других тестах**
 
 ```bash
 grep -rn "\.trigger(" packages/server/src --include="*.ts"
@@ -179,7 +179,7 @@ grep -rn "\.trigger(" packages/server/src --include="*.ts"
 
 Если найдёшь вызовы вне dispatcher — обнови с двумя аргументами.
 
-- [ ] **Step 9: Запустить тесты — ожидать PASS**
+- [x] **Step 9: Запустить тесты — ожидать PASS**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition
@@ -187,7 +187,7 @@ npx vitest run --root packages/server packages/server/src/cognition
 
 Все cognition-тесты должны пройти (pulse, dispatcher, store, queue, heartbeat, registry, service, handlers/pulse).
 
-- [ ] **Step 10: Typecheck**
+- [x] **Step 10: Typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/server
@@ -195,7 +195,7 @@ npx tsc --noEmit -p packages/server
 
 Ожидается: exit 0.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add packages/server/src/cognition/types.ts packages/server/src/cognition/dispatcher.ts packages/server/src/cognition/service.ts packages/server/src/cognition/handlers/pulse.ts packages/server/src/cognition/__tests__/dispatcher.test.ts

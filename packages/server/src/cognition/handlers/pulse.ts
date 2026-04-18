@@ -4,7 +4,7 @@ const FIVE_MINUTES = 5 * 60 * 1000;
 
 export const pulseHandler: Handler = {
   name: 'pulse',
-  trigger: (state) => {
+  trigger: (state, _ctx) => {
     if (state.lastFiredAt === null) return true;
     return state.now - state.lastFiredAt >= FIVE_MINUTES;
   },

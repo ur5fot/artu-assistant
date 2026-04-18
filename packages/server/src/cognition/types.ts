@@ -16,9 +16,13 @@ export interface HandlerContext {
   signal: AbortSignal;
 }
 
+export interface TriggerContext {
+  db: Database.Database;
+}
+
 export interface Handler {
   name: string;
-  trigger: (state: HandlerState) => boolean;
+  trigger: (state: HandlerState, ctx: TriggerContext) => boolean | Promise<boolean>;
   run: (ctx: HandlerContext) => Promise<HandlerResult>;
 }
 

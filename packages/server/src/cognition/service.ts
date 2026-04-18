@@ -34,7 +34,7 @@ export function createCognitionService(deps: Deps): CognitionService {
     bus: deps.bus,
     workerTimeoutMs: deps.workerTimeoutMs,
   });
-  const dispatcher = createDispatcher({ registry, queue, store });
+  const dispatcher = createDispatcher({ registry, queue, store, db: deps.db });
   let heartbeat: { stop(): void } | null = null;
 
   return {
