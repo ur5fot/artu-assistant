@@ -662,7 +662,7 @@ git commit -m "feat(cognition): store — handler runs CRUD"
 - Create: `packages/server/src/cognition/registry.ts`
 - Create: `packages/server/src/cognition/__tests__/registry.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/cognition/__tests__/registry.test.ts`:
 
@@ -699,9 +699,9 @@ describe('HandlerRegistry', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/cognition/registry.ts`:
 
@@ -733,9 +733,9 @@ export function createHandlerRegistry(): HandlerRegistry {
 }
 ```
 
-- [ ] **Step 4: Run tests** — passing.
+- [x] **Step 4: Run tests** — passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/registry.ts packages/server/src/cognition/__tests__/registry.test.ts
