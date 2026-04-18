@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { initDb, getDb } from '../../../db.js';
 import {
-  getTodayStartLocal,
   getLocalCivilEpoch,
   isSameLocalDate,
   hasUserActivityToday,
@@ -13,39 +12,38 @@ const TZ = 'Europe/Kyiv';
 
 beforeEach(() => initDb(':memory:'));
 
-describe('getTodayStartLocal', () => {
-  it('returns midnight of same local date as `now`', () => {
+describe('getLocalCivilEpoch', () => {
+  it('returns midnight of same local date as `now` (dayOffset=0, hour=0)', () => {
     const now = Date.UTC(2026, 3, 18, 14, 30, 0);
-    const startLocal = getTodayStartLocal(now, TZ);
+    const startLocal = getLocalCivilEpoch(now, TZ);
     expect(new Date(startLocal).toISOString()).toBe('2026-04-17T21:00:00.000Z');
   });
 
   it('handles pre-midnight UTC correctly (Kyiv ahead of UTC)', () => {
     const now = Date.UTC(2026, 3, 18, 23, 30, 0);
-    const startLocal = getTodayStartLocal(now, TZ);
+    const startLocal = getLocalCivilEpoch(now, TZ);
     expect(new Date(startLocal).toISOString()).toBe('2026-04-18T21:00:00.000Z');
   });
 
-  it('handles spring-forward DST day (Kyiv UTC+2 pre-transition)', () => {
+  it('returns midnight on spring-forward DST day (Kyiv UTC+2 pre-transition)', () => {
     // 2026-03-29 is spring-forward in Europe/Kyiv (03:00 → 04:00 local).
     // `now` at 08:00 Kyiv = 05:00 UTC (post-transition, UTC+3).
     const now = Date.UTC(2026, 2, 29, 5, 0, 0);
-    const startLocal = getTodayStartLocal(now, TZ);
+    const startLocal = getLocalCivilEpoch(now, TZ);
     // Local midnight 2026-03-29 Kyiv = 22:00 UTC 2026-03-28 (pre-DST UTC+2).
     expect(new Date(startLocal).toISOString()).toBe('2026-03-28T22:00:00.000Z');
   });
 
-  it('handles fall-back DST day (Kyiv UTC+3 pre-transition)', () => {
+  it('returns midnight on fall-back DST day (Kyiv UTC+3 pre-transition)', () => {
     // 2026-10-25 is fall-back in Europe/Kyiv (04:00 → 03:00 local).
     // `now` at 10:00 Kyiv = 08:00 UTC (post-transition, UTC+2).
     const now = Date.UTC(2026, 9, 25, 8, 0, 0);
-    const startLocal = getTodayStartLocal(now, TZ);
+    const startLocal = getLocalCivilEpoch(now, TZ);
     // Local midnight 2026-10-25 Kyiv = 21:00 UTC 2026-10-24 (pre-DST UTC+3).
     expect(new Date(startLocal).toISOString()).toBe('2026-10-24T21:00:00.000Z');
   });
-});
 
-describe('getLocalCivilEpoch', () => {
+
   it('returns local 06:00 on a standard day', () => {
     // now at 14:30 UTC → 17:30 Kyiv (UTC+3 summer). 06:00 Kyiv = 03:00 UTC.
     const now = Date.UTC(2026, 3, 18, 14, 30, 0);
@@ -61,7 +59,7 @@ describe('getLocalCivilEpoch', () => {
     const six = getLocalCivilEpoch(now, TZ, 0, 6);
     expect(new Date(six).toISOString()).toBe('2026-03-29T03:00:00.000Z');
     // And verify the naive computation would have been wrong.
-    const naive = getTodayStartLocal(now, TZ) + 6 * 3600_000;
+    const naive = getLocalCivilEpoch(now, TZ) + 6 * 3600_000;
     expect(new Date(naive).toISOString()).toBe('2026-03-29T04:00:00.000Z');
   });
 
@@ -71,7 +69,7 @@ describe('getLocalCivilEpoch', () => {
     const now = Date.UTC(2026, 9, 25, 8, 0, 0); // 10:00 Kyiv post-transition
     const six = getLocalCivilEpoch(now, TZ, 0, 6);
     expect(new Date(six).toISOString()).toBe('2026-10-25T04:00:00.000Z');
-    const naive = getTodayStartLocal(now, TZ) + 6 * 3600_000;
+    const naive = getLocalCivilEpoch(now, TZ) + 6 * 3600_000;
     expect(new Date(naive).toISOString()).toBe('2026-10-25T03:00:00.000Z');
   });
 
@@ -146,23 +144,33 @@ describe('gatherData', () => {
 
   it('returns reminders active=1 with next_fire_at_ms in today+tomorrow window', () => {
     const todayStart = Date.UTC(2026, 3, 17, 21, 0, 0); // 00:00 Kyiv 18th
-    const tomorrowEnd = Date.UTC(2026, 3, 19, 21, 0, 0); // 00:00 Kyiv 20th
+    const dayAfterTomorrowStart = Date.UTC(2026, 3, 19, 21, 0, 0); // 00:00 Kyiv 20th
 
     const db = getDb();
     const insert = db.prepare(
       "INSERT INTO reminders (text, schedule_json, next_fire_at_ms, active, created_at) VALUES (?, '{}', ?, ?, ?)",
     );
+    // Exact inclusive lower bound.
+    insert.run('at lower bound', todayStart, 1, now);
+    // Exact exclusive upper bound — must be excluded.
+    insert.run('at upper bound', dayAfterTomorrowStart, 1, now);
     insert.run('in-window today', todayStart + 5 * 3600_000, 1, now);
-    insert.run('in-window tomorrow', tomorrowEnd - 2 * 3600_000, 1, now);
+    insert.run('in-window tomorrow', dayAfterTomorrowStart - 2 * 3600_000, 1, now);
     insert.run('past', todayStart - 3600_000, 1, now);
-    insert.run('too far', tomorrowEnd + 3600_000, 1, now);
+    insert.run('too far', dayAfterTomorrowStart + 3600_000, 1, now);
     insert.run('disabled in-window', todayStart + 4 * 3600_000, 0, now);
 
     const data = gatherData(db, now, TZ);
     expect(data.reminders.map((r) => r.text).sort()).toEqual([
+      'at lower bound',
       'in-window today',
       'in-window tomorrow',
     ]);
+  });
+
+  it('returns empty arrays on fresh DB', () => {
+    const data = gatherData(getDb(), now, TZ);
+    expect(data).toEqual({ reminders: [], notes: [], recentContext: [] });
   });
 
   it('returns active memory_facts with last_mentioned_at within 14d', () => {
@@ -203,19 +211,23 @@ describe('gatherData', () => {
     expect(keys).not.toContain('user.forgotten');
   });
 
-  it('returns recent chat messages last 48h, max 30, content truncated to 500', () => {
+  it('returns recent chat messages last 48h, max 30 newest first, content truncated to 500', () => {
     const db = getDb();
     const insert = db.prepare(
       "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', ?, ?)",
     );
+    // 40 rows within the 48h window so the LIMIT clause is exercised.
     for (let i = 0; i < 40; i += 1) {
-      insert.run(`m-${i}`, `msg ${i}`, now - i * 3600_000);
+      insert.run(`m-${i}`, `msg ${i}`, now - i * 60_000);
     }
-    const longTs = now - 3600_000;
-    insert.run('long-msg', 'x'.repeat(1000), longTs);
+    insert.run('long-msg', 'x'.repeat(1000), now - 30_000);
 
     const data = gatherData(db, now, TZ);
-    expect(data.recentContext.length).toBeLessThanOrEqual(30);
+    expect(data.recentContext.length).toBe(30);
+    // Newest first.
+    for (let i = 0; i < data.recentContext.length - 1; i += 1) {
+      expect(data.recentContext[i].ts).toBeGreaterThan(data.recentContext[i + 1].ts);
+    }
     for (const m of data.recentContext) {
       expect(m.ts).toBeGreaterThanOrEqual(now - 48 * 3600_000);
     }
@@ -226,21 +238,24 @@ describe('gatherData', () => {
 
 describe('composePrompt', () => {
   it('formats all sections when data present', () => {
-    const prompt = composePrompt({
-      reminders: [
-        { text: 'позвонить Иванову', nextFireAt: Date.UTC(2026, 3, 18, 11, 0, 0) },
-      ],
-      notes: [
-        {
-          key: 'user.note.x',
-          value: 'нужно на работу 8:00',
-          lastMentionedAt: Date.UTC(2026, 3, 17),
-        },
-      ],
-      recentContext: [
-        { role: 'user', content: 'сегодня дождь?', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
-      ],
-    });
+    const prompt = composePrompt(
+      {
+        reminders: [
+          { text: 'позвонить Иванову', nextFireAt: Date.UTC(2026, 3, 18, 11, 0, 0) },
+        ],
+        notes: [
+          {
+            key: 'user.note.x',
+            value: 'нужно на работу 8:00',
+            lastMentionedAt: Date.UTC(2026, 3, 17),
+          },
+        ],
+        recentContext: [
+          { role: 'user', content: 'сегодня дождь?', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
+        ],
+      },
+      TZ,
+    );
     expect(prompt).toContain('## Reminders на сегодня/завтра');
     expect(prompt).toContain('позвонить Иванову');
     expect(prompt).toContain('## Открытые заметки');
@@ -251,23 +266,29 @@ describe('composePrompt', () => {
   });
 
   it('shows "нет" for empty sections', () => {
-    const prompt = composePrompt({ reminders: [], notes: [], recentContext: [] });
+    const prompt = composePrompt(
+      { reminders: [], notes: [], recentContext: [] },
+      TZ,
+    );
     expect(prompt).toMatch(/## Reminders на сегодня\/завтра\s+нет/);
     expect(prompt).toMatch(/## Открытые заметки\s+нет/);
     expect(prompt).toMatch(/## Recent context\s+нет/);
   });
 
-  it('formats timestamps in Europe/Kyiv local time (no Z, no UTC)', () => {
+  it('formats timestamps in the passed tz (no Z, no UTC)', () => {
     // 11:00 UTC on 2026-04-18 is 14:00 in Kyiv (UTC+3 summer).
-    const prompt = composePrompt({
-      reminders: [
-        { text: 'позвонить', nextFireAt: Date.UTC(2026, 3, 18, 11, 0, 0) },
-      ],
-      notes: [],
-      recentContext: [
-        { role: 'user', content: 'x', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
-      ],
-    });
+    const prompt = composePrompt(
+      {
+        reminders: [
+          { text: 'позвонить', nextFireAt: Date.UTC(2026, 3, 18, 11, 0, 0) },
+        ],
+        notes: [],
+        recentContext: [
+          { role: 'user', content: 'x', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
+        ],
+      },
+      TZ,
+    );
     expect(prompt).toContain('2026-04-18 14:00: позвонить');
     expect(prompt).toContain('[2026-04-18 07:00] user: x');
     expect(prompt).not.toContain('Z');

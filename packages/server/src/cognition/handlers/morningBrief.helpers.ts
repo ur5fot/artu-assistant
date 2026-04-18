@@ -13,7 +13,6 @@ function tzOffsetMs(ts: number, tz: string): number {
   }).formatToParts(new Date(ts));
   const p: Record<string, number> = {};
   for (const part of parts) if (part.type !== 'literal') p[part.type] = Number(part.value);
-  if (p.hour === 24) p.hour = 0;
   const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
   return asUtc - ts;
 }
@@ -31,10 +30,6 @@ export function getLocalCivilEpoch(
   const [y, m, d] = localDateKey(now, tz).split('-').map(Number);
   const guess = Date.UTC(y, m - 1, d + dayOffset, hour);
   return guess - tzOffsetMs(guess, tz);
-}
-
-export function getTodayStartLocal(now: number, tz: string): number {
-  return getLocalCivilEpoch(now, tz);
 }
 
 export function isSameLocalDate(a: number, b: number, tz: string): boolean {
@@ -55,7 +50,7 @@ export function hasUserActivityToday(
   now: number,
   tz: string,
 ): boolean {
-  const todayStart = getTodayStartLocal(now, tz);
+  const todayStart = getLocalCivilEpoch(now, tz);
   const row = db
     .prepare(
       "SELECT 1 FROM chat_messages WHERE role = 'user' AND timestamp >= ? LIMIT 1",
@@ -97,7 +92,7 @@ export function gatherData(
   now: number,
   tz: string,
 ): BriefData {
-  const todayStart = getTodayStartLocal(now, tz);
+  const todayStart = getLocalCivilEpoch(now, tz);
   // Exclusive upper bound at local midnight of day-after-tomorrow, DST-aware
   // (can't just add 48h — DST days are 23h/25h long).
   const dayAfterTomorrowStart = getLocalCivilEpoch(now, tz, 2);
@@ -136,11 +131,9 @@ export function gatherData(
   return { reminders, notes, recentContext };
 }
 
-const PROMPT_TZ = 'Europe/Kyiv';
-
-function formatLocal(ts: number): string {
+function formatLocal(ts: number, tz: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: PROMPT_TZ,
+    timeZone: tz,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -150,8 +143,7 @@ function formatLocal(ts: number): string {
   }).formatToParts(new Date(ts));
   const p: Record<string, string> = {};
   for (const part of parts) if (part.type !== 'literal') p[part.type] = part.value;
-  const hh = p.hour === '24' ? '00' : p.hour;
-  return `${p.year}-${p.month}-${p.day} ${hh}:${p.minute}`;
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
 }
 
 function section(title: string, rows: string[]): string {
@@ -159,13 +151,13 @@ function section(title: string, rows: string[]): string {
   return `## ${title}\n${body}`;
 }
 
-export function composePrompt(data: BriefData): string {
+export function composePrompt(data: BriefData, tz: string): string {
   return [
-    'Собери утренний brief для dim (русский язык). Время — Europe/Kyiv.',
+    `Собери утренний brief для dim (русский язык). Время — ${tz}.`,
     '',
     section(
       'Reminders на сегодня/завтра',
-      data.reminders.map((r) => `- ${formatLocal(r.nextFireAt)}: ${r.text}`),
+      data.reminders.map((r) => `- ${formatLocal(r.nextFireAt, tz)}: ${r.text}`),
     ),
     '',
     section(
@@ -175,7 +167,9 @@ export function composePrompt(data: BriefData): string {
     '',
     section(
       'Recent context',
-      data.recentContext.map((c) => `- [${formatLocal(c.ts)}] ${c.role}: ${c.content}`),
+      data.recentContext.map(
+        (c) => `- [${formatLocal(c.ts, tz)}] ${c.role}: ${c.content}`,
+      ),
     ),
     '',
     'Формат: 5-8 bullet points. Включи: (1) что конкретно на сегодня, (2) открытые темы которые висят, (3) конкретные предложения действий. Коротко. Не повторяй данные дословно — анализируй.',

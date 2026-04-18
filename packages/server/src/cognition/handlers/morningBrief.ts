@@ -41,7 +41,7 @@ export function createMorningBriefHandler(deps: Deps): Handler {
     async run(ctx) {
       try {
         const data = gatherData(ctx.db, Date.now(), TZ);
-        const prompt = composePrompt(data);
+        const prompt = composePrompt(data, TZ);
         const text = await callMorningBriefAI({
           piiProxy,
           anthropic,

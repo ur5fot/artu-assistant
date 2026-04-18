@@ -68,6 +68,25 @@ describe('Dispatcher', () => {
     expect(enqueued).toEqual(['good']);
   });
 
+  it('async trigger rejection does not break the loop', async () => {
+    const store = createCognitionStore({ db: getDb() });
+    const registry = createHandlerRegistry();
+    registry.register({
+      name: 'async-bad',
+      trigger: async () => { throw new Error('async boom'); },
+      run: async () => ({ skip: true, reason: '' }),
+    });
+    registry.register({
+      name: 'good',
+      trigger: () => true,
+      run: async () => ({ skip: true, reason: '' }),
+    });
+    const { queue, enqueued } = fakeQueue();
+    const d = createDispatcher({ registry, queue, store, db: getDb() });
+    await d.runTick(1000);
+    expect(enqueued).toEqual(['good']);
+  });
+
   it('awaits async triggers and passes db in ctx', async () => {
     const store = createCognitionStore({ db: getDb() });
     const registry = createHandlerRegistry();
