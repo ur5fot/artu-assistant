@@ -40,7 +40,7 @@ export function createMorningBriefHandler(deps: Deps): Handler {
     },
     async run(ctx) {
       try {
-        const data = gatherData(ctx.db, Date.now(), TZ);
+        const data = gatherData(ctx.db, ctx.firedAt, TZ);
         const prompt = composePrompt(data, TZ);
         const text = await callMorningBriefAI({
           piiProxy,

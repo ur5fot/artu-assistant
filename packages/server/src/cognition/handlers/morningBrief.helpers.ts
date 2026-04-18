@@ -83,6 +83,8 @@ export interface BriefData {
 }
 
 const NOTE_FRESHNESS_MS = 14 * 86400_000;
+const NOTE_MAX_ROWS = 50;
+const NOTE_VALUE_TRUNCATE_CHARS = 300;
 const RECENT_CONTEXT_HOURS = 48;
 const RECENT_CONTEXT_MAX_ROWS = 30;
 const CONTENT_TRUNCATE_CHARS = 500;
@@ -103,11 +105,22 @@ export function gatherData(
     )
     .all(todayStart, dayAfterTomorrowStart) as ReminderRow[];
 
-  const notes = db
+  // LIMIT + value truncation keeps the prompt bounded even when memory_facts
+  // grows. Without them, a runaway fact count or a single very long value
+  // could silently inflate tokens per morning brief.
+  const rawNotes = db
     .prepare(
-      'SELECT key, value, last_mentioned_at AS lastMentionedAt FROM memory_facts WHERE superseded_by IS NULL AND forgotten = 0 AND last_mentioned_at >= ? ORDER BY last_mentioned_at DESC',
+      'SELECT key, value, last_mentioned_at AS lastMentionedAt FROM memory_facts WHERE superseded_by IS NULL AND forgotten = 0 AND last_mentioned_at >= ? ORDER BY last_mentioned_at DESC LIMIT ?',
     )
-    .all(now - NOTE_FRESHNESS_MS) as NoteRow[];
+    .all(now - NOTE_FRESHNESS_MS, NOTE_MAX_ROWS) as NoteRow[];
+  const notes: NoteRow[] = rawNotes.map((n) => ({
+    key: n.key,
+    lastMentionedAt: n.lastMentionedAt,
+    value:
+      n.value.length > NOTE_VALUE_TRUNCATE_CHARS
+        ? n.value.slice(0, NOTE_VALUE_TRUNCATE_CHARS)
+        : n.value,
+  }));
 
   const rawChat = db
     .prepare(

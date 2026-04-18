@@ -19,7 +19,7 @@ describe('pulse handler', () => {
   });
 
   it('run returns skip with ISO timestamp', async () => {
-    const ctx = { db: {} as any, signal: new AbortController().signal };
+    const ctx = { db: {} as any, signal: new AbortController().signal, firedAt: Date.now() };
     const result = await pulseHandler.run(ctx);
     expect(result).toMatchObject({ skip: true });
     if ('skip' in result) {

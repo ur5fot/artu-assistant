@@ -185,6 +185,7 @@ describe('createMorningBriefHandler', () => {
       const result = await h.run({
         db: getDb(),
         signal: new AbortController().signal,
+        firedAt: Date.now(),
       });
       expect(result).toEqual({ publish: true, content: 'Доброе утро! ...' });
       expect(anthropic.messages.create).toHaveBeenCalledOnce();
@@ -199,6 +200,7 @@ describe('createMorningBriefHandler', () => {
       const result = await h.run({
         db: getDb(),
         signal: new AbortController().signal,
+        firedAt: Date.now(),
       });
       expect(result).toEqual({ skip: true, reason: 'empty AI response' });
     });
@@ -218,6 +220,7 @@ describe('createMorningBriefHandler', () => {
       const result = await h.run({
         db: getDb(),
         signal: new AbortController().signal,
+        firedAt: Date.now(),
       });
       expect(result).toEqual({ error: true, message: 'boom' });
     });

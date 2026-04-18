@@ -56,7 +56,7 @@ export function createJobQueue(deps: Deps): JobQueue {
           });
         });
         result = await Promise.race([
-          handler.run({ db: store.db, signal: ac.signal }),
+          handler.run({ db: store.db, signal: ac.signal, firedAt: startedAt }),
           abortPromise,
         ]);
       } catch (err) {

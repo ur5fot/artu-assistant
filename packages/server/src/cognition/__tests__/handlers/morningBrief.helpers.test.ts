@@ -197,6 +197,23 @@ describe('gatherData', () => {
     expect(keys).not.toContain('user.old');
   });
 
+  it('caps notes at 50 rows and truncates long values to 300 chars', () => {
+    const db = getDb();
+    const insert = db.prepare(
+      'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by) VALUES (?, ?, ?, ?, NULL)',
+    );
+    for (let i = 0; i < 80; i += 1) {
+      insert.run(`user.k${i}`, `v${i}`, now - i * 60_000, now - i * 60_000);
+    }
+    insert.run('user.long', 'y'.repeat(1000), now, now);
+
+    const data = gatherData(db, now, TZ);
+    expect(data.notes.length).toBeLessThanOrEqual(50);
+    // Newest first — the long one at `now` wins ordering ties, so should be included.
+    const longNote = data.notes.find((n) => n.key === 'user.long');
+    expect(longNote?.value.length).toBe(300);
+  });
+
   it('excludes memory_facts marked forgotten=1', () => {
     const db = getDb();
     db.prepare(
