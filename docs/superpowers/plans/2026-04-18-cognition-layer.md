@@ -252,7 +252,7 @@ git commit -m "feat(cognition): types module"
 - Create: `packages/server/src/cognition/store.ts`
 - Create: `packages/server/src/cognition/__tests__/store.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/cognition/__tests__/store.test.ts`:
 
@@ -318,9 +318,9 @@ describe('CognitionStore — ticks', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement (partial — pause + ticks only)**
+- [x] **Step 3: Implement (partial — pause + ticks only)**
 
 Create `packages/server/src/cognition/store.ts`:
 
@@ -416,9 +416,9 @@ export function createCognitionStore(deps: { db: Database.Database }): Cognition
 
 The five throw-stubs ship in this commit so consumers can compile against the full interface. Task 4 fills them in.
 
-- [ ] **Step 4: Run tests** — all 6 in this task passing.
+- [x] **Step 4: Run tests** — all 6 in this task passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/store.ts packages/server/src/cognition/__tests__/store.test.ts
