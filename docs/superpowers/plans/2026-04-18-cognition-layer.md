@@ -1109,7 +1109,7 @@ git commit -m "feat(cognition): dispatcher"
 - Create: `packages/server/src/cognition/heartbeat.ts`
 - Create: `packages/server/src/cognition/__tests__/heartbeat.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/cognition/__tests__/heartbeat.test.ts`:
 
@@ -1161,9 +1161,9 @@ describe('Heartbeat', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/cognition/heartbeat.ts`:
 
@@ -1198,9 +1198,9 @@ export function startHeartbeat(deps: Deps): { stop(): void } {
 }
 ```
 
-- [ ] **Step 4: Run tests** — passing.
+- [x] **Step 4: Run tests** — passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/heartbeat.ts packages/server/src/cognition/__tests__/heartbeat.test.ts
