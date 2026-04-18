@@ -20,4 +20,8 @@ export const SLASH_COMMAND_DEFINITIONS = [
       o.setName('query').setDescription('Optional search query').setRequired(false),
     )
     .setDMPermission(true),
+  new SlashCommandBuilder()
+    .setName('permissions')
+    .setDescription('View and revoke saved "Allow always" rules')
+    .setDMPermission(true),
 ].map((b) => b.toJSON());

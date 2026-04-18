@@ -534,14 +534,18 @@ Available in DM with the bot:
 - `/status` — Show model, uptime, active reminders, pending permissions
 - `/reminders` — List active reminders
 - `/memory [query]` — List recent memory entries, or search when query provided
+- `/permissions` — List saved "Allow always" rules; each rule gets a Revoke button (up to 5 at a time; re-open `/permissions` to paginate)
 
 ### Interactive embeds
 
 - `reminder_ring` → embed with "Dismiss" / "Snooze 10m" buttons
 - `tool_confirm_request` → embed with "Allow once" / "Allow always" / "Deny" buttons
 - `tool_plan_review` → multi-chunk plan + "Approve" / "Reject" buttons
+- `tool_call_start` → 🔧 + tool name in "running" state (gray). Edited in place as the call progresses: `tool_progress` → debounced "progress" edit (800 ms), `tool_call_result` → ✅ "done" (green) or ❌ "error" (red). `SILENT_TOOLS` (`memory_search`, `memory_save`, `router`) skip the embed to avoid DM noise.
+- `code_task` result → structured embed (Task / Commit / Files / duration) plus a `code_task_<shortSha|callId>.diff` file attachment. Attachments > 24 MB are replaced by a `⚠️ diff too large to attach` notice.
+- Ollama → Claude escalation → the next assistant message is prefixed with `🔵 claude\n\n` on the first flush after the `assistant_source` switch.
 
-Embeds are edited in place on resolution (success/denial) or request timeout (→ `⚠️ expired`). Button interactions land on `interactionCreate` and are routed through `channels/discord/interactions.ts` to services (`reminder-service`, `permission-service`, `plan-review-service`, `command-service`).
+Embeds are edited in place on resolution (success/denial) or request timeout (→ `⚠️ expired`). Tool-call embeds that remain in non-terminal state when the request ends are edited to an error embed so no DM is left in a perpetual "running" state. Button interactions land on `interactionCreate` and are routed through `channels/discord/interactions.ts` to services (`reminder-service`, `permission-service`, `plan-review-service`, `command-service`).
 
 ### Architecture
 

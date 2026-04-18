@@ -17,6 +17,10 @@ export interface CommandService {
     available: boolean;
     entries: Array<{ text: string; timestamp: number }>;
   }>;
+  listPermissionRules(): Array<{ toolName: string; allowed: boolean }>;
+  revokePermissionRule(
+    toolName: string,
+  ): { ok: true } | { ok: false; reason: 'not_found' };
 }
 
 interface Deps {
@@ -74,6 +78,20 @@ export function createCommandService(deps: Deps): CommandService {
           timestamp: f.lastMentionedAt,
         })),
       };
+    },
+    listPermissionRules() {
+      const rows = db
+        .prepare('SELECT tool_name, allowed FROM permission_rules ORDER BY tool_name')
+        .all() as Array<{ tool_name: string; allowed: number }>;
+      return rows.map((r) => ({ toolName: r.tool_name, allowed: r.allowed === 1 }));
+    },
+    revokePermissionRule(toolName: string) {
+      const result = db
+        .prepare('DELETE FROM permission_rules WHERE tool_name = ?')
+        .run(toolName);
+      return result.changes > 0
+        ? ({ ok: true } as const)
+        : ({ ok: false, reason: 'not_found' } as const);
     },
   };
 }

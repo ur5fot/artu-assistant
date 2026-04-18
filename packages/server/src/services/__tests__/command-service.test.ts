@@ -111,3 +111,59 @@ describe('command-service', () => {
     ]);
   });
 });
+
+describe('command-service — permission rules', () => {
+  it('listPermissionRules: delegates to db', () => {
+    const db = {
+      prepare: vi.fn().mockReturnValue({
+        run: vi.fn().mockReturnValue({ changes: 0 }),
+        all: vi.fn().mockReturnValue([
+          { tool_name: 'a', allowed: 1 },
+          { tool_name: 'b', allowed: 0 },
+        ]),
+      }),
+    };
+    const svc = createCommandService({
+      db: db as any,
+      reminderService: { list: vi.fn().mockReturnValue([]) } as unknown as ReminderService,
+      permissionService: { hasPending: vi.fn() } as unknown as PermissionService,
+      memoryService: null,
+    });
+    expect(svc.listPermissionRules()).toEqual([
+      { toolName: 'a', allowed: true },
+      { toolName: 'b', allowed: false },
+    ]);
+  });
+
+  it('revokePermissionRule: returns ok when rule exists', () => {
+    const run = vi.fn().mockReturnValue({ changes: 1 });
+    const db = { prepare: vi.fn().mockReturnValue({ run, all: vi.fn() }) };
+    const svc = createCommandService({
+      db: db as any,
+      reminderService: { list: vi.fn() } as unknown as ReminderService,
+      permissionService: { hasPending: vi.fn() } as unknown as PermissionService,
+      memoryService: null,
+    });
+    expect(svc.revokePermissionRule('foo')).toEqual({ ok: true });
+    expect(run).toHaveBeenCalledWith('foo');
+  });
+
+  it('revokePermissionRule: returns not_found when rule absent', () => {
+    const db = {
+      prepare: vi.fn().mockReturnValue({
+        run: vi.fn().mockReturnValue({ changes: 0 }),
+        all: vi.fn(),
+      }),
+    };
+    const svc = createCommandService({
+      db: db as any,
+      reminderService: { list: vi.fn() } as unknown as ReminderService,
+      permissionService: { hasPending: vi.fn() } as unknown as PermissionService,
+      memoryService: null,
+    });
+    expect(svc.revokePermissionRule('ghost')).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+  });
+});

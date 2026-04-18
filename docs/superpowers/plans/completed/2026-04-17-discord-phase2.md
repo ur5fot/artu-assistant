@@ -52,7 +52,7 @@
 - Modify: `packages/server/src/db.ts`
 - Modify: `packages/server/src/db.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `packages/server/src/db.test.ts`:
 
@@ -93,7 +93,7 @@ describe('permission rules CRUD', () => {
 
 Imports at the top of `db.test.ts` may already exist — only add the new names (`listPermissionRules`, `deletePermissionRule`) and reuse existing ones.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/db.test.ts
@@ -101,7 +101,7 @@ npx vitest run --root packages/server packages/server/src/db.test.ts
 
 Expected: FAIL with `listPermissionRules is not a function` (or similar).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `packages/server/src/db.ts`. After the existing `clearPermissionRules` function:
 
@@ -123,7 +123,7 @@ export function deletePermissionRule(toolName: string): boolean {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/db.test.ts
@@ -131,7 +131,7 @@ npx vitest run --root packages/server packages/server/src/db.test.ts
 
 Expected: all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/db.test.ts
@@ -146,7 +146,7 @@ git commit -m "feat(db): add listPermissionRules and deletePermissionRule"
 - Modify: `packages/server/src/services/command-service.ts`
 - Modify: `packages/server/src/services/__tests__/command-service.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `packages/server/src/services/__tests__/command-service.test.ts`:
 
@@ -209,7 +209,7 @@ describe('command-service — permission rules', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/services/__tests__/command-service.test.ts
@@ -217,7 +217,7 @@ npx vitest run --root packages/server packages/server/src/services/__tests__/com
 
 Expected: FAIL — `listPermissionRules is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `packages/server/src/services/command-service.ts`. Extend the `CommandService` interface and the returned object:
 
@@ -261,7 +261,7 @@ revokePermissionRule(toolName: string) {
 },
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/services
@@ -269,7 +269,7 @@ npx vitest run --root packages/server packages/server/src/services
 
 Expected: all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/services/command-service.ts packages/server/src/services/__tests__/command-service.test.ts
@@ -286,7 +286,7 @@ git commit -m "feat(services): command-service listPermissionRules / revokePermi
 
 This task introduces the module with just the `running` state. Progress/done/error added in Task 4.
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/channels/discord/__tests__/tool-embeds.test.ts`:
 
@@ -336,13 +336,13 @@ describe('buildToolCallEmbed — running', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL (module does not exist).
+- [x] **Step 2: Run test** — expect FAIL (module does not exist).
 
 ```bash
 npx vitest run --root packages/server packages/server/src/channels/discord/__tests__/tool-embeds.test.ts
 ```
 
-- [ ] **Step 3: Implement minimal module**
+- [x] **Step 3: Implement minimal module**
 
 Create `packages/server/src/channels/discord/tool-embeds.ts`:
 
@@ -391,9 +391,9 @@ export function buildToolCallEmbed(opts: BuildToolCallEmbedOpts): EmbedBuilder |
 }
 ```
 
-- [ ] **Step 4: Run test** — expect 3 passing.
+- [x] **Step 4: Run test** — expect 3 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/tool-embeds.ts packages/server/src/channels/discord/__tests__/tool-embeds.test.ts
@@ -408,7 +408,7 @@ git commit -m "feat(discord): tool-embeds module with running state"
 - Modify: `packages/server/src/channels/discord/tool-embeds.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/tool-embeds.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `tool-embeds.test.ts`:
 
@@ -522,9 +522,9 @@ describe('buildToolCallEmbed — code_task special', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests** — expect FAIL for progress/done/error/code_task specific.
+- [x] **Step 2: Run tests** — expect FAIL for progress/done/error/code_task specific.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace the body of `buildToolCallEmbed` in `tool-embeds.ts` with:
 
@@ -614,9 +614,9 @@ export function buildToolCallEmbed(opts: BuildToolCallEmbedOpts): EmbedBuilder |
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/tool-embeds.ts packages/server/src/channels/discord/__tests__/tool-embeds.test.ts
@@ -631,7 +631,7 @@ git commit -m "feat(discord): tool-embed progress/done/error states + code_task 
 - Modify: `packages/server/src/channels/discord/tool-embeds.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/tool-embeds.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append:
 
@@ -670,9 +670,9 @@ describe('buildDiffAttachment', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests** — expect FAIL.
+- [x] **Step 2: Run tests** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `tool-embeds.ts`:
 
@@ -706,9 +706,9 @@ export function buildDiffAttachment(opts: {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/tool-embeds.ts packages/server/src/channels/discord/__tests__/tool-embeds.test.ts
@@ -723,7 +723,7 @@ git commit -m "feat(discord): buildDiffAttachment factory"
 - Modify: `packages/server/src/channels/discord/embeds.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/embeds.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `embeds.test.ts`:
 
@@ -775,9 +775,9 @@ describe('buildPermissionsListReply', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests** — expect FAIL.
+- [x] **Step 2: Run tests** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `embeds.ts`:
 
@@ -820,9 +820,9 @@ export function buildPermissionsListReply(
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/embeds.ts packages/server/src/channels/discord/__tests__/embeds.test.ts
@@ -836,7 +836,7 @@ git commit -m "feat(discord): buildPermissionsListReply factory"
 **Files:**
 - Modify: `packages/server/src/channels/discord/slash-commands.ts`
 
-- [ ] **Step 1: Edit**
+- [x] **Step 1: Edit**
 
 Inside `SLASH_COMMAND_DEFINITIONS` array, append:
 
@@ -849,7 +849,7 @@ new SlashCommandBuilder()
 
 (Place before the final `.map((b) => b.toJSON())`.)
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -857,7 +857,7 @@ npx vitest run --root packages/server
 
 Expected: all green (no slash-command test directly asserts list; Task 8 validates via interaction router).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/slash-commands.ts
@@ -872,7 +872,7 @@ git commit -m "feat(discord): register /permissions slash command"
 - Modify: `packages/server/src/channels/discord/interactions.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/interactions.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `interactions.test.ts`:
 
@@ -969,9 +969,9 @@ describe('routeInteraction — perm_rule:revoke', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests** — expect FAIL (handler not yet implemented).
+- [x] **Step 2: Run tests** — expect FAIL (handler not yet implemented).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `packages/server/src/channels/discord/interactions.ts`.
 
@@ -1031,9 +1031,9 @@ revokePermissionRule: vi.fn().mockReturnValue({ ok: true }),
 
 to the default `commandService` in `makeDeps`.
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/interactions.ts packages/server/src/channels/discord/__tests__/interactions.test.ts
@@ -1048,7 +1048,7 @@ git commit -m "feat(discord): /permissions slash + perm_rule:revoke handler"
 - Modify: `packages/server/src/channels/discord/bot.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append to `bot.test.ts`:
 
@@ -1135,9 +1135,9 @@ describe('tool_call_start handling', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `packages/server/src/channels/discord/bot.ts`:
 
@@ -1180,9 +1180,9 @@ if (event.type === 'tool_call_start') {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts
@@ -1197,7 +1197,7 @@ git commit -m "feat(discord): send tool-call embed on tool_call_start"
 - Modify: `packages/server/src/channels/discord/bot.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append to `bot.test.ts`:
 
@@ -1251,9 +1251,9 @@ describe('tool_progress handling (debounced)', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add a helper inside `handleMessage` (near other helpers):
 
@@ -1345,9 +1345,9 @@ toolCallMessages.set(event.toolCall.id, {
 });
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts
@@ -1362,7 +1362,7 @@ git commit -m "feat(discord): debounced tool_progress edits (800ms)"
 - Modify: `packages/server/src/channels/discord/bot.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `bot.test.ts`:
 
@@ -1466,9 +1466,9 @@ describe('tool_call_result handling', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Inside `handleMessage` `onEvent`, add branch for `tool_call_result`:
 
@@ -1559,9 +1559,9 @@ const toolCallSnapshot = {
 
 Update `applyProgressEdit` likewise to pass `entry.toolInput`.
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts
@@ -1576,7 +1576,7 @@ git commit -m "feat(discord): tool_call_result terminal edit + diff attachment"
 - Modify: `packages/server/src/channels/discord/bot.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `bot.test.ts`:
 
@@ -1652,9 +1652,9 @@ describe('escalation prefix', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Inside `handleMessage`, add state near `toolCallMessages`:
 
@@ -1705,9 +1705,9 @@ sawOllama = false;        // NEW
 escalated = false;        // NEW
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts
@@ -1720,7 +1720,7 @@ git commit -m "feat(discord): 🔵 claude prefix on ollama→claude escalation"
 
 **Files:** all
 
-- [ ] **Step 1: Run full suite**
+- [x] **Step 1: Run full suite**
 
 ```bash
 npx vitest run --root packages/server
@@ -1728,7 +1728,7 @@ npx vitest run --root packages/server
 
 Expected: all passing. Any mock that previously omitted `listPermissionRules` / `revokePermissionRule` on `commandService` stubs in other tests must be updated.
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 npm run build -w @r2/server
@@ -1736,7 +1736,7 @@ npm run build -w @r2/server
 
 Expected: no TypeScript errors.
 
-- [ ] **Step 3: Lint / shared typecheck**
+- [x] **Step 3: Lint / shared typecheck**
 
 ```bash
 npx tsc -p packages/shared --noEmit && npx tsc -p packages/server --noEmit
@@ -1744,7 +1744,7 @@ npx tsc -p packages/shared --noEmit && npx tsc -p packages/server --noEmit
 
 Expected: clean.
 
-- [ ] **Step 4: Commit any stub fixes (if any made)**
+- [x] **Step 4: Commit any stub fixes (if any made)**
 
 ```bash
 git add -A
