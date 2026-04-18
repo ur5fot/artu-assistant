@@ -5,6 +5,7 @@ import {
   isSameLocalDate,
   hasUserActivityToday,
   gatherData,
+  composePrompt,
 } from '../../handlers/morningBrief.helpers.js';
 
 const TZ = 'Europe/Kyiv';
@@ -145,5 +146,39 @@ describe('gatherData', () => {
     }
     const longM = data.recentContext.find((m) => m.content.startsWith('xxxx'));
     expect(longM?.content.length).toBe(500);
+  });
+});
+
+describe('composePrompt', () => {
+  it('formats all sections when data present', () => {
+    const prompt = composePrompt({
+      reminders: [
+        { text: 'позвонить Иванову', nextFireAt: Date.UTC(2026, 3, 18, 11, 0, 0) },
+      ],
+      notes: [
+        {
+          key: 'user.note.x',
+          value: 'нужно на работу 8:00',
+          lastMentionedAt: Date.UTC(2026, 3, 17),
+        },
+      ],
+      recentContext: [
+        { role: 'user', content: 'сегодня дождь?', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
+      ],
+    });
+    expect(prompt).toContain('## Reminders на сегодня/завтра');
+    expect(prompt).toContain('позвонить Иванову');
+    expect(prompt).toContain('## Открытые заметки');
+    expect(prompt).toContain('user.note.x');
+    expect(prompt).toContain('## Recent context');
+    expect(prompt).toContain('сегодня дождь?');
+    expect(prompt).toContain('5-8 bullet points');
+  });
+
+  it('shows "нет" for empty sections', () => {
+    const prompt = composePrompt({ reminders: [], notes: [], recentContext: [] });
+    expect(prompt).toMatch(/## Reminders на сегодня\/завтра\s+нет/);
+    expect(prompt).toMatch(/## Открытые заметки\s+нет/);
+    expect(prompt).toMatch(/## Recent context\s+нет/);
   });
 });

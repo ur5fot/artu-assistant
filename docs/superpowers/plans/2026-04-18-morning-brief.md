@@ -561,7 +561,7 @@ git commit -m "feat(cognition): morning brief gatherData — reminders+notes+rec
 
 **Why:** Prompt должен быть стабильным и отдельно тестируемым, чтобы правки не ломали тон.
 
-- [ ] **Step 1: Failing snapshot-тест для `composePrompt`**
+- [x] **Step 1: Failing snapshot-тест для `composePrompt`**
 
 Добавь `composePrompt` в существующий import из `../../handlers/morningBrief.helpers.js` в начале файла. Затем допиши новый describe:
 
@@ -597,13 +597,13 @@ describe('composePrompt', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL**
+- [x] **Step 2: Run tests — expect FAIL**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts
 ```
 
-- [ ] **Step 3: Реализовать `composePrompt`**
+- [x] **Step 3: Реализовать `composePrompt`**
 
 Добавь в конец `morningBrief.helpers.ts`:
 
@@ -642,13 +642,13 @@ export function composePrompt(data: BriefData): string {
 }
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.helpers.ts packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts

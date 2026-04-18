@@ -115,3 +115,36 @@ export function gatherData(
 
   return { reminders, notes, recentContext };
 }
+
+function formatReminder(r: ReminderRow): string {
+  const t = new Date(r.nextFireAt).toISOString();
+  return `- ${t}: ${r.text}`;
+}
+
+function formatNote(n: NoteRow): string {
+  return `- ${n.key}: ${n.value}`;
+}
+
+function formatChat(c: ChatRow): string {
+  const t = new Date(c.ts).toISOString();
+  return `- [${t}] ${c.role}: ${c.content}`;
+}
+
+function section(title: string, rows: string[]): string {
+  const body = rows.length > 0 ? rows.join('\n') : 'нет';
+  return `## ${title}\n${body}`;
+}
+
+export function composePrompt(data: BriefData): string {
+  return [
+    'Собери утренний brief для dim (русский язык).',
+    '',
+    section('Reminders на сегодня/завтра', data.reminders.map(formatReminder)),
+    '',
+    section('Открытые заметки', data.notes.map(formatNote)),
+    '',
+    section('Recent context', data.recentContext.map(formatChat)),
+    '',
+    'Формат: 5-8 bullet points. Включи: (1) что конкретно на сегодня, (2) открытые темы которые висят, (3) конкретные предложения действий. Коротко. Не повторяй данные дословно — анализируй.',
+  ].join('\n');
+}
