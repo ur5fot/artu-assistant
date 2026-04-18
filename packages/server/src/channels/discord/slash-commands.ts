@@ -24,4 +24,11 @@ export const SLASH_COMMAND_DEFINITIONS = [
     .setName('permissions')
     .setDescription('View and revoke saved "Allow always" rules')
     .setDMPermission(true),
+  new SlashCommandBuilder()
+    .setName('heartbeat')
+    .setDescription('R2 cognition layer control')
+    .setDMPermission(true)
+    .addSubcommand((sub) => sub.setName('status').setDescription('Show heartbeat status'))
+    .addSubcommand((sub) => sub.setName('pause').setDescription('Pause heartbeat'))
+    .addSubcommand((sub) => sub.setName('resume').setDescription('Resume heartbeat')),
 ].map((b) => b.toJSON());

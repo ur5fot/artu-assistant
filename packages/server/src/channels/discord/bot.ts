@@ -16,6 +16,7 @@ import type { ReminderService } from '../../services/reminder-service.js';
 import type { PermissionService } from '../../services/permission-service.js';
 import type { PlanReviewService } from '../../services/plan-review-service.js';
 import type { CommandService } from '../../services/command-service.js';
+import type { CognitionService } from '../../cognition/service.js';
 import { truncateMessages } from '../../routes/chat.js';
 import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
 import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from './tool-embeds.js';
@@ -57,6 +58,8 @@ export interface DiscordBotDeps {
   planReviewService?: PlanReviewService;
   /** Command service — slash command implementations. */
   commandService?: CommandService;
+  /** Cognition service — heartbeat/handler runs; bot listens for `cognition_publish` events on the reminder bus and marks runs published after DM delivery. */
+  cognitionService?: CognitionService;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -174,7 +177,7 @@ export async function startDiscordBot(
 
   client.on('interactionCreate', async (interaction) => {
     try {
-      if (!deps.reminderService || !deps.permissionService || !deps.planReviewService || !deps.commandService) {
+      if (!deps.reminderService || !deps.permissionService || !deps.planReviewService || !deps.commandService || !deps.cognitionService) {
         console.warn('[discord] interaction received but services not wired');
         return;
       }
@@ -184,6 +187,7 @@ export async function startDiscordBot(
         permissionService: deps.permissionService,
         planReviewService: deps.planReviewService,
         commandService: deps.commandService,
+        cognitionService: deps.cognitionService,
       });
     } catch (err) {
       console.error('[discord] interaction error:', err instanceof Error ? err.message : err);
@@ -796,6 +800,38 @@ export async function startDiscordBot(
     deps.reminderBus.on('push', reminderListener);
   }
 
+  let cognitionListener: ((e: any) => void) | null = null;
+  if (deps.reminderBus) {
+    cognitionListener = (event: any) => {
+      if (event.type !== 'cognition_publish') return;
+      if (!client.isReady()) return;
+      // Mark the run as published exactly once — on the first successful DM.
+      // Calling markPublished per-whitelist-user would overwrite
+      // published_at N times and could falsely mark a run as published even
+      // when earlier recipients' sends failed.
+      let marked = false;
+      const body = `💭 _from ${event.handler}_\n${event.content}`;
+      for (const userId of deps.whitelist) {
+        client.users.fetch(userId)
+          .then((u) => u.createDM())
+          .then((dm) => sendReply(dm as unknown as DMChannel, body))
+          .then(() => {
+            if (marked) return;
+            // Attempt DB write first; only set `marked` if it actually
+            // succeeds. Otherwise a transient DB failure here would leave
+            // `marked=true`, silently skipping later successful recipients.
+            deps.cognitionService?.markPublished(event.runId, Date.now());
+            marked = true;
+          })
+          .catch((err) => console.error(
+            '[discord] cognition publish failed:',
+            err instanceof Error ? err.message : err,
+          ));
+      }
+    };
+    deps.reminderBus.on('push', cognitionListener);
+  }
+
   const LOGIN_TIMEOUT_MS = 30_000;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -812,6 +848,9 @@ export async function startDiscordBot(
     if (reminderListener && deps.reminderBus) {
       deps.reminderBus.off('push', reminderListener);
     }
+    if (cognitionListener && deps.reminderBus) {
+      deps.reminderBus.off('push', cognitionListener);
+    }
     client.destroy().catch(() => {});
     throw err;
   }
@@ -820,6 +859,9 @@ export async function startDiscordBot(
     stop: async () => {
       if (reminderListener && deps.reminderBus) {
         deps.reminderBus.off('push', reminderListener);
+      }
+      if (cognitionListener && deps.reminderBus) {
+        deps.reminderBus.off('push', cognitionListener);
       }
       await client.destroy();
     },

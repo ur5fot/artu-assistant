@@ -472,3 +472,25 @@ process.on('SIGTERM', async () => {
 - **`bus` is named `reminderBus`.** We reuse it for cognition events. Renaming to a generic `bus` is a separate, mechanical refactor — not in this spec.
 - **Tick drift / process suspend.** macOS may suspend the process under load; `setInterval` will catch up but not exactly hit 60 s boundaries. Cognition handlers are time-of-day-tolerant by construction.
 - **markPublished is opportunistic.** If Discord send fails, `published_at` stays NULL. We don't retry — the audit row records the publish intent and the failure is logged.
+
+---
+
+## Execution Status (2026-04-18)
+
+**Automated verification — PASSED.**
+
+- 470/470 vitest tests green (`npx vitest run --root packages/server`), including:
+  - `cognition/__tests__/{store,registry,queue,dispatcher,heartbeat,service}.test.ts`
+  - `cognition/__tests__/handlers/pulse.test.ts`
+  - `channels/discord/__tests__/{bot,interactions}.test.ts` cognition-related cases
+- TypeScript typecheck clean (`npx tsc --noEmit` in `packages/server`).
+- Implementation committed across Tasks 1-15 (see `docs/superpowers/plans/2026-04-18-cognition-layer.md`).
+
+**Manual Discord E2E (Task 16) — PASSED (2026-04-18).**
+
+User verified end-to-end on live Discord bot:
+- `/heartbeat status` returns ephemeral reply with `🫀 alive`, last tick ISO, ticks-24h count (28 observed), registered handlers (`pulse`), and Recent runs list with `pulse — skip (alive at …)` entries at ~5-min cadence.
+- `/heartbeat pause` → confirmed `⏸️ paused`; last tick stopped advancing during pause window.
+- `/heartbeat resume` → last tick resumes within the next 60s tick.
+- Pause state survived dev-server restart (persisted in `cognition_state` singleton row).
+- Slash-command autocomplete popup lists `heartbeat status|pause|resume` (global commands propagated within minutes after first register).

@@ -43,7 +43,18 @@ export function createEventsRouter(deps: EventsRouterDeps): Router {
       }
     };
 
-    const listener = (event: ServerPushEvent) => {
+    // The bus is shared with server-internal consumers (cognition DM fanout
+     // through Discord). Filter to the ServerPushEvent union so internal
+     // events never leak to web clients as unknown-type frames.
+    const listener = (event: { type?: string } | ServerPushEvent) => {
+      const t = (event as { type?: string }).type;
+      if (
+        t !== 'reminder_ring' &&
+        t !== 'reminder_stop_ring' &&
+        t !== 'reminder_done' &&
+        t !== 'reminder_dismissed' &&
+        t !== 'reminder_snoozed'
+      ) return;
       safeWrite(`data: ${JSON.stringify(event)}\n\n`);
     };
     bus.on('push', listener);
