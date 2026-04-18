@@ -212,7 +212,7 @@ git commit -m "refactor(cognition): trigger receives ctx and may be async"
 
 **Why:** Триггер Morning brief завязан на local date (Europe/Kyiv) и наличие сообщения юзера с начала дня. Чистые функции, хорошо покрываемые тестами, без зависимости от LLM.
 
-- [ ] **Step 1: Создать файл с failing тестами для helpers**
+- [x] **Step 1: Создать файл с failing тестами для helpers**
 
 В `packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts`:
 
@@ -304,7 +304,7 @@ describe('hasUserActivityToday', () => {
 });
 ```
 
-- [ ] **Step 2: Подтвердить схему `chat_messages`**
+- [x] **Step 2: Подтвердить схему `chat_messages`**
 
 ```bash
 grep -A 12 "CREATE TABLE IF NOT EXISTS chat_messages" packages/server/src/db.ts
@@ -312,7 +312,7 @@ grep -A 12 "CREATE TABLE IF NOT EXISTS chat_messages" packages/server/src/db.ts
 
 Ожидаемые колонки (2026-04-18): `message_id TEXT UNIQUE`, `role TEXT`, `content TEXT`, `timestamp INTEGER NOT NULL` (это ms-время сообщения, используем его — **не** `created_at`, который TEXT/datetime). Если схема уже ушла вперёд — адаптируй тесты и helper. Не выдумывай поля.
 
-- [ ] **Step 3: Запустить тесты — ожидать FAIL (файла helpers нет)**
+- [x] **Step 3: Запустить тесты — ожидать FAIL (файла helpers нет)**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts
@@ -320,7 +320,7 @@ npx vitest run --root packages/server packages/server/src/cognition/__tests__/ha
 
 Ожидается: ошибка импорта `Cannot find module`.
 
-- [ ] **Step 4: Реализовать helpers (минимальный набор для Task 2)**
+- [x] **Step 4: Реализовать helpers (минимальный набор для Task 2)**
 
 В `packages/server/src/cognition/handlers/morningBrief.helpers.ts`:
 
@@ -377,7 +377,7 @@ export function hasUserActivityToday(db: Database.Database, now: number, tz: str
 
 Внимание: если при step 2 проверил что имя роли в `chat_messages` отличается (напр., нет `role` колонки) — адаптируй запрос. Не выдумывай поля.
 
-- [ ] **Step 5: Запустить тесты — ожидать PASS**
+- [x] **Step 5: Запустить тесты — ожидать PASS**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts
@@ -386,7 +386,7 @@ npx vitest run --root packages/server packages/server/src/cognition/__tests__/ha
 Все 6+ assertions должны пройти. Если `getTodayStartLocal` первый тест зелёный но второй (pre-midnight UTC) красный — вероятно нужно перестроить логику:
 - Альтернатива: вычислить Y-M-D в tz, затем `Date.UTC(Y,M-1,D)` — это не точно (игнорирует DST offset). Способ через "now - local hh/mm/ss" корректнее.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.helpers.ts packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts
