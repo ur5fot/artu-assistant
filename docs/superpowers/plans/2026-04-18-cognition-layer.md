@@ -1831,7 +1831,7 @@ git commit -m "feat(discord): /heartbeat status/pause/resume handler"
 
 **Files:** all
 
-- [ ] **Step 1: Run full server tests**
+- [x] **Step 1: Run full server tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -1839,7 +1839,7 @@ npx vitest run --root packages/server
 
 Expected: all green. If anything fails, the most likely cause is stub coverage in interactions/bot/command-service tests for the new methods. Add the missing `cognitionService` field to those test setups.
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 npx tsc -p packages/shared --noEmit && npx tsc -p packages/server --noEmit
@@ -1847,7 +1847,7 @@ npx tsc -p packages/shared --noEmit && npx tsc -p packages/server --noEmit
 
 Expected: clean.
 
-- [ ] **Step 3: Commit any test-stub fixes (if needed)**
+- [x] **Step 3: Commit any test-stub fixes (if needed)**
 
 ```bash
 git add -A
