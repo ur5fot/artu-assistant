@@ -472,3 +472,22 @@ process.on('SIGTERM', async () => {
 - **`bus` is named `reminderBus`.** We reuse it for cognition events. Renaming to a generic `bus` is a separate, mechanical refactor — not in this spec.
 - **Tick drift / process suspend.** macOS may suspend the process under load; `setInterval` will catch up but not exactly hit 60 s boundaries. Cognition handlers are time-of-day-tolerant by construction.
 - **markPublished is opportunistic.** If Discord send fails, `published_at` stays NULL. We don't retry — the audit row records the publish intent and the failure is logged.
+
+---
+
+## Execution Status (2026-04-18)
+
+**Automated verification — PASSED.**
+
+- 470/470 vitest tests green (`npx vitest run --root packages/server`), including:
+  - `cognition/__tests__/{store,registry,queue,dispatcher,heartbeat,service}.test.ts`
+  - `cognition/__tests__/handlers/pulse.test.ts`
+  - `channels/discord/__tests__/{bot,interactions}.test.ts` cognition-related cases
+- TypeScript typecheck clean (`npx tsc --noEmit` in `packages/server`).
+- Implementation committed across Tasks 1-15 (see `docs/superpowers/plans/2026-04-18-cognition-layer.md`).
+
+**Manual Discord E2E (Task 16) — PENDING user verification.**
+
+Steps 2-6 of Task 16 require a live Discord session: running `/heartbeat status | pause | resume` in a DM, waiting ~5 min for the `pulse` handler to fire, observing ephemeral replies, and validating pause/resume persistence across a dev-server restart. These cannot be executed by an autonomous agent — they live with the user.
+
+The automated suite exercises the same surfaces (status formatter, pause/resume delegation, `cognition_publish` → DM send), so a failure in manual E2E almost certainly indicates an environment/wiring issue (token, intents, slash-command registration) rather than a logic bug.
