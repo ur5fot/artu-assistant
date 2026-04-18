@@ -154,6 +154,43 @@ export function initDb(dbPath?: string): void {
     )
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cognition_state (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      paused INTEGER NOT NULL DEFAULT 0,
+      paused_at INTEGER
+    )
+  `);
+  db.exec(`INSERT OR IGNORE INTO cognition_state (id, paused) VALUES (1, 0)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cognition_ticks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tick_at INTEGER NOT NULL
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_cognition_ticks_at
+      ON cognition_ticks(tick_at)
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cognition_handler_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      handler_name TEXT NOT NULL,
+      fired_at INTEGER NOT NULL,
+      duration_ms INTEGER NOT NULL,
+      outcome TEXT NOT NULL CHECK (outcome IN ('publish', 'skip', 'error')),
+      content TEXT,
+      reason TEXT,
+      published_at INTEGER
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_cognition_handler_runs_name_at
+      ON cognition_handler_runs(handler_name, fired_at DESC)
+  `);
+
   // Migration: add `source` column if missing
   const cols = db.prepare("PRAGMA table_info(chat_messages)").all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === 'source')) {

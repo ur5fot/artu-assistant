@@ -63,7 +63,7 @@
 - Modify: `packages/server/src/db.ts`
 - Modify: `packages/server/src/db.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `packages/server/src/db.test.ts`:
 
@@ -110,7 +110,7 @@ describe('cognition tables', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/db.test.ts
@@ -118,7 +118,7 @@ npx vitest run --root packages/server packages/server/src/db.test.ts
 
 Expected: FAIL — `no such table: cognition_state`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `packages/server/src/db.ts`, inside `initDb()`, add **after** the `prompt_overlays` CREATE TABLE block but **before** the migration block:
 
@@ -161,9 +161,9 @@ db.exec(`
 `);
 ```
 
-- [ ] **Step 4: Run tests** — all 4 passing.
+- [x] **Step 4: Run tests** — all 4 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/db.test.ts

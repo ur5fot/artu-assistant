@@ -410,3 +410,42 @@ describe('Database Module', () => {
   });
 
 });
+
+describe('cognition tables', () => {
+  beforeEach(() => initDb(':memory:'));
+
+  it('cognition_state has a single row with paused=0', () => {
+    const row = getDb()
+      .prepare('SELECT id, paused FROM cognition_state')
+      .all() as Array<{ id: number; paused: number }>;
+    expect(row).toEqual([{ id: 1, paused: 0 }]);
+  });
+
+  it('cognition_ticks accepts inserts and indexes by tick_at', () => {
+    getDb().prepare('INSERT INTO cognition_ticks (tick_at) VALUES (?)').run(1000);
+    getDb().prepare('INSERT INTO cognition_ticks (tick_at) VALUES (?)').run(2000);
+    const rows = getDb()
+      .prepare('SELECT tick_at FROM cognition_ticks ORDER BY tick_at')
+      .all();
+    expect(rows).toEqual([{ tick_at: 1000 }, { tick_at: 2000 }]);
+  });
+
+  it('cognition_handler_runs CHECK constraint rejects bad outcome', () => {
+    expect(() =>
+      getDb()
+        .prepare(
+          'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+        )
+        .run('x', 1, 0, 'bogus'),
+    ).toThrow();
+  });
+
+  it('cognition_handler_runs accepts publish/skip/error', () => {
+    const stmt = getDb().prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+    );
+    expect(() => stmt.run('x', 1, 0, 'publish')).not.toThrow();
+    expect(() => stmt.run('x', 2, 0, 'skip')).not.toThrow();
+    expect(() => stmt.run('x', 3, 0, 'error')).not.toThrow();
+  });
+});
