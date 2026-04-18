@@ -177,7 +177,7 @@ export async function startDiscordBot(
 
   client.on('interactionCreate', async (interaction) => {
     try {
-      if (!deps.reminderService || !deps.permissionService || !deps.planReviewService || !deps.commandService) {
+      if (!deps.reminderService || !deps.permissionService || !deps.planReviewService || !deps.commandService || !deps.cognitionService) {
         console.warn('[discord] interaction received but services not wired');
         return;
       }
@@ -187,6 +187,7 @@ export async function startDiscordBot(
         permissionService: deps.permissionService,
         planReviewService: deps.planReviewService,
         commandService: deps.commandService,
+        cognitionService: deps.cognitionService,
       });
     } catch (err) {
       console.error('[discord] interaction error:', err instanceof Error ? err.message : err);

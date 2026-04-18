@@ -32,6 +32,14 @@ function makeDeps(overrides: Partial<Parameters<typeof routeInteraction>[1]> = {
       listPermissionRules: vi.fn().mockReturnValue([]),
       revokePermissionRule: vi.fn().mockReturnValue({ ok: true }),
     } as unknown as CommandService,
+    cognitionService: {
+      register: vi.fn(), start: vi.fn(), stop: vi.fn(),
+      pause: vi.fn(), resume: vi.fn(),
+      status: vi.fn().mockReturnValue({
+        paused: false, lastTickAt: null, ticks24h: 0, queueSize: 0, handlers: [], recentRuns: [],
+      }),
+      markPublished: vi.fn(),
+    } as any,
     ...overrides,
   };
 }
@@ -346,5 +354,66 @@ describe('routeInteraction — perm_rule:revoke', () => {
     expect(ixn.update).toHaveBeenCalledWith(
       expect.objectContaining({ content: 'No saved permission rules left.', components: [] }),
     );
+  });
+});
+
+describe('routeInteraction — /heartbeat', () => {
+  function makeCogService(overrides: Record<string, any> = {}) {
+    return {
+      register: vi.fn(), start: vi.fn(), stop: vi.fn(),
+      pause: vi.fn(), resume: vi.fn(),
+      status: vi.fn().mockReturnValue({
+        paused: false,
+        lastTickAt: 1700000000000,
+        ticks24h: 1440,
+        queueSize: 0,
+        handlers: ['pulse'],
+        recentRuns: [],
+      }),
+      markPublished: vi.fn(),
+      ...overrides,
+    } as any;
+  }
+
+  function makeSlash(overrides: Record<string, any> = {}) {
+    return {
+      isButton: () => false,
+      isChatInputCommand: () => true,
+      user: { id: 'user-1' },
+      commandName: 'heartbeat',
+      options: { getSubcommand: vi.fn().mockReturnValue('status'), getString: vi.fn() },
+      reply: vi.fn().mockResolvedValue(undefined),
+      ...overrides,
+    } as any;
+  }
+
+  it('status: ephemeral reply with paused/last tick/handlers', async () => {
+    const cognitionService = makeCogService();
+    const deps = makeDeps({ cognitionService });
+    const ixn = makeSlash();
+    await routeInteraction(ixn, deps);
+    expect(cognitionService.status).toHaveBeenCalled();
+    const arg = (ixn.reply as any).mock.calls[0][0];
+    expect(arg.flags).toBeDefined();
+    expect(arg.content).toContain('alive');
+    expect(arg.content).toContain('pulse');
+  });
+
+  it('pause: calls service.pause + ephemeral confirmation', async () => {
+    const cognitionService = makeCogService();
+    const deps = makeDeps({ cognitionService });
+    const ixn = makeSlash({ options: { getSubcommand: vi.fn().mockReturnValue('pause'), getString: vi.fn() } });
+    await routeInteraction(ixn, deps);
+    expect(cognitionService.pause).toHaveBeenCalled();
+    expect((ixn.reply as any).mock.calls[0][0].content).toContain('paused');
+  });
+
+  it('resume: calls service.resume + ephemeral confirmation', async () => {
+    const cognitionService = makeCogService();
+    const deps = makeDeps({ cognitionService });
+    const ixn = makeSlash({ options: { getSubcommand: vi.fn().mockReturnValue('resume'), getString: vi.fn() } });
+    await routeInteraction(ixn, deps);
+    expect(cognitionService.resume).toHaveBeenCalled();
+    expect((ixn.reply as any).mock.calls[0][0].content).toContain('resumed');
   });
 });

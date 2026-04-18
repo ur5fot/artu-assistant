@@ -1669,7 +1669,7 @@ git commit -m "feat(discord): register /heartbeat slash command"
 - Modify: `packages/server/src/channels/discord/interactions.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/interactions.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `interactions.test.ts`:
 
@@ -1749,9 +1749,9 @@ cognitionService: {
 } as any,
 ```
 
-- [ ] **Step 2: Run tests** — expect FAIL.
+- [x] **Step 2: Run tests** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `packages/server/src/channels/discord/interactions.ts`:
 
@@ -1816,9 +1816,9 @@ await routeInteraction(interaction, {
 });
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/interactions.ts packages/server/src/channels/discord/__tests__/interactions.test.ts packages/server/src/channels/discord/bot.ts

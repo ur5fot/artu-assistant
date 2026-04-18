@@ -654,6 +654,14 @@ describe('interactionCreate routing', () => {
         listReminders: vi.fn(),
         listMemory: vi.fn(),
       } as any,
+      cognitionService: {
+        register: vi.fn(), start: vi.fn(), stop: vi.fn(),
+        pause: vi.fn(), resume: vi.fn(),
+        status: vi.fn().mockReturnValue({
+          paused: false, lastTickAt: null, ticks24h: 0, queueSize: 0, handlers: [], recentRuns: [],
+        }),
+        markPublished: vi.fn(),
+      } as any,
     });
 
     const fakeInteraction = {
