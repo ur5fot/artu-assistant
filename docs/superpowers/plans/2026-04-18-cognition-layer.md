@@ -1632,7 +1632,7 @@ git commit -m "feat(discord): bot listens for cognition_publish events"
 **Files:**
 - Modify: `packages/server/src/channels/discord/slash-commands.ts`
 
-- [ ] **Step 1: Edit**
+- [x] **Step 1: Edit**
 
 In `slash-commands.ts`, append to `SLASH_COMMAND_DEFINITIONS` array (before the `.map(b => b.toJSON())`):
 
@@ -1646,7 +1646,7 @@ new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName('resume').setDescription('Resume heartbeat')),
 ```
 
-- [ ] **Step 2: Run server tests**
+- [x] **Step 2: Run server tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -1654,7 +1654,7 @@ npx vitest run --root packages/server
 
 Expected: green (no slash-command shape test asserts the new command yet — added in Task 14).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/slash-commands.ts
