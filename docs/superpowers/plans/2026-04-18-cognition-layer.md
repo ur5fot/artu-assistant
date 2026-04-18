@@ -433,7 +433,7 @@ git commit -m "feat(cognition): store — pause + ticks"
 - Modify: `packages/server/src/cognition/store.ts`
 - Modify: `packages/server/src/cognition/__tests__/store.test.ts`
 
-- [ ] **Step 1: Append failing tests**
+- [x] **Step 1: Append failing tests**
 
 Append to `packages/server/src/cognition/__tests__/store.test.ts`:
 
@@ -564,9 +564,9 @@ describe('CognitionStore — handler runs', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL (stubs throw).
+- [x] **Step 2: Run test** — expect FAIL (stubs throw).
 
-- [ ] **Step 3: Replace the five stubs in `store.ts`**
+- [x] **Step 3: Replace the five stubs in `store.ts`**
 
 Replace the throw-stubs with:
 
@@ -645,9 +645,9 @@ recentRuns(limit) {
 },
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/store.ts packages/server/src/cognition/__tests__/store.test.ts

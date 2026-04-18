@@ -64,24 +64,85 @@ export function createCognitionStore(deps: { db: Database.Database }): Cognition
       return row ? row.tick_at : null;
     },
 
-    recordHandlerRun(_params) {
-      throw new Error('not implemented yet — Task 4');
+    recordHandlerRun({ handlerName, firedAt, durationMs, result }) {
+      let outcome: 'publish' | 'skip' | 'error';
+      let content: string | null = null;
+      let reason: string | null = null;
+      if ('publish' in result) {
+        outcome = 'publish';
+        content = result.content;
+      } else if ('skip' in result) {
+        outcome = 'skip';
+        reason = result.reason;
+      } else {
+        outcome = 'error';
+        reason = result.message;
+      }
+      const r = db
+        .prepare(
+          `INSERT INTO cognition_handler_runs
+             (handler_name, fired_at, duration_ms, outcome, content, reason)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(handlerName, firedAt, durationMs, outcome, content, reason);
+      return Number(r.lastInsertRowid);
     },
 
-    markPublished(_runId, _publishedAt) {
-      throw new Error('not implemented yet — Task 4');
+    markPublished(runId, publishedAt) {
+      db.prepare('UPDATE cognition_handler_runs SET published_at = ? WHERE id = ?')
+        .run(publishedAt, runId);
     },
 
-    getLastFiredAt(_handlerName) {
-      throw new Error('not implemented yet — Task 4');
+    getLastFiredAt(handlerName) {
+      const row = db
+        .prepare(
+          'SELECT fired_at FROM cognition_handler_runs WHERE handler_name = ? ORDER BY fired_at DESC LIMIT 1',
+        )
+        .get(handlerName) as { fired_at: number } | undefined;
+      return row ? row.fired_at : null;
     },
 
-    getLastResult(_handlerName) {
-      throw new Error('not implemented yet — Task 4');
+    getLastResult(handlerName) {
+      const row = db
+        .prepare(
+          'SELECT outcome, content, reason FROM cognition_handler_runs WHERE handler_name = ? ORDER BY fired_at DESC LIMIT 1',
+        )
+        .get(handlerName) as
+        | { outcome: string; content: string | null; reason: string | null }
+        | undefined;
+      if (!row) return null;
+      if (row.outcome === 'publish') return { publish: true, content: row.content ?? '' };
+      if (row.outcome === 'skip') return { skip: true, reason: row.reason ?? '' };
+      return { error: true, message: row.reason ?? '' };
     },
 
-    recentRuns(_limit) {
-      throw new Error('not implemented yet — Task 4');
+    recentRuns(limit) {
+      const rows = db
+        .prepare(
+          `SELECT id, handler_name, fired_at, duration_ms, outcome, content, reason, published_at
+           FROM cognition_handler_runs
+           ORDER BY fired_at DESC LIMIT ?`,
+        )
+        .all(limit) as Array<{
+          id: number;
+          handler_name: string;
+          fired_at: number;
+          duration_ms: number;
+          outcome: string;
+          content: string | null;
+          reason: string | null;
+          published_at: number | null;
+        }>;
+      return rows.map((r) => ({
+        id: r.id,
+        handlerName: r.handler_name,
+        firedAt: r.fired_at,
+        durationMs: r.duration_ms,
+        outcome: r.outcome as 'publish' | 'skip' | 'error',
+        content: r.content ?? undefined,
+        reason: r.reason ?? undefined,
+        publishedAt: r.published_at ?? undefined,
+      }));
     },
   };
 }
