@@ -224,5 +224,30 @@ describe('createMorningBriefHandler', () => {
       });
       expect(result).toEqual({ error: true, message: 'boom' });
     });
+
+    it('uses ollama when LOCAL_LLM_MODE=enabled and ollama wired', async () => {
+      const original = process.env.LOCAL_LLM_MODE;
+      process.env.LOCAL_LLM_MODE = 'enabled';
+      try {
+        const anthropic = fakeAnthropic('from-claude');
+        const ollama = { chat: vi.fn(async () => ({ text: 'от локалки' })) };
+        const h = createMorningBriefHandler({
+          piiProxy: fakeProxy(),
+          anthropic: anthropic as any,
+          ollama: ollama as any,
+        });
+        const result = await h.run({
+          db: getDb(),
+          signal: new AbortController().signal,
+          firedAt: Date.now(),
+        });
+        expect(result).toEqual({ publish: true, content: 'от локалки' });
+        expect(ollama.chat).toHaveBeenCalledOnce();
+        expect(anthropic.messages.create).not.toHaveBeenCalled();
+      } finally {
+        if (original === undefined) delete process.env.LOCAL_LLM_MODE;
+        else process.env.LOCAL_LLM_MODE = original;
+      }
+    });
   });
 });
