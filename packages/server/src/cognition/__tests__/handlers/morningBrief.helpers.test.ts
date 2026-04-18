@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { initDb, getDb } from '../../../db.js';
 import {
   getTodayStartLocal,
+  getLocalCivilEpoch,
   isSameLocalDate,
   hasUserActivityToday,
   gatherData,
@@ -41,6 +42,48 @@ describe('getTodayStartLocal', () => {
     const startLocal = getTodayStartLocal(now, TZ);
     // Local midnight 2026-10-25 Kyiv = 21:00 UTC 2026-10-24 (pre-DST UTC+3).
     expect(new Date(startLocal).toISOString()).toBe('2026-10-24T21:00:00.000Z');
+  });
+});
+
+describe('getLocalCivilEpoch', () => {
+  it('returns local 06:00 on a standard day', () => {
+    // now at 14:30 UTC → 17:30 Kyiv (UTC+3 summer). 06:00 Kyiv = 03:00 UTC.
+    const now = Date.UTC(2026, 3, 18, 14, 30, 0);
+    const six = getLocalCivilEpoch(now, TZ, 0, 6);
+    expect(new Date(six).toISOString()).toBe('2026-04-18T03:00:00.000Z');
+  });
+
+  it('returns civil 06:00 on spring-forward DST day (not midnight+6h)', () => {
+    // 2026-03-29: Kyiv 03:00→04:00 local. Civil 06:00 Kyiv = 03:00 UTC (post-
+    // transition, UTC+3). Naive todayStart + 6h would give 04:00 UTC = 07:00
+    // local. Verify we pick civil 06:00, not shifted.
+    const now = Date.UTC(2026, 2, 29, 5, 0, 0); // 08:00 Kyiv post-transition
+    const six = getLocalCivilEpoch(now, TZ, 0, 6);
+    expect(new Date(six).toISOString()).toBe('2026-03-29T03:00:00.000Z');
+    // And verify the naive computation would have been wrong.
+    const naive = getTodayStartLocal(now, TZ) + 6 * 3600_000;
+    expect(new Date(naive).toISOString()).toBe('2026-03-29T04:00:00.000Z');
+  });
+
+  it('returns civil 06:00 on fall-back DST day', () => {
+    // 2026-10-25: Kyiv 04:00→03:00 local. Civil 06:00 Kyiv = 04:00 UTC (post-
+    // transition, UTC+2). Naive midnight+6h would give 03:00 UTC = 05:00 local.
+    const now = Date.UTC(2026, 9, 25, 8, 0, 0); // 10:00 Kyiv post-transition
+    const six = getLocalCivilEpoch(now, TZ, 0, 6);
+    expect(new Date(six).toISOString()).toBe('2026-10-25T04:00:00.000Z');
+    const naive = getTodayStartLocal(now, TZ) + 6 * 3600_000;
+    expect(new Date(naive).toISOString()).toBe('2026-10-25T03:00:00.000Z');
+  });
+
+  it('returns local midnight of day-after-tomorrow (dayOffset=2), DST-aware', () => {
+    // now on 2026-03-28 (day before spring-forward). Day-after-tomorrow start =
+    // midnight Kyiv 2026-03-30 = 21:00 UTC 2026-03-29 (UTC+3, post-DST).
+    // Naive `todayStart + 48h` would be off by 1h.
+    const now = Date.UTC(2026, 2, 28, 12, 0, 0);
+    const dayAfterTomorrow = getLocalCivilEpoch(now, TZ, 2);
+    expect(new Date(dayAfterTomorrow).toISOString()).toBe(
+      '2026-03-29T21:00:00.000Z',
+    );
   });
 });
 

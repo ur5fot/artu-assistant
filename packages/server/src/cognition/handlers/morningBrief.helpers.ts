@@ -18,12 +18,23 @@ function tzOffsetMs(ts: number, tz: string): number {
   return asUtc - ts;
 }
 
-// Compute epoch ms for local midnight of the day containing `now` in `tz`.
-// DST-aware: re-derives the offset at the target instant, not at `now`.
-export function getTodayStartLocal(now: number, tz: string): number {
+// Compute epoch ms for a civil local instant (`dayOffset` days from today's
+// local date, at `hour`:00) in `tz`. DST-aware: re-derives the offset at the
+// target instant, not at `now` — so `hour=6` on a spring-forward day still
+// resolves to 06:00 local, not 07:00.
+export function getLocalCivilEpoch(
+  now: number,
+  tz: string,
+  dayOffset = 0,
+  hour = 0,
+): number {
   const [y, m, d] = localDateKey(now, tz).split('-').map(Number);
-  const guess = Date.UTC(y, m - 1, d);
+  const guess = Date.UTC(y, m - 1, d + dayOffset, hour);
   return guess - tzOffsetMs(guess, tz);
+}
+
+export function getTodayStartLocal(now: number, tz: string): number {
+  return getLocalCivilEpoch(now, tz);
 }
 
 export function isSameLocalDate(a: number, b: number, tz: string): boolean {
@@ -87,13 +98,15 @@ export function gatherData(
   tz: string,
 ): BriefData {
   const todayStart = getTodayStartLocal(now, tz);
-  const tomorrowEnd = todayStart + 2 * 86400_000;
+  // Exclusive upper bound at local midnight of day-after-tomorrow, DST-aware
+  // (can't just add 48h — DST days are 23h/25h long).
+  const dayAfterTomorrowStart = getLocalCivilEpoch(now, tz, 2);
 
   const reminders = db
     .prepare(
-      'SELECT text, next_fire_at_ms AS nextFireAt FROM reminders WHERE active = 1 AND next_fire_at_ms >= ? AND next_fire_at_ms <= ? ORDER BY next_fire_at_ms',
+      'SELECT text, next_fire_at_ms AS nextFireAt FROM reminders WHERE active = 1 AND next_fire_at_ms >= ? AND next_fire_at_ms < ? ORDER BY next_fire_at_ms',
     )
-    .all(todayStart, tomorrowEnd) as ReminderRow[];
+    .all(todayStart, dayAfterTomorrowStart) as ReminderRow[];
 
   const notes = db
     .prepare(

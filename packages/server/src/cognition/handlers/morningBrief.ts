@@ -6,7 +6,7 @@ import {
   gatherData,
   hasUserActivityToday,
   isSameLocalDate,
-  getTodayStartLocal,
+  getLocalCivilEpoch,
 } from './morningBrief.helpers.js';
 import { callMorningBriefAI } from './morningBrief.ai.js';
 
@@ -23,8 +23,9 @@ export function createMorningBriefHandler(deps: Deps): Handler {
   return {
     name: 'morningBrief',
     async trigger(state, ctx) {
-      const todayStart = getTodayStartLocal(state.now, TZ);
-      const sixAmLocal = todayStart + ACTIVITY_START_HOUR * 3600_000;
+      // DST-aware: resolves to civil 06:00 local even on transition days,
+      // where naive `midnight + 6h` would drift to 05:00 or 07:00.
+      const sixAmLocal = getLocalCivilEpoch(state.now, TZ, 0, ACTIVITY_START_HOUR);
       if (state.now < sixAmLocal) return false;
       // Only a successful publish today blocks re-firing.
       // Errors and skips should retry on the next tick.
