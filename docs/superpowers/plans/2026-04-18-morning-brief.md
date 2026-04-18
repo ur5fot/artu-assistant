@@ -1082,7 +1082,7 @@ git commit -m "feat(cognition): register morningBrief handler"
 
 **Why:** Подстраховка перед ручным E2E — всё зелёное, никаких регрессий.
 
-- [ ] **Step 1: Full vitest**
+- [x] **Step 1: Full vitest**
 
 ```bash
 npx vitest run --root packages/server
@@ -1095,7 +1095,7 @@ npx vitest run --root packages/server
 
 Зафиксируй итоговое количество (`N passed`) — для PR-summary.
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/server
@@ -1103,7 +1103,7 @@ npx tsc --noEmit -p packages/server
 
 Ожидается: exit 0.
 
-- [ ] **Step 3: Commit (если нужны исправления от Step 1-2)**
+- [x] **Step 3: Commit (если нужны исправления от Step 1-2)**
 
 Если что-то пришлось править — коммить. Если всё зелёное — skip step.
 
