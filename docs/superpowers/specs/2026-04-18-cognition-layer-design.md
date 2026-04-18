@@ -486,8 +486,11 @@ process.on('SIGTERM', async () => {
 - TypeScript typecheck clean (`npx tsc --noEmit` in `packages/server`).
 - Implementation committed across Tasks 1-15 (see `docs/superpowers/plans/2026-04-18-cognition-layer.md`).
 
-**Manual Discord E2E (Task 16) — PENDING user verification.**
+**Manual Discord E2E (Task 16) — PASSED (2026-04-18).**
 
-Steps 2-6 of Task 16 require a live Discord session: running `/heartbeat status | pause | resume` in a DM, waiting ~5 min for the `pulse` handler to fire, observing ephemeral replies, and validating pause/resume persistence across a dev-server restart. These cannot be executed by an autonomous agent — they live with the user.
-
-The automated suite exercises the same surfaces (status formatter, pause/resume delegation, `cognition_publish` → DM send), so a failure in manual E2E almost certainly indicates an environment/wiring issue (token, intents, slash-command registration) rather than a logic bug.
+User verified end-to-end on live Discord bot:
+- `/heartbeat status` returns ephemeral reply with `🫀 alive`, last tick ISO, ticks-24h count (28 observed), registered handlers (`pulse`), and Recent runs list with `pulse — skip (alive at …)` entries at ~5-min cadence.
+- `/heartbeat pause` → confirmed `⏸️ paused`; last tick stopped advancing during pause window.
+- `/heartbeat resume` → last tick resumes within the next 60s tick.
+- Pause state survived dev-server restart (persisted in `cognition_state` singleton row).
+- Slash-command autocomplete popup lists `heartbeat status|pause|resume` (global commands propagated within minutes after first register).

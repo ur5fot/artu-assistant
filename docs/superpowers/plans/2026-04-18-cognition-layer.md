@@ -1862,7 +1862,7 @@ git commit -m "chore(test): add cognitionService stub to existing test deps"
 
 **Goal:** Verify heartbeat lives, status reports, pause/resume work, pulse fires.
 
-- [ ] **Step 1: Start dev server**
+- [x] **Step 1: Start dev server**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm run dev
@@ -1870,7 +1870,7 @@ cd /Users/dim/code/R2-D2 && npm run dev
 
 Confirm server log shows `[discord] bot started` and `[discord] slash commands registered`. There is no specific cognition log line; the heartbeat is silent.
 
-- [ ] **Step 2: Initial status**
+- [x] **Step 2: Initial status**
 
 In Discord DM:
 
@@ -1885,11 +1885,11 @@ Verify ephemeral reply:
 - `Registered handlers: pulse`
 - `Recent runs:` either empty (if pulse hasn't fired yet) or `pulse — skip (alive at …)` if first run already happened.
 
-- [ ] **Step 3: Wait for pulse to fire**
+- [x] **Step 3: Wait for pulse to fire**
 
 Wait ~5 minutes. Run `/heartbeat status` again. Verify `Recent runs` now contains a `pulse — skip (alive at YYYY-MM-DDTHH:MM:SS.sssZ)` entry.
 
-- [ ] **Step 4: Pause and verify no new ticks/runs**
+- [x] **Step 4: Pause and verify no new ticks/runs**
 
 ```
 /heartbeat pause
@@ -1901,7 +1901,7 @@ Wait 2-3 minutes. Run `/heartbeat status`. Verify:
 - `⏸️ paused`
 - `Last tick:` is **not** updated (matches the value from before pause)
 
-- [ ] **Step 5: Resume**
+- [x] **Step 5: Resume**
 
 ```
 /heartbeat resume
@@ -1909,11 +1909,11 @@ Wait 2-3 minutes. Run `/heartbeat status`. Verify:
 
 Verify reply: `🫀 Heartbeat resumed.` Wait 60 s. `/heartbeat status` shows updated `Last tick`.
 
-- [ ] **Step 6: Restart persistence**
+- [x] **Step 6: Restart persistence**
 
 Stop dev server (Ctrl-C), `/heartbeat pause` first if still running. Start `npm run dev` again. Run `/heartbeat status` — verify still `⏸️ paused` (state survived restart). Resume.
 
-- [ ] **Step 7: Document findings**
+- [x] **Step 7: Document findings**
 
 Append a "Manual E2E results" block to `docs/superpowers/specs/2026-04-18-cognition-layer-design.md`. Commit.
 
