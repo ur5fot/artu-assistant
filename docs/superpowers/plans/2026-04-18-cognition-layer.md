@@ -1215,7 +1215,7 @@ git commit -m "feat(cognition): heartbeat tick (60s)"
 - Create: `packages/server/src/cognition/service.ts`
 - Create: `packages/server/src/cognition/__tests__/service.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/cognition/__tests__/service.test.ts`:
 
@@ -1281,9 +1281,9 @@ describe('CognitionService', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/cognition/service.ts`:
 
@@ -1364,9 +1364,9 @@ export function createCognitionService(deps: Deps): CognitionService {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```ts
 git add packages/server/src/cognition/service.ts packages/server/src/cognition/__tests__/service.test.ts
