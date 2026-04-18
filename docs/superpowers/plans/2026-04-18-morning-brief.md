@@ -816,7 +816,7 @@ git commit -m "feat(cognition): morning brief AI wrapper — anthropic+pii"
 
 **Why:** Собираем trigger + run, вкладываем зависимости (piiProxy, anthropic) через замыкание.
 
-- [ ] **Step 1: Failing tests для фабрики**
+- [x] **Step 1: Failing tests для фабрики**
 
 В `morningBrief.test.ts`:
 
@@ -921,13 +921,13 @@ describe('createMorningBriefHandler', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL**
+- [x] **Step 2: Run tests — expect FAIL**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition/__tests__/handlers/morningBrief.test.ts
 ```
 
-- [ ] **Step 3: Реализовать фабрику**
+- [x] **Step 3: Реализовать фабрику**
 
 В `packages/server/src/cognition/handlers/morningBrief.ts`:
 
@@ -980,13 +980,13 @@ export function createMorningBriefHandler(deps: Deps): Handler {
 }
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition/__tests__/handlers/morningBrief.test.ts
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.ts packages/server/src/cognition/__tests__/handlers/morningBrief.test.ts
