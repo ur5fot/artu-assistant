@@ -310,7 +310,10 @@ async function routeSlashCommand(
           lines.push(`\`${t}\` ${r.handlerName} — ${r.outcome}${note ? ` (${note.slice(0, 80)})` : ''}`);
         }
       }
-      await (ixn as any).reply({ flags: MessageFlags.Ephemeral, content: lines.join('\n') });
+      await (ixn as any).reply({
+        flags: MessageFlags.Ephemeral,
+        content: truncateLines(lines),
+      });
       return;
     }
     if (sub === 'pause') {

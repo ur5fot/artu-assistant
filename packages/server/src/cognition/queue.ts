@@ -28,6 +28,7 @@ export function createJobQueue(deps: Deps): JobQueue {
   let running = false;
   let inFlight: Promise<void> = Promise.resolve();
   let currentAc: AbortController | null = null;
+  let currentHandler: string | null = null;
 
   async function pump(): Promise<void> {
     while (running && jobs.length > 0) {
@@ -35,6 +36,7 @@ export function createJobQueue(deps: Deps): JobQueue {
       const handler = registry.get(job.handlerName);
       if (!handler) continue;
 
+      currentHandler = handler.name;
       const ac = new AbortController();
       currentAc = ac;
       const timer = setTimeout(() => ac.abort(), timeoutMs);
@@ -62,6 +64,7 @@ export function createJobQueue(deps: Deps): JobQueue {
       } finally {
         clearTimeout(timer);
         currentAc = null;
+        currentHandler = null;
       }
 
       // Don't persist or emit after stop(): the DB may be closing and bus
@@ -88,6 +91,13 @@ export function createJobQueue(deps: Deps): JobQueue {
 
   return {
     enqueue(job) {
+      // Deduplicate: skip if the same handler is already in-flight or queued.
+      // Without this, a handler that runs longer than the heartbeat interval
+      // (60s) gets re-enqueued on every subsequent tick — `lastFiredAt` in
+      // trigger state only updates after run() completes — and the backlog
+      // fires extra runs back-to-back once the slow run finishes.
+      if (currentHandler === job.handlerName) return;
+      if (jobs.some((j) => j.handlerName === job.handlerName)) return;
       jobs.push(job);
       if (running) {
         inFlight = inFlight

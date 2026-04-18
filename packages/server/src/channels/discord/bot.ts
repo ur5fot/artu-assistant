@@ -810,14 +810,18 @@ export async function startDiscordBot(
       // published_at N times and could falsely mark a run as published even
       // when earlier recipients' sends failed.
       let marked = false;
+      const body = `💭 _from ${event.handler}_\n${event.content}`;
       for (const userId of deps.whitelist) {
         client.users.fetch(userId)
           .then((u) => u.createDM())
-          .then((dm) => dm.send(`💭 _from ${event.handler}_\n${event.content}`))
+          .then((dm) => sendReply(dm as unknown as DMChannel, body))
           .then(() => {
             if (marked) return;
-            marked = true;
+            // Attempt DB write first; only set `marked` if it actually
+            // succeeds. Otherwise a transient DB failure here would leave
+            // `marked=true`, silently skipping later successful recipients.
             deps.cognitionService?.markPublished(event.runId, Date.now());
+            marked = true;
           })
           .catch((err) => console.error(
             '[discord] cognition publish failed:',

@@ -81,17 +81,52 @@ describe('JobQueue', () => {
   });
 
   it('size reflects queued jobs before processing', async () => {
+    const slowA: Handler = {
+      name: 'slowA',
+      trigger: () => true,
+      run: () => new Promise((resolve) => setTimeout(() => resolve({ skip: true, reason: '' }), 100)),
+    };
+    const slowB: Handler = {
+      name: 'slowB',
+      trigger: () => true,
+      run: () => new Promise((resolve) => setTimeout(() => resolve({ skip: true, reason: '' }), 100)),
+    };
+    const { store, registry, bus } = setup([slowA, slowB]);
+    const q = createJobQueue({ registry, store, bus });
+    q.enqueue({ handlerName: 'slowA' });
+    q.enqueue({ handlerName: 'slowB' });
+    // Queue is not started yet: neither job has been shifted.
+    expect(q.size()).toBe(2);
+    await q.stop();
+  });
+
+  it('dedupes repeated enqueues of the same handler while one is pending or in-flight', async () => {
+    let release!: () => void;
     const slow: Handler = {
       name: 'slow',
       trigger: () => true,
-      run: () => new Promise((resolve) => setTimeout(() => resolve({ skip: true, reason: '' }), 100)),
+      run: () =>
+        new Promise((resolve) => {
+          release = () => resolve({ skip: true, reason: 'done' });
+        }),
     };
     const { store, registry, bus } = setup([slow]);
     const q = createJobQueue({ registry, store, bus });
     q.enqueue({ handlerName: 'slow' });
     q.enqueue({ handlerName: 'slow' });
-    // Queue is not started yet: neither job has been shifted.
-    expect(q.size()).toBe(2);
+    // Second enqueue while the first is still queued must be dropped.
+    expect(q.size()).toBe(1);
+    q.start();
+    // Let the worker shift the job and begin awaiting run().
+    await new Promise((r) => setImmediate(r));
+    // Now the handler is in-flight: further enqueues must still be dropped.
+    q.enqueue({ handlerName: 'slow' });
+    expect(q.size()).toBe(0);
+    release();
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    // Exactly one run recorded despite three enqueue attempts.
+    expect(store.recentRuns(5).filter((r) => r.handlerName === 'slow').length).toBe(1);
     await q.stop();
   });
 
