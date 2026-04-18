@@ -1455,7 +1455,7 @@ git commit -m "feat(cognition): pulse demo handler"
 **Files:**
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Edit imports**
+- [x] **Step 1: Edit imports**
 
 Add at the top, near other cognition-relatable imports:
 
@@ -1464,7 +1464,7 @@ import { createCognitionService } from './cognition/service.js';
 import { pulseHandler } from './cognition/handlers/pulse.js';
 ```
 
-- [ ] **Step 2: Instantiate after `reminderBus` line**
+- [x] **Step 2: Instantiate after `reminderBus` line**
 
 Find the existing line `const reminderBus = ...` and after the `startScheduler` call, add:
 
@@ -1477,7 +1477,7 @@ cognitionService.register(pulseHandler);
 cognitionService.start();
 ```
 
-- [ ] **Step 3: Pass to Discord deps**
+- [x] **Step 3: Pass to Discord deps**
 
 In the existing `startDiscordBot({ ... })` deps object, add:
 
@@ -1487,7 +1487,7 @@ cognitionService,
 
 (near `reminderBus`).
 
-- [ ] **Step 4: Stop on SIGTERM**
+- [x] **Step 4: Stop on SIGTERM**
 
 In the existing `process.on('SIGTERM', async () => {...})` block, add before `await discordBot?.stop()`:
 
@@ -1495,7 +1495,7 @@ In the existing `process.on('SIGTERM', async () => {...})` block, add before `aw
 cognitionService.stop();
 ```
 
-- [ ] **Step 5: Run server tests**
+- [x] **Step 5: Run server tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -1505,7 +1505,7 @@ Expected: green. (Existing tests should not regress; this introduces a new field
 
 If tests fail with `cognitionService` missing on `DiscordBotDeps`, that's expected — Task 12 adds it. To proceed clean, complete Task 12 before re-running.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/index.ts

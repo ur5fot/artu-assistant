@@ -35,6 +35,8 @@ import { createPiiProxy, createPassthroughProxy } from './pii/proxy.js';
 import { PiiVault } from './pii/vault.js';
 import { startDiscordBot } from './channels/discord/bot.js';
 import { runChatRequest } from './ai/router.js';
+import { createCognitionService } from './cognition/service.js';
+import { pulseHandler } from './cognition/handlers/pulse.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
@@ -167,6 +169,13 @@ const reminderStore = createReminderStore({ db: getDb() });
 const reminderService = createReminderService({ store: reminderStore, bus: reminderBus });
 const stopScheduler = startScheduler({ store: reminderStore, db: getDb(), bus: reminderBus });
 
+const cognitionService = createCognitionService({
+  db: getDb(),
+  bus: reminderBus,
+});
+cognitionService.register(pulseHandler);
+cognitionService.start();
+
 const registry = createRegistry();
 const pendingConfirms: PendingConfirms = new Map();
 const permissionService = createPermissionService({ pending: pendingConfirms });
@@ -264,6 +273,7 @@ if (discordToken) {
       saveMessage,
       memoryService,
       reminderBus,
+      cognitionService,
       reminderService,
       permissionService,
       planReviewService,
@@ -321,6 +331,7 @@ process.on('SIGTERM', async () => {
   console.log('Worker received SIGTERM, shutting down...');
   setTimeout(() => process.exit(1), 5000);
   stopScheduler();
+  cognitionService.stop();
   await discordBot?.stop().catch(() => {});
   server.close(() => {
     closeDb();
