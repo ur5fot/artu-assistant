@@ -51,7 +51,7 @@ describe('createMorningBriefHandler', () => {
       expect(res).toBe(false);
     });
 
-    it('returns false when lastFiredAt is on same local date', async () => {
+    it('returns false when lastResult is publish on same local date', async () => {
       const h = createMorningBriefHandler({
         piiProxy: fakeProxy(),
         anthropic: fakeAnthropic('ok') as any,
@@ -64,10 +64,83 @@ describe('createMorningBriefHandler', () => {
         )
         .run(now - 3600_000);
       const res = await h.trigger(
-        { now, lastFiredAt, lastResult: null },
+        {
+          now,
+          lastFiredAt,
+          lastResult: { publish: true, content: 'yesterday brief' },
+        },
         { db: getDb() },
       );
       expect(res).toBe(false);
+    });
+
+    it('retries same day when lastResult is error', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 18, 6, 0, 0); // 09:00 Kyiv
+      const lastFiredAt = Date.UTC(2026, 3, 18, 4, 0, 0); // 07:00 same day
+      getDb()
+        .prepare(
+          "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+        )
+        .run(now - 3600_000);
+      const res = await h.trigger(
+        {
+          now,
+          lastFiredAt,
+          lastResult: { error: true, message: 'anthropic 500' },
+        },
+        { db: getDb() },
+      );
+      expect(res).toBe(true);
+    });
+
+    it('retries same day when lastResult is skip', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 18, 6, 0, 0);
+      const lastFiredAt = Date.UTC(2026, 3, 18, 4, 0, 0);
+      getDb()
+        .prepare(
+          "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+        )
+        .run(now - 3600_000);
+      const res = await h.trigger(
+        {
+          now,
+          lastFiredAt,
+          lastResult: { skip: true, reason: 'empty AI response' },
+        },
+        { db: getDb() },
+      );
+      expect(res).toBe(true);
+    });
+
+    it('returns true when lastResult is publish on previous local day', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 18, 6, 0, 0); // 09:00 Kyiv 18th
+      const lastFiredAt = Date.UTC(2026, 3, 17, 4, 0, 0); // 07:00 Kyiv 17th
+      getDb()
+        .prepare(
+          "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+        )
+        .run(now - 3600_000);
+      const res = await h.trigger(
+        {
+          now,
+          lastFiredAt,
+          lastResult: { publish: true, content: 'yesterday brief' },
+        },
+        { db: getDb() },
+      );
+      expect(res).toBe(true);
     });
 
     it('returns false when no user activity today', async () => {

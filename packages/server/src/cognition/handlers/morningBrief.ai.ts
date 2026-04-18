@@ -25,6 +25,6 @@ export async function callMorningBriefAI(params: CallParams): Promise<string> {
     { signal },
   );
   const textBlock = msg.content.find((b) => b.type === 'text');
-  if (!textBlock || textBlock.type !== 'text') return '';
+  if (!textBlock) return '';
   return piiProxy.deanonymize(textBlock.text);
 }

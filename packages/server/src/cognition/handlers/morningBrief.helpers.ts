@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 
-export function getTodayStartLocal(now: number, tz: string): number {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
+function tzOffsetMs(ts: number, tz: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
     year: 'numeric',
     month: '2-digit',
@@ -10,13 +10,20 @@ export function getTodayStartLocal(now: number, tz: string): number {
     minute: '2-digit',
     second: '2-digit',
     hour12: false,
-  });
-  const parts = fmt.formatToParts(new Date(now));
-  const get = (t: string) => parts.find((p) => p.type === t)!.value;
-  const hh = Number(get('hour'));
-  const mm = Number(get('minute'));
-  const ss = Number(get('second'));
-  return now - hh * 3600_000 - mm * 60_000 - ss * 1000 - (now % 1000);
+  }).formatToParts(new Date(ts));
+  const p: Record<string, number> = {};
+  for (const part of parts) if (part.type !== 'literal') p[part.type] = Number(part.value);
+  if (p.hour === 24) p.hour = 0;
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUtc - ts;
+}
+
+// Compute epoch ms for local midnight of the day containing `now` in `tz`.
+// DST-aware: re-derives the offset at the target instant, not at `now`.
+export function getTodayStartLocal(now: number, tz: string): number {
+  const [y, m, d] = localDateKey(now, tz).split('-').map(Number);
+  const guess = Date.UTC(y, m - 1, d);
+  return guess - tzOffsetMs(guess, tz);
 }
 
 export function isSameLocalDate(a: number, b: number, tz: string): boolean {
@@ -90,7 +97,7 @@ export function gatherData(
 
   const notes = db
     .prepare(
-      'SELECT key, value, last_mentioned_at AS lastMentionedAt FROM memory_facts WHERE superseded_by IS NULL AND last_mentioned_at >= ? ORDER BY last_mentioned_at DESC',
+      'SELECT key, value, last_mentioned_at AS lastMentionedAt FROM memory_facts WHERE superseded_by IS NULL AND forgotten = 0 AND last_mentioned_at >= ? ORDER BY last_mentioned_at DESC',
     )
     .all(now - NOTE_FRESHNESS_MS) as NoteRow[];
 
@@ -116,18 +123,22 @@ export function gatherData(
   return { reminders, notes, recentContext };
 }
 
-function formatReminder(r: ReminderRow): string {
-  const t = new Date(r.nextFireAt).toISOString();
-  return `- ${t}: ${r.text}`;
-}
+const PROMPT_TZ = 'Europe/Kyiv';
 
-function formatNote(n: NoteRow): string {
-  return `- ${n.key}: ${n.value}`;
-}
-
-function formatChat(c: ChatRow): string {
-  const t = new Date(c.ts).toISOString();
-  return `- [${t}] ${c.role}: ${c.content}`;
+function formatLocal(ts: number): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PROMPT_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(ts));
+  const p: Record<string, string> = {};
+  for (const part of parts) if (part.type !== 'literal') p[part.type] = part.value;
+  const hh = p.hour === '24' ? '00' : p.hour;
+  return `${p.year}-${p.month}-${p.day} ${hh}:${p.minute}`;
 }
 
 function section(title: string, rows: string[]): string {
@@ -137,13 +148,22 @@ function section(title: string, rows: string[]): string {
 
 export function composePrompt(data: BriefData): string {
   return [
-    'Собери утренний brief для dim (русский язык).',
+    'Собери утренний brief для dim (русский язык). Время — Europe/Kyiv.',
     '',
-    section('Reminders на сегодня/завтра', data.reminders.map(formatReminder)),
+    section(
+      'Reminders на сегодня/завтра',
+      data.reminders.map((r) => `- ${formatLocal(r.nextFireAt)}: ${r.text}`),
+    ),
     '',
-    section('Открытые заметки', data.notes.map(formatNote)),
+    section(
+      'Открытые заметки',
+      data.notes.map((n) => `- ${n.key}: ${n.value}`),
+    ),
     '',
-    section('Recent context', data.recentContext.map(formatChat)),
+    section(
+      'Recent context',
+      data.recentContext.map((c) => `- [${formatLocal(c.ts)}] ${c.role}: ${c.content}`),
+    ),
     '',
     'Формат: 5-8 bullet points. Включи: (1) что конкретно на сегодня, (2) открытые темы которые висят, (3) конкретные предложения действий. Коротко. Не повторяй данные дословно — анализируй.',
   ].join('\n');

@@ -26,12 +26,15 @@ export function createMorningBriefHandler(deps: Deps): Handler {
       const todayStart = getTodayStartLocal(state.now, TZ);
       const sixAmLocal = todayStart + ACTIVITY_START_HOUR * 3600_000;
       if (state.now < sixAmLocal) return false;
-      if (
+      // Only a successful publish today blocks re-firing.
+      // Errors and skips should retry on the next tick.
+      const publishedToday =
+        state.lastResult !== null &&
+        'publish' in state.lastResult &&
+        state.lastResult.publish === true &&
         state.lastFiredAt !== null &&
-        isSameLocalDate(state.lastFiredAt, state.now, TZ)
-      ) {
-        return false;
-      }
+        isSameLocalDate(state.lastFiredAt, state.now, TZ);
+      if (publishedToday) return false;
       return hasUserActivityToday(ctx.db, state.now, TZ);
     },
     async run(ctx) {

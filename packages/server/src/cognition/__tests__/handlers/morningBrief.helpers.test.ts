@@ -24,6 +24,24 @@ describe('getTodayStartLocal', () => {
     const startLocal = getTodayStartLocal(now, TZ);
     expect(new Date(startLocal).toISOString()).toBe('2026-04-18T21:00:00.000Z');
   });
+
+  it('handles spring-forward DST day (Kyiv UTC+2 pre-transition)', () => {
+    // 2026-03-29 is spring-forward in Europe/Kyiv (03:00 → 04:00 local).
+    // `now` at 08:00 Kyiv = 05:00 UTC (post-transition, UTC+3).
+    const now = Date.UTC(2026, 2, 29, 5, 0, 0);
+    const startLocal = getTodayStartLocal(now, TZ);
+    // Local midnight 2026-03-29 Kyiv = 22:00 UTC 2026-03-28 (pre-DST UTC+2).
+    expect(new Date(startLocal).toISOString()).toBe('2026-03-28T22:00:00.000Z');
+  });
+
+  it('handles fall-back DST day (Kyiv UTC+3 pre-transition)', () => {
+    // 2026-10-25 is fall-back in Europe/Kyiv (04:00 → 03:00 local).
+    // `now` at 10:00 Kyiv = 08:00 UTC (post-transition, UTC+2).
+    const now = Date.UTC(2026, 9, 25, 8, 0, 0);
+    const startLocal = getTodayStartLocal(now, TZ);
+    // Local midnight 2026-10-25 Kyiv = 21:00 UTC 2026-10-24 (pre-DST UTC+3).
+    expect(new Date(startLocal).toISOString()).toBe('2026-10-24T21:00:00.000Z');
+  });
 });
 
 describe('isSameLocalDate', () => {
@@ -128,6 +146,20 @@ describe('gatherData', () => {
     expect(keys).not.toContain('user.old');
   });
 
+  it('excludes memory_facts marked forgotten=1', () => {
+    const db = getDb();
+    db.prepare(
+      'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, NULL, ?)',
+    ).run('user.kept', 'v', now, now, 0);
+    db.prepare(
+      'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, NULL, ?)',
+    ).run('user.forgotten', 'v', now, now, 1);
+
+    const keys = gatherData(db, now, TZ).notes.map((n) => n.key);
+    expect(keys).toContain('user.kept');
+    expect(keys).not.toContain('user.forgotten');
+  });
+
   it('returns recent chat messages last 48h, max 30, content truncated to 500', () => {
     const db = getDb();
     const insert = db.prepare(
@@ -180,5 +212,22 @@ describe('composePrompt', () => {
     expect(prompt).toMatch(/## Reminders на сегодня\/завтра\s+нет/);
     expect(prompt).toMatch(/## Открытые заметки\s+нет/);
     expect(prompt).toMatch(/## Recent context\s+нет/);
+  });
+
+  it('formats timestamps in Europe/Kyiv local time (no Z, no UTC)', () => {
+    // 11:00 UTC on 2026-04-18 is 14:00 in Kyiv (UTC+3 summer).
+    const prompt = composePrompt({
+      reminders: [
+        { text: 'позвонить', nextFireAt: Date.UTC(2026, 3, 18, 11, 0, 0) },
+      ],
+      notes: [],
+      recentContext: [
+        { role: 'user', content: 'x', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
+      ],
+    });
+    expect(prompt).toContain('2026-04-18 14:00: позвонить');
+    expect(prompt).toContain('[2026-04-18 07:00] user: x');
+    expect(prompt).not.toContain('Z');
+    expect(prompt).not.toContain('T11:00');
   });
 });
