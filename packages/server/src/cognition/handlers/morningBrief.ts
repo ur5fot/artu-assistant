@@ -1,6 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { Handler } from '../types.js';
 import type { PiiProxy } from '../../pii/proxy.js';
+import type { OllamaClient } from '../../ai/ollama.js';
 import {
   composePrompt,
   gatherData,
@@ -16,10 +17,11 @@ const ACTIVITY_START_HOUR = 6;
 interface Deps {
   piiProxy: PiiProxy;
   anthropic: Anthropic;
+  ollama?: OllamaClient | null;
 }
 
 export function createMorningBriefHandler(deps: Deps): Handler {
-  const { piiProxy, anthropic } = deps;
+  const { piiProxy, anthropic, ollama = null } = deps;
   return {
     name: 'morningBrief',
     async trigger(state, ctx) {
@@ -45,6 +47,7 @@ export function createMorningBriefHandler(deps: Deps): Handler {
         const text = await callMorningBriefAI({
           piiProxy,
           anthropic,
+          ollama,
           prompt,
           signal: ctx.signal,
         });
