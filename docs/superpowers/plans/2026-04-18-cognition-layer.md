@@ -179,7 +179,7 @@ git commit -m "feat(db): cognition tables (state, ticks, handler_runs)"
 
 This file has no logic, just type declarations — no separate test file. Type usage is exercised by all subsequent tasks' tests.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 Create `packages/server/src/cognition/types.ts`:
 
@@ -229,7 +229,7 @@ export interface CognitionStatus {
 }
 ```
 
-- [ ] **Step 2: Verify compile**
+- [x] **Step 2: Verify compile**
 
 ```bash
 npx tsc -p packages/server --noEmit
@@ -237,7 +237,7 @@ npx tsc -p packages/server --noEmit
 
 Expected: no errors (types are unused yet but valid).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/cognition/types.ts
