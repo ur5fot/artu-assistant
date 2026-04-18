@@ -665,7 +665,7 @@ git commit -m "feat(cognition): morning brief composePrompt"
 
 **Why:** Явная обёртка над Anthropic SDK + PII proxy. Прямой `anthropic.messages.create` без tool-loop'а и thinking mode — морфологически проще и дешевле. Изолирован в отдельный файл для моков в handler-тесте.
 
-- [ ] **Step 1: Failing tests для `callMorningBriefAI`**
+- [x] **Step 1: Failing tests для `callMorningBriefAI`**
 
 В `morningBrief.ai.test.ts`:
 
@@ -750,13 +750,13 @@ describe('callMorningBriefAI', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL**
+- [x] **Step 2: Run tests — expect FAIL**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition/__tests__/handlers/morningBrief.ai.test.ts
 ```
 
-- [ ] **Step 3: Реализовать `callMorningBriefAI`**
+- [x] **Step 3: Реализовать `callMorningBriefAI`**
 
 В `packages/server/src/cognition/handlers/morningBrief.ai.ts`:
 
@@ -793,13 +793,13 @@ export async function callMorningBriefAI(params: CallParams): Promise<string> {
 }
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/cognition/__tests__/handlers/morningBrief.ai.test.ts
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.ai.ts packages/server/src/cognition/__tests__/handlers/morningBrief.ai.test.ts
