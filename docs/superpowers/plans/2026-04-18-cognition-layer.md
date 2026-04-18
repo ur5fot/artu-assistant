@@ -1381,7 +1381,7 @@ git commit -m "feat(cognition): service composing store/registry/queue/dispatche
 - Create: `packages/server/src/cognition/handlers/pulse.ts`
 - Create: `packages/server/src/cognition/__tests__/handlers/pulse.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/cognition/__tests__/handlers/pulse.test.ts`:
 
@@ -1415,9 +1415,9 @@ describe('pulse handler', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/cognition/handlers/pulse.ts`:
 
@@ -1439,9 +1439,9 @@ export const pulseHandler: Handler = {
 };
 ```
 
-- [ ] **Step 4: Run tests** — passing.
+- [x] **Step 4: Run tests** — passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers packages/server/src/cognition/__tests__/handlers
