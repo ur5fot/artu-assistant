@@ -16,6 +16,7 @@ import type { ReminderService } from '../../services/reminder-service.js';
 import type { PermissionService } from '../../services/permission-service.js';
 import type { PlanReviewService } from '../../services/plan-review-service.js';
 import type { CommandService } from '../../services/command-service.js';
+import type { CognitionService } from '../../cognition/service.js';
 import { truncateMessages } from '../../routes/chat.js';
 import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
 import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from './tool-embeds.js';
@@ -57,6 +58,8 @@ export interface DiscordBotDeps {
   planReviewService?: PlanReviewService;
   /** Command service — slash command implementations. */
   commandService?: CommandService;
+  /** Cognition service — heartbeat/handler runs; bot listens for `cognition_publish` events on the reminder bus and marks runs published after DM delivery. */
+  cognitionService?: CognitionService;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -796,6 +799,27 @@ export async function startDiscordBot(
     deps.reminderBus.on('push', reminderListener);
   }
 
+  let cognitionListener: ((e: any) => void) | null = null;
+  if (deps.reminderBus) {
+    cognitionListener = (event: any) => {
+      if (event.type !== 'cognition_publish') return;
+      if (!client.isReady()) return;
+      for (const userId of deps.whitelist) {
+        client.users.fetch(userId)
+          .then((u) => u.createDM())
+          .then((dm) => dm.send(`💭 _from ${event.handler}_\n${event.content}`))
+          .then(() => {
+            deps.cognitionService?.markPublished(event.runId, Date.now());
+          })
+          .catch((err) => console.error(
+            '[discord] cognition publish failed:',
+            err instanceof Error ? err.message : err,
+          ));
+      }
+    };
+    deps.reminderBus.on('push', cognitionListener);
+  }
+
   const LOGIN_TIMEOUT_MS = 30_000;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -812,6 +836,9 @@ export async function startDiscordBot(
     if (reminderListener && deps.reminderBus) {
       deps.reminderBus.off('push', reminderListener);
     }
+    if (cognitionListener && deps.reminderBus) {
+      deps.reminderBus.off('push', cognitionListener);
+    }
     client.destroy().catch(() => {});
     throw err;
   }
@@ -820,6 +847,9 @@ export async function startDiscordBot(
     stop: async () => {
       if (reminderListener && deps.reminderBus) {
         deps.reminderBus.off('push', reminderListener);
+      }
+      if (cognitionListener && deps.reminderBus) {
+        deps.reminderBus.off('push', cognitionListener);
       }
       await client.destroy();
     },

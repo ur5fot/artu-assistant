@@ -1520,7 +1520,7 @@ git commit -m "chore(index): wire cognitionService + register pulse handler"
 - Modify: `packages/server/src/channels/discord/bot.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append to `bot.test.ts`:
 
@@ -1565,9 +1565,9 @@ describe('cognition_publish handling', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `packages/server/src/channels/discord/bot.ts`:
 
@@ -1616,9 +1616,9 @@ if (cognitionListener && deps.reminderBus) {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts
