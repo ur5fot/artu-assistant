@@ -63,7 +63,7 @@
 - Modify: `packages/server/src/db.ts`
 - Modify: `packages/server/src/db.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `packages/server/src/db.test.ts`:
 
@@ -110,7 +110,7 @@ describe('cognition tables', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/db.test.ts
@@ -118,7 +118,7 @@ npx vitest run --root packages/server packages/server/src/db.test.ts
 
 Expected: FAIL — `no such table: cognition_state`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `packages/server/src/db.ts`, inside `initDb()`, add **after** the `prompt_overlays` CREATE TABLE block but **before** the migration block:
 
@@ -161,9 +161,9 @@ db.exec(`
 `);
 ```
 
-- [ ] **Step 4: Run tests** — all 4 passing.
+- [x] **Step 4: Run tests** — all 4 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/db.test.ts
@@ -179,7 +179,7 @@ git commit -m "feat(db): cognition tables (state, ticks, handler_runs)"
 
 This file has no logic, just type declarations — no separate test file. Type usage is exercised by all subsequent tasks' tests.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 Create `packages/server/src/cognition/types.ts`:
 
@@ -229,7 +229,7 @@ export interface CognitionStatus {
 }
 ```
 
-- [ ] **Step 2: Verify compile**
+- [x] **Step 2: Verify compile**
 
 ```bash
 npx tsc -p packages/server --noEmit
@@ -237,7 +237,7 @@ npx tsc -p packages/server --noEmit
 
 Expected: no errors (types are unused yet but valid).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/cognition/types.ts
@@ -252,7 +252,7 @@ git commit -m "feat(cognition): types module"
 - Create: `packages/server/src/cognition/store.ts`
 - Create: `packages/server/src/cognition/__tests__/store.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/cognition/__tests__/store.test.ts`:
 
@@ -318,9 +318,9 @@ describe('CognitionStore — ticks', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement (partial — pause + ticks only)**
+- [x] **Step 3: Implement (partial — pause + ticks only)**
 
 Create `packages/server/src/cognition/store.ts`:
 
@@ -416,9 +416,9 @@ export function createCognitionStore(deps: { db: Database.Database }): Cognition
 
 The five throw-stubs ship in this commit so consumers can compile against the full interface. Task 4 fills them in.
 
-- [ ] **Step 4: Run tests** — all 6 in this task passing.
+- [x] **Step 4: Run tests** — all 6 in this task passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/store.ts packages/server/src/cognition/__tests__/store.test.ts
@@ -433,7 +433,7 @@ git commit -m "feat(cognition): store — pause + ticks"
 - Modify: `packages/server/src/cognition/store.ts`
 - Modify: `packages/server/src/cognition/__tests__/store.test.ts`
 
-- [ ] **Step 1: Append failing tests**
+- [x] **Step 1: Append failing tests**
 
 Append to `packages/server/src/cognition/__tests__/store.test.ts`:
 
@@ -564,9 +564,9 @@ describe('CognitionStore — handler runs', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL (stubs throw).
+- [x] **Step 2: Run test** — expect FAIL (stubs throw).
 
-- [ ] **Step 3: Replace the five stubs in `store.ts`**
+- [x] **Step 3: Replace the five stubs in `store.ts`**
 
 Replace the throw-stubs with:
 
@@ -645,9 +645,9 @@ recentRuns(limit) {
 },
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/store.ts packages/server/src/cognition/__tests__/store.test.ts
@@ -662,7 +662,7 @@ git commit -m "feat(cognition): store — handler runs CRUD"
 - Create: `packages/server/src/cognition/registry.ts`
 - Create: `packages/server/src/cognition/__tests__/registry.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/cognition/__tests__/registry.test.ts`:
 
@@ -699,9 +699,9 @@ describe('HandlerRegistry', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/cognition/registry.ts`:
 
@@ -733,9 +733,9 @@ export function createHandlerRegistry(): HandlerRegistry {
 }
 ```
 
-- [ ] **Step 4: Run tests** — passing.
+- [x] **Step 4: Run tests** — passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/registry.ts packages/server/src/cognition/__tests__/registry.test.ts
@@ -750,7 +750,7 @@ git commit -m "feat(cognition): handler registry"
 - Create: `packages/server/src/cognition/queue.ts`
 - Create: `packages/server/src/cognition/__tests__/queue.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/cognition/__tests__/queue.test.ts`:
 
@@ -854,9 +854,9 @@ describe('JobQueue', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/cognition/queue.ts`:
 
@@ -950,9 +950,9 @@ export function createJobQueue(deps: Deps): JobQueue {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/queue.ts packages/server/src/cognition/__tests__/queue.test.ts
@@ -967,7 +967,7 @@ git commit -m "feat(cognition): single-worker job queue"
 - Create: `packages/server/src/cognition/dispatcher.ts`
 - Create: `packages/server/src/cognition/__tests__/dispatcher.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/cognition/__tests__/dispatcher.test.ts`:
 
@@ -1044,9 +1044,9 @@ describe('Dispatcher', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/cognition/dispatcher.ts`:
 
@@ -1092,9 +1092,9 @@ export function createDispatcher(deps: Deps): Dispatcher {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/dispatcher.ts packages/server/src/cognition/__tests__/dispatcher.test.ts
@@ -1109,7 +1109,7 @@ git commit -m "feat(cognition): dispatcher"
 - Create: `packages/server/src/cognition/heartbeat.ts`
 - Create: `packages/server/src/cognition/__tests__/heartbeat.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/cognition/__tests__/heartbeat.test.ts`:
 
@@ -1161,9 +1161,9 @@ describe('Heartbeat', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/cognition/heartbeat.ts`:
 
@@ -1198,9 +1198,9 @@ export function startHeartbeat(deps: Deps): { stop(): void } {
 }
 ```
 
-- [ ] **Step 4: Run tests** — passing.
+- [x] **Step 4: Run tests** — passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/heartbeat.ts packages/server/src/cognition/__tests__/heartbeat.test.ts
@@ -1215,7 +1215,7 @@ git commit -m "feat(cognition): heartbeat tick (60s)"
 - Create: `packages/server/src/cognition/service.ts`
 - Create: `packages/server/src/cognition/__tests__/service.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/cognition/__tests__/service.test.ts`:
 
@@ -1281,9 +1281,9 @@ describe('CognitionService', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/cognition/service.ts`:
 
@@ -1364,9 +1364,9 @@ export function createCognitionService(deps: Deps): CognitionService {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```ts
 git add packages/server/src/cognition/service.ts packages/server/src/cognition/__tests__/service.test.ts
@@ -1381,7 +1381,7 @@ git commit -m "feat(cognition): service composing store/registry/queue/dispatche
 - Create: `packages/server/src/cognition/handlers/pulse.ts`
 - Create: `packages/server/src/cognition/__tests__/handlers/pulse.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/cognition/__tests__/handlers/pulse.test.ts`:
 
@@ -1415,9 +1415,9 @@ describe('pulse handler', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/cognition/handlers/pulse.ts`:
 
@@ -1439,9 +1439,9 @@ export const pulseHandler: Handler = {
 };
 ```
 
-- [ ] **Step 4: Run tests** — passing.
+- [x] **Step 4: Run tests** — passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers packages/server/src/cognition/__tests__/handlers
@@ -1455,7 +1455,7 @@ git commit -m "feat(cognition): pulse demo handler"
 **Files:**
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Edit imports**
+- [x] **Step 1: Edit imports**
 
 Add at the top, near other cognition-relatable imports:
 
@@ -1464,7 +1464,7 @@ import { createCognitionService } from './cognition/service.js';
 import { pulseHandler } from './cognition/handlers/pulse.js';
 ```
 
-- [ ] **Step 2: Instantiate after `reminderBus` line**
+- [x] **Step 2: Instantiate after `reminderBus` line**
 
 Find the existing line `const reminderBus = ...` and after the `startScheduler` call, add:
 
@@ -1477,7 +1477,7 @@ cognitionService.register(pulseHandler);
 cognitionService.start();
 ```
 
-- [ ] **Step 3: Pass to Discord deps**
+- [x] **Step 3: Pass to Discord deps**
 
 In the existing `startDiscordBot({ ... })` deps object, add:
 
@@ -1487,7 +1487,7 @@ cognitionService,
 
 (near `reminderBus`).
 
-- [ ] **Step 4: Stop on SIGTERM**
+- [x] **Step 4: Stop on SIGTERM**
 
 In the existing `process.on('SIGTERM', async () => {...})` block, add before `await discordBot?.stop()`:
 
@@ -1495,7 +1495,7 @@ In the existing `process.on('SIGTERM', async () => {...})` block, add before `aw
 cognitionService.stop();
 ```
 
-- [ ] **Step 5: Run server tests**
+- [x] **Step 5: Run server tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -1505,7 +1505,7 @@ Expected: green. (Existing tests should not regress; this introduces a new field
 
 If tests fail with `cognitionService` missing on `DiscordBotDeps`, that's expected — Task 12 adds it. To proceed clean, complete Task 12 before re-running.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/index.ts
@@ -1520,7 +1520,7 @@ git commit -m "chore(index): wire cognitionService + register pulse handler"
 - Modify: `packages/server/src/channels/discord/bot.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/bot.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append to `bot.test.ts`:
 
@@ -1565,9 +1565,9 @@ describe('cognition_publish handling', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `packages/server/src/channels/discord/bot.ts`:
 
@@ -1616,9 +1616,9 @@ if (cognitionListener && deps.reminderBus) {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/bot.ts packages/server/src/channels/discord/__tests__/bot.test.ts
@@ -1632,7 +1632,7 @@ git commit -m "feat(discord): bot listens for cognition_publish events"
 **Files:**
 - Modify: `packages/server/src/channels/discord/slash-commands.ts`
 
-- [ ] **Step 1: Edit**
+- [x] **Step 1: Edit**
 
 In `slash-commands.ts`, append to `SLASH_COMMAND_DEFINITIONS` array (before the `.map(b => b.toJSON())`):
 
@@ -1646,7 +1646,7 @@ new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName('resume').setDescription('Resume heartbeat')),
 ```
 
-- [ ] **Step 2: Run server tests**
+- [x] **Step 2: Run server tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -1654,7 +1654,7 @@ npx vitest run --root packages/server
 
 Expected: green (no slash-command shape test asserts the new command yet — added in Task 14).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/slash-commands.ts
@@ -1669,7 +1669,7 @@ git commit -m "feat(discord): register /heartbeat slash command"
 - Modify: `packages/server/src/channels/discord/interactions.ts`
 - Modify: `packages/server/src/channels/discord/__tests__/interactions.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `interactions.test.ts`:
 
@@ -1749,9 +1749,9 @@ cognitionService: {
 } as any,
 ```
 
-- [ ] **Step 2: Run tests** — expect FAIL.
+- [x] **Step 2: Run tests** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `packages/server/src/channels/discord/interactions.ts`:
 
@@ -1816,9 +1816,9 @@ await routeInteraction(interaction, {
 });
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord/interactions.ts packages/server/src/channels/discord/__tests__/interactions.test.ts packages/server/src/channels/discord/bot.ts
@@ -1831,7 +1831,7 @@ git commit -m "feat(discord): /heartbeat status/pause/resume handler"
 
 **Files:** all
 
-- [ ] **Step 1: Run full server tests**
+- [x] **Step 1: Run full server tests**
 
 ```bash
 npx vitest run --root packages/server
@@ -1839,7 +1839,7 @@ npx vitest run --root packages/server
 
 Expected: all green. If anything fails, the most likely cause is stub coverage in interactions/bot/command-service tests for the new methods. Add the missing `cognitionService` field to those test setups.
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 npx tsc -p packages/shared --noEmit && npx tsc -p packages/server --noEmit
@@ -1847,7 +1847,7 @@ npx tsc -p packages/shared --noEmit && npx tsc -p packages/server --noEmit
 
 Expected: clean.
 
-- [ ] **Step 3: Commit any test-stub fixes (if needed)**
+- [x] **Step 3: Commit any test-stub fixes (if needed)**
 
 ```bash
 git add -A
@@ -1862,7 +1862,7 @@ git commit -m "chore(test): add cognitionService stub to existing test deps"
 
 **Goal:** Verify heartbeat lives, status reports, pause/resume work, pulse fires.
 
-- [ ] **Step 1: Start dev server**
+- [x] **Step 1: Start dev server**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm run dev
@@ -1870,7 +1870,7 @@ cd /Users/dim/code/R2-D2 && npm run dev
 
 Confirm server log shows `[discord] bot started` and `[discord] slash commands registered`. There is no specific cognition log line; the heartbeat is silent.
 
-- [ ] **Step 2: Initial status**
+- [x] **Step 2: Initial status**
 
 In Discord DM:
 
@@ -1885,11 +1885,11 @@ Verify ephemeral reply:
 - `Registered handlers: pulse`
 - `Recent runs:` either empty (if pulse hasn't fired yet) or `pulse — skip (alive at …)` if first run already happened.
 
-- [ ] **Step 3: Wait for pulse to fire**
+- [x] **Step 3: Wait for pulse to fire**
 
 Wait ~5 minutes. Run `/heartbeat status` again. Verify `Recent runs` now contains a `pulse — skip (alive at YYYY-MM-DDTHH:MM:SS.sssZ)` entry.
 
-- [ ] **Step 4: Pause and verify no new ticks/runs**
+- [x] **Step 4: Pause and verify no new ticks/runs**
 
 ```
 /heartbeat pause
@@ -1901,7 +1901,7 @@ Wait 2-3 minutes. Run `/heartbeat status`. Verify:
 - `⏸️ paused`
 - `Last tick:` is **not** updated (matches the value from before pause)
 
-- [ ] **Step 5: Resume**
+- [x] **Step 5: Resume**
 
 ```
 /heartbeat resume
@@ -1909,11 +1909,11 @@ Wait 2-3 minutes. Run `/heartbeat status`. Verify:
 
 Verify reply: `🫀 Heartbeat resumed.` Wait 60 s. `/heartbeat status` shows updated `Last tick`.
 
-- [ ] **Step 6: Restart persistence**
+- [x] **Step 6: Restart persistence**
 
 Stop dev server (Ctrl-C), `/heartbeat pause` first if still running. Start `npm run dev` again. Run `/heartbeat status` — verify still `⏸️ paused` (state survived restart). Resume.
 
-- [ ] **Step 7: Document findings**
+- [x] **Step 7: Document findings**
 
 Append a "Manual E2E results" block to `docs/superpowers/specs/2026-04-18-cognition-layer-design.md`. Commit.
 

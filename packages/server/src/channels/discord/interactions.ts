@@ -4,6 +4,7 @@ import type { ReminderService } from '../../services/reminder-service.js';
 import type { PermissionService } from '../../services/permission-service.js';
 import type { PlanReviewService } from '../../services/plan-review-service.js';
 import type { CommandService } from '../../services/command-service.js';
+import type { CognitionService } from '../../cognition/service.js';
 import {
   buildReminderEmbed,
   buildPermissionEmbed,
@@ -45,6 +46,7 @@ export interface InteractionDeps {
   permissionService: PermissionService;
   planReviewService: PlanReviewService;
   commandService: CommandService;
+  cognitionService: CognitionService;
 }
 
 // Parses the description rendered by buildPermissionEmbed —
@@ -288,5 +290,47 @@ async function routeSlashCommand(
       await (ixn as any).editReply({ content: `Memory lookup failed: ${msg}` });
     }
     return;
+  }
+  if (name === 'heartbeat') {
+    const sub = (ixn as any).options.getSubcommand();
+    if (sub === 'status') {
+      const s = deps.cognitionService.status();
+      const lines = [
+        `**Heartbeat: ${s.paused ? '⏸️ paused' : '🫀 alive'}**`,
+        `Last tick: ${s.lastTickAt ? new Date(s.lastTickAt).toISOString() : 'never'}`,
+        `Ticks (last 24h): ${s.ticks24h}`,
+        `Queue depth: ${s.queueSize}`,
+        `Registered handlers: ${s.handlers.length > 0 ? s.handlers.join(', ') : '(none)'}`,
+      ];
+      if (s.recentRuns.length > 0) {
+        lines.push('', 'Recent runs:');
+        for (const r of s.recentRuns.slice(0, 10)) {
+          const t = new Date(r.firedAt).toISOString().slice(11, 19);
+          const note = r.outcome === 'publish' ? r.content : r.reason;
+          lines.push(`\`${t}\` ${r.handlerName} — ${r.outcome}${note ? ` (${note.slice(0, 80)})` : ''}`);
+        }
+      }
+      await (ixn as any).reply({
+        flags: MessageFlags.Ephemeral,
+        content: truncateLines(lines),
+      });
+      return;
+    }
+    if (sub === 'pause') {
+      deps.cognitionService.pause();
+      await (ixn as any).reply({ flags: MessageFlags.Ephemeral, content: '⏸️ Heartbeat paused.' });
+      return;
+    }
+    if (sub === 'resume') {
+      deps.cognitionService.resume();
+      await (ixn as any).reply({ flags: MessageFlags.Ephemeral, content: '🫀 Heartbeat resumed.' });
+      return;
+    }
+    // Unknown subcommand: Discord otherwise shows "The application did not
+    // respond" after 3 seconds because the interaction token is never acked.
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: `Unknown /heartbeat subcommand: \`${sub}\`.`,
+    });
   }
 }
