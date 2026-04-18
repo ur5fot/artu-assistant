@@ -37,6 +37,7 @@ import { startDiscordBot } from './channels/discord/bot.js';
 import { runChatRequest } from './ai/router.js';
 import { createCognitionService } from './cognition/service.js';
 import { pulseHandler } from './cognition/handlers/pulse.js';
+import { createMorningBriefHandler } from './cognition/handlers/morningBrief.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
@@ -175,6 +176,10 @@ const cognitionService = createCognitionService({
 });
 cognitionService.register(pulseHandler);
 cognitionService.start();
+// morningBrief is registered conditionally below — only after Discord bot
+// actually starts. Otherwise nobody consumes `cognition_publish`, the brief
+// is computed and `outcome='publish'` is recorded, but the user never sees
+// it (and re-runs would burn tokens). See morningBrief code review #1.
 
 const registry = createRegistry();
 const pendingConfirms: PendingConfirms = new Map();
@@ -284,6 +289,9 @@ if (discordToken) {
       })(),
     });
     console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
+    cognitionService.register(
+      createMorningBriefHandler({ piiProxy, anthropic: client.anthropic }),
+    );
   } catch (err) {
     console.error('[discord] bot failed to start:', err instanceof Error ? err.message : err);
     discordBot = null;
