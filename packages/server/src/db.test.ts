@@ -408,4 +408,5 @@ describe('Database Module', () => {
       expect(row.updated_at).toBeGreaterThanOrEqual(before);
     });
   });
+
 });

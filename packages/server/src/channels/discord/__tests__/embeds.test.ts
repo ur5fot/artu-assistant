@@ -4,6 +4,7 @@ import {
   buildReminderEmbed,
   buildPermissionEmbed,
   buildPlanReviewChunks,
+  buildPermissionsListReply,
 } from '../embeds.js';
 
 describe('buildReminderEmbed', () => {
@@ -139,5 +140,49 @@ describe('buildPlanReviewChunks', () => {
     expect(chunks.length).toBeLessThanOrEqual(21); // 20 content + 1 buttons
     const truncContent = chunks[chunks.length - 2]!.content!;
     expect(truncContent).toContain('⚠️ plan truncated');
+  });
+});
+
+describe('buildPermissionsListReply', () => {
+  it('empty list: content is "No saved permission rules." and no components', () => {
+    const reply = buildPermissionsListReply([]);
+    expect(reply.content).toBe('No saved permission rules.');
+    expect(reply.components).toEqual([]);
+    expect(reply.embeds).toEqual([]);
+  });
+
+  it('rules list: embed + one button row per rule', () => {
+    const reply = buildPermissionsListReply([
+      { toolName: 'files_write', allowed: true },
+      { toolName: 'code_deploy', allowed: false },
+    ]);
+    expect(reply.content).toBe('');
+    expect(reply.embeds).toHaveLength(1);
+    const embedJson = reply.embeds![0]!.toJSON();
+    expect(embedJson.title).toBe('📋 Saved permission rules');
+    expect(embedJson.description).toContain('files_write');
+    expect(embedJson.description).toContain('code_deploy');
+    // denied markers
+    expect(embedJson.description).toContain('❌');
+    expect(embedJson.description).toContain('✅');
+    expect(reply.components).toHaveLength(2);
+    const customIds = reply.components!.flatMap((row: any) =>
+      (row.toJSON().components as any[]).map((c) => c.custom_id),
+    );
+    expect(customIds).toEqual([
+      'perm_rule:revoke:files_write',
+      'perm_rule:revoke:code_deploy',
+    ]);
+  });
+
+  it('more than 5 rules: only 5 button rows, embed footer notes truncation', () => {
+    const rules = Array.from({ length: 8 }, (_, i) => ({
+      toolName: `tool_${i}`,
+      allowed: true,
+    }));
+    const reply = buildPermissionsListReply(rules);
+    expect(reply.components).toHaveLength(5);
+    const embedJson = reply.embeds![0]!.toJSON();
+    expect(embedJson.footer?.text).toContain('Showing 5 of 8');
   });
 });

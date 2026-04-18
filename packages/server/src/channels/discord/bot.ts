@@ -18,6 +18,7 @@ import type { PlanReviewService } from '../../services/plan-review-service.js';
 import type { CommandService } from '../../services/command-service.js';
 import { truncateMessages } from '../../routes/chat.js';
 import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
+import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from './tool-embeds.js';
 import { routeInteraction } from './interactions.js';
 import { SLASH_COMMAND_DEFINITIONS } from './slash-commands.js';
 
@@ -215,6 +216,67 @@ export async function startDiscordBot(
       | { callId: string; kind: 'perm'; messageIds: string[]; toolName: string; argsSummary: string }
       | { callId: string; kind: 'plan'; messageIds: string[] };
     const pendingEmbedMsgs: PendingEmbed[] = [];
+    type ToolCallEntry = {
+      messageId: string;
+      toolName: string;
+      toolInput: Record<string, unknown>;
+      final: boolean;
+      lastEditAt: number;
+      pendingTimer: ReturnType<typeof setTimeout> | null;
+      latestProgress: string | null;
+    };
+    const toolCallMessages = new Map<string, ToolCallEntry>();
+    const PROGRESS_DEBOUNCE_MS = 800;
+
+    const applyProgressEdit = async (callId: string, progress: string) => {
+      const entry = toolCallMessages.get(callId);
+      if (!entry || entry.final) return;
+      // Update lastEditAt up-front: if the edit fails, the cooldown still
+      // applies so we don't hammer Discord by retrying on every subsequent
+      // progress event.
+      entry.lastEditAt = Date.now();
+      try {
+        const dmChannel = msg.channel as DMChannel;
+        const msgRef = await dmChannel.messages.fetch(entry.messageId);
+        // Re-check final AFTER the async fetch: a tool_call_result that runs
+        // while the fetch is in flight would otherwise be clobbered by this
+        // edit, flipping a completed embed back to "progress".
+        if (entry.final) return;
+        const embed = buildToolCallEmbed({
+          state: 'progress',
+          toolCall: {
+            id: callId,
+            name: entry.toolName,
+            input: entry.toolInput,
+            status: 'running',
+          },
+          progress,
+        });
+        if (embed) await msgRef.edit({ embeds: [embed] });
+      } catch {
+        // Message deleted or Discord hiccup — ignore.
+      }
+    };
+
+    const onProgress = (callId: string, progress: string) => {
+      const entry = toolCallMessages.get(callId);
+      if (!entry || entry.final) return;
+      const elapsed = Date.now() - entry.lastEditAt;
+      if (elapsed >= PROGRESS_DEBOUNCE_MS) {
+        void applyProgressEdit(callId, progress);
+        return;
+      }
+      entry.latestProgress = progress;
+      if (!entry.pendingTimer) {
+        const delay = PROGRESS_DEBOUNCE_MS - elapsed;
+        entry.pendingTimer = setTimeout(() => {
+          entry.pendingTimer = null;
+          const latest = entry.latestProgress ?? progress;
+          entry.latestProgress = null;
+          void applyProgressEdit(callId, latest);
+        }, delay);
+      }
+    };
     try {
       const dmChannel = msg.channel as DMChannel;
       await dmChannel.sendTyping();
@@ -271,19 +333,27 @@ export async function startDiscordBot(
       // stream finishes so retry/outer-catch can send a user-visible fallback
       // instead of silently leaving sendSucceeded=false.
       let sendError: unknown = null;
+      let sawOllama = false;
+      let escalated = false;
 
       const flush = async () => {
         if (!buffer) return;
-        await sendReply(dmChannel, buffer);
+        let text = buffer;
+        if (escalated) {
+          text = `🔵 claude\n\n${text}`;
+          escalated = false;
+        }
+        await sendReply(dmChannel, text);
         sendSucceeded = true;
         buffer = '';
       };
 
       for (let attempt = 0; ; attempt++) {
-        // If the previous attempt already produced visible output (text, embeds)
-        // do not retry — the user would see duplicated text or dangling embed
-        // references with a stale callId. Fall through to the outer error path.
-        if (attempt > 0 && (sendSucceeded || pendingEmbedMsgs.length > 0)) {
+        // If the previous attempt already produced visible output (text, embeds,
+        // tool-call embeds) do not retry — the user would see duplicated text
+        // or the freshly-sent embeds from attempt N+1 would leave attempt N's
+        // tool-call embeds orphaned in "running" state forever.
+        if (attempt > 0 && (sendSucceeded || pendingEmbedMsgs.length > 0 || toolCallMessages.size > 0)) {
           throw new Error('retry aborted: prior attempt already emitted output');
         }
         buffer = '';
@@ -291,6 +361,8 @@ export async function startDiscordBot(
         errorSent = false;
         sendChain = Promise.resolve();
         sendError = null;
+        sawOllama = false;
+        escalated = false;
 
         try {
           await deps.runChatRequest({
@@ -301,6 +373,96 @@ export async function startDiscordBot(
                 if (event.type === 'text_delta') {
                   buffer += event.content;
                   assistantText += event.content;
+                  return;
+                }
+                if (event.type === 'assistant_source') {
+                  if (event.source === 'ollama') {
+                    sawOllama = true;
+                  } else if (event.source === 'claude' && sawOllama) {
+                    escalated = true;
+                  }
+                  return;
+                }
+                if (event.type === 'tool_call_start') {
+                  if (SILENT_TOOLS.includes(event.toolCall.name)) return;
+                  const embed = buildToolCallEmbed({ state: 'running', toolCall: event.toolCall });
+                  if (!embed) return;
+                  await flush();
+                  const sent = await dmChannel.send({ embeds: [embed] });
+                  toolCallMessages.set(event.toolCall.id, {
+                    messageId: sent.id,
+                    toolName: event.toolCall.name,
+                    toolInput: event.toolCall.input,
+                    final: false,
+                    lastEditAt: Date.now(),
+                    pendingTimer: null,
+                    latestProgress: null,
+                  });
+                  return;
+                }
+                if (event.type === 'tool_progress') {
+                  onProgress(event.id, event.message);
+                  return;
+                }
+                if (event.type === 'tool_call_result') {
+                  const entry = toolCallMessages.get(event.id);
+                  if (!entry || entry.final) return;
+                  if (entry.pendingTimer) {
+                    clearTimeout(entry.pendingTimer);
+                    entry.pendingTimer = null;
+                    entry.latestProgress = null;
+                  }
+                  // Mark terminal BEFORE the async fetch so any in-flight
+                  // applyProgressEdit short-circuits after its own fetch
+                  // instead of racing to overwrite the terminal embed.
+                  entry.final = true;
+                  const isSuccess = event.result.success;
+                  const state = isSuccess ? ('done' as const) : ('error' as const);
+                  const toolCallSnapshot = {
+                    id: event.id,
+                    name: entry.toolName,
+                    input: entry.toolInput,
+                    status: state,
+                    result: event.result,
+                  };
+                  const embed = buildToolCallEmbed({ state, toolCall: toolCallSnapshot });
+                  try {
+                    const msgRef = await dmChannel.messages.fetch(entry.messageId);
+                    if (embed) await msgRef.edit({ embeds: [embed] });
+                  } catch {
+                    // Message gone or no permission — ignore.
+                  }
+
+                  if (isSuccess && entry.toolName === 'code_task') {
+                    const data = (event.result.data ?? {}) as {
+                      fullDiff?: string;
+                      commit?: string;
+                    };
+                    if (typeof data.fullDiff === 'string' && data.fullDiff.length > 0) {
+                      const diff = buildDiffAttachment({
+                        callId: event.id,
+                        fullDiff: data.fullDiff,
+                        commit: data.commit,
+                      });
+                      if (diff && 'attachment' in diff) {
+                        try {
+                          await dmChannel.send({ files: [{ attachment: diff.attachment, name: diff.name }] });
+                        } catch (err) {
+                          console.error('[discord] diff attachment failed:',
+                            err instanceof Error ? err.message : err);
+                        }
+                      } else if (diff && 'oversize' in diff) {
+                        const suffix = data.commit
+                          ? `, saved in commit \`${data.commit.slice(0, 7)}\``
+                          : '';
+                        try {
+                          await dmChannel.send(`⚠️ diff too large to attach${suffix}`);
+                        } catch {
+                          // ignore
+                        }
+                      }
+                    }
+                  }
                   return;
                 }
                 if (event.type === 'tool_confirm_request') {
@@ -415,6 +577,18 @@ export async function startDiscordBot(
     } finally {
       clearInterval(typingInterval);
       clearTimeout(timer);
+      // Cancel any pending debounced progress edits and mark all live tool
+      // entries terminal so timer callbacks already in flight short-circuit.
+      // Without this, a setTimeout scheduled at request shutdown can fire
+      // 800 ms later and edit a Discord message belonging to a request that
+      // has already been considered done.
+      for (const entry of toolCallMessages.values()) {
+        if (entry.pendingTimer) {
+          clearTimeout(entry.pendingTimer);
+          entry.pendingTimer = null;
+          entry.latestProgress = null;
+        }
+      }
       // Expire any pending permission/plan-review embeds that the user never
       // resolved. Runs on all exit paths (success, error, timeout) so
       // aborted-but-not-thrown flows (e.g. AbortController fires mid-stream
@@ -422,6 +596,30 @@ export async function startDiscordBot(
       // "Allow / Deny" buttons in the DM.
       try {
         const dmChannel = msg.channel as DMChannel;
+        // Edit any tool-call embed still in "running"/"progress" state to an
+        // error embed. Otherwise a request that throws mid-stream (e.g.
+        // network error after tool_call_start, retry-aborted attempt) leaves
+        // a perpetual 🔧 running… embed in the DM.
+        for (const [callId, entry] of toolCallMessages) {
+          if (entry.final) continue;
+          entry.final = true;
+          try {
+            const m = await dmChannel.messages.fetch(entry.messageId);
+            const embed = buildToolCallEmbed({
+              state: 'error',
+              toolCall: {
+                id: callId,
+                name: entry.toolName,
+                input: entry.toolInput,
+                status: 'error',
+                result: { success: false, error: 'request ended before tool finished' },
+              },
+            });
+            if (embed) await m.edit({ embeds: [embed] });
+          } catch {
+            // message gone or no permission — ignore
+          }
+        }
         for (const pe of pendingEmbedMsgs) {
           if (pe.kind === 'perm' && deps.permissionService?.isResolvedByUser(pe.callId)) {
             continue;

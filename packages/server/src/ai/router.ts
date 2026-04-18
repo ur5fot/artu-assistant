@@ -278,7 +278,15 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
     return;
   }
 
-  // Text-only response — check for escalation markers
+  // Text-only response — check for escalation markers.
+  // Emit the ollama source signal BEFORE the escalation branch so that a
+  // later `assistant_source: 'claude'` from callClaudeFallback is correctly
+  // recognized as an escalation by downstream consumers (e.g. Discord's
+  // `🔵 claude` prefix). Emitting it only on the non-escalate path below
+  // would hide the transition.
+  if (params.signal?.aborted) return;
+  params.onEvent({ type: 'assistant_source', source: 'ollama' });
+
   const decision = shouldEscalate(ollamaText!);
 
   if (decision.escalate) {
@@ -288,7 +296,6 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
   }
 
   if (params.signal?.aborted) return;
-  params.onEvent({ type: 'assistant_source', source: 'ollama' });
   // qwen2.5 sometimes mirrors the `[DD.MM.YYYY, HH:MM]` prefix that chat.ts
   // prepends to user messages. Claude does not exhibit this quirk.
   params.onEvent({ type: 'text_delta', content: stripTimestampPrefix(ollamaText!) });
