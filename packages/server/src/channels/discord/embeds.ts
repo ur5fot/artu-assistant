@@ -213,6 +213,22 @@ export interface PermissionsListReply {
 }
 
 const MAX_REVOKE_BUTTONS = 5;
+// Discord embed description hard limit is 4096 — leave headroom for the
+// truncation marker so a large ruleset doesn't throw RangeError.
+const DESCRIPTION_LIMIT = 4000;
+const REVOKE_CUSTOM_ID_PREFIX = 'perm_rule:revoke:';
+const REVOKE_LABEL_PREFIX = 'Revoke ';
+// Discord custom_id is capped at 100, button label at 80. Pick the stricter
+// bound so rendering never fails on either.
+const REVOKE_TOOL_NAME_MAX = Math.min(
+  100 - REVOKE_CUSTOM_ID_PREFIX.length,
+  80 - REVOKE_LABEL_PREFIX.length,
+);
+
+function truncateWithEllipsis(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1) + '…';
+}
 
 export function buildPermissionsListReply(
   rules: Array<{ toolName: string; allowed: boolean }>,
@@ -224,20 +240,24 @@ export function buildPermissionsListReply(
   const lines = rules.map((r) => `${r.allowed ? '✅' : '❌'} \`${r.toolName}\``);
   const embed = new EmbedBuilder()
     .setTitle('📋 Saved permission rules')
-    .setDescription(lines.join('\n'));
+    .setDescription(truncateWithEllipsis(lines.join('\n'), DESCRIPTION_LIMIT));
 
-  const visible = rules.slice(0, MAX_REVOKE_BUTTONS);
-  if (rules.length > MAX_REVOKE_BUTTONS) {
+  // Skip button rendering for tool names that would overflow Discord's
+  // custom_id/label limits — truncating would break the revoke handler since
+  // it can't reconstruct the original tool name from a shortened id.
+  const buttonEligible = rules.filter((r) => r.toolName.length <= REVOKE_TOOL_NAME_MAX);
+  const visible = buttonEligible.slice(0, MAX_REVOKE_BUTTONS);
+  if (buttonEligible.length > MAX_REVOKE_BUTTONS) {
     embed.setFooter({
-      text: `Showing ${MAX_REVOKE_BUTTONS} of ${rules.length}. Revoke some and re-open /permissions.`,
+      text: `Showing ${MAX_REVOKE_BUTTONS} of ${buttonEligible.length}. Revoke some and re-open /permissions.`,
     });
   }
 
   const rows = visible.map((r) =>
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`perm_rule:revoke:${r.toolName}`)
-        .setLabel(`Revoke ${r.toolName}`)
+        .setCustomId(`${REVOKE_CUSTOM_ID_PREFIX}${r.toolName}`)
+        .setLabel(`${REVOKE_LABEL_PREFIX}${r.toolName}`)
         .setStyle(ButtonStyle.Danger),
     ),
   );

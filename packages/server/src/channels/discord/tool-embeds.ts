@@ -53,7 +53,11 @@ export function buildToolCallEmbed(opts: BuildToolCallEmbedOpts): EmbedBuilder |
   embed.setColor(colorByState[opts.state]);
 
   if (opts.state === 'running') {
-    embed.setDescription(isCodeTask && taskText ? `Task: "${taskText}"` : 'running…');
+    embed.setDescription(
+      isCodeTask && taskText
+        ? truncate(`Task: "${taskText}"`, DESCRIPTION_MAX)
+        : 'running…',
+    );
     return embed;
   }
 

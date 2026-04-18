@@ -78,11 +78,32 @@ export async function routeInteraction(
   }
 }
 
+// Splits a customId of the form `domain:action:rawId` where `rawId` may itself
+// contain colons (e.g. a tool name like `tool:v2`). A naive split(':') would
+// truncate the id at the third segment and lose the rest.
+function splitCustomId(customId: string): {
+  domain: string;
+  action: string;
+  rawId: string | undefined;
+} {
+  const firstColon = customId.indexOf(':');
+  if (firstColon < 0) return { domain: customId, action: '', rawId: undefined };
+  const domain = customId.slice(0, firstColon);
+  const rest = customId.slice(firstColon + 1);
+  const secondColon = rest.indexOf(':');
+  if (secondColon < 0) return { domain, action: rest, rawId: undefined };
+  return {
+    domain,
+    action: rest.slice(0, secondColon),
+    rawId: rest.slice(secondColon + 1),
+  };
+}
+
 async function routeButton(
   ixn: ButtonInteraction,
   deps: InteractionDeps,
 ): Promise<void> {
-  const [domain, action, rawId] = ixn.customId.split(':');
+  const { domain, action, rawId } = splitCustomId(ixn.customId);
 
   if (domain === 'reminder') {
     const id = Number(rawId);
