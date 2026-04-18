@@ -967,7 +967,7 @@ git commit -m "feat(cognition): single-worker job queue"
 - Create: `packages/server/src/cognition/dispatcher.ts`
 - Create: `packages/server/src/cognition/__tests__/dispatcher.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `packages/server/src/cognition/__tests__/dispatcher.test.ts`:
 
@@ -1044,9 +1044,9 @@ describe('Dispatcher', () => {
 });
 ```
 
-- [ ] **Step 2: Run test** — expect FAIL.
+- [x] **Step 2: Run test** — expect FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/server/src/cognition/dispatcher.ts`:
 
@@ -1092,9 +1092,9 @@ export function createDispatcher(deps: Deps): Dispatcher {
 }
 ```
 
-- [ ] **Step 4: Run tests** — all passing.
+- [x] **Step 4: Run tests** — all passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/dispatcher.ts packages/server/src/cognition/__tests__/dispatcher.test.ts
