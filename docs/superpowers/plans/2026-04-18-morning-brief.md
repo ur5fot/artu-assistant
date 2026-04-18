@@ -1115,7 +1115,7 @@ npx tsc --noEmit -p packages/server
 
 **Why:** Последний шаг — юзер в живом Discord проверяет что brief действительно приходит. Автоматически это сделать нельзя (нужен живой Anthropic API + Discord bot + реальный chat message).
 
-- [ ] **Step 1: Start dev server**
+- [x] **Step 1: Start dev server**
 
 ```bash
 cd /Users/dim/code/R2-D2 && npm run dev
@@ -1123,17 +1123,17 @@ cd /Users/dim/code/R2-D2 && npm run dev
 
 Убедись что `[discord] bot started` и `[discord] slash commands registered` в логе.
 
-- [ ] **Step 2: Проверка что handler зарегистрирован**
+- [x] **Step 2: Проверка что handler зарегистрирован**
 
 В Discord DM: `/heartbeat status`. В ephemeral reply должно быть: `Registered handlers: pulse, morningBrief` (порядок может отличаться).
 
-- [ ] **Step 3: Симуляция «первого сообщения дня»**
+- [x] **Step 3: Симуляция «первого сообщения дня»**
 
 Если сегодня уже были сообщения — handler fired или fire'нется при первом тике после 06:00. Если сегодня ещё не писал — напиши любое сообщение в DM: "привет".
 
 В течение **до 60 секунд** (один тик heartbeat) — должен прийти DM с утренним brief'ом от R2. Параллельно обычный chat pipeline ответит на "привет" как раньше — это ожидаемо.
 
-- [ ] **Step 4: Verify через `/heartbeat status`**
+- [x] **Step 4: Verify через `/heartbeat status`**
 
 После срабатывания `/heartbeat status` должен показать в Recent runs:
 
@@ -1141,15 +1141,15 @@ cd /Users/dim/code/R2-D2 && npm run dev
 HH:MM:SS morningBrief — publish (Доброе утро...)
 ```
 
-- [ ] **Step 5: Проверка once-per-day**
+- [x] **Step 5: Проверка once-per-day**
 
 Напиши ещё одно сообщение в DM. Подожди 2 минуты. Второй brief НЕ должен прийти (lastFiredAt сегодня → trigger=false). `/heartbeat status` не покажет новый `morningBrief` run.
 
-- [ ] **Step 6: Verify через рестарт**
+- [x] **Step 6: Verify через рестарт**
 
 Останови сервер (Ctrl-C). Запусти снова. `/heartbeat status` должен всё ещё показывать last morningBrief run от сегодня; новый НЕ должен выпасть (lastFiredAt persist'ится в `cognition_handler_runs`).
 
-- [ ] **Step 7: Document findings**
+- [x] **Step 7: Document findings**
 
 Дописать в `docs/superpowers/specs/2026-04-18-morning-brief-design.md` блок:
 

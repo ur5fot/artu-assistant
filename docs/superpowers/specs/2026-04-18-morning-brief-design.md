@@ -198,3 +198,16 @@ export interface Handler {
 - **Стоимость** — один вызов Claude Sonnet в день — копейки. Если `LOCAL_LLM_MODE=enabled`, вообще бесплатно.
 - **Privacy** — PII proxy обрабатывает данные так же как обычные сообщения; risk не выше чем в chat pipeline.
 - **Trigger сигнатура breaking change** — `trigger(state, ctx)` требует обновить `pulse` и его тесты (минимальный diff: добавить неиспользуемый параметр) + `dispatcher` + `dispatcher.test.ts`. Оценено — малый scope.
+
+---
+
+## Execution Status (2026-04-18)
+
+**Automated verification — PASSED.** 502/502 vitest tests green, `tsc --noEmit` exit 0.
+
+**Manual Discord E2E — PASSED.**
+- `/heartbeat status` показывает `Registered handlers: pulse, morningBrief`.
+- При первом сообщении дня в DM — brief приходит в пределах одного heartbeat tick, с осмысленным анализом: reminders на день, открытые заметки из memory (`user.note.*`, `user.activity`), рекомендации действий, честное признание отсутствия web-tool (вместо галлюцинации погоды).
+- Язык вывода — русский, тон — дружелюбный-функциональный.
+- Повторное сообщение в тот же день — brief не дублируется.
+- Persist lastFiredAt через рестарт сервера подтверждён.
