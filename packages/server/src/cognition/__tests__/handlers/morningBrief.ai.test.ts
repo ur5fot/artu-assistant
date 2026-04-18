@@ -30,11 +30,20 @@ function fakeAnthropic(responseText: string) {
   };
 }
 
+function fakeOllama(responseText: string) {
+  return {
+    chat: vi.fn(async () => ({ text: responseText })),
+  };
+}
+
 describe('callMorningBriefAI', () => {
   const originalModel = process.env.CLAUDE_MODEL;
+  const originalLocalMode = process.env.LOCAL_LLM_MODE;
   afterEach(() => {
     if (originalModel === undefined) delete process.env.CLAUDE_MODEL;
     else process.env.CLAUDE_MODEL = originalModel;
+    if (originalLocalMode === undefined) delete process.env.LOCAL_LLM_MODE;
+    else process.env.LOCAL_LLM_MODE = originalLocalMode;
   });
 
   it('anonymizes prompt, calls anthropic, deanonymizes response', async () => {
@@ -123,5 +132,80 @@ describe('callMorningBriefAI', () => {
     });
     const opts = (anthropic.messages.create.mock.calls as any[])[0][1];
     expect(opts?.signal).toBe(controller.signal);
+  });
+
+  it('uses ollama when LOCAL_LLM_MODE=enabled and ollama provided', async () => {
+    process.env.LOCAL_LLM_MODE = 'enabled';
+    const anthropic = fakeAnthropic('from-claude');
+    const ollama = fakeOllama('Доброе утро от локалки, [TOKEN_USER]!');
+    const result = await callMorningBriefAI({
+      piiProxy: fakeProxy(),
+      anthropic: anthropic as any,
+      ollama: ollama as any,
+      prompt: 'Привет dim',
+      signal: new AbortController().signal,
+    });
+    expect(result).toBe('Доброе утро от локалки, dim!');
+    expect(ollama.chat).toHaveBeenCalledOnce();
+    expect(anthropic.messages.create).not.toHaveBeenCalled();
+  });
+
+  it('defaults to LOCAL_LLM_MODE=enabled when env var unset', async () => {
+    delete process.env.LOCAL_LLM_MODE;
+    const anthropic = fakeAnthropic('from-claude');
+    const ollama = fakeOllama('from-ollama');
+    await callMorningBriefAI({
+      piiProxy: fakeProxy(),
+      anthropic: anthropic as any,
+      ollama: ollama as any,
+      prompt: 'x',
+      signal: new AbortController().signal,
+    });
+    expect(ollama.chat).toHaveBeenCalledOnce();
+    expect(anthropic.messages.create).not.toHaveBeenCalled();
+  });
+
+  it('uses Claude when LOCAL_LLM_MODE=disabled even if ollama provided', async () => {
+    process.env.LOCAL_LLM_MODE = 'disabled';
+    const anthropic = fakeAnthropic('from-claude');
+    const ollama = fakeOllama('from-ollama');
+    await callMorningBriefAI({
+      piiProxy: fakeProxy(),
+      anthropic: anthropic as any,
+      ollama: ollama as any,
+      prompt: 'x',
+      signal: new AbortController().signal,
+    });
+    expect(anthropic.messages.create).toHaveBeenCalledOnce();
+    expect(ollama.chat).not.toHaveBeenCalled();
+  });
+
+  it('uses Claude when ollama is null regardless of LOCAL_LLM_MODE', async () => {
+    process.env.LOCAL_LLM_MODE = 'enabled';
+    const anthropic = fakeAnthropic('from-claude');
+    await callMorningBriefAI({
+      piiProxy: fakeProxy(),
+      anthropic: anthropic as any,
+      ollama: null,
+      prompt: 'x',
+      signal: new AbortController().signal,
+    });
+    expect(anthropic.messages.create).toHaveBeenCalledOnce();
+  });
+
+  it('falls back to Claude when ollama throws', async () => {
+    process.env.LOCAL_LLM_MODE = 'enabled';
+    const anthropic = fakeAnthropic('from-claude');
+    const ollama = { chat: vi.fn(async () => { throw new Error('ollama down'); }) };
+    const result = await callMorningBriefAI({
+      piiProxy: fakeProxy(),
+      anthropic: anthropic as any,
+      ollama: ollama as any,
+      prompt: 'x',
+      signal: new AbortController().signal,
+    });
+    expect(result).toBe('from-claude');
+    expect(ollama.chat).toHaveBeenCalledOnce();
+    expect(anthropic.messages.create).toHaveBeenCalledOnce();
   });
 });

@@ -290,7 +290,11 @@ if (discordToken) {
     });
     console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
     cognitionService.register(
-      createMorningBriefHandler({ piiProxy, anthropic: client.anthropic }),
+      createMorningBriefHandler({
+        piiProxy,
+        anthropic: client.anthropic,
+        ollama: ollamaForRouter,
+      }),
     );
   } catch (err) {
     console.error('[discord] bot failed to start:', err instanceof Error ? err.message : err);
