@@ -197,6 +197,11 @@ export function initDb(dbPath?: string): void {
     db.exec(`ALTER TABLE chat_messages ADD COLUMN source TEXT`);
   }
   db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_messages_source ON chat_messages(source, timestamp)`);
+  // Support queries that filter/sort by timestamp without a source filter
+  // (e.g., morningBrief's activity check and recent-context fetch). The
+  // (source, timestamp) index can't service these — SQLite needs the leading
+  // column in the WHERE clause.
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON chat_messages(timestamp)`);
 
   // Migration: add importance / forgotten columns to memory_facts if missing.
   // SQLite can't do IF NOT EXISTS for columns, so we gate on PRAGMA table_info.

@@ -562,9 +562,9 @@ Background "thinking" loop that can act proactively, distinct from the reactive 
 
 - Module: `packages/server/src/cognition/` — `types.ts` (Handler/HandlerState/HandlerResult), `store.ts` (SQLite pause/ticks/runs), `registry.ts` (handler map), `queue.ts` (single-worker FIFO with per-job `AbortController` — handlers race against abort so `workerTimeoutMs` actually terminates stuck work), `dispatcher.ts` (per-tick trigger loop), `heartbeat.ts` (60 s `setInterval` with re-entrancy guard), `service.ts` (composed API).
 - Tables: `cognition_state` (singleton `id=1` row; `paused`, `paused_at`), `cognition_ticks` (pruned >7 d), `cognition_handler_runs` (`outcome ∈ publish|skip|error`, optional `published_at`).
-- Wiring: `createCognitionService({ db, bus: reminderBus })` in `index.ts`, currently registers `pulseHandler` (demo, always returns `skip`). `cognitionService.start()` on boot, `await cognitionService.stop()` on `SIGTERM` so in-flight work drains.
+- Wiring: `createCognitionService({ db, bus: reminderBus })` in `index.ts` registers `pulseHandler` (demo, always returns `skip`) and `morningBrief` (daily ~06:00 Europe/Kyiv summary via Claude through `PiiProxy`, gated on first user activity of the local day; constants live at the top of `cognition/handlers/morningBrief.ts`). `cognitionService.start()` on boot, `await cognitionService.stop()` on `SIGTERM` so in-flight work drains.
 - Publish flow: `run()` returning `{ publish: true, content }` → `queue.ts` emits `cognition_publish` on `reminderBus` → bot DMs whitelist → `markPublished` called once on first success.
-- Adding a handler: copy `handlers/pulse.ts`, give it a unique `name`, implement sync `trigger(state)` and async `run(ctx)`; `run()` should honor `ctx.signal` to cooperate with the queue timeout.
+- Adding a handler: copy `handlers/pulse.ts`, give it a unique `name`, implement `trigger(state, ctx)` (sync or async — may return `boolean | Promise<boolean>`; `ctx.db` is available for DB-dependent gating) and async `run(ctx)`; `run()` should honor `ctx.signal` to cooperate with the queue timeout.
 
 ## Self-deploy flow (Phase 3C+3D)
 

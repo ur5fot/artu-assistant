@@ -14,11 +14,22 @@ export interface HandlerState {
 export interface HandlerContext {
   db: Database.Database;
   signal: AbortSignal;
+  // Epoch ms captured when the worker popped this job off the queue. Handlers
+  // that are sensitive to day boundaries (e.g., morningBrief) must use this
+  // instead of calling Date.now() themselves: trigger and run run at different
+  // wall-clock instants, so a fresh Date.now() in run can fall on a later
+  // local day than trigger intended — producing a brief for a day that has
+  // only a few seconds of data.
+  firedAt: number;
+}
+
+export interface TriggerContext {
+  db: Database.Database;
 }
 
 export interface Handler {
   name: string;
-  trigger: (state: HandlerState) => boolean;
+  trigger: (state: HandlerState, ctx: TriggerContext) => boolean | Promise<boolean>;
   run: (ctx: HandlerContext) => Promise<HandlerResult>;
 }
 
