@@ -331,7 +331,7 @@ process.on('SIGTERM', async () => {
   console.log('Worker received SIGTERM, shutting down...');
   setTimeout(() => process.exit(1), 5000);
   stopScheduler();
-  cognitionService.stop();
+  await cognitionService.stop().catch(() => {});
   await discordBot?.stop().catch(() => {});
   server.close(() => {
     closeDb();

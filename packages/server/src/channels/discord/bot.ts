@@ -805,11 +805,18 @@ export async function startDiscordBot(
     cognitionListener = (event: any) => {
       if (event.type !== 'cognition_publish') return;
       if (!client.isReady()) return;
+      // Mark the run as published exactly once — on the first successful DM.
+      // Calling markPublished per-whitelist-user would overwrite
+      // published_at N times and could falsely mark a run as published even
+      // when earlier recipients' sends failed.
+      let marked = false;
       for (const userId of deps.whitelist) {
         client.users.fetch(userId)
           .then((u) => u.createDM())
           .then((dm) => dm.send(`💭 _from ${event.handler}_\n${event.content}`))
           .then(() => {
+            if (marked) return;
+            marked = true;
             deps.cognitionService?.markPublished(event.runId, Date.now());
           })
           .catch((err) => console.error(

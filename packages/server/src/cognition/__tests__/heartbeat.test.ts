@@ -42,4 +42,23 @@ describe('Heartbeat', () => {
     await vi.advanceTimersByTimeAsync(HEARTBEAT_TICK_MS * 5);
     expect(runTick).not.toHaveBeenCalled();
   });
+
+  it('re-entrancy guard: overlapping interval fires do not double-invoke runTick', async () => {
+    vi.useFakeTimers();
+    const store = createCognitionStore({ db: getDb() });
+    let resolveFirst!: () => void;
+    const runTick = vi.fn().mockImplementationOnce(
+      () => new Promise<void>((r) => { resolveFirst = r; }),
+    ).mockResolvedValue(undefined);
+    const hb = startHeartbeat({ dispatcher: { runTick }, store });
+    // Advance past multiple tick intervals while the first tick is still
+    // awaiting — with the guard, re-entrant fires are skipped.
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_TICK_MS * 3);
+    expect(runTick).toHaveBeenCalledTimes(1);
+    // Let the first tick finish; subsequent interval fires now proceed.
+    resolveFirst();
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_TICK_MS);
+    expect(runTick).toHaveBeenCalledTimes(2);
+    hb.stop();
+  });
 });

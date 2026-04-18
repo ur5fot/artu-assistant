@@ -11,7 +11,7 @@ export interface JobQueue {
   enqueue(job: Job): void;
   size(): number;
   start(): void;
-  stop(): void;
+  stop(): Promise<void>;
 }
 
 interface Deps {
@@ -27,6 +27,7 @@ export function createJobQueue(deps: Deps): JobQueue {
   const jobs: Job[] = [];
   let running = false;
   let inFlight: Promise<void> = Promise.resolve();
+  let currentAc: AbortController | null = null;
 
   async function pump(): Promise<void> {
     while (running && jobs.length > 0) {
@@ -35,16 +36,37 @@ export function createJobQueue(deps: Deps): JobQueue {
       if (!handler) continue;
 
       const ac = new AbortController();
+      currentAc = ac;
       const timer = setTimeout(() => ac.abort(), timeoutMs);
       const startedAt = Date.now();
       let result: HandlerResult;
       try {
-        result = await handler.run({ db: store.db, signal: ac.signal });
+        // Race the handler against the abort signal so workerTimeoutMs
+        // actually terminates stuck handlers instead of being advisory.
+        // Handlers that honor ctx.signal still finalize their own state.
+        const abortPromise = new Promise<never>((_, reject) => {
+          if (ac.signal.aborted) {
+            reject(new Error('handler aborted'));
+            return;
+          }
+          ac.signal.addEventListener('abort', () => reject(new Error('handler aborted')), {
+            once: true,
+          });
+        });
+        result = await Promise.race([
+          handler.run({ db: store.db, signal: ac.signal }),
+          abortPromise,
+        ]);
       } catch (err) {
         result = { error: true, message: err instanceof Error ? err.message : String(err) };
       } finally {
         clearTimeout(timer);
+        currentAc = null;
       }
+
+      // Don't persist or emit after stop(): the DB may be closing and bus
+      // subscribers (Discord bot) may be torn down.
+      if (!running) break;
 
       const runId = store.recordHandlerRun({
         handlerName: handler.name,
@@ -80,8 +102,15 @@ export function createJobQueue(deps: Deps): JobQueue {
       running = true;
       inFlight = pump();
     },
-    stop() {
+    async stop() {
       running = false;
+      currentAc?.abort();
+      try {
+        await inFlight;
+      } catch {
+        // inFlight errors are already logged by the enqueue catch handler;
+        // stop() must still resolve so callers can finalize shutdown.
+      }
     },
   };
 }

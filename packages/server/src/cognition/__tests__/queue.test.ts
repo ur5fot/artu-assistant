@@ -88,10 +88,65 @@ describe('JobQueue', () => {
     };
     const { store, registry, bus } = setup([slow]);
     const q = createJobQueue({ registry, store, bus });
+    q.enqueue({ handlerName: 'slow' });
+    q.enqueue({ handlerName: 'slow' });
+    // Queue is not started yet: neither job has been shifted.
+    expect(q.size()).toBe(2);
+    await q.stop();
+  });
+
+  it('workerTimeoutMs aborts a stuck handler so the worker records an error and continues', async () => {
+    const stuck: Handler = {
+      name: 'stuck',
+      trigger: () => true,
+      // Intentionally never resolves — only the abort-race can break the
+      // worker out, proving the timeout actually terminates the await.
+      run: () => new Promise(() => {}),
+    };
+    const after: Handler = {
+      name: 'after',
+      trigger: () => true,
+      run: async () => ({ skip: true, reason: 'next' }),
+    };
+    const { store, registry, bus } = setup([stuck, after]);
+    const q = createJobQueue({ registry, store, bus, workerTimeoutMs: 20 });
+    q.start();
+    q.enqueue({ handlerName: 'stuck' });
+    q.enqueue({ handlerName: 'after' });
+    // Wait long enough for the 20ms abort to fire and the worker to move on.
+    await new Promise((r) => setTimeout(r, 80));
+    const runs = store.recentRuns(2);
+    const stuckRow = runs.find((r) => r.handlerName === 'stuck');
+    const afterRow = runs.find((r) => r.handlerName === 'after');
+    expect(stuckRow?.outcome).toBe('error');
+    expect(stuckRow?.reason).toContain('abort');
+    expect(afterRow?.outcome).toBe('skip');
+    await q.stop();
+  });
+
+  it('stop awaits in-flight pump and skips recording after stop', async () => {
+    let release!: () => void;
+    const slow: Handler = {
+      name: 'slow',
+      trigger: () => true,
+      run: () =>
+        new Promise((resolve) => {
+          release = () => resolve({ skip: true, reason: 'released' });
+        }),
+    };
+    const { store, registry, bus } = setup([slow]);
+    const q = createJobQueue({ registry, store, bus });
     q.start();
     q.enqueue({ handlerName: 'slow' });
-    q.enqueue({ handlerName: 'slow' });
-    expect(q.size()).toBeGreaterThan(0);
-    q.stop();
+    // Let the worker shift the job and reach the await on run().
+    await new Promise((r) => setImmediate(r));
+    const stopP = q.stop();
+    // With stop set running=false then aborting the current AC, the handler
+    // resolves via abort handler but the worker must NOT record or emit.
+    await stopP;
+    // Release the handler anyway — stop() should already have returned.
+    release();
+    await new Promise((r) => setImmediate(r));
+    expect(store.recentRuns(1)).toEqual([]);
   });
 });

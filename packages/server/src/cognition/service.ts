@@ -10,7 +10,7 @@ import type { Handler, CognitionStatus } from './types.js';
 export interface CognitionService {
   register(handler: Handler): void;
   start(): void;
-  stop(): void;
+  stop(): Promise<void>;
   pause(): void;
   resume(): void;
   status(): CognitionStatus;
@@ -45,10 +45,10 @@ export function createCognitionService(deps: Deps): CognitionService {
       queue.start();
       heartbeat = startHeartbeat({ dispatcher, store });
     },
-    stop() {
+    async stop() {
       heartbeat?.stop();
       heartbeat = null;
-      queue.stop();
+      await queue.stop();
     },
     pause() {
       store.pause(Date.now());

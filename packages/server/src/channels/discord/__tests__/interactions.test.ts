@@ -416,4 +416,16 @@ describe('routeInteraction — /heartbeat', () => {
     expect(cognitionService.resume).toHaveBeenCalled();
     expect((ixn.reply as any).mock.calls[0][0].content).toContain('resumed');
   });
+
+  it('unknown subcommand: ephemeral reply so Discord does not show "did not respond"', async () => {
+    const cognitionService = makeCogService();
+    const deps = makeDeps({ cognitionService });
+    const ixn = makeSlash({ options: { getSubcommand: vi.fn().mockReturnValue('bogus'), getString: vi.fn() } });
+    await routeInteraction(ixn, deps);
+    expect(cognitionService.pause).not.toHaveBeenCalled();
+    expect(cognitionService.resume).not.toHaveBeenCalled();
+    const arg = (ixn.reply as any).mock.calls[0][0];
+    expect(arg.flags).toBeDefined();
+    expect(arg.content).toContain('bogus');
+  });
 });

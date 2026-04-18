@@ -1241,6 +1241,46 @@ describe('cognition_publish handling', () => {
     expect(markPublished).toHaveBeenCalledWith(7, expect.any(Number));
     await stop();
   });
+
+  it('markPublished is called exactly once per run even with multiple whitelisted users', async () => {
+    const client = makeFakeClient();
+    const bus = new EventEmitter();
+    const dmSend = vi.fn().mockResolvedValue(undefined);
+    const fetchUser = vi.fn().mockImplementation(async () => ({
+      createDM: vi.fn().mockResolvedValue({ send: dmSend }),
+    }));
+    (client as any).users = { fetch: fetchUser };
+    const markPublished = vi.fn();
+
+    const { stop } = await startDiscordBot({
+      token: 'test', whitelist: new Set(['a', 'b', 'c']),
+      runChatRequest: vi.fn(),
+      db: makeFakeDb() as any, historyLimit: 10, saveMessage: vi.fn(),
+      memoryService: null, _client: client,
+      reminderBus: bus,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      permissionService: { hasPending: vi.fn(), resolveConfirm: vi.fn() } as any,
+      planReviewService: { hasPending: vi.fn(), resolveReview: vi.fn() } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]), revokePermissionRule: vi.fn(),
+      } as any,
+      cognitionService: {
+        register: vi.fn(), start: vi.fn(), stop: vi.fn(),
+        pause: vi.fn(), resume: vi.fn(),
+        status: vi.fn(), markPublished,
+      } as any,
+    });
+
+    bus.emit('push', { type: 'cognition_publish', runId: 42, handler: 'h', content: 'x' });
+    // 3 fetch → createDM → send → mark chains; flush enough microtasks.
+    for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+
+    expect(dmSend).toHaveBeenCalledTimes(3);
+    expect(markPublished).toHaveBeenCalledTimes(1);
+    expect(markPublished).toHaveBeenCalledWith(42, expect.any(Number));
+    await stop();
+  });
 });
 
 describe('sendReply', () => {

@@ -323,5 +323,11 @@ async function routeSlashCommand(
       await (ixn as any).reply({ flags: MessageFlags.Ephemeral, content: '🫀 Heartbeat resumed.' });
       return;
     }
+    // Unknown subcommand: Discord otherwise shows "The application did not
+    // respond" after 3 seconds because the interaction token is never acked.
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: `Unknown /heartbeat subcommand: \`${sub}\`.`,
+    });
   }
 }
