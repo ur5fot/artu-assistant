@@ -5,6 +5,8 @@ export type {
   SSEEvent,
   ToolContext,
   PlanReviewResponse,
+  MemoryConfirmPayload,
+  MemoryConfirmResponse,
   ToolDefinition,
   RecalledFact,
   ReminderInfo,

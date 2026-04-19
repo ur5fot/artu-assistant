@@ -44,6 +44,9 @@ export interface ToolResult {
 export interface ToolContext {
   onProgress?: (message: string) => void;
   requestPlanReview?: (plan: string) => Promise<PlanReviewResponse>;
+  requestMemoryConfirm?: (
+    payload: Omit<MemoryConfirmPayload, 'id'>,
+  ) => Promise<MemoryConfirmResponse>;
   signal?: AbortSignal;
   meta?: { autoMode?: boolean; callId?: string };
 }
@@ -51,6 +54,20 @@ export interface ToolContext {
 export interface PlanReviewResponse {
   approved: boolean;
   editedPlan?: string;
+}
+
+export interface MemoryConfirmPayload {
+  id: string;
+  tool: 'memory_forget' | 'memory_update' | 'memory_forget_last';
+  preview: string;
+  editableField: 'query' | 'newValue' | null;
+  initialValue: string | null;
+  params: Record<string, unknown>;
+}
+
+export interface MemoryConfirmResponse {
+  approved: boolean;
+  editedParams?: Record<string, unknown>;
 }
 
 export interface ToolDefinition {
@@ -86,6 +103,7 @@ export type SSEEvent =
   | { type: 'tool_call_start'; toolCall: ToolCall }
   | { type: 'tool_progress'; id: string; message: string }
   | { type: 'tool_plan_review'; id: string; task: string; plan: string }
+  | { type: 'tool_memory_confirm'; payload: MemoryConfirmPayload }
   | { type: 'tool_call_result'; id: string; result: ToolResult }
   | { type: 'tool_confirm_request'; toolCall: ToolCall; level: 'confirm' | 'forbidden'; destructiveWarning?: { reason: string } }
   | { type: 'pii_masked'; entities: Array<{ type: string; original: string }> }

@@ -4,6 +4,7 @@ import type { ClaudeClient } from './claude.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { PendingConfirms } from '../routes/confirm.js';
 import type { PendingPlanReviews } from '../routes/plan-review.js';
+import type { PendingMemoryConfirms } from '../routes/memory-confirm.js';
 import { toClaudeTool } from '../tools/base.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import { executeToolWithPermission, deanonDeep } from './tool-helpers.js';
@@ -18,6 +19,7 @@ interface ToolLoopParams {
   signal?: AbortSignal;
   pendingConfirms?: PendingConfirms;
   pendingPlanReviews?: PendingPlanReviews;
+  pendingMemoryConfirms?: PendingMemoryConfirms;
   piiProxy: PiiProxy;
 }
 
@@ -29,6 +31,7 @@ export async function runToolLoop({
   signal,
   pendingConfirms = new Map(),
   pendingPlanReviews = new Map(),
+  pendingMemoryConfirms = new Map(),
   piiProxy,
 }: ToolLoopParams): Promise<void> {
   const allTools = registry.getForProvider('claude');
@@ -128,6 +131,7 @@ export async function runToolLoop({
         onEvent,
         pendingConfirms,
         pendingPlanReviews,
+        pendingMemoryConfirms,
         piiProxy,
         signal,
       });

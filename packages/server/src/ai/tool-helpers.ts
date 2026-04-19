@@ -1,6 +1,16 @@
-import type { SSEEvent, ToolCall, ToolResult, ToolContext, ToolDefinition, PlanReviewResponse } from '@r2/shared';
+import type {
+  SSEEvent,
+  ToolCall,
+  ToolResult,
+  ToolContext,
+  ToolDefinition,
+  PlanReviewResponse,
+  MemoryConfirmPayload,
+  MemoryConfirmResponse,
+} from '@r2/shared';
 import type { ConfirmResponse, PendingConfirms } from '../routes/confirm.js';
 import type { PendingPlanReviews } from '../routes/plan-review.js';
+import type { PendingMemoryConfirms } from '../routes/memory-confirm.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import { logToolCall, getPermissionRule, savePermissionRule } from '../db.js';
 import { anonymizeJsonStringLeaves } from '../pii/anonymize-tree.js';
@@ -70,17 +80,43 @@ export function createPlanReviewRequester(
   });
 }
 
+export function createMemoryConfirmRequester(
+  callId: string,
+  onEvent: (event: SSEEvent) => void,
+  pendingMemoryConfirms: PendingMemoryConfirms,
+  signal?: AbortSignal,
+): (payload: Omit<MemoryConfirmPayload, 'id'>) => Promise<MemoryConfirmResponse> {
+  return (payload) => new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve({ approved: false });
+      return;
+    }
+    const onAbort = () => {
+      pendingMemoryConfirms.delete(callId);
+      resolve({ approved: false });
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    pendingMemoryConfirms.set(callId, (response) => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve(response);
+    });
+    onEvent({ type: 'tool_memory_confirm', payload: { id: callId, ...payload } });
+  });
+}
+
 export function buildToolContext(
   blockId: string,
   task: string,
   autoMode: boolean,
   onEvent: (event: SSEEvent) => void,
   pendingPlanReviews: PendingPlanReviews,
+  pendingMemoryConfirms: PendingMemoryConfirms,
   signal?: AbortSignal,
 ): ToolContext {
   return {
     onProgress: (message) => onEvent({ type: 'tool_progress', id: blockId, message }),
     requestPlanReview: createPlanReviewRequester(blockId, task, onEvent, pendingPlanReviews, signal),
+    requestMemoryConfirm: createMemoryConfirmRequester(blockId, onEvent, pendingMemoryConfirms, signal),
     signal,
     meta: { autoMode, callId: blockId },
   };
@@ -98,10 +134,21 @@ export async function executeToolWithPermission(params: {
   onEvent: (event: SSEEvent) => void;
   pendingConfirms: PendingConfirms;
   pendingPlanReviews: PendingPlanReviews;
+  pendingMemoryConfirms: PendingMemoryConfirms;
   piiProxy: PiiProxy;
   signal?: AbortSignal;
 }): Promise<{ result: ToolResult; clientResult: ToolResult }> {
-  const { toolDef, blockId, input, onEvent, pendingConfirms, pendingPlanReviews, piiProxy, signal } = params;
+  const {
+    toolDef,
+    blockId,
+    input,
+    onEvent,
+    pendingConfirms,
+    pendingPlanReviews,
+    pendingMemoryConfirms,
+    piiProxy,
+    signal,
+  } = params;
 
   const toolCall: ToolCall = {
     id: blockId,
@@ -164,7 +211,7 @@ export async function executeToolWithPermission(params: {
     if (allowed) {
       try {
         const task = typeof input.task === 'string' ? input.task : '';
-        const ctx = buildToolContext(blockId, task, autoMode, onEvent, pendingPlanReviews, signal);
+        const ctx = buildToolContext(blockId, task, autoMode, onEvent, pendingPlanReviews, pendingMemoryConfirms, signal);
         result = await toolDef.handler(input, ctx);
       } catch (err) {
         result = { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
@@ -176,7 +223,7 @@ export async function executeToolWithPermission(params: {
     // permissionLevel === 'auto'
     try {
       const task = typeof input.task === 'string' ? input.task : '';
-      const ctx = buildToolContext(blockId, task, false, onEvent, pendingPlanReviews, signal);
+      const ctx = buildToolContext(blockId, task, false, onEvent, pendingPlanReviews, pendingMemoryConfirms, signal);
       result = await toolDef.handler(input, ctx);
     } catch (err) {
       result = { success: false, error: err instanceof Error ? err.message : 'Unknown error' };

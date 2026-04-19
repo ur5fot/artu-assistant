@@ -2,6 +2,7 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { SSEEvent, ToolDefinition } from '@r2/shared';
 import type { PendingConfirms } from '../routes/confirm.js';
 import type { PendingPlanReviews } from '../routes/plan-review.js';
+import type { PendingMemoryConfirms } from '../routes/memory-confirm.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import type { OllamaClient, OllamaToolCall } from './ollama.js';
 import { toOllamaToolDef } from './ollama.js';
@@ -21,6 +22,7 @@ interface OllamaToolLoopParams {
   signal?: AbortSignal;
   pendingConfirms: PendingConfirms;
   pendingPlanReviews: PendingPlanReviews;
+  pendingMemoryConfirms: PendingMemoryConfirms;
   piiProxy: PiiProxy;
   /** Tool calls from the initial Ollama response — avoids a redundant chat() call. */
   initialToolCalls?: OllamaToolCall[];
@@ -45,7 +47,17 @@ interface OllamaToolResultMessage {
 type OllamaLoopMessage = MessageParam | OllamaToolResultMessage;
 
 export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<OllamaToolLoopResult> {
-  const { ollama, tools, system, onEvent, signal, pendingConfirms, pendingPlanReviews, piiProxy } = params;
+  const {
+    ollama,
+    tools,
+    system,
+    onEvent,
+    signal,
+    pendingConfirms,
+    pendingPlanReviews,
+    pendingMemoryConfirms,
+    piiProxy,
+  } = params;
 
   const ollamaTools = tools.map(toOllamaToolDef);
   const toolMap = new Map(tools.map((t) => [t.name, t]));
@@ -147,6 +159,7 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
         onEvent,
         pendingConfirms,
         pendingPlanReviews,
+        pendingMemoryConfirms,
         piiProxy,
         signal,
       });

@@ -2,6 +2,7 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { SSEEvent } from '@r2/shared';
 import type { PendingConfirms } from '../routes/confirm.js';
 import type { PendingPlanReviews } from '../routes/plan-review.js';
+import type { PendingMemoryConfirms } from '../routes/memory-confirm.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import type { OllamaClient } from './ollama.js';
 import type { ToolRegistry } from '../tools/registry.js';
@@ -18,6 +19,7 @@ export interface RunChatRequestParams {
   signal?: AbortSignal;
   pendingConfirms?: PendingConfirms;
   pendingPlanReviews?: PendingPlanReviews;
+  pendingMemoryConfirms?: PendingMemoryConfirms;
   piiProxy: PiiProxy;
   ollama: OllamaClient | null;
   registry: ToolRegistry;
@@ -37,6 +39,7 @@ export interface RunChatRequestParams {
     signal?: AbortSignal;
     pendingConfirms?: PendingConfirms;
     pendingPlanReviews?: PendingPlanReviews;
+    pendingMemoryConfirms?: PendingMemoryConfirms;
     piiProxy: PiiProxy;
   }) => Promise<void>;
 }
@@ -77,6 +80,7 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
     signal: params.signal,
     pendingConfirms: params.pendingConfirms,
     pendingPlanReviews: params.pendingPlanReviews,
+    pendingMemoryConfirms: params.pendingMemoryConfirms,
     piiProxy: params.piiProxy,
   });
 }
@@ -247,6 +251,7 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
         signal: params.signal,
         pendingConfirms: params.pendingConfirms ?? new Map(),
         pendingPlanReviews: params.pendingPlanReviews ?? new Map(),
+        pendingMemoryConfirms: params.pendingMemoryConfirms ?? new Map(),
         piiProxy: params.piiProxy,
         initialToolCalls: ollamaToolCalls,
       });
