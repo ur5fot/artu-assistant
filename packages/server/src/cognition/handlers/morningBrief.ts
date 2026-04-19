@@ -5,7 +5,7 @@ import type { OllamaClient } from '../../ai/ollama.js';
 import {
   composePrompt,
   gatherData,
-  hasUserActivityToday,
+  hasUserActivitySince,
   isSameLocalDate,
   getLocalCivilEpoch,
 } from './morningBrief.helpers.js';
@@ -38,7 +38,7 @@ export function createMorningBriefHandler(deps: Deps): Handler {
         state.lastFiredAt !== null &&
         isSameLocalDate(state.lastFiredAt, state.now, TZ);
       if (publishedToday) return false;
-      return hasUserActivityToday(ctx.db, state.now, TZ);
+      return hasUserActivitySince(ctx.db, sixAmLocal);
     },
     async run(ctx) {
       try {
