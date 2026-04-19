@@ -226,6 +226,9 @@ async function routeButton(
     if (action === 'approve' || action === 'deny') {
       const approved = action === 'approve';
       const result = deps.memoryConfirmService.resolve(rawIdValue, approved);
+      // Clean up the prefill map immediately on approve/deny — otherwise the
+      // entry sits around until the request's finally block runs.
+      deps.memoryConfirmInitialValues?.delete(rawIdValue);
       const currentContent = (ixn as any).message?.content ?? '';
       const suffix = result.ok
         ? approved
@@ -307,6 +310,21 @@ async function routeModalSubmit(
     [field]: value,
   });
   deps.memoryConfirmInitialValues?.delete(callId);
+  // Update the original confirm DM so its buttons are cleared and the
+  // embed reflects the resolved state. Without this, the original message
+  // keeps showing Approve/Edit/Deny buttons even after the modal resolved it.
+  const originalMessage = (ixn as any).message;
+  if (originalMessage && typeof originalMessage.edit === 'function') {
+    const currentContent = originalMessage.content ?? '';
+    const suffix = result.ok
+      ? `\n\n✅ Approved (edited: ${field}="${value}")`
+      : '\n\n⚠️ Expired';
+    try {
+      await originalMessage.edit({ content: currentContent + suffix, components: [] });
+    } catch {
+      // original message gone or no permission — ignore
+    }
+  }
   await (ixn as any).reply({
     flags: MessageFlags.Ephemeral,
     content: result.ok

@@ -310,15 +310,15 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
     async updateFact(params) {
       const { key, newValue, sourceMessageId } = params;
       const existing = findActiveFactByKey(db, key);
-      if (!existing) return { error: 'no active fact', key };
+      if (!existing) return { error: `Не знайдено активного факту "${key}"`, key };
       const normalizedValue = newValue
         .replace(/[\u0000-\u001f\u007f]/g, ' ')
         .trim()
         .replace(/\s+/g, ' ');
-      if (!normalizedValue) return { error: 'empty new value', key };
+      if (!normalizedValue) return { error: 'Порожнє нове значення', key };
       const factText = `${key}: ${normalizedValue}`;
       const vec = await safeEmbed(factText);
-      if (!vec) return { error: 'embedding failed', key };
+      if (!vec) return { error: 'Не вдалося отримати embedding', key };
       try {
         insertOrSupersedeFact(db, {
           key,
@@ -330,7 +330,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
         });
       } catch (err) {
         console.warn('[memory] updateFact insert failed:', err instanceof Error ? err.message : err);
-        return { error: 'insert failed', key };
+        return { error: 'Не вдалося зберегти оновлення', key };
       }
       return { updated: { key, oldValue: existing.value, newValue: normalizedValue } };
     },

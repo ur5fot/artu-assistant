@@ -237,7 +237,9 @@ data: { "type": "done" }
 | /тести | eval_run | Запустити всі поведінкові тести |
 | /память | memory_search | Пошук у пам'яті R2 |
 | /запам'ятай | memory_remember | Зберегти факт з importance=10 |
-| /забудь | memory_forget | Позначити факт як забутий |
+| /забудь | memory_forget | Позначити факт як забутий (через confirm-dialog) |
+| — | memory_update | Оновити значення існуючого факту (через confirm-dialog з Edit) |
+| — | memory_forget_last | Забути факти, витягнуті з попереднього повідомлення (через confirm-dialog) |
 | /клод-промпт | prompt_overlay_claude | Надстройка системного промпту Claude |
 | /лама-промпт | prompt_overlay_ollama | Надстройка системного промпту Ollama |
 | /нагадай | reminder_create | Створити нагадування (once / daily / weekly / monthly) |
@@ -396,7 +398,14 @@ Setup requires an extra Ollama model pull: `ollama pull nomic-embed-text`. Memor
 Slash commands:
 - `/память <query>` — semantic search across stored memories (`memory_search` tool).
 - `/запам'ятай <text>` — store a fact with `importance=10` (protected from decay). Supports `key: value` syntax; otherwise stored as `user.note.<id>`.
-- `/забудь <key or text>` — marks a fact as `forgotten=1` (raw history preserved). Works by exact key or via search fallback.
+- `/забудь <key or text>` — marks a fact as `forgotten=1` (raw history preserved). Works by exact key or via search fallback. Gated by a confirm-dialog with edit.
+
+Memory editing tools (confirm-gated, no slash form — invoked by the LLM):
+- `memory_forget` — mark a fact as forgotten. Confirm dialog shows preview; Edit button lets the user tweak the query before apply.
+- `memory_update` — replace the value of an existing fact (new row supersedes old). Confirm dialog shows `key → newValue`; Edit button lets the user edit `newValue`.
+- `memory_forget_last` — forget all facts extracted from the user's previous message. Dry-run preview shown in the confirm dialog; no editable field. Uses `memory_facts.source_message_id` (populated by `indexTurn`) to find the previous turn's facts.
+
+All three emit a `tool_memory_confirm` SSE event; Discord renders an ephemeral embed with Approve / Edit & approve / Deny buttons. Pending confirms are held in `pendingMemoryConfirms` (`routes/memory-confirm.ts`) and resolved via `memoryConfirmService` (`services/memory-confirm-service.ts`).
 
 Importance + decay:
 - Facts have `importance` (1 = auto-extractor default, 10 = explicit `/запам'ятай` or keyword-triggered). Keywords: `важливо`, `запам'ятай`, `запомни`, `не забудь`, `don't forget`, `important`.
@@ -542,6 +551,7 @@ Available in DM with the bot:
 - `reminder_ring` → embed with "Dismiss" / "Snooze 10m" buttons
 - `tool_confirm_request` → embed with "Allow once" / "Allow always" / "Deny" buttons
 - `tool_plan_review` → multi-chunk plan + "Approve" / "Reject" buttons
+- `tool_memory_confirm` → ephemeral message with "✅ Approve" / "✏️ Edit & approve" / "❌ Deny" buttons; Edit opens a modal (`memconfirm_modal:<callId>:<field>`) prefilled with the current query/newValue. `memory_forget_last` has no editable field — approve/deny only.
 - `tool_call_start` → 🔧 + tool name in "running" state (gray). Edited in place as the call progresses: `tool_progress` → debounced "progress" edit (800 ms), `tool_call_result` → ✅ "done" (green) or ❌ "error" (red). `SILENT_TOOLS` (`memory_search`, `memory_save`, `router`) skip the embed to avoid DM noise.
 - `code_task` result → structured embed (Task / Commit / Files / duration) plus a `code_task_<shortSha|callId>.diff` file attachment. Attachments > 24 MB are replaced by a `⚠️ diff too large to attach` notice.
 - Ollama → Claude escalation → the next assistant message is prefixed with `🔵 claude\n\n` on the first flush after the `assistant_source` switch.

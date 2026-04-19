@@ -319,7 +319,7 @@ export function createMemoryUpdateTool(deps: { memoryService: MemoryServiceLike 
         }
       }
 
-      const sourceMessageId = (ctx as { currentUserMessageId?: string } | undefined)?.currentUserMessageId ?? null;
+      const sourceMessageId = ctx?.currentUserMessageId ?? null;
       try {
         const result = await deps.memoryService.updateFact({
           key,
@@ -361,8 +361,7 @@ export function createMemoryForgetLastTool(deps: { memoryService: MemoryServiceL
       if (!deps.memoryService || typeof deps.memoryService.forgetLast !== 'function') {
         return { success: false, error: 'Memory service is disabled' };
       }
-      const currentMessageTimestamp =
-        (ctx as { currentUserMessageTimestamp?: number } | undefined)?.currentUserMessageTimestamp ?? Date.now();
+      const currentMessageTimestamp = ctx?.currentUserMessageTimestamp ?? Date.now();
 
       // Dry-run so the user sees the exact facts in the confirm dialog before
       // anything is marked forgotten. markFactForgotten is not reversible via
@@ -377,7 +376,7 @@ export function createMemoryForgetLastTool(deps: { memoryService: MemoryServiceL
         };
       }
       if (dry.forgotten.length === 0) {
-        return { success: false, error: dry.reason ?? 'Нічого забувати' };
+        return { success: false, error: 'Нічого забувати' };
       }
 
       if (ctx?.requestMemoryConfirm) {
@@ -397,7 +396,7 @@ export function createMemoryForgetLastTool(deps: { memoryService: MemoryServiceL
       try {
         const result = await deps.memoryService.forgetLast({ currentMessageTimestamp });
         if (result.forgotten.length === 0) {
-          return { success: false, error: result.reason ?? 'Нічого забувати' };
+          return { success: false, error: 'Нічого забувати' };
         }
         const lines = result.forgotten.map((f) => `${f.key} = ${f.value}`);
         return {

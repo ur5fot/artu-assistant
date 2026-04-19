@@ -283,7 +283,7 @@ describe('MemoryService', () => {
         extractorModel: 'qwen2.5:7b',
       });
       const res = await svc.updateFact({ key: 'user.missing', newValue: 'x', sourceMessageId: 'M' });
-      expect(res).toEqual({ error: 'no active fact', key: 'user.missing' });
+      expect(res).toEqual({ error: 'Не знайдено активного факту "user.missing"', key: 'user.missing' });
     });
 
     it('returns error for empty new value', async () => {
@@ -295,7 +295,7 @@ describe('MemoryService', () => {
       });
       await svc.saveFact({ key: 'user.age', value: '42', importance: 5, timestamp: 1000 });
       const res = await svc.updateFact({ key: 'user.age', newValue: '   ', sourceMessageId: 'M' });
-      expect(res).toEqual({ error: 'empty new value', key: 'user.age' });
+      expect(res).toEqual({ error: 'Порожнє нове значення', key: 'user.age' });
     });
   });
 

@@ -16,13 +16,12 @@ function makeMemoryService(overrides: Record<string, unknown> = {}) {
     updateFact: vi.fn(async ({ key, newValue }: { key: string; newValue: string }) => ({
       updated: { key, oldValue: '42', newValue },
     })),
-    forgetLast: vi.fn(async ({ dryRun }: { currentMessageTimestamp: number; dryRun?: boolean }) => ({
+    forgetLast: vi.fn(async (_params: { currentMessageTimestamp: number; dryRun?: boolean }) => ({
       forgotten: [
         { id: 2, key: 'user.x', value: 'y' },
         { id: 3, key: 'user.z', value: 'w' },
       ],
       sourceMessageId: 'M_prev',
-      ...(dryRun ? {} : {}),
     })),
     ...overrides,
   };
@@ -171,10 +170,9 @@ describe('memory_forget_last', () => {
   });
 
   it('on deny, does not mark forgotten', async () => {
-    const forgetLast = vi.fn(async ({ dryRun }: { currentMessageTimestamp: number; dryRun?: boolean }) => ({
+    const forgetLast = vi.fn(async (_params: { currentMessageTimestamp: number; dryRun?: boolean }) => ({
       forgotten: [{ id: 2, key: 'user.x', value: 'y' }],
       sourceMessageId: 'M_prev',
-      ...(dryRun ? {} : {}),
     }));
     const memoryService = makeMemoryService({ forgetLast });
     const tool = createMemoryForgetLastTool({ memoryService });
