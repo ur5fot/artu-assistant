@@ -372,7 +372,7 @@ git commit -m "feat(memory): source_message_id persistence + lookup helpers"
 
 **Why:** Extractor должен ставить facts с source_message_id текущего user-сообщения. Без этого forget_last не работает.
 
-- [ ] **Step 1: Добавить failing тест в service.test.ts**
+- [x] **Step 1: Добавить failing тест в service.test.ts**
 
 В `packages/server/src/memory/__tests__/service.test.ts` (или соответствующий):
 
@@ -406,13 +406,13 @@ it('indexTurn passes userMessageId to insertOrSupersedeFact', async () => {
 
 **Note:** если существующий `service.test.ts` стабит ollama/embed иначе — перепиши этот тест в его стиле. Суть: `indexTurn` с новым полем `userMessageId` должен попасть в `source_message_id` колонку.
 
-- [ ] **Step 2: Run test — expect FAIL (new field not supported)**
+- [x] **Step 2: Run test — expect FAIL (new field not supported)**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/memory/__tests__/service.test.ts -t "userMessageId"
 ```
 
-- [ ] **Step 3: Обновить service signature**
+- [x] **Step 3: Обновить service signature**
 
 В `packages/server/src/memory/service.ts`:
 
@@ -448,7 +448,7 @@ async function runIndexTurn(params: {
 }
 ```
 
-- [ ] **Step 4: Обновить callers**
+- [x] **Step 4: Обновить callers**
 
 В `packages/server/src/channels/discord/bot.ts` — найди блок saveMessage({messageId: crypto.randomUUID(), role: 'user', ...}) перед `indexTurn`. Захвати UUID в переменную:
 
@@ -466,7 +466,7 @@ deps.memoryService.indexTurn({
 
 В `packages/server/src/routes/chat.ts` — то же: найди `saveMessage({messageId: crypto.randomUUID(), role: 'user', ...})` и `indexTurn(...)`. Рефакторь так же чтобы передать один и тот же `userMessageId`.
 
-- [ ] **Step 5: Run tests — expect PASS**
+- [x] **Step 5: Run tests — expect PASS**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/memory
@@ -476,13 +476,13 @@ npx vitest run --root packages/server packages/server/src/routes
 
 Все зелёные. Если тесты бота или роута чата вызывают `indexTurn` без нового поля — обнови мок/spy.
 
-- [ ] **Step 6: Typecheck**
+- [x] **Step 6: Typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/server
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/memory packages/server/src/channels/discord/bot.ts packages/server/src/routes/chat.ts

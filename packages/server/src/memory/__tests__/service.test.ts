@@ -42,6 +42,7 @@ describe('MemoryService', () => {
 
     await svc.indexTurn({
       userMessage: 'привіт',
+      userMessageId: 'msg-1',
       assistantMessage: 'вітаю',
       timestamp: 1000,
     });
@@ -65,6 +66,7 @@ describe('MemoryService', () => {
 
     await svc.indexTurn({
       userMessage: 'мене звати Діма',
+      userMessageId: 'msg-1',
       assistantMessage: 'приємно познайомитись',
       timestamp: 1000,
     });
@@ -73,6 +75,31 @@ describe('MemoryService', () => {
     expect(facts).toEqual([
       expect.objectContaining({ key: 'user.name', value: 'Діма' }),
     ]);
+  });
+
+  it('indexTurn passes userMessageId to insertOrSupersedeFact', async () => {
+    mockOllama.chat.mockResolvedValue({
+      text: '[{"key":"user.x","value":"y","importance":5}]',
+    });
+
+    const svc = createMemoryService({
+      db: getDb(),
+      embeddings: mockEmbeddings as any,
+      ollama: mockOllama as any,
+      extractorModel: 'qwen2.5:7b',
+    });
+
+    await svc.indexTurn({
+      userMessage: 'катаюсь на велике',
+      userMessageId: 'msg-abc',
+      assistantMessage: 'ок',
+      timestamp: 1000,
+    });
+
+    const row = getDb()
+      .prepare("SELECT source_message_id FROM memory_facts WHERE key = 'user.x'")
+      .get() as { source_message_id: string } | undefined;
+    expect(row?.source_message_id).toBe('msg-abc');
   });
 
   it('indexTurn does not throw when embeddings fail', async () => {
@@ -85,6 +112,7 @@ describe('MemoryService', () => {
     });
     await expect(svc.indexTurn({
       userMessage: 'x',
+      userMessageId: 'msg-1',
       assistantMessage: 'y',
       timestamp: 1000,
     })).resolves.not.toThrow();
@@ -115,6 +143,7 @@ describe('MemoryService', () => {
 
     await svc.indexTurn({
       userMessage: 'я з Одеси',
+      userMessageId: 'msg-1',
       assistantMessage: 'круто',
       timestamp: Date.now(),
     });

@@ -321,8 +321,9 @@ export async function startDiscordBot(
       const contextBudget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? budgetRaw : 60000;
       const messages: MessageParam[] = truncateMessages(built, contextBudget);
 
+      const userMessageId = crypto.randomUUID();
       deps.saveMessage({
-        messageId: crypto.randomUUID(),
+        messageId: userMessageId,
         role: 'user',
         content: msg.content,
         timestamp: Date.now(),
@@ -557,6 +558,7 @@ export async function startDiscordBot(
           deps.memoryService
             .indexTurn({
               userMessage: msg.content,
+              userMessageId,
               assistantMessage: assistantText,
               timestamp: Date.now(),
             })

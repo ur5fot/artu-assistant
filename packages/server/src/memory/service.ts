@@ -41,6 +41,7 @@ export interface ContextPrefixResult {
 export interface MemoryService {
   indexTurn(params: {
     userMessage: string;
+    userMessageId: string;
     assistantMessage: string;
     timestamp: number;
   }): Promise<void>;
@@ -134,10 +135,11 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
 
   async function runIndexTurn(params: {
     userMessage: string;
+    userMessageId: string;
     assistantMessage: string;
     timestamp: number;
   }): Promise<void> {
-      const { userMessage, assistantMessage, timestamp } = params;
+      const { userMessage, userMessageId, assistantMessage, timestamp } = params;
 
       // Tool results are intentionally NOT indexed: tools like code_task/file_read/bash
       // bypass the PII proxy, so their raw outputs can carry unmasked secrets, diffs,
@@ -173,6 +175,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
             createdAt: timestamp,
             embedding: vec,
             importance: fact.importance,
+            sourceMessageId: userMessageId,
           });
         } catch (err) {
           console.warn('[memory] insertFact failed:', err instanceof Error ? err.message : err);

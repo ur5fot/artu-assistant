@@ -257,10 +257,13 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
     const originalUserText = lastMsg && lastMsg.role === 'user' && typeof lastMsg.content === 'string'
       ? lastMsg.content
       : '';
+    let userMessageId: string | null = null;
     if (lastMsg && lastMsg.role === 'user') {
+      const id = lastMsg.id || crypto.randomUUID();
+      userMessageId = id;
       try {
         saveMessage({
-          messageId: lastMsg.id || crypto.randomUUID(),
+          messageId: id,
           role: 'user',
           content: lastMsg.content,
           timestamp: lastMsg.timestamp || Date.now(),
@@ -470,10 +473,11 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
               // text is a tool dispatcher, not user content worth recalling.
               // Tool results are also intentionally excluded by the memory
               // service itself — they bypass PII masking and would leak secrets.
-              if (memoryService && originalUserText && !recognizedSlashCommand) {
+              if (memoryService && originalUserText && userMessageId && !recognizedSlashCommand) {
                 memoryService
                   .indexTurn({
                     userMessage: originalUserText,
+                    userMessageId,
                     assistantMessage: assistantText,
                     timestamp: Date.now(),
                   })
