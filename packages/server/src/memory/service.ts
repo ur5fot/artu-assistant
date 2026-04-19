@@ -8,6 +8,9 @@ import {
   touchFactsLastMentioned,
   vectorSearch,
   markFactForgotten,
+  findActiveFactByKey,
+  findFactsBySourceMessageId,
+  findLastUserMessageBefore,
 } from './db.js';
 import { extractFacts, normalizeKey } from './extractor.js';
 
@@ -63,7 +66,25 @@ export interface MemoryService {
 
   forgetFact(params: { query: string }): Promise<ForgetResult>;
 
+  updateFact(params: {
+    key: string;
+    newValue: string;
+    sourceMessageId: string | null;
+  }): Promise<UpdateFactResult>;
+
+  forgetLast(params: { currentMessageTimestamp: number }): Promise<ForgetLastResult>;
+
   buildContextPrefix(userMessage: string, signal?: AbortSignal): Promise<ContextPrefixResult>;
+}
+
+export type UpdateFactResult =
+  | { updated: { key: string; oldValue: string; newValue: string } }
+  | { error: string; key: string };
+
+export interface ForgetLastResult {
+  forgotten: Array<{ id: number; key: string; value: string }>;
+  sourceMessageId: string | null;
+  reason?: string;
 }
 
 export interface ForgottenFact {
@@ -284,6 +305,50 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
         return { forgotten: candidates, candidates: [] };
       }
       return { forgotten: [], candidates };
+    },
+
+    async updateFact(params) {
+      const { key, newValue, sourceMessageId } = params;
+      const existing = findActiveFactByKey(db, key);
+      if (!existing) return { error: 'no active fact', key };
+      const normalizedValue = newValue
+        .replace(/[\u0000-\u001f\u007f]/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+      if (!normalizedValue) return { error: 'empty new value', key };
+      const factText = `${key}: ${normalizedValue}`;
+      const vec = await safeEmbed(factText);
+      if (!vec) return { error: 'embedding failed', key };
+      try {
+        insertOrSupersedeFact(db, {
+          key,
+          value: normalizedValue,
+          createdAt: Date.now(),
+          embedding: vec,
+          importance: existing.importance,
+          sourceMessageId,
+        });
+      } catch (err) {
+        console.warn('[memory] updateFact insert failed:', err instanceof Error ? err.message : err);
+        return { error: 'insert failed', key };
+      }
+      return { updated: { key, oldValue: existing.value, newValue: normalizedValue } };
+    },
+
+    async forgetLast(params) {
+      const prev = findLastUserMessageBefore(db, params.currentMessageTimestamp);
+      if (!prev) return { forgotten: [], sourceMessageId: null, reason: 'no previous user message' };
+      const facts = findFactsBySourceMessageId(db, prev.messageId);
+      if (facts.length === 0) {
+        return { forgotten: [], sourceMessageId: prev.messageId, reason: 'no active facts' };
+      }
+      const forgotten: Array<{ id: number; key: string; value: string }> = [];
+      for (const f of facts) {
+        if (markFactForgotten(db, f.id)) {
+          forgotten.push({ id: f.id, key: f.key, value: f.value });
+        }
+      }
+      return { forgotten, sourceMessageId: prev.messageId };
     },
 
     async getActiveFacts() {

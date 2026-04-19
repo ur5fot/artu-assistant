@@ -499,7 +499,7 @@ git commit -m "feat(memory): thread userMessageId through indexTurn to extractor
 
 **Why:** Business-layer методы используемые LLM tools.
 
-- [ ] **Step 1: Failing тесты**
+- [x] **Step 1: Failing тесты**
 
 ```typescript
 describe('updateFact', () => {
@@ -549,9 +549,9 @@ describe('forgetLast', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
-- [ ] **Step 3: Реализовать в `memory/service.ts`**
+- [x] **Step 3: Реализовать в `memory/service.ts`**
 
 Добавь в interface MemoryService:
 
@@ -603,13 +603,13 @@ async forgetLast(params) {
 },
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/memory
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/memory

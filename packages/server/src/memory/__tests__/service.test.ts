@@ -252,4 +252,124 @@ describe('MemoryService', () => {
     expect(result.forgotten).toEqual([]);
     expect(result.candidates).toEqual([]);
   });
+
+  describe('updateFact', () => {
+    it('supersedes active fact with new value + new sourceMessageId', async () => {
+      const svc = createMemoryService({
+        db: getDb(),
+        embeddings: mockEmbeddings as any,
+        ollama: mockOllama as any,
+        extractorModel: 'qwen2.5:7b',
+      });
+
+      await svc.saveFact({ key: 'user.age', value: '42', importance: 5, timestamp: 1000 });
+
+      const res = await svc.updateFact({ key: 'user.age', newValue: '43', sourceMessageId: 'MSG-X' });
+      expect(res).toEqual({ updated: { key: 'user.age', oldValue: '42', newValue: '43' } });
+
+      const row = getDb()
+        .prepare(
+          "SELECT value, source_message_id FROM memory_facts WHERE key = 'user.age' AND superseded_by IS NULL AND forgotten = 0",
+        )
+        .get() as { value: string; source_message_id: string };
+      expect(row).toEqual({ value: '43', source_message_id: 'MSG-X' });
+    });
+
+    it('returns error when no active fact exists', async () => {
+      const svc = createMemoryService({
+        db: getDb(),
+        embeddings: mockEmbeddings as any,
+        ollama: mockOllama as any,
+        extractorModel: 'qwen2.5:7b',
+      });
+      const res = await svc.updateFact({ key: 'user.missing', newValue: 'x', sourceMessageId: 'M' });
+      expect(res).toEqual({ error: 'no active fact', key: 'user.missing' });
+    });
+
+    it('returns error for empty new value', async () => {
+      const svc = createMemoryService({
+        db: getDb(),
+        embeddings: mockEmbeddings as any,
+        ollama: mockOllama as any,
+        extractorModel: 'qwen2.5:7b',
+      });
+      await svc.saveFact({ key: 'user.age', value: '42', importance: 5, timestamp: 1000 });
+      const res = await svc.updateFact({ key: 'user.age', newValue: '   ', sourceMessageId: 'M' });
+      expect(res).toEqual({ error: 'empty new value', key: 'user.age' });
+    });
+  });
+
+  describe('forgetLast', () => {
+    it('forgets all active facts with sourceMessageId of the most recent user msg before given timestamp', async () => {
+      const svc = createMemoryService({
+        db: getDb(),
+        embeddings: mockEmbeddings as any,
+        ollama: mockOllama as any,
+        extractorModel: 'qwen2.5:7b',
+      });
+      const db = getDb();
+
+      db.prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('M_prev', 'user', 'x', 1000)",
+      ).run();
+      db.prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('M_curr', 'user', 'y', 2000)",
+      ).run();
+
+      // Two facts from M_prev (should be forgotten), one from M_curr (should remain).
+      mockOllama.chat.mockResolvedValue({
+        text: '[{"key":"user.a","value":"alpha"},{"key":"user.b","value":"beta"}]',
+      });
+      await svc.indexTurn({
+        userMessage: 'seed prev',
+        userMessageId: 'M_prev',
+        assistantMessage: 'ok',
+        timestamp: 1000,
+      });
+      mockOllama.chat.mockResolvedValue({
+        text: '[{"key":"user.c","value":"gamma"}]',
+      });
+      await svc.indexTurn({
+        userMessage: 'seed curr',
+        userMessageId: 'M_curr',
+        assistantMessage: 'ok',
+        timestamp: 2000,
+      });
+
+      const res = await svc.forgetLast({ currentMessageTimestamp: 2000 });
+      expect(res.forgotten.length).toBe(2);
+      expect(res.forgotten.map((f) => f.key).sort()).toEqual(['user.a', 'user.b']);
+      expect(res.sourceMessageId).toBe('M_prev');
+
+      const active = await svc.getActiveFacts();
+      expect(active.map((f) => f.key)).toEqual(['user.c']);
+    });
+
+    it('returns empty when no previous user message', async () => {
+      const svc = createMemoryService({
+        db: getDb(),
+        embeddings: mockEmbeddings as any,
+        ollama: mockOllama as any,
+        extractorModel: 'qwen2.5:7b',
+      });
+      const res = await svc.forgetLast({ currentMessageTimestamp: 1000 });
+      expect(res).toEqual({ forgotten: [], sourceMessageId: null, reason: 'no previous user message' });
+    });
+
+    it('returns empty when previous user message has no active facts', async () => {
+      const svc = createMemoryService({
+        db: getDb(),
+        embeddings: mockEmbeddings as any,
+        ollama: mockOllama as any,
+        extractorModel: 'qwen2.5:7b',
+      });
+      getDb()
+        .prepare(
+          "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('M_prev', 'user', 'x', 1000)",
+        )
+        .run();
+      const res = await svc.forgetLast({ currentMessageTimestamp: 2000 });
+      expect(res).toEqual({ forgotten: [], sourceMessageId: 'M_prev', reason: 'no active facts' });
+    });
+  });
 });
