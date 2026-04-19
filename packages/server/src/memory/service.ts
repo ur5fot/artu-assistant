@@ -72,7 +72,7 @@ export interface MemoryService {
     sourceMessageId: string | null;
   }): Promise<UpdateFactResult>;
 
-  forgetLast(params: { currentMessageTimestamp: number }): Promise<ForgetLastResult>;
+  forgetLast(params: { currentMessageTimestamp: number; dryRun?: boolean }): Promise<ForgetLastResult>;
 
   buildContextPrefix(userMessage: string, signal?: AbortSignal): Promise<ContextPrefixResult>;
 }
@@ -341,6 +341,12 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       const facts = findFactsBySourceMessageId(db, prev.messageId);
       if (facts.length === 0) {
         return { forgotten: [], sourceMessageId: prev.messageId, reason: 'no active facts' };
+      }
+      if (params.dryRun) {
+        return {
+          forgotten: facts.map((f) => ({ id: f.id, key: f.key, value: f.value })),
+          sourceMessageId: prev.messageId,
+        };
       }
       const forgotten: Array<{ id: number; key: string; value: string }> = [];
       for (const f of facts) {

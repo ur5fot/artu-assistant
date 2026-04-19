@@ -932,7 +932,7 @@ git commit -m "feat(memory): pendingMemoryConfirms + requester + service"
 
 **Why:** Tool'ы, видимые LLM. `memory_forget` уже есть — меняем его, чтобы перед apply зайти в `ctx.requestMemoryConfirm`. `memory_update` и `memory_forget_last` — новые. Все три — `permissionLevel: 'auto'` (confirm происходит внутри через `requestMemoryConfirm`, не через стандартную permission-dialog).
 
-- [ ] **Step 1: Failing тесты для новых behaviors**
+- [x] **Step 1: Failing тесты для новых behaviors**
 
 В `packages/tool-memory/__tests__/index.test.ts` добавь (или создай если файла нет):
 
@@ -1071,13 +1071,13 @@ describe('memory_forget_last', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL (new tools/logic not defined)**
+- [x] **Step 2: Run — expect FAIL (new tools/logic not defined)**
 
 ```bash
 npx vitest run --root packages/tool-memory
 ```
 
-- [ ] **Step 3: Обновить `packages/tool-memory/src/index.ts`**
+- [x] **Step 3: Обновить `packages/tool-memory/src/index.ts`**
 
 Расширь `MemoryServiceLike`:
 
@@ -1256,7 +1256,7 @@ export function createTool(deps: { memoryService: MemoryServiceLike | null }): T
 }
 ```
 
-- [ ] **Step 4: Реализовать dryRun в `forgetLast` service method**
+- [x] **Step 4: Реализовать dryRun в `forgetLast` service method**
 
 В `packages/server/src/memory/service.ts` обнови signature и implementation `forgetLast`:
 
@@ -1289,20 +1289,20 @@ async forgetLast(params) {
 
 Соответственно обнови MemoryServiceLike в tool-memory с `dryRun?: boolean` полем.
 
-- [ ] **Step 5: Run — expect PASS**
+- [x] **Step 5: Run — expect PASS**
 
 ```bash
 npx vitest run --root packages/tool-memory
 npx vitest run --root packages/server packages/server/src/memory
 ```
 
-- [ ] **Step 6: Typecheck**
+- [x] **Step 6: Typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/server
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/tool-memory packages/server/src/memory

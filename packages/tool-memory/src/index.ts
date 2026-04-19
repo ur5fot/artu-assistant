@@ -21,6 +21,15 @@ interface MemoryServiceLike {
     forgotten: Array<{ id: number; key: string; value: string }>;
     candidates: Array<{ id: number; key: string; value: string }>;
   }>;
+  updateFact?(params: { key: string; newValue: string; sourceMessageId: string | null }): Promise<
+    | { updated: { key: string; oldValue: string; newValue: string } }
+    | { error: string; key: string }
+  >;
+  forgetLast?(params: { currentMessageTimestamp: number; dryRun?: boolean }): Promise<{
+    forgotten: Array<{ id: number; key: string; value: string }>;
+    sourceMessageId: string | null;
+    reason?: string;
+  }>;
 }
 
 const REMEMBER_IMPORTANCE = 10;
@@ -197,7 +206,7 @@ export function createMemoryForgetTool(deps: { memoryService: MemoryServiceLike 
       description: 'Забути факт із пам\'яті',
       params: [{ name: 'query', required: true, description: 'Ключ або опис факту' }],
     },
-    async handler(params: Record<string, unknown>): Promise<ToolResult> {
+    async handler(params, ctx) {
       if (!deps.memoryService || typeof deps.memoryService.forgetFact !== 'function') {
         return { success: false, error: 'Memory service is disabled' };
       }
@@ -205,8 +214,27 @@ export function createMemoryForgetTool(deps: { memoryService: MemoryServiceLike 
       if (!query) {
         return { success: false, error: 'query parameter is required' };
       }
+
+      let effectiveQuery = query;
+      if (ctx?.requestMemoryConfirm) {
+        const response = await ctx.requestMemoryConfirm({
+          tool: 'memory_forget',
+          preview: `Забути: "${query}"`,
+          editableField: 'query',
+          initialValue: query,
+          params: { query },
+        });
+        if (!response.approved) {
+          return { success: false, error: 'Користувач відхилив' };
+        }
+        if (response.editedParams && typeof response.editedParams.query === 'string') {
+          const edited = response.editedParams.query.trim();
+          if (edited) effectiveQuery = edited;
+        }
+      }
+
       try {
-        const result = await deps.memoryService.forgetFact({ query });
+        const result = await deps.memoryService.forgetFact({ query: effectiveQuery });
         if (result.forgotten.length > 0) {
           const lines = result.forgotten.map((f) => `${f.key} = ${f.value}`);
           return {
@@ -231,7 +259,7 @@ export function createMemoryForgetTool(deps: { memoryService: MemoryServiceLike 
         }
         return {
           success: false,
-          error: `Нічого не знайдено для "${query}"`,
+          error: `Нічого не знайдено для "${effectiveQuery}"`,
         };
       } catch (err) {
         return {
@@ -243,11 +271,160 @@ export function createMemoryForgetTool(deps: { memoryService: MemoryServiceLike 
   };
 }
 
+export function createMemoryUpdateTool(deps: { memoryService: MemoryServiceLike | null }): ToolDefinition {
+  return {
+    name: 'memory_update',
+    description: 'Update the value of an existing memory fact. Use when the user corrects a previously stored fact (e.g. "мой возраст не 42 а 43").',
+    permissionLevel: 'auto',
+    provider: 'all',
+    parameters: {
+      type: 'object',
+      properties: {
+        key: {
+          type: 'string',
+          description: 'Exact fact key, e.g. "user.age"',
+        },
+        newValue: {
+          type: 'string',
+          description: 'New value to replace the old one',
+        },
+      },
+      required: ['key', 'newValue'],
+    },
+    async handler(params, ctx) {
+      if (!deps.memoryService || typeof deps.memoryService.updateFact !== 'function') {
+        return { success: false, error: 'Memory service is disabled' };
+      }
+      const key = typeof params.key === 'string' ? params.key.trim() : '';
+      const newValue = typeof params.newValue === 'string' ? params.newValue.trim() : '';
+      if (!key || !newValue) {
+        return { success: false, error: 'key and newValue are required' };
+      }
+
+      let effectiveNewValue = newValue;
+      if (ctx?.requestMemoryConfirm) {
+        const response = await ctx.requestMemoryConfirm({
+          tool: 'memory_update',
+          preview: `Оновити ${key} → "${newValue}"`,
+          editableField: 'newValue',
+          initialValue: newValue,
+          params: { key, newValue },
+        });
+        if (!response.approved) {
+          return { success: false, error: 'Користувач відхилив' };
+        }
+        if (response.editedParams && typeof response.editedParams.newValue === 'string') {
+          const edited = response.editedParams.newValue.trim();
+          if (edited) effectiveNewValue = edited;
+        }
+      }
+
+      const sourceMessageId = (ctx as { currentUserMessageId?: string } | undefined)?.currentUserMessageId ?? null;
+      try {
+        const result = await deps.memoryService.updateFact({
+          key,
+          newValue: effectiveNewValue,
+          sourceMessageId,
+        });
+        if ('error' in result) {
+          return { success: false, error: result.error };
+        }
+        return {
+          success: true,
+          data: result,
+          display: {
+            type: 'text',
+            content: `Оновлено ${result.updated.key}: "${result.updated.oldValue}" → "${result.updated.newValue}"`,
+          },
+        };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'memory_update failed',
+        };
+      }
+    },
+  };
+}
+
+export function createMemoryForgetLastTool(deps: { memoryService: MemoryServiceLike | null }): ToolDefinition {
+  return {
+    name: 'memory_forget_last',
+    description: "Forget all facts extracted from the user's most recent previous message. Use when the user says \"це неправильно\" / \"ерунду запомнил\" / \"забудь що я тільки що сказав\".",
+    permissionLevel: 'auto',
+    provider: 'all',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    async handler(_params, ctx) {
+      if (!deps.memoryService || typeof deps.memoryService.forgetLast !== 'function') {
+        return { success: false, error: 'Memory service is disabled' };
+      }
+      const currentMessageTimestamp =
+        (ctx as { currentUserMessageTimestamp?: number } | undefined)?.currentUserMessageTimestamp ?? Date.now();
+
+      // Dry-run so the user sees the exact facts in the confirm dialog before
+      // anything is marked forgotten. markFactForgotten is not reversible via
+      // the service API, so we never mutate rows until the user approves.
+      let dry;
+      try {
+        dry = await deps.memoryService.forgetLast({ currentMessageTimestamp, dryRun: true });
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'memory_forget_last failed',
+        };
+      }
+      if (dry.forgotten.length === 0) {
+        return { success: false, error: dry.reason ?? 'Нічого забувати' };
+      }
+
+      if (ctx?.requestMemoryConfirm) {
+        const previewItems = dry.forgotten.map((f) => `${f.key}=${f.value}`).join(', ');
+        const response = await ctx.requestMemoryConfirm({
+          tool: 'memory_forget_last',
+          preview: `Забути ${dry.forgotten.length} факт(и): ${previewItems}`,
+          editableField: null,
+          initialValue: null,
+          params: {},
+        });
+        if (!response.approved) {
+          return { success: false, error: 'Користувач відхилив' };
+        }
+      }
+
+      try {
+        const result = await deps.memoryService.forgetLast({ currentMessageTimestamp });
+        if (result.forgotten.length === 0) {
+          return { success: false, error: result.reason ?? 'Нічого забувати' };
+        }
+        const lines = result.forgotten.map((f) => `${f.key} = ${f.value}`);
+        return {
+          success: true,
+          data: result,
+          display: {
+            type: 'text',
+            content: `Забув: ${lines.join(', ')}`,
+          },
+        };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'memory_forget_last failed',
+        };
+      }
+    },
+  };
+}
+
 export function createTool(deps: { memoryService: MemoryServiceLike | null }): ToolDefinition[] {
   return [
     createMemorySearchTool(deps),
     createMemoryRememberTool(deps),
     createMemoryForgetTool(deps),
+    createMemoryUpdateTool(deps),
+    createMemoryForgetLastTool(deps),
   ];
 }
 

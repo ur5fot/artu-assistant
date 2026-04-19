@@ -71,12 +71,14 @@ describe('memory_forget tool', () => {
     expect(tool.command?.name).toBe('забудь');
   });
 
-  it('createTool factory returns all three tools', () => {
+  it('createTool factory returns all memory tools', () => {
     const tools = createTool({ memoryService: fakeService() });
     expect(tools.map((t) => t.name).sort()).toEqual([
       'memory_forget',
+      'memory_forget_last',
       'memory_remember',
       'memory_search',
+      'memory_update',
     ]);
   });
 });
