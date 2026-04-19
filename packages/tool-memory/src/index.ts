@@ -16,6 +16,7 @@ interface MemoryServiceLike {
     value: string;
     importance?: number;
     timestamp?: number;
+    sourceMessageId?: string | null;
   }): Promise<{ id: number; key: string; value: string; importance: number } | null>;
   forgetFact?(params: { query: string }): Promise<{
     forgotten: Array<{ id: number; key: string; value: string }>;
@@ -149,7 +150,7 @@ export function createMemoryRememberTool(deps: { memoryService: MemoryServiceLik
       description: 'Запам\'ятати факт назавжди',
       params: [{ name: 'text', required: true, description: 'Що запам\'ятати' }],
     },
-    async handler(params: Record<string, unknown>): Promise<ToolResult> {
+    async handler(params, ctx): Promise<ToolResult> {
       if (!deps.memoryService || typeof deps.memoryService.saveFact !== 'function') {
         return { success: false, error: 'Memory service is disabled' };
       }
@@ -159,10 +160,15 @@ export function createMemoryRememberTool(deps: { memoryService: MemoryServiceLik
       }
       const { key, value } = parseRememberText(text);
       try {
+        // Thread sourceMessageId so memory_forget_last can later locate this
+        // fact by the user message that triggered the remember call. Without
+        // this, the row persists with source_message_id=NULL and is invisible
+        // to memory_forget_last even in the same turn.
         const saved = await deps.memoryService.saveFact({
           key,
           value,
           importance: REMEMBER_IMPORTANCE,
+          sourceMessageId: ctx?.currentUserMessageId ?? null,
         });
         if (!saved) {
           return { success: false, error: 'Не вдалося зберегти факт' };

@@ -102,6 +102,25 @@ describe('MemoryService', () => {
     expect(row?.source_message_id).toBe('msg-abc');
   });
 
+  it('saveFact threads sourceMessageId through to the persisted row', async () => {
+    const svc = createMemoryService({
+      db: getDb(),
+      embeddings: mockEmbeddings as any,
+      ollama: mockOllama as any,
+      extractorModel: 'qwen2.5:7b',
+    });
+    await svc.saveFact({
+      key: 'user.note',
+      value: 'привіт',
+      importance: 10,
+      sourceMessageId: 'MSG-REMEMBER',
+    });
+    const row = getDb()
+      .prepare("SELECT source_message_id FROM memory_facts WHERE key = 'user.note'")
+      .get() as { source_message_id: string } | undefined;
+    expect(row?.source_message_id).toBe('MSG-REMEMBER');
+  });
+
   it('indexTurn does not throw when embeddings fail', async () => {
     mockEmbeddings.embed.mockRejectedValueOnce(new Error('ollama down'));
     const svc = createMemoryService({
@@ -343,6 +362,36 @@ describe('MemoryService', () => {
 
       const active = await svc.getActiveFacts();
       expect(active.map((f) => f.key)).toEqual(['user.c']);
+    });
+
+    it('dryRun returns facts without marking them forgotten', async () => {
+      const svc = createMemoryService({
+        db: getDb(),
+        embeddings: mockEmbeddings as any,
+        ollama: mockOllama as any,
+        extractorModel: 'qwen2.5:7b',
+      });
+      const db = getDb();
+      db.prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('M_prev', 'user', 'x', 1000)",
+      ).run();
+      mockOllama.chat.mockResolvedValue({
+        text: '[{"key":"user.a","value":"alpha"}]',
+      });
+      await svc.indexTurn({
+        userMessage: 'seed',
+        userMessageId: 'M_prev',
+        assistantMessage: 'ok',
+        timestamp: 1000,
+      });
+
+      const preview = await svc.forgetLast({ currentMessageTimestamp: 2000, dryRun: true });
+      expect(preview.forgotten.map((f) => f.key)).toEqual(['user.a']);
+
+      // The fact must still be active — dry-run must not mutate rows, otherwise
+      // cancelling the confirm dialog would silently delete data.
+      const active = await svc.getActiveFacts();
+      expect(active.map((f) => f.key)).toContain('user.a');
     });
 
     it('returns empty when no previous user message', async () => {

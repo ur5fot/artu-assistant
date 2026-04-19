@@ -545,10 +545,13 @@ export async function startDiscordBot(
                     custom_id: `memconfirm:deny:${p.id}`,
                   });
                   const row = { type: 1, components: buttons };
+                  // Set the prefill entry AFTER the send succeeds so a thrown
+                  // send doesn't leave a map entry that the finally-cleanup
+                  // loop (which iterates pendingEmbedMsgs) will never see.
+                  const sent = await dmChannel.send({ content, components: [row] as any });
                   if (p.editableField && typeof p.initialValue === 'string') {
                     memoryConfirmInitialValues.set(p.id, p.initialValue);
                   }
-                  const sent = await dmChannel.send({ content, components: [row] as any });
                   pendingEmbedMsgs.push({
                     callId: p.id,
                     kind: 'memconfirm',

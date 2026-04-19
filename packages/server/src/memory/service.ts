@@ -62,6 +62,7 @@ export interface MemoryService {
     value: string;
     importance?: number;
     timestamp?: number;
+    sourceMessageId?: string | null;
   }): Promise<{ id: number; key: string; value: string; importance: number } | null>;
 
   forgetFact(params: { query: string }): Promise<ForgetResult>;
@@ -254,6 +255,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
           createdAt,
           embedding: vec,
           importance,
+          sourceMessageId: params.sourceMessageId ?? null,
         });
         return { id, key, value, importance };
       } catch (err) {
