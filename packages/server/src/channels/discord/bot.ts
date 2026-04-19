@@ -30,6 +30,8 @@ export interface DiscordBotDeps {
     messages: MessageParam[];
     onEvent: (event: SSEEvent) => void;
     signal?: AbortSignal;
+    currentUserMessageId?: string;
+    currentUserMessageTimestamp?: number;
   }) => Promise<void>;
   db: Database.Database;
   historyLimit: number;
@@ -322,11 +324,12 @@ export async function startDiscordBot(
       const messages: MessageParam[] = truncateMessages(built, contextBudget);
 
       const userMessageId = crypto.randomUUID();
+      const userMessageTimestamp = Date.now();
       deps.saveMessage({
         messageId: userMessageId,
         role: 'user',
         content: msg.content,
-        timestamp: Date.now(),
+        timestamp: userMessageTimestamp,
         source,
       });
 
@@ -373,6 +376,8 @@ export async function startDiscordBot(
           await deps.runChatRequest({
             messages,
             signal: ac.signal,
+            currentUserMessageId: userMessageId,
+            currentUserMessageTimestamp: userMessageTimestamp,
             onEvent: (event: SSEEvent) => {
               sendChain = sendChain.then(async () => {
                 if (event.type === 'text_delta') {

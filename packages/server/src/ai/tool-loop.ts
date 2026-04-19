@@ -21,6 +21,8 @@ interface ToolLoopParams {
   pendingPlanReviews?: PendingPlanReviews;
   pendingMemoryConfirms?: PendingMemoryConfirms;
   piiProxy: PiiProxy;
+  currentUserMessageId?: string;
+  currentUserMessageTimestamp?: number;
 }
 
 export async function runToolLoop({
@@ -33,6 +35,8 @@ export async function runToolLoop({
   pendingPlanReviews = new Map(),
   pendingMemoryConfirms = new Map(),
   piiProxy,
+  currentUserMessageId,
+  currentUserMessageTimestamp,
 }: ToolLoopParams): Promise<void> {
   const allTools = registry.getForProvider('claude');
   const allowedToolMap = new Map(allTools.map((t) => [t.name, t]));
@@ -133,6 +137,8 @@ export async function runToolLoop({
         pendingPlanReviews,
         pendingMemoryConfirms,
         piiProxy,
+        currentUserMessageId,
+        currentUserMessageTimestamp,
         signal,
       });
 

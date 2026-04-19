@@ -5,6 +5,7 @@ import type { ToolCall } from '@r2/shared';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { PendingConfirms } from './confirm.js';
 import type { PendingPlanReviews } from './plan-review.js';
+import type { PendingMemoryConfirms } from './memory-confirm.js';
 import type { PiiProxy } from '../pii/proxy.js';
 import type { OllamaClient } from '../ai/ollama.js';
 import type { ToolRegistry } from '../tools/registry.js';
@@ -219,17 +220,21 @@ interface ChatRouterDeps {
     signal?: AbortSignal;
     pendingConfirms?: PendingConfirms;
     pendingPlanReviews?: PendingPlanReviews;
+    pendingMemoryConfirms?: PendingMemoryConfirms;
     piiProxy: PiiProxy;
+    currentUserMessageId?: string;
+    currentUserMessageTimestamp?: number;
   }) => Promise<void>;
   pendingConfirms: PendingConfirms;
   pendingPlanReviews: PendingPlanReviews;
+  pendingMemoryConfirms?: PendingMemoryConfirms;
   piiProxy: PiiProxy;
   ollama: OllamaClient | null;
   registry: ToolRegistry;
   memoryService: MemoryService | null;
 }
 
-export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, piiProxy, ollama, registry, memoryService }: ChatRouterDeps): Router {
+export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, pendingMemoryConfirms, piiProxy, ollama, registry, memoryService }: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -258,15 +263,18 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
       ? lastMsg.content
       : '';
     let userMessageId: string | null = null;
+    let userMessageTimestamp: number | null = null;
     if (lastMsg && lastMsg.role === 'user') {
       const id = lastMsg.id || crypto.randomUUID();
       userMessageId = id;
+      const ts = lastMsg.timestamp || Date.now();
+      userMessageTimestamp = ts;
       try {
         saveMessage({
           messageId: id,
           role: 'user',
           content: lastMsg.content,
-          timestamp: lastMsg.timestamp || Date.now(),
+          timestamp: ts,
         });
       } catch (err) {
         console.error('Failed to save user message:', err instanceof Error ? err.message : err);
@@ -402,11 +410,14 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         signal: abortController.signal,
         pendingConfirms,
         pendingPlanReviews,
+        pendingMemoryConfirms,
         piiProxy,
         ollama,
         registry,
         memoryService,
         memoryQuery: recognizedSlashCommand ? originalUserText : undefined,
+        currentUserMessageId: userMessageId ?? undefined,
+        currentUserMessageTimestamp: userMessageTimestamp ?? undefined,
         forceProvider,
         runLoop,
         onEvent: (event: SSEEvent) => {

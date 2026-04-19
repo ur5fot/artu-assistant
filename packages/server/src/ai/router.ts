@@ -32,6 +32,11 @@ export interface RunChatRequestParams {
    * of embedding `[User used command /...]` boilerplate.
    */
   memoryQuery?: string;
+  /** Id of the user message triggering this turn — threaded into ToolContext so
+   *  memory tools (memory_update, memory_forget_last) can tag or locate facts
+   *  by source message. */
+  currentUserMessageId?: string;
+  currentUserMessageTimestamp?: number;
   forceProvider?: 'claude';
   runLoop: (params: {
     messages: MessageParam[];
@@ -41,6 +46,8 @@ export interface RunChatRequestParams {
     pendingPlanReviews?: PendingPlanReviews;
     pendingMemoryConfirms?: PendingMemoryConfirms;
     piiProxy: PiiProxy;
+    currentUserMessageId?: string;
+    currentUserMessageTimestamp?: number;
   }) => Promise<void>;
 }
 
@@ -82,6 +89,8 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
     pendingPlanReviews: params.pendingPlanReviews,
     pendingMemoryConfirms: params.pendingMemoryConfirms,
     piiProxy: params.piiProxy,
+    currentUserMessageId: params.currentUserMessageId,
+    currentUserMessageTimestamp: params.currentUserMessageTimestamp,
   });
 }
 
@@ -253,6 +262,8 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
         pendingPlanReviews: params.pendingPlanReviews ?? new Map(),
         pendingMemoryConfirms: params.pendingMemoryConfirms ?? new Map(),
         piiProxy: params.piiProxy,
+        currentUserMessageId: params.currentUserMessageId,
+        currentUserMessageTimestamp: params.currentUserMessageTimestamp,
         initialToolCalls: ollamaToolCalls,
       });
     } catch (err) {

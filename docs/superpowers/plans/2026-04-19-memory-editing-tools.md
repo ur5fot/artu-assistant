@@ -1319,7 +1319,7 @@ git commit -m "feat(tool-memory): forget with confirm + update + forget_last too
 
 **Why:** `memory_update` и `memory_forget_last` нуждаются в id/timestamp текущего user-message — прокидываем через ToolContext.
 
-- [ ] **Step 1: Расширить ToolContext в shared**
+- [x] **Step 1: Расширить ToolContext в shared**
 
 В `packages/shared/src/types.ts`:
 
@@ -1331,7 +1331,7 @@ export interface ToolContext {
 }
 ```
 
-- [ ] **Step 2: Расширить buildToolContext и executeToolWithPermission**
+- [x] **Step 2: Расширить buildToolContext и executeToolWithPermission**
 
 `buildToolContext` принимает новые параметры и ставит их в ctx:
 
@@ -1361,7 +1361,7 @@ export function buildToolContext(
 
 `executeToolWithPermission` получает в params два новых optional поля `currentUserMessageId?: string, currentUserMessageTimestamp?: number` и прокидывает в buildToolContext.
 
-- [ ] **Step 3: Прокинуть через tool-loop.ts**
+- [x] **Step 3: Прокинуть через tool-loop.ts**
 
 В `runToolLoop` — есть доступ к `messages`: последний user-msg можно извлечь. Но message_id в MessageParam нет (это SDK тип). Проще: передать снаружи.
 
@@ -1376,7 +1376,7 @@ await executeToolWithPermission({ ..., currentUserMessageId, currentUserMessageT
 
 Вверх по цепочке — router.ts `runChatRequest` принимает те же параметры. Соответственно каждый caller (`routes/chat.ts`, `channels/discord/bot.ts`) извлекает UUID и timestamp своего только что-созданного user-message и передаёт в `runChatRequest` → router → runLoop.
 
-- [ ] **Step 4: Обновить callers**
+- [x] **Step 4: Обновить callers**
 
 В `packages/server/src/channels/discord/bot.ts`, там где вызывается `runChatRequest(...)`, передай:
 
@@ -1390,19 +1390,19 @@ await runChatRequest({
 
 В `routes/chat.ts` аналогично — захвати timestamp и id user-message до вызова runChatRequest.
 
-- [ ] **Step 5: Run tests — expect PASS**
+- [x] **Step 5: Run tests — expect PASS**
 
 ```bash
 npx vitest run --root packages/server
 ```
 
-- [ ] **Step 6: Typecheck**
+- [x] **Step 6: Typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/server
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/shared packages/server

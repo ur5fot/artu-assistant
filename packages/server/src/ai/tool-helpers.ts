@@ -111,6 +111,8 @@ export function buildToolContext(
   onEvent: (event: SSEEvent) => void,
   pendingPlanReviews: PendingPlanReviews,
   pendingMemoryConfirms: PendingMemoryConfirms,
+  currentUserMessageId: string | undefined,
+  currentUserMessageTimestamp: number | undefined,
   signal?: AbortSignal,
 ): ToolContext {
   return {
@@ -119,6 +121,8 @@ export function buildToolContext(
     requestMemoryConfirm: createMemoryConfirmRequester(blockId, onEvent, pendingMemoryConfirms, signal),
     signal,
     meta: { autoMode, callId: blockId },
+    currentUserMessageId,
+    currentUserMessageTimestamp,
   };
 }
 
@@ -136,6 +140,8 @@ export async function executeToolWithPermission(params: {
   pendingPlanReviews: PendingPlanReviews;
   pendingMemoryConfirms: PendingMemoryConfirms;
   piiProxy: PiiProxy;
+  currentUserMessageId?: string;
+  currentUserMessageTimestamp?: number;
   signal?: AbortSignal;
 }): Promise<{ result: ToolResult; clientResult: ToolResult }> {
   const {
@@ -147,6 +153,8 @@ export async function executeToolWithPermission(params: {
     pendingPlanReviews,
     pendingMemoryConfirms,
     piiProxy,
+    currentUserMessageId,
+    currentUserMessageTimestamp,
     signal,
   } = params;
 
@@ -211,7 +219,7 @@ export async function executeToolWithPermission(params: {
     if (allowed) {
       try {
         const task = typeof input.task === 'string' ? input.task : '';
-        const ctx = buildToolContext(blockId, task, autoMode, onEvent, pendingPlanReviews, pendingMemoryConfirms, signal);
+        const ctx = buildToolContext(blockId, task, autoMode, onEvent, pendingPlanReviews, pendingMemoryConfirms, currentUserMessageId, currentUserMessageTimestamp, signal);
         result = await toolDef.handler(input, ctx);
       } catch (err) {
         result = { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
@@ -223,7 +231,7 @@ export async function executeToolWithPermission(params: {
     // permissionLevel === 'auto'
     try {
       const task = typeof input.task === 'string' ? input.task : '';
-      const ctx = buildToolContext(blockId, task, false, onEvent, pendingPlanReviews, pendingMemoryConfirms, signal);
+      const ctx = buildToolContext(blockId, task, false, onEvent, pendingPlanReviews, pendingMemoryConfirms, currentUserMessageId, currentUserMessageTimestamp, signal);
       result = await toolDef.handler(input, ctx);
     } catch (err) {
       result = { success: false, error: err instanceof Error ? err.message : 'Unknown error' };

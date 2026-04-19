@@ -49,6 +49,8 @@ export interface ToolContext {
   ) => Promise<MemoryConfirmResponse>;
   signal?: AbortSignal;
   meta?: { autoMode?: boolean; callId?: string };
+  currentUserMessageId?: string;
+  currentUserMessageTimestamp?: number;
 }
 
 export interface PlanReviewResponse {

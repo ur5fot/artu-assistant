@@ -24,6 +24,8 @@ interface OllamaToolLoopParams {
   pendingPlanReviews: PendingPlanReviews;
   pendingMemoryConfirms: PendingMemoryConfirms;
   piiProxy: PiiProxy;
+  currentUserMessageId?: string;
+  currentUserMessageTimestamp?: number;
   /** Tool calls from the initial Ollama response — avoids a redundant chat() call. */
   initialToolCalls?: OllamaToolCall[];
 }
@@ -57,6 +59,8 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
     pendingPlanReviews,
     pendingMemoryConfirms,
     piiProxy,
+    currentUserMessageId,
+    currentUserMessageTimestamp,
   } = params;
 
   const ollamaTools = tools.map(toOllamaToolDef);
@@ -161,6 +165,8 @@ export async function runOllamaToolLoop(params: OllamaToolLoopParams): Promise<O
         pendingPlanReviews,
         pendingMemoryConfirms,
         piiProxy,
+        currentUserMessageId,
+        currentUserMessageTimestamp,
         signal,
       });
 

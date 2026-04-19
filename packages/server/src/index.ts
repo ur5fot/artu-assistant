@@ -9,6 +9,7 @@ import cors from 'cors';
 import { createChatRouter } from './routes/chat.js';
 import { createConfirmRouter, type PendingConfirms } from './routes/confirm.js';
 import { createPlanReviewRouter, type PendingPlanReviews } from './routes/plan-review.js';
+import type { PendingMemoryConfirms } from './routes/memory-confirm.js';
 import { createPermissionsRouter } from './routes/permissions.js';
 import { createPiiRouter } from './routes/pii.js';
 import { createMessagesRouter } from './routes/messages.js';
@@ -224,6 +225,9 @@ const runLoopFn = (params: {
   signal?: AbortSignal;
   pendingConfirms?: PendingConfirms;
   pendingPlanReviews?: PendingPlanReviews;
+  pendingMemoryConfirms?: PendingMemoryConfirms;
+  currentUserMessageId?: string;
+  currentUserMessageTimestamp?: number;
 }) =>
   runToolLoop({
     messages: params.messages,
@@ -233,7 +237,10 @@ const runLoopFn = (params: {
     signal: params.signal,
     pendingConfirms: params.pendingConfirms,
     pendingPlanReviews: params.pendingPlanReviews,
+    pendingMemoryConfirms: params.pendingMemoryConfirms,
     piiProxy,
+    currentUserMessageId: params.currentUserMessageId,
+    currentUserMessageTimestamp: params.currentUserMessageTimestamp,
   });
 
 // Now discover tools with deps (fills registry in-place)
@@ -302,8 +309,8 @@ if (discordToken) {
 }
 
 const chatRouter = createChatRouter({
-  runLoop: ({ messages, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, piiProxy: pp }) =>
-    runToolLoop({ messages, client, registry, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, piiProxy: pp }),
+  runLoop: ({ messages, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, pendingMemoryConfirms: pmc, piiProxy: pp, currentUserMessageId, currentUserMessageTimestamp }) =>
+    runToolLoop({ messages, client, registry, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, pendingMemoryConfirms: pmc, piiProxy: pp, currentUserMessageId, currentUserMessageTimestamp }),
   pendingConfirms,
   pendingPlanReviews,
   piiProxy,
