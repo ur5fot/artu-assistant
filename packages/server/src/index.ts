@@ -215,7 +215,6 @@ const commandService = createCommandService({
   memoryService,
   pendingConfirmsCount: () => pendingConfirms.size,
   pendingPlanReviewsCount: () => pendingPlanReviews.size,
-  modelName: process.env.MODEL_NAME || 'claude-opus-4-7',
   startedAt: serverStartedAt,
 });
 // Bound runLoop closure — tool factories use this for recursive agent calls
