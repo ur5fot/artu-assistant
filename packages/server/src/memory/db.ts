@@ -71,9 +71,17 @@ export function insertOrSupersedeFact(db: Database.Database, params: InsertFactP
       : requestedImportance;
 
     if (existing && existing.value === p.value) {
+      // COALESCE source_message_id so a later same-value insert (typically the
+      // async extractor running after a memory_remember tool call that didn't
+      // thread the source) still populates the link, otherwise memory_forget_last
+      // can't locate facts remembered via the explicit tool path.
       db.prepare(
-        `UPDATE memory_facts SET last_mentioned_at = ?, importance = ? WHERE id = ?`,
-      ).run(p.createdAt, effectiveImportance, existing.id);
+        `UPDATE memory_facts
+           SET last_mentioned_at = ?,
+               importance = ?,
+               source_message_id = COALESCE(source_message_id, ?)
+         WHERE id = ?`,
+      ).run(p.createdAt, effectiveImportance, p.sourceMessageId ?? null, existing.id);
       return existing.id;
     }
 

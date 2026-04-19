@@ -189,4 +189,14 @@ describe('memory_forget_last', () => {
     const res = await tool.handler({}, makeCtx({ approved: true }));
     expect(res.success).toBe(false);
   });
+
+  it('fails closed when ctx.currentUserMessageTimestamp is missing', async () => {
+    const memoryService = makeMemoryService();
+    const tool = createMemoryForgetLastTool({ memoryService });
+    const ctx = makeCtx({ approved: true });
+    const res = await tool.handler({}, ctx);
+    expect(res.success).toBe(false);
+    expect(memoryService.forgetLast).not.toHaveBeenCalled();
+    expect(ctx.requestMemoryConfirm).not.toHaveBeenCalled();
+  });
 });

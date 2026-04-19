@@ -267,6 +267,51 @@ describe('memory db', () => {
         .get(id) as { source_message_id: string | null };
       expect(row.source_message_id).toBeNull();
     });
+
+    it('backfills NULL source_message_id on equal-value re-insert', () => {
+      const db = getDb();
+      const id = insertOrSupersedeFact(db, {
+        key: 'user.birthday',
+        value: '15 березня',
+        createdAt: 1000,
+        embedding: makeVec(0.5),
+        importance: 10,
+      });
+      const again = insertOrSupersedeFact(db, {
+        key: 'user.birthday',
+        value: '15 березня',
+        createdAt: 2000,
+        embedding: makeVec(0.5),
+        sourceMessageId: 'M-late',
+      });
+      expect(again).toBe(id);
+      const row = db
+        .prepare('SELECT source_message_id FROM memory_facts WHERE id = ?')
+        .get(id) as { source_message_id: string | null };
+      expect(row.source_message_id).toBe('M-late');
+    });
+
+    it('does not overwrite an existing source_message_id on equal-value re-insert', () => {
+      const db = getDb();
+      const id = insertOrSupersedeFact(db, {
+        key: 'user.city',
+        value: 'Київ',
+        createdAt: 1000,
+        embedding: makeVec(0.5),
+        sourceMessageId: 'M-first',
+      });
+      insertOrSupersedeFact(db, {
+        key: 'user.city',
+        value: 'Київ',
+        createdAt: 2000,
+        embedding: makeVec(0.5),
+        sourceMessageId: 'M-second',
+      });
+      const row = db
+        .prepare('SELECT source_message_id FROM memory_facts WHERE id = ?')
+        .get(id) as { source_message_id: string | null };
+      expect(row.source_message_id).toBe('M-first');
+    });
   });
 
   describe('findFactsBySourceMessageId', () => {

@@ -361,7 +361,14 @@ export function createMemoryForgetLastTool(deps: { memoryService: MemoryServiceL
       if (!deps.memoryService || typeof deps.memoryService.forgetLast !== 'function') {
         return { success: false, error: 'Memory service is disabled' };
       }
-      const currentMessageTimestamp = ctx?.currentUserMessageTimestamp ?? Date.now();
+      // Fail closed: without a pinned current-message timestamp, falling back
+      // to Date.now() is strictly greater than the just-saved user message,
+      // so findLastUserMessageBefore would return the CURRENT turn and we'd
+      // silently forget facts from the message that triggered the call.
+      const currentMessageTimestamp = ctx?.currentUserMessageTimestamp;
+      if (typeof currentMessageTimestamp !== 'number') {
+        return { success: false, error: 'Нема контексту поточного повідомлення' };
+      }
 
       // Dry-run so the user sees the exact facts in the confirm dialog before
       // anything is marked forgotten. markFactForgotten is not reversible via
