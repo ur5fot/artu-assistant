@@ -14,6 +14,7 @@ export interface InsertFactParams {
   createdAt: number;
   embedding: number[];
   importance?: number;
+  sourceMessageId?: string | null;
 }
 
 export interface VectorSearchParams {
@@ -89,10 +90,17 @@ export function insertOrSupersedeFact(db: Database.Database, params: InsertFactP
 
     const result = db
       .prepare(
-        `INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, importance, forgotten)
-         VALUES (?, ?, ?, ?, NULL, ?, 0)`,
+        `INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, importance, forgotten, source_message_id)
+         VALUES (?, ?, ?, ?, NULL, ?, 0, ?)`,
       )
-      .run(p.key, p.value, p.createdAt, p.createdAt, effectiveImportance);
+      .run(
+        p.key,
+        p.value,
+        p.createdAt,
+        p.createdAt,
+        effectiveImportance,
+        p.sourceMessageId ?? null,
+      );
     const newId = Number(result.lastInsertRowid);
 
     if (existing) {
@@ -227,4 +235,70 @@ export function vectorSearch(db: Database.Database, params: VectorSearchParams):
 
   hits.sort((a, b) => b.score - a.score);
   return hits.slice(0, params.limit);
+}
+
+export interface FactRow {
+  id: number;
+  key: string;
+  value: string;
+  createdAt: number;
+  lastMentionedAt: number;
+  importance: number;
+  sourceMessageId: string | null;
+}
+
+export function findFactsBySourceMessageId(
+  db: Database.Database,
+  sourceMessageId: string,
+): FactRow[] {
+  return db
+    .prepare(
+      `SELECT id, key, value, created_at AS createdAt, last_mentioned_at AS lastMentionedAt,
+              importance, source_message_id AS sourceMessageId
+       FROM memory_facts
+       WHERE source_message_id = ?
+         AND superseded_by IS NULL
+         AND forgotten = 0
+       ORDER BY id`,
+    )
+    .all(sourceMessageId) as FactRow[];
+}
+
+export function findActiveFactByKey(
+  db: Database.Database,
+  key: string,
+): FactRow | null {
+  const row = db
+    .prepare(
+      `SELECT id, key, value, created_at AS createdAt, last_mentioned_at AS lastMentionedAt,
+              importance, source_message_id AS sourceMessageId
+       FROM memory_facts
+       WHERE key = ?
+         AND superseded_by IS NULL
+         AND forgotten = 0
+       LIMIT 1`,
+    )
+    .get(key) as FactRow | undefined;
+  return row ?? null;
+}
+
+export interface UserMessageRef {
+  messageId: string;
+  timestamp: number;
+}
+
+export function findLastUserMessageBefore(
+  db: Database.Database,
+  beforeTimestamp: number,
+): UserMessageRef | null {
+  const row = db
+    .prepare(
+      `SELECT message_id AS messageId, timestamp
+       FROM chat_messages
+       WHERE role = 'user' AND timestamp < ?
+       ORDER BY timestamp DESC
+       LIMIT 1`,
+    )
+    .get(beforeTimestamp) as UserMessageRef | undefined;
+  return row ?? null;
 }

@@ -136,13 +136,13 @@ git commit -m "feat(memory): add source_message_id column to memory_facts"
 
 **Why:** `insertOrSupersedeFact` должен писать `source_message_id`. Нужны helpers для `memory_update` (update по key) и `memory_forget_last` (find latest user msg + find facts by source).
 
-- [ ] **Step 1: Прочитать существующий insertOrSupersedeFact**
+- [x] **Step 1: Прочитать существующий insertOrSupersedeFact**
 
 ```bash
 grep -n "insertOrSupersedeFact\|export function" packages/server/src/memory/db.ts | head -10
 ```
 
-- [ ] **Step 2: Добавить failing тесты helpers**
+- [x] **Step 2: Добавить failing тесты helpers**
 
 В `packages/server/src/memory/__tests__/db.test.ts` (создай если не существует — шаблон ниже):
 
@@ -236,13 +236,13 @@ describe('findLastUserMessageBefore', () => {
 });
 ```
 
-- [ ] **Step 3: Run tests — expect FAIL (helpers not defined)**
+- [x] **Step 3: Run tests — expect FAIL (helpers not defined)**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/memory/__tests__/db.test.ts
 ```
 
-- [ ] **Step 4: Реализовать helpers в `packages/server/src/memory/db.ts`**
+- [x] **Step 4: Реализовать helpers в `packages/server/src/memory/db.ts`**
 
 Найди существующий `insertOrSupersedeFact` и измени signature + INSERT statement:
 
@@ -339,13 +339,13 @@ export function findLastUserMessageBefore(
 }
 ```
 
-- [ ] **Step 5: Run tests — expect PASS**
+- [x] **Step 5: Run tests — expect PASS**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/memory/__tests__/db.test.ts
 ```
 
-- [ ] **Step 6: Убедиться что остальные memory-тесты зелёные (sig change мог что-то сломать)**
+- [x] **Step 6: Убедиться что остальные memory-тесты зелёные (sig change мог что-то сломать)**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/memory
@@ -353,7 +353,7 @@ npx vitest run --root packages/server packages/server/src/memory
 
 Если что-то красное — скорее всего тест вызывает `insertOrSupersedeFact` и требует обновления. Значение `sourceMessageId` опциональное — старые вызовы должны работать. Если сломалось — посмотри trace и добавь `sourceMessageId: null` или оставь без него.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/memory

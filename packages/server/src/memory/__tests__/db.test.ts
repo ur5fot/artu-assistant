@@ -6,6 +6,9 @@ import {
   getActiveFacts,
   vectorSearch,
   markFactForgotten,
+  findFactsBySourceMessageId,
+  findActiveFactByKey,
+  findLastUserMessageBefore,
 } from '../db.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -233,5 +236,144 @@ describe('memory db', () => {
     const hits = vectorSearch(getDb(), { embedding: makeVec(0.5), limit: 10, kind: 'fact' });
     expect(hits).toHaveLength(1);
     expect(hits[0].content).toBe('user.location: Одеса');
+  });
+
+  describe('insertOrSupersedeFact with sourceMessageId', () => {
+    it('persists source_message_id', () => {
+      const id = insertOrSupersedeFact(getDb(), {
+        key: 'user.name',
+        value: 'Dim',
+        createdAt: 1000,
+        embedding: makeVec(0.5),
+        importance: 5,
+        sourceMessageId: 'msg-1',
+      });
+      const row = getDb()
+        .prepare('SELECT source_message_id FROM memory_facts WHERE id = ?')
+        .get(id) as { source_message_id: string };
+      expect(row.source_message_id).toBe('msg-1');
+    });
+
+    it('accepts null sourceMessageId for legacy callers', () => {
+      const id = insertOrSupersedeFact(getDb(), {
+        key: 'user.name',
+        value: 'Dim',
+        createdAt: 1000,
+        embedding: makeVec(0.5),
+        importance: 5,
+      });
+      const row = getDb()
+        .prepare('SELECT source_message_id FROM memory_facts WHERE id = ?')
+        .get(id) as { source_message_id: string | null };
+      expect(row.source_message_id).toBeNull();
+    });
+  });
+
+  describe('findFactsBySourceMessageId', () => {
+    it('returns only active (non-forgotten, non-superseded) facts with the given source', () => {
+      const db = getDb();
+      const active = insertOrSupersedeFact(db, {
+        key: 'user.a',
+        value: 'x',
+        createdAt: 1000,
+        embedding: makeVec(0.1),
+        importance: 5,
+        sourceMessageId: 'M1',
+      });
+      insertOrSupersedeFact(db, {
+        key: 'user.b',
+        value: 'y',
+        createdAt: 1000,
+        embedding: makeVec(0.2),
+        importance: 5,
+        sourceMessageId: 'M2',
+      });
+      const forgottenId = insertOrSupersedeFact(db, {
+        key: 'user.c',
+        value: 'z',
+        createdAt: 1000,
+        embedding: makeVec(0.3),
+        importance: 5,
+        sourceMessageId: 'M1',
+      });
+      markFactForgotten(db, forgottenId);
+
+      const found = findFactsBySourceMessageId(db, 'M1');
+      expect(found.map((f) => f.id)).toEqual([active]);
+    });
+
+    it('returns empty for unknown source', () => {
+      expect(findFactsBySourceMessageId(getDb(), 'nope')).toEqual([]);
+    });
+  });
+
+  describe('findActiveFactByKey', () => {
+    it('returns the single active row or null', () => {
+      const db = getDb();
+      const id = insertOrSupersedeFact(db, {
+        key: 'user.age',
+        value: '42',
+        createdAt: 1000,
+        embedding: makeVec(0.5),
+        importance: 5,
+      });
+      const found = findActiveFactByKey(db, 'user.age');
+      expect(found).toEqual(
+        expect.objectContaining({ id, key: 'user.age', value: '42' }),
+      );
+      expect(findActiveFactByKey(db, 'user.nope')).toBeNull();
+    });
+
+    it('ignores forgotten and superseded rows', () => {
+      const db = getDb();
+      const firstId = insertOrSupersedeFact(db, {
+        key: 'user.loc',
+        value: 'Kyiv',
+        createdAt: 1000,
+        embedding: makeVec(0.5),
+      });
+      markFactForgotten(db, firstId);
+      expect(findActiveFactByKey(db, 'user.loc')).toBeNull();
+
+      insertOrSupersedeFact(db, {
+        key: 'user.loc',
+        value: 'Odesa',
+        createdAt: 2000,
+        embedding: makeVec(0.6),
+      });
+      const newerId = insertOrSupersedeFact(db, {
+        key: 'user.loc',
+        value: 'Lviv',
+        createdAt: 3000,
+        embedding: makeVec(0.7),
+      });
+      const found = findActiveFactByKey(db, 'user.loc');
+      expect(found).toEqual(
+        expect.objectContaining({ id: newerId, value: 'Lviv' }),
+      );
+    });
+  });
+
+  describe('findLastUserMessageBefore', () => {
+    it('returns most recent user message strictly before `before`', () => {
+      const db = getDb();
+      const ins = db.prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'x', ?)",
+      );
+      ins.run('M1', 1000);
+      ins.run('M2', 2000);
+      ins.run('M_CURRENT', 3000);
+      expect(findLastUserMessageBefore(db, 3000)?.messageId).toBe('M2');
+      expect(findLastUserMessageBefore(db, 1500)?.messageId).toBe('M1');
+      expect(findLastUserMessageBefore(db, 500)).toBeNull();
+    });
+
+    it('ignores assistant messages', () => {
+      const db = getDb();
+      db.prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('A1', 'assistant', 'x', 1000)",
+      ).run();
+      expect(findLastUserMessageBefore(db, 2000)).toBeNull();
+    });
   });
 });
