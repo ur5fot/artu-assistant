@@ -51,7 +51,7 @@
 
 **Why:** Tracking per-message extraction нужен для `memory_forget_last`. Колонка nullable + idempotent миграция.
 
-- [ ] **Step 1: Посмотреть существующий initDb**
+- [x] **Step 1: Посмотреть существующий initDb**
 
 ```bash
 grep -n "memory_facts\|ALTER TABLE" packages/server/src/db.ts | head
@@ -59,7 +59,7 @@ grep -n "memory_facts\|ALTER TABLE" packages/server/src/db.ts | head
 
 Зафиксируй где сейчас CREATE TABLE memory_facts (~строка 155) и как выполняется commands.
 
-- [ ] **Step 2: Добавить failing тест для новой колонки**
+- [x] **Step 2: Добавить failing тест для новой колонки**
 
 Открой `packages/server/src/memory/__tests__/db.test.ts` (если нет — создай `packages/server/src/__tests__/db-memory.test.ts`). Добавь в подходящий describe:
 
@@ -88,13 +88,13 @@ describe('memory_facts schema', () => {
 });
 ```
 
-- [ ] **Step 3: Run tests — expect FAIL**
+- [x] **Step 3: Run tests — expect FAIL**
 
 ```bash
 npx vitest run --root packages/server -t "memory_facts schema"
 ```
 
-- [ ] **Step 4: Реализовать миграцию в initDb**
+- [x] **Step 4: Реализовать миграцию в initDb**
 
 В `packages/server/src/db.ts` после CREATE TABLE memory_facts добавь блок:
 
@@ -113,13 +113,13 @@ db.exec(`
 `);
 ```
 
-- [ ] **Step 5: Run tests — expect PASS**
+- [x] **Step 5: Run tests — expect PASS**
 
 ```bash
 npx vitest run --root packages/server -t "memory_facts schema"
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/__tests__

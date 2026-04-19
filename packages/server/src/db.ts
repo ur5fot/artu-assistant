@@ -212,6 +212,13 @@ export function initDb(dbPath?: string): void {
   if (!factCols.some((c) => c.name === 'forgotten')) {
     db.exec(`ALTER TABLE memory_facts ADD COLUMN forgotten INTEGER NOT NULL DEFAULT 0`);
   }
+  if (!factCols.some((c) => c.name === 'source_message_id')) {
+    db.exec(`ALTER TABLE memory_facts ADD COLUMN source_message_id TEXT`);
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_facts_source_message
+      ON memory_facts(source_message_id) WHERE source_message_id IS NOT NULL
+  `);
 }
 
 export function getDb(): Database.Database {
