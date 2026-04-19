@@ -30,7 +30,6 @@ interface Deps {
   memoryService: MemoryService | null;
   pendingConfirmsCount?: () => number;
   pendingPlanReviewsCount?: () => number;
-  modelName?: string;
   startedAt?: number;
 }
 
@@ -41,7 +40,6 @@ export function createCommandService(deps: Deps): CommandService {
     memoryService,
     pendingConfirmsCount = () => 0,
     pendingPlanReviewsCount = () => 0,
-    modelName = 'unknown',
     startedAt = Date.now(),
   } = deps;
 
@@ -51,8 +49,14 @@ export function createCommandService(deps: Deps): CommandService {
       return { deleted: Number(result.changes ?? 0) };
     },
     status() {
+      // Read at call time — matches AI layer's lazy env resolution (see
+      // ai/claude.ts) so `/status` reflects the model currently in use.
+      const localMode = (process.env.LOCAL_LLM_MODE || 'enabled') === 'enabled';
+      const ollamaModel = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
+      const claudeModel = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
+      const model = localMode ? `${ollamaModel} → ${claudeModel}` : claudeModel;
       return {
-        model: modelName,
+        model,
         uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
         activeReminders: reminderService.list().length,
         pendingPermissions: pendingConfirmsCount() + pendingPlanReviewsCount(),
