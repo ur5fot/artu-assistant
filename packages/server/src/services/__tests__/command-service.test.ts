@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createCommandService } from '../command-service.js';
 import type { ReminderService } from '../reminder-service.js';
 import type { PermissionService } from '../permission-service.js';
@@ -37,22 +37,74 @@ describe('command-service', () => {
     expect(svc.listReminders()).toBe(rows);
   });
 
-  it('status: returns model, reminder count, pending count, uptime seconds', () => {
-    const svc = createCommandService({
-      db: makeDb() as any,
-      reminderService: { list: vi.fn().mockReturnValue([{ id: 1 } as any]) } as unknown as ReminderService,
-      permissionService: { hasPending: vi.fn() } as unknown as PermissionService,
-      memoryService: null,
-      pendingConfirmsCount: () => 2,
-      pendingPlanReviewsCount: () => 1,
-      modelName: 'claude-opus-4-7',
-      startedAt: Date.now() - 5000,
+  describe('status', () => {
+    const originalLocal = process.env.LOCAL_LLM_MODE;
+    const originalClaude = process.env.CLAUDE_MODEL;
+    const originalOllama = process.env.OLLAMA_MODEL;
+    afterEach(() => {
+      for (const [k, v] of [
+        ['LOCAL_LLM_MODE', originalLocal],
+        ['CLAUDE_MODEL', originalClaude],
+        ['OLLAMA_MODEL', originalOllama],
+      ] as const) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
     });
-    const s = svc.status();
-    expect(s.model).toBe('claude-opus-4-7');
-    expect(s.activeReminders).toBe(1);
-    expect(s.pendingPermissions).toBe(3);
-    expect(s.uptimeSeconds).toBeGreaterThanOrEqual(4);
+
+    function svc(overrides: Partial<Parameters<typeof createCommandService>[0]> = {}) {
+      return createCommandService({
+        db: makeDb() as any,
+        reminderService: { list: vi.fn().mockReturnValue([{ id: 1 } as any]) } as unknown as ReminderService,
+        permissionService: { hasPending: vi.fn() } as unknown as PermissionService,
+        memoryService: null,
+        pendingConfirmsCount: () => 2,
+        pendingPlanReviewsCount: () => 1,
+        startedAt: Date.now() - 5000,
+        ...overrides,
+      });
+    }
+
+    it('returns ollama→claude model string when LOCAL_LLM_MODE=enabled', () => {
+      process.env.LOCAL_LLM_MODE = 'enabled';
+      process.env.OLLAMA_MODEL = 'qwen2.5:7b';
+      process.env.CLAUDE_MODEL = 'claude-haiku-4-5';
+      const s = svc().status();
+      expect(s.model).toBe('qwen2.5:7b → claude-haiku-4-5');
+      expect(s.activeReminders).toBe(1);
+      expect(s.pendingPermissions).toBe(3);
+      expect(s.uptimeSeconds).toBeGreaterThanOrEqual(4);
+    });
+
+    it('returns only claude model when LOCAL_LLM_MODE=disabled', () => {
+      process.env.LOCAL_LLM_MODE = 'disabled';
+      process.env.CLAUDE_MODEL = 'claude-haiku-4-5';
+      delete process.env.OLLAMA_MODEL;
+      expect(svc().status().model).toBe('claude-haiku-4-5');
+    });
+
+    it('defaults to enabled mode when LOCAL_LLM_MODE unset', () => {
+      delete process.env.LOCAL_LLM_MODE;
+      process.env.OLLAMA_MODEL = 'qwen2.5:7b';
+      process.env.CLAUDE_MODEL = 'claude-sonnet-4-6';
+      expect(svc().status().model).toBe('qwen2.5:7b → claude-sonnet-4-6');
+    });
+
+    it('falls back to defaults when both model env vars unset', () => {
+      process.env.LOCAL_LLM_MODE = 'enabled';
+      delete process.env.OLLAMA_MODEL;
+      delete process.env.CLAUDE_MODEL;
+      expect(svc().status().model).toBe('qwen2.5:7b → claude-sonnet-4-6');
+    });
+
+    it('reads env at call time, not construction time', () => {
+      process.env.LOCAL_LLM_MODE = 'disabled';
+      process.env.CLAUDE_MODEL = 'first';
+      const s = svc();
+      expect(s.status().model).toBe('first');
+      process.env.CLAUDE_MODEL = 'second';
+      expect(s.status().model).toBe('second');
+    });
   });
 
   it('listMemory: returns unavailable when memory service is null', async () => {
