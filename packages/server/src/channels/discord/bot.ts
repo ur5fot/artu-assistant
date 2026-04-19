@@ -560,7 +560,20 @@ export async function startDiscordBot(
                   // Set the prefill entry AFTER the send succeeds so a thrown
                   // send doesn't leave a map entry that the finally-cleanup
                   // loop (which iterates pendingEmbedMsgs) will never see.
-                  const sent = await dmChannel.send({ content, components: [row] as any });
+                  let sent;
+                  try {
+                    sent = await dmChannel.send({ content, components: [row] as any });
+                  } catch (err) {
+                    // If the send fails (DM closed, permission revoked, etc.),
+                    // the tool handler is still awaiting requestMemoryConfirm
+                    // with no UI visible to the user. Without short-circuiting,
+                    // the promise only resolves when the 120s abort timer fires,
+                    // leaving the chat loop idle that whole time. Deny the
+                    // pending confirm immediately so the tool handler unblocks
+                    // and the error propagates to the user via normal paths.
+                    deps.memoryConfirmService?.resolve(p.id, false);
+                    throw err;
+                  }
                   if (p.editableField && typeof p.initialValue === 'string') {
                     memoryConfirmInitialValues.set(p.id, p.initialValue);
                   }
