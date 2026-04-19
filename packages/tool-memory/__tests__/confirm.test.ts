@@ -16,7 +16,7 @@ function makeMemoryService(overrides: Record<string, unknown> = {}) {
     updateFact: vi.fn(async ({ key, newValue }: { key: string; newValue: string }) => ({
       updated: { key, oldValue: '42', newValue },
     })),
-    forgetLast: vi.fn(async (_params: { currentMessageTimestamp: number; dryRun?: boolean }) => ({
+    forgetLast: vi.fn(async (_params: { currentMessageTimestamp: number; dryRun?: boolean; factIds?: number[] }) => ({
       forgotten: [
         { id: 2, key: 'user.x', value: 'y' },
         { id: 3, key: 'user.z', value: 'w' },
@@ -138,7 +138,7 @@ describe('memory_update', () => {
 });
 
 describe('memory_forget_last', () => {
-  it('uses dryRun for preview, then applies on approve', async () => {
+  it('uses dryRun for preview, then applies on approve with frozen factIds', async () => {
     const memoryService = makeMemoryService();
     const tool = createMemoryForgetLastTool({ memoryService });
     const ctx = { ...makeCtx({ approved: true }), currentUserMessageTimestamp: 2000 };
@@ -150,7 +150,10 @@ describe('memory_forget_last', () => {
         editableField: null,
       }),
     );
-    expect(memoryService.forgetLast).toHaveBeenCalledWith({ currentMessageTimestamp: 2000 });
+    // Apply path must pin the fact set to the ids the user saw in the preview —
+    // otherwise the async extractor appending new facts to the same source
+    // message between preview and approve would cause silent over-deletion.
+    expect(memoryService.forgetLast).toHaveBeenCalledWith({ currentMessageTimestamp: 2000, factIds: [2, 3] });
     expect(res.success).toBe(true);
   });
 

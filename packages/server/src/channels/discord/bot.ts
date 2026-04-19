@@ -526,7 +526,19 @@ export async function startDiscordBot(
                 if (event.type === 'tool_memory_confirm') {
                   await flush();
                   const p = event.payload;
-                  const content = `🧠 **Memory ${p.tool}**\n${p.preview}`;
+                  // Discord hard-caps a message at 2000 chars. memory_forget_last
+                  // previews a list of facts (key=value, up to 565 chars each)
+                  // that can blow past the cap on verbose turns. Without this
+                  // truncation, `dmChannel.send` throws, the tool handler keeps
+                  // awaiting the confirm that will never resolve, and the user
+                  // waits for the 120s timeout before seeing any feedback. The
+                  // ~1800 budget also leaves headroom for the "\n\n✅ Approved"
+                  // suffix appended on button click without re-hitting the cap.
+                  const MEMCONFIRM_CONTENT_MAX = 1800;
+                  const rawContent = `🧠 **Memory ${p.tool}**\n${p.preview}`;
+                  const content = rawContent.length > MEMCONFIRM_CONTENT_MAX
+                    ? rawContent.slice(0, MEMCONFIRM_CONTENT_MAX - 1) + '…'
+                    : rawContent;
                   const buttons: Array<Record<string, unknown>> = [
                     { type: 2, style: 3, label: '✅ Approve', custom_id: `memconfirm:approve:${p.id}` },
                   ];

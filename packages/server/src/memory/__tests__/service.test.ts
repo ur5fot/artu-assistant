@@ -428,6 +428,37 @@ describe('MemoryService', () => {
       expect(res).toEqual({ forgotten: [], sourceMessageId: null, reason: 'no previous user message' });
     });
 
+    it('apply with factIds only forgets the pinned subset (extractor race fix)', async () => {
+      const svc = createMemoryService({
+        db: getDb(),
+        embeddings: mockEmbeddings as any,
+        ollama: mockOllama as any,
+        extractorModel: 'qwen2.5:7b',
+      });
+      const db = getDb();
+      db.prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('M_prev', 'user', 'x', 1000)",
+      ).run();
+
+      // Simulate the dry-run → async extractor → apply sequence:
+      // 1. Dry-run shows facts A, B.
+      // 2. Extractor wakes up and adds fact C to the SAME source_message_id.
+      // 3. Apply is called with factIds=[A.id, B.id] only.
+      // Fact C must remain active — the user never saw it in the preview.
+      await svc.saveFact({ key: 'user.a', value: 'alpha', importance: 5, timestamp: 1000, sourceMessageId: 'M_prev' });
+      await svc.saveFact({ key: 'user.b', value: 'beta', importance: 5, timestamp: 1000, sourceMessageId: 'M_prev' });
+      const preview = await svc.forgetLast({ currentMessageTimestamp: 2000, dryRun: true });
+      const frozenIds = preview.forgotten.map((f) => f.id);
+
+      await svc.saveFact({ key: 'user.c', value: 'gamma', importance: 5, timestamp: 1500, sourceMessageId: 'M_prev' });
+
+      const res = await svc.forgetLast({ currentMessageTimestamp: 2000, factIds: frozenIds });
+      expect(res.forgotten.map((f) => f.key).sort()).toEqual(['user.a', 'user.b']);
+
+      const active = await svc.getActiveFacts();
+      expect(active.map((f) => f.key)).toEqual(['user.c']);
+    });
+
     it('returns empty when previous user message has no active facts', async () => {
       const svc = createMemoryService({
         db: getDb(),

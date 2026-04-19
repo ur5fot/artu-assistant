@@ -244,7 +244,13 @@ async function routeButton(
       const callId = rawIdValue.slice(0, sepIdx);
       const field = rawIdValue.slice(sepIdx + 1);
       if (!field) return;
-      const initialValue = deps.memoryConfirmInitialValues?.get(callId) ?? '';
+      const rawInitial = deps.memoryConfirmInitialValues?.get(callId) ?? '';
+      // Discord's TextInputBuilder.setValue throws a RangeError when the prefill
+      // exceeds 4000 chars. The tool supplies LLM-emitted params (query for
+      // memory_forget, newValue for memory_update) with no length cap, so clamp
+      // defensively — otherwise an oversized value silently breaks the Edit
+      // button and the user is stuck with only Approve/Deny.
+      const initialValue = rawInitial.length > 4000 ? rawInitial.slice(0, 4000) : rawInitial;
       const modal = new ModalBuilder()
         .setCustomId(`memconfirm_modal:${callId}:${field}`)
         .setTitle('Edit parameter');
@@ -319,8 +325,18 @@ async function routeModalSubmit(
     const suffix = result.ok
       ? `\n\n✅ Approved (edited: ${field}="${value}")`
       : '\n\n⚠️ Expired';
+    // Discord caps edited message content at 2000 chars. The user's modal
+    // input can be up to 4000 chars, and currentContent is already near the
+    // per-message budget, so the naive concatenation can hit the cap. Clip
+    // the combined content rather than letting the edit throw and leaving
+    // the buttons in place.
+    const MESSAGE_MAX = 2000;
+    const combined = currentContent + suffix;
+    const safe = combined.length > MESSAGE_MAX
+      ? combined.slice(0, MESSAGE_MAX - 1) + '…'
+      : combined;
     try {
-      await originalMessage.edit({ content: currentContent + suffix, components: [] });
+      await originalMessage.edit({ content: safe, components: [] });
     } catch {
       // original message gone or no permission — ignore
     }

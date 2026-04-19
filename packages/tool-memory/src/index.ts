@@ -26,7 +26,11 @@ interface MemoryServiceLike {
     | { updated: { key: string; oldValue: string; newValue: string } }
     | { error: string; key: string }
   >;
-  forgetLast?(params: { currentMessageTimestamp: number; dryRun?: boolean }): Promise<{
+  forgetLast?(params: {
+    currentMessageTimestamp: number;
+    dryRun?: boolean;
+    factIds?: number[];
+  }): Promise<{
     forgotten: Array<{ id: number; key: string; value: string }>;
     sourceMessageId: string | null;
     reason?: string;
@@ -412,9 +416,15 @@ export function createMemoryForgetLastTool(deps: { memoryService: MemoryServiceL
       }
 
       try {
-        const result = await deps.memoryService.forgetLast({ currentMessageTimestamp });
+        // Freeze the fact set to what the user actually saw in the preview.
+        // Without factIds, the async extractor could append more facts to the
+        // same source_message_id between preview and approve, and the apply
+        // path would delete them without the user ever seeing them.
+        const factIds = dry.forgotten.map((f) => f.id);
+        const result = await deps.memoryService.forgetLast({ currentMessageTimestamp, factIds });
         if (result.forgotten.length === 0) {
-          return { success: false, error: 'Нічого забувати' };
+          const suffix = result.reason ? `: ${result.reason}` : '';
+          return { success: false, error: `Нічого забувати${suffix}` };
         }
         const lines = result.forgotten.map((f) => `${f.key} = ${f.value}`);
         return {

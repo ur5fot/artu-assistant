@@ -73,7 +73,15 @@ export interface MemoryService {
     sourceMessageId: string | null;
   }): Promise<UpdateFactResult>;
 
-  forgetLast(params: { currentMessageTimestamp: number; dryRun?: boolean }): Promise<ForgetLastResult>;
+  forgetLast(params: {
+    currentMessageTimestamp: number;
+    dryRun?: boolean;
+    // When supplied on the apply path, only these fact ids are marked forgotten
+    // — the set is frozen at dry-run time so facts the async extractor appends
+    // to the same source_message_id between preview and approve are not
+    // silently deleted without the user having seen them in the confirm dialog.
+    factIds?: number[];
+  }): Promise<ForgetLastResult>;
 
   buildContextPrefix(userMessage: string, signal?: AbortSignal): Promise<ContextPrefixResult>;
 }
@@ -360,8 +368,17 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
           sourceMessageId: prev.messageId,
         };
       }
+      // Freeze the fact set to the ids the caller previewed at dry-run time.
+      // Without this filter, facts the async extractor inserts for the same
+      // source_message_id between preview and approve would be deleted without
+      // ever appearing in the user's confirm dialog.
+      const wanted = params.factIds ? new Set(params.factIds) : null;
+      const target = wanted ? facts.filter((f) => wanted.has(f.id)) : facts;
+      if (target.length === 0) {
+        return { forgotten: [], sourceMessageId: prev.messageId, reason: 'no facts to forget' };
+      }
       const forgotten: Array<{ id: number; key: string; value: string }> = [];
-      for (const f of facts) {
+      for (const f of target) {
         if (markFactForgotten(db, f.id)) {
           forgotten.push({ id: f.id, key: f.key, value: f.value });
         }
