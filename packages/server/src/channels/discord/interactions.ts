@@ -1,10 +1,22 @@
-import type { ButtonInteraction, ChatInputCommandInteraction, Interaction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
+import type {
+  ButtonInteraction,
+  ChatInputCommandInteraction,
+  Interaction,
+  ModalSubmitInteraction,
+} from 'discord.js';
+import {
+  ActionRowBuilder,
+  MessageFlags,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+} from 'discord.js';
 import type { ReminderService } from '../../services/reminder-service.js';
 import type { PermissionService } from '../../services/permission-service.js';
 import type { PlanReviewService } from '../../services/plan-review-service.js';
 import type { CommandService } from '../../services/command-service.js';
 import type { CognitionService } from '../../cognition/service.js';
+import type { MemoryConfirmService } from '../../services/memory-confirm-service.js';
 import {
   buildReminderEmbed,
   buildPermissionEmbed,
@@ -47,6 +59,14 @@ export interface InteractionDeps {
   planReviewService: PlanReviewService;
   commandService: CommandService;
   cognitionService: CognitionService;
+  memoryConfirmService?: MemoryConfirmService;
+  /**
+   * Lookup for the initial value to prefill the modal when the user clicks
+   * "Edit & approve". Keyed by callId. The bot.ts handler seeds this when it
+   * sends a `tool_memory_confirm` message so the text input can be prefilled
+   * (custom_id has a 32-char cap and can't carry the value itself).
+   */
+  memoryConfirmInitialValues?: Map<string, string>;
 }
 
 // Parses the description rendered by buildPermissionEmbed —
@@ -71,6 +91,11 @@ export async function routeInteraction(
 
   if (interaction.isButton()) {
     await routeButton(interaction, deps);
+    return;
+  }
+
+  if (interaction.isModalSubmit()) {
+    await routeModalSubmit(interaction, deps);
     return;
   }
 
@@ -187,6 +212,54 @@ async function routeButton(
     return;
   }
 
+  if (domain === 'memconfirm') {
+    if (!deps.memoryConfirmService) {
+      await (ixn as any).reply({
+        flags: MessageFlags.Ephemeral,
+        content: 'Memory confirm is not configured.',
+      });
+      return;
+    }
+    // `edit` packs the field name after the callId: rawId = "<callId>:<field>".
+    // approve/deny: rawId = "<callId>".
+    const rawIdValue = rawId ?? '';
+    if (action === 'approve' || action === 'deny') {
+      const approved = action === 'approve';
+      const result = deps.memoryConfirmService.resolve(rawIdValue, approved);
+      const currentContent = (ixn as any).message?.content ?? '';
+      const suffix = result.ok
+        ? approved
+          ? '\n\n✅ Approved'
+          : '\n\n❌ Denied'
+        : '\n\n⚠️ Expired';
+      await (ixn as any).update({ content: currentContent + suffix, components: [] });
+      return;
+    }
+    if (action === 'edit') {
+      const sepIdx = rawIdValue.indexOf(':');
+      if (sepIdx < 0) return;
+      const callId = rawIdValue.slice(0, sepIdx);
+      const field = rawIdValue.slice(sepIdx + 1);
+      if (!field) return;
+      const initialValue = deps.memoryConfirmInitialValues?.get(callId) ?? '';
+      const modal = new ModalBuilder()
+        .setCustomId(`memconfirm_modal:${callId}:${field}`)
+        .setTitle('Edit parameter');
+      const input = new TextInputBuilder()
+        .setCustomId('value')
+        .setLabel(field === 'query' ? 'Query' : 'New value')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setValue(initialValue);
+      modal.addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(input),
+      );
+      await (ixn as any).showModal(modal);
+      return;
+    }
+    return;
+  }
+
   if (domain === 'perm_rule' && action === 'revoke') {
     const toolName = rawId ?? '';
     deps.commandService.revokePermissionRule(toolName);
@@ -207,6 +280,39 @@ async function routeButton(
     });
     return;
   }
+}
+
+async function routeModalSubmit(
+  ixn: ModalSubmitInteraction,
+  deps: InteractionDeps,
+): Promise<void> {
+  const customId = ixn.customId;
+  if (!customId.startsWith('memconfirm_modal:')) return;
+  if (!deps.memoryConfirmService) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Memory confirm is not configured.',
+    });
+    return;
+  }
+  // Format: memconfirm_modal:<callId>:<field>
+  const rest = customId.slice('memconfirm_modal:'.length);
+  const sepIdx = rest.indexOf(':');
+  if (sepIdx < 0) return;
+  const callId = rest.slice(0, sepIdx);
+  const field = rest.slice(sepIdx + 1);
+  if (!field) return;
+  const value = ixn.fields.getTextInputValue('value');
+  const result = deps.memoryConfirmService.resolve(callId, true, {
+    [field]: value,
+  });
+  deps.memoryConfirmInitialValues?.delete(callId);
+  await (ixn as any).reply({
+    flags: MessageFlags.Ephemeral,
+    content: result.ok
+      ? `✅ Approved with edit: ${field}="${value}"`
+      : '⚠️ Expired',
+  });
 }
 
 async function routeSlashCommand(

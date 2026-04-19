@@ -15,6 +15,7 @@ import type { MemoryService } from '../../memory/service.js';
 import type { ReminderService } from '../../services/reminder-service.js';
 import type { PermissionService } from '../../services/permission-service.js';
 import type { PlanReviewService } from '../../services/plan-review-service.js';
+import type { MemoryConfirmService } from '../../services/memory-confirm-service.js';
 import type { CommandService } from '../../services/command-service.js';
 import type { CognitionService } from '../../cognition/service.js';
 import { truncateMessages } from '../../routes/chat.js';
@@ -58,6 +59,8 @@ export interface DiscordBotDeps {
   permissionService?: PermissionService;
   /** Plan review service — resolves plan reviews triggered by Discord buttons. */
   planReviewService?: PlanReviewService;
+  /** Memory confirm service — resolves memory_forget / memory_update / memory_forget_last confirms. */
+  memoryConfirmService?: MemoryConfirmService;
   /** Command service — slash command implementations. */
   commandService?: CommandService;
   /** Cognition service — heartbeat/handler runs; bot listens for `cognition_publish` events on the reminder bus and marks runs published after DM delivery. */
@@ -144,6 +147,11 @@ export async function startDiscordBot(
 
   const timeoutMs = deps.requestTimeoutMs ?? 120_000;
   const userQueues = new Map<string, Promise<void>>();
+  // Shared across all requests — a modal interaction can fire long after the
+  // original request's handleMessage() returned, so the lookup must outlive
+  // any per-request closure. Entries are deleted when the confirm is resolved
+  // (approve/deny/submit) or when the request's finally block expires it.
+  const memoryConfirmInitialValues = new Map<string, string>();
 
   client.on('error', (err) => {
     console.error('[discord] client error:', err instanceof Error ? err.message : err);
@@ -190,6 +198,8 @@ export async function startDiscordBot(
         planReviewService: deps.planReviewService,
         commandService: deps.commandService,
         cognitionService: deps.cognitionService,
+        memoryConfirmService: deps.memoryConfirmService,
+        memoryConfirmInitialValues,
       });
     } catch (err) {
       console.error('[discord] interaction error:', err instanceof Error ? err.message : err);
@@ -220,7 +230,8 @@ export async function startDiscordBot(
     const timer = setTimeout(() => ac.abort(), timeoutMs);
     type PendingEmbed =
       | { callId: string; kind: 'perm'; messageIds: string[]; toolName: string; argsSummary: string }
-      | { callId: string; kind: 'plan'; messageIds: string[] };
+      | { callId: string; kind: 'plan'; messageIds: string[] }
+      | { callId: string; kind: 'memconfirm'; messageIds: string[]; preview: string };
     const pendingEmbedMsgs: PendingEmbed[] = [];
     type ToolCallEntry = {
       messageId: string;
@@ -512,6 +523,40 @@ export async function startDiscordBot(
                   });
                   return;
                 }
+                if (event.type === 'tool_memory_confirm') {
+                  await flush();
+                  const p = event.payload;
+                  const content = `🧠 **Memory ${p.tool}**\n${p.preview}`;
+                  const buttons: Array<Record<string, unknown>> = [
+                    { type: 2, style: 3, label: '✅ Approve', custom_id: `memconfirm:approve:${p.id}` },
+                  ];
+                  if (p.editableField) {
+                    buttons.push({
+                      type: 2,
+                      style: 1,
+                      label: '✏️ Edit & approve',
+                      custom_id: `memconfirm:edit:${p.id}:${p.editableField}`,
+                    });
+                  }
+                  buttons.push({
+                    type: 2,
+                    style: 4,
+                    label: '❌ Deny',
+                    custom_id: `memconfirm:deny:${p.id}`,
+                  });
+                  const row = { type: 1, components: buttons };
+                  if (p.editableField && typeof p.initialValue === 'string') {
+                    memoryConfirmInitialValues.set(p.id, p.initialValue);
+                  }
+                  const sent = await dmChannel.send({ content, components: [row] as any });
+                  pendingEmbedMsgs.push({
+                    callId: p.id,
+                    kind: 'memconfirm',
+                    messageIds: [sent.id],
+                    preview: content,
+                  });
+                  return;
+                }
                 if (event.type === 'done' && !errorSent) {
                   await flush();
                   return;
@@ -638,6 +683,10 @@ export async function startDiscordBot(
           if (pe.kind === 'plan' && deps.planReviewService?.isResolvedByUser(pe.callId)) {
             continue;
           }
+          if (pe.kind === 'memconfirm' && deps.memoryConfirmService?.isResolvedByUser(pe.callId)) {
+            memoryConfirmInitialValues.delete(pe.callId);
+            continue;
+          }
           if (pe.kind === 'perm') {
             for (const mid of pe.messageIds) {
               try {
@@ -653,7 +702,7 @@ export async function startDiscordBot(
                 // message gone or no permission — ignore
               }
             }
-          } else {
+          } else if (pe.kind === 'plan') {
             // Plan review: earlier chunks carry the plan text (inside code
             // fences) and have no buttons. Overwriting them with "expired"
             // deletes the plan the user may still want to read. Only the last
@@ -664,6 +713,17 @@ export async function startDiscordBot(
               try {
                 const m = await dmChannel.messages.fetch(lastId);
                 await m.edit({ components: [], content: '⚠️ Plan review expired' });
+              } catch {
+                // message gone or no permission — ignore
+              }
+            }
+          } else {
+            memoryConfirmInitialValues.delete(pe.callId);
+            const lastId = pe.messageIds[pe.messageIds.length - 1];
+            if (lastId) {
+              try {
+                const m = await dmChannel.messages.fetch(lastId);
+                await m.edit({ components: [], content: pe.preview + '\n\n⚠️ Expired' });
               } catch {
                 // message gone or no permission — ignore
               }

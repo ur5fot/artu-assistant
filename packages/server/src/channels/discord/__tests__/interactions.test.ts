@@ -4,6 +4,7 @@ import { routeInteraction } from '../interactions.js';
 import type { ReminderService } from '../../../services/reminder-service.js';
 import type { PermissionService } from '../../../services/permission-service.js';
 import type { PlanReviewService } from '../../../services/plan-review-service.js';
+import type { MemoryConfirmService } from '../../../services/memory-confirm-service.js';
 import type { CommandService } from '../../../services/command-service.js';
 
 function makeDeps(overrides: Partial<Parameters<typeof routeInteraction>[1]> = {}) {
@@ -47,11 +48,13 @@ function makeDeps(overrides: Partial<Parameters<typeof routeInteraction>[1]> = {
 function makeButtonInteraction(overrides: Record<string, any> = {}) {
   return {
     isButton: () => true,
+    isModalSubmit: () => false,
     isChatInputCommand: () => false,
     user: { id: 'user-1' },
     customId: 'reminder:dismiss:7',
     update: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
+    showModal: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as any;
 }
@@ -168,9 +171,140 @@ describe('routeInteraction — plan review buttons', () => {
   });
 });
 
+describe('routeInteraction — memory confirm buttons', () => {
+  function makeMemoryConfirmService(
+    overrides: Partial<MemoryConfirmService> = {},
+  ): MemoryConfirmService {
+    return {
+      hasPending: vi.fn().mockReturnValue(true),
+      isResolvedByUser: vi.fn().mockReturnValue(false),
+      resolve: vi.fn().mockReturnValue({ ok: true }),
+      ...overrides,
+    } as MemoryConfirmService;
+  }
+
+  it('memconfirm:approve resolves with approved=true and updates message', async () => {
+    const memoryConfirmService = makeMemoryConfirmService();
+    const deps = makeDeps({ memoryConfirmService });
+    const ixn = makeButtonInteraction({
+      customId: 'memconfirm:approve:CALL-1',
+      message: { content: '🧠 **Memory memory_forget**\nЗабути: "user.age"' },
+    });
+    await routeInteraction(ixn, deps);
+    expect(memoryConfirmService.resolve).toHaveBeenCalledWith('CALL-1', true);
+    expect(ixn.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        components: [],
+        content: expect.stringContaining('✅ Approved'),
+      }),
+    );
+  });
+
+  it('memconfirm:deny resolves with approved=false and updates message', async () => {
+    const memoryConfirmService = makeMemoryConfirmService();
+    const deps = makeDeps({ memoryConfirmService });
+    const ixn = makeButtonInteraction({
+      customId: 'memconfirm:deny:CALL-1',
+      message: { content: '🧠 **Memory memory_forget**' },
+    });
+    await routeInteraction(ixn, deps);
+    expect(memoryConfirmService.resolve).toHaveBeenCalledWith('CALL-1', false);
+    expect(ixn.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        components: [],
+        content: expect.stringContaining('❌ Denied'),
+      }),
+    );
+  });
+
+  it('memconfirm:edit opens a modal prefilled from initialValues lookup', async () => {
+    const memoryConfirmService = makeMemoryConfirmService();
+    const initialValues = new Map<string, string>([['CALL-1', 'user.age']]);
+    const deps = makeDeps({ memoryConfirmService, memoryConfirmInitialValues: initialValues });
+    const showModal = vi.fn().mockResolvedValue(undefined);
+    const ixn = makeButtonInteraction({
+      customId: 'memconfirm:edit:CALL-1:query',
+      message: { content: '🧠 **Memory memory_forget**' },
+      showModal,
+    });
+    await routeInteraction(ixn, deps);
+    expect(showModal).toHaveBeenCalled();
+    const modal = showModal.mock.calls[0]![0];
+    const json = modal.toJSON();
+    expect(json.custom_id).toBe('memconfirm_modal:CALL-1:query');
+    expect(json.components[0].components[0].value).toBe('user.age');
+    expect(memoryConfirmService.resolve).not.toHaveBeenCalled();
+  });
+
+  it('memconfirm:* without memoryConfirmService replies with an ephemeral warning', async () => {
+    const deps = makeDeps({ memoryConfirmService: undefined });
+    const ixn = makeButtonInteraction({
+      customId: 'memconfirm:approve:CALL-1',
+      message: { content: '🧠 Memory' },
+    });
+    await routeInteraction(ixn, deps);
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ flags: MessageFlags.Ephemeral }),
+    );
+  });
+});
+
+describe('routeInteraction — memconfirm modal submit', () => {
+  function makeModalInteraction(overrides: Record<string, any> = {}) {
+    return {
+      isButton: () => false,
+      isModalSubmit: () => true,
+      isChatInputCommand: () => false,
+      user: { id: 'user-1' },
+      customId: 'memconfirm_modal:CALL-2:query',
+      fields: { getTextInputValue: vi.fn().mockReturnValue('user.age_group') },
+      reply: vi.fn().mockResolvedValue(undefined),
+      update: vi.fn().mockResolvedValue(undefined),
+      ...overrides,
+    } as any;
+  }
+
+  it('resolves with edited params derived from the field name', async () => {
+    const memoryConfirmService = {
+      hasPending: vi.fn().mockReturnValue(true),
+      isResolvedByUser: vi.fn().mockReturnValue(false),
+      resolve: vi.fn().mockReturnValue({ ok: true }),
+    } as unknown as MemoryConfirmService;
+    const initialValues = new Map<string, string>([['CALL-2', 'user.age']]);
+    const deps = makeDeps({ memoryConfirmService, memoryConfirmInitialValues: initialValues });
+    const ixn = makeModalInteraction();
+    await routeInteraction(ixn, deps);
+    expect(memoryConfirmService.resolve).toHaveBeenCalledWith('CALL-2', true, {
+      query: 'user.age_group',
+    });
+    expect(initialValues.has('CALL-2')).toBe(false);
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.stringContaining('Approved with edit'),
+      }),
+    );
+  });
+
+  it('expired pending entry produces ephemeral expired reply', async () => {
+    const memoryConfirmService = {
+      hasPending: vi.fn().mockReturnValue(false),
+      isResolvedByUser: vi.fn().mockReturnValue(false),
+      resolve: vi.fn().mockReturnValue({ ok: false, reason: 'not_found' }),
+    } as unknown as MemoryConfirmService;
+    const deps = makeDeps({ memoryConfirmService });
+    const ixn = makeModalInteraction({ customId: 'memconfirm_modal:gone:newValue' });
+    await routeInteraction(ixn, deps);
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Expired') }),
+    );
+  });
+});
+
 function makeSlashInteraction(overrides: Record<string, any> = {}) {
   return {
     isButton: () => false,
+    isModalSubmit: () => false,
     isChatInputCommand: () => true,
     user: { id: 'user-1' },
     commandName: 'status',
@@ -378,6 +512,7 @@ describe('routeInteraction — /heartbeat', () => {
   function makeSlash(overrides: Record<string, any> = {}) {
     return {
       isButton: () => false,
+      isModalSubmit: () => false,
       isChatInputCommand: () => true,
       user: { id: 'user-1' },
       commandName: 'heartbeat',

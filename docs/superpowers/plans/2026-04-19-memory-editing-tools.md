@@ -1420,7 +1420,7 @@ git commit -m "feat(memory): thread currentUserMessageId/Timestamp into ToolCont
 
 **Why:** Пользовательский UX для confirm с edit.
 
-- [ ] **Step 1: Добавить handler в `bot.ts` рядом с tool_plan_review**
+- [x] **Step 1: Добавить handler в `bot.ts` рядом с tool_plan_review**
 
 В `packages/server/src/channels/discord/bot.ts` в блоке `if (event.type === 'tool_plan_review') {...}` — добавь аналогичный ниже:
 
@@ -1449,7 +1449,7 @@ if (event.type === 'tool_memory_confirm') {
 
 Обнови тип `pendingEmbedMsgs` если нужно — чтобы `kind` включал `'memconfirm'`.
 
-- [ ] **Step 2: Handle кнопки в `interactions.ts`**
+- [x] **Step 2: Handle кнопки в `interactions.ts`**
 
 В `packages/server/src/channels/discord/interactions.ts` найди блок handling custom_id prefixes (где уже есть `plan_review:...`). Добавь блок:
 
@@ -1530,7 +1530,7 @@ await ixn.showModal(modal);
 
 Вариант с prefill: в `pendingEmbedMsgs` сохраняй `initialValue` при `tool_memory_confirm` event. В edit handler смотри в `pendingEmbedMsgs` по callId и ставь `input.setValue(entry.initialValue)`.
 
-- [ ] **Step 3: Failing тест — interactions**
+- [x] **Step 3: Failing тест — interactions**
 
 В `packages/server/src/channels/discord/__tests__/interactions.test.ts` добавь 3 теста:
 
@@ -1574,13 +1574,13 @@ it('memconfirm modal submit resolves with edited params', async () => {
 
 `commonDeps` — helper в существующем test-файле, создаёт stubs для других сервисов.
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 ```bash
 npx vitest run --root packages/server packages/server/src/channels/discord/__tests__/interactions.test.ts
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/channels/discord
