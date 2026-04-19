@@ -316,6 +316,29 @@ describe('MemoryService', () => {
       const res = await svc.updateFact({ key: 'user.age', newValue: '   ', sourceMessageId: 'M' });
       expect(res).toEqual({ error: 'Порожнє нове значення', key: 'user.age' });
     });
+
+    it('normalizes LLM-supplied keys so "User.Age" matches the stored "user.age"', async () => {
+      const svc = createMemoryService({
+        db: getDb(),
+        embeddings: mockEmbeddings as any,
+        ollama: mockOllama as any,
+        extractorModel: 'qwen2.5:7b',
+      });
+      await svc.saveFact({ key: 'user.age', value: '42', importance: 5, timestamp: 1000 });
+      const res = await svc.updateFact({ key: 'User.Age', newValue: '43', sourceMessageId: 'M' });
+      expect(res).toEqual({ updated: { key: 'user.age', oldValue: '42', newValue: '43' } });
+    });
+
+    it('rejects malformed keys instead of persisting them bypassing saveFact validation', async () => {
+      const svc = createMemoryService({
+        db: getDb(),
+        embeddings: mockEmbeddings as any,
+        ollama: mockOllama as any,
+        extractorModel: 'qwen2.5:7b',
+      });
+      const res = await svc.updateFact({ key: 'user.', newValue: 'x', sourceMessageId: 'M' });
+      expect(res).toEqual({ error: 'Некоректний ключ', key: 'user.' });
+    });
   });
 
   describe('forgetLast', () => {

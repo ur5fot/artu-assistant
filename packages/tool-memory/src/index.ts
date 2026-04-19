@@ -389,7 +389,12 @@ export function createMemoryForgetLastTool(deps: { memoryService: MemoryServiceL
         };
       }
       if (dry.forgotten.length === 0) {
-        return { success: false, error: 'Нічого забувати' };
+        // Surface the service's reason so the LLM can tell "no previous turn"
+        // apart from "previous turn had no facts" — important because the async
+        // extractor may still be running when the user says "забудь це", and
+        // collapsing both into a single error hides the timing race.
+        const suffix = dry.reason ? `: ${dry.reason}` : '';
+        return { success: false, error: `Нічого забувати${suffix}` };
       }
 
       if (ctx?.requestMemoryConfirm) {

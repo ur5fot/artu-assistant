@@ -310,13 +310,23 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
     },
 
     async updateFact(params) {
-      const { key, newValue, sourceMessageId } = params;
+      const { newValue, sourceMessageId } = params;
+      // Apply the same key canonicalization saveFact uses so an LLM-supplied
+      // "User.Age" / "user.Age" matches the stored "user.age" and both write
+      // paths can't drift into two semantically-equivalent active rows.
+      const key = normalizeKey(params.key);
+      if (key.length > FACT_KEY_MAX || !FACT_KEY_RE.test(key)) {
+        return { error: 'Некоректний ключ', key: params.key };
+      }
       const existing = findActiveFactByKey(db, key);
       if (!existing) return { error: `Не знайдено активного факту "${key}"`, key };
-      const normalizedValue = newValue
+      let normalizedValue = newValue
         .replace(/[\u0000-\u001f\u007f]/g, ' ')
         .trim()
         .replace(/\s+/g, ' ');
+      if (normalizedValue.length > FACT_VALUE_MAX) {
+        normalizedValue = normalizedValue.slice(0, FACT_VALUE_MAX);
+      }
       if (!normalizedValue) return { error: 'Порожнє нове значення', key };
       const factText = `${key}: ${normalizedValue}`;
       const vec = await safeEmbed(factText);
