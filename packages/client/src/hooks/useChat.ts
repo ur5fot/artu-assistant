@@ -200,6 +200,30 @@ export function useChat() {
             }));
             break;
 
+          case 'tool_memory_confirm':
+            // Web UI is frozen (Discord is the primary channel) and has no memory
+            // confirm dialog. Auto-deny so the backend tool loop doesn't hang
+            // indefinitely waiting for a confirmation that can never arrive.
+            // Treat non-2xx responses as failures too: fetch only rejects on
+            // network errors, so a 5xx would otherwise be silently swallowed
+            // and the pending confirm would stay unresolved on the server.
+            fetch('/api/memory-confirm', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ callId: event.payload.id, approved: false }),
+            })
+              .then((res) => {
+                if (!res.ok) {
+                  console.error(
+                    `Failed to auto-deny memory confirm: HTTP ${res.status}`,
+                  );
+                }
+              })
+              .catch((err) => {
+                console.error('Failed to auto-deny memory confirm:', err);
+              });
+            break;
+
           case 'tool_progress': {
             const tc = toolCalls.find((t) => t.id === event.id);
             if (tc) tc.progress = event.message;

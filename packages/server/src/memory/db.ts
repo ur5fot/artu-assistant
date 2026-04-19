@@ -298,11 +298,29 @@ export interface UserMessageRef {
 export function findLastUserMessageBefore(
   db: Database.Database,
   beforeTimestamp: number,
+  excludeMessageId?: string,
 ): UserMessageRef | null {
-  // Secondary sort on id DESC disambiguates two user rows saved within the same
-  // millisecond (e.g. bot + HTTP route racing). Without it, SQLite's tie order
-  // is implementation-defined, so memory_forget_last could land on the wrong
-  // previous message after a ms collision.
+  // Tuple-based ordering against the current message's id: a prior row with
+  // the same ms but lower id is a true "previous" turn, while a same-ms row
+  // with HIGHER id is a concurrent-future message (bot + HTTP race) we must
+  // not return. `message_id != ?` alone would silently pick the future
+  // message because `ORDER BY id DESC` puts it first.
+  if (excludeMessageId) {
+    const row = db
+      .prepare(
+        `SELECT message_id AS messageId, timestamp
+         FROM chat_messages
+         WHERE role = 'user'
+           AND (
+             timestamp < ?
+             OR (timestamp = ? AND id < (SELECT id FROM chat_messages WHERE message_id = ?))
+           )
+         ORDER BY timestamp DESC, id DESC
+         LIMIT 1`,
+      )
+      .get(beforeTimestamp, beforeTimestamp, excludeMessageId) as UserMessageRef | undefined;
+    return row ?? null;
+  }
   const row = db
     .prepare(
       `SELECT message_id AS messageId, timestamp

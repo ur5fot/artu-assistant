@@ -341,11 +341,19 @@ async function routeModalSubmit(
       // original message gone or no permission — ignore
     }
   }
+  // Discord caps a reply at 2000 chars. The modal text input can hold up to
+  // 4000, so a long edited value can blow past the limit and make ixn.reply
+  // throw even though the confirm was already resolved. Clamp defensively.
+  const REPLY_MAX = 2000;
+  const replyRaw = result.ok
+    ? `✅ Approved with edit: ${field}="${value}"`
+    : '⚠️ Expired';
+  const replyContent = replyRaw.length > REPLY_MAX
+    ? replyRaw.slice(0, REPLY_MAX - 1) + '…'
+    : replyRaw;
   await (ixn as any).reply({
     flags: MessageFlags.Ephemeral,
-    content: result.ok
-      ? `✅ Approved with edit: ${field}="${value}"`
-      : '⚠️ Expired',
+    content: replyContent,
   });
 }
 

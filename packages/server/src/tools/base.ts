@@ -4,6 +4,7 @@ import type { ClaudeClient } from '../ai/claude.js';
 import type { ToolRegistry } from './registry.js';
 import type { PendingConfirms } from '../routes/confirm.js';
 import type { PendingPlanReviews } from '../routes/plan-review.js';
+import type { PendingMemoryConfirms } from '../routes/memory-confirm.js';
 import type { MemoryService } from '../memory/service.js';
 import type { ReminderStore } from '../reminders/store.js';
 
@@ -23,6 +24,7 @@ export interface RunLoopParams {
   signal?: AbortSignal;
   pendingConfirms?: PendingConfirms;
   pendingPlanReviews?: PendingPlanReviews;
+  pendingMemoryConfirms?: PendingMemoryConfirms;
 }
 
 export type RunLoopFn = (params: RunLoopParams) => Promise<void>;

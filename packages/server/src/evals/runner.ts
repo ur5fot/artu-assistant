@@ -1,10 +1,11 @@
-import type { SSEEvent, PlanReviewResponse } from '@r2/shared';
+import type { SSEEvent, PlanReviewResponse, MemoryConfirmResponse } from '@r2/shared';
 import type { Eval } from './store.js';
 import { loadEvals } from './store.js';
 import { evaluate } from './evaluator.js';
 import type { RunLoopFn } from '../tools/base.js';
 import type { PendingConfirms, ConfirmResponse } from '../routes/confirm.js';
 import type { PendingPlanReviews } from '../routes/plan-review.js';
+import type { PendingMemoryConfirms } from '../routes/memory-confirm.js';
 import type { PiiProxy } from '../pii/proxy.js';
 
 export interface EvalResult {
@@ -51,6 +52,13 @@ class AutoDenyPlanReviews extends Map<string, (r: PlanReviewResponse) => void> {
   }
 }
 
+class AutoDenyMemoryConfirms extends Map<string, (r: MemoryConfirmResponse) => void> {
+  override set(key: string, fn: (r: MemoryConfirmResponse) => void): this {
+    fn({ approved: false });
+    return this;
+  }
+}
+
 export async function runSingleEval(
   target: Eval,
   runLoop: RunLoopFn,
@@ -70,6 +78,7 @@ export async function runSingleEval(
 
   const pendingConfirms: PendingConfirms = new AutoDenyConfirms();
   const pendingPlanReviews: PendingPlanReviews = new AutoDenyPlanReviews();
+  const pendingMemoryConfirms: PendingMemoryConfirms = new AutoDenyMemoryConfirms();
 
   try {
     await runLoop({
@@ -78,6 +87,7 @@ export async function runSingleEval(
       signal,
       pendingConfirms,
       pendingPlanReviews,
+      pendingMemoryConfirms,
     });
   } catch (err) {
     return {

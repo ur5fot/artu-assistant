@@ -28,6 +28,7 @@ interface MemoryServiceLike {
   >;
   forgetLast?(params: {
     currentMessageTimestamp: number;
+    currentMessageId?: string;
     dryRun?: boolean;
     factIds?: number[];
   }): Promise<{
@@ -379,13 +380,18 @@ export function createMemoryForgetLastTool(deps: { memoryService: MemoryServiceL
       if (typeof currentMessageTimestamp !== 'number') {
         return { success: false, error: 'Нема контексту поточного повідомлення' };
       }
+      const currentMessageId = ctx?.currentUserMessageId;
 
       // Dry-run so the user sees the exact facts in the confirm dialog before
       // anything is marked forgotten. markFactForgotten is not reversible via
       // the service API, so we never mutate rows until the user approves.
       let dry;
       try {
-        dry = await deps.memoryService.forgetLast({ currentMessageTimestamp, dryRun: true });
+        dry = await deps.memoryService.forgetLast({
+          currentMessageTimestamp,
+          currentMessageId,
+          dryRun: true,
+        });
       } catch (err) {
         return {
           success: false,
@@ -421,7 +427,11 @@ export function createMemoryForgetLastTool(deps: { memoryService: MemoryServiceL
         // same source_message_id between preview and approve, and the apply
         // path would delete them without the user ever seeing them.
         const factIds = dry.forgotten.map((f) => f.id);
-        const result = await deps.memoryService.forgetLast({ currentMessageTimestamp, factIds });
+        const result = await deps.memoryService.forgetLast({
+          currentMessageTimestamp,
+          currentMessageId,
+          factIds,
+        });
         if (result.forgotten.length === 0) {
           const suffix = result.reason ? `: ${result.reason}` : '';
           return { success: false, error: `Нічого забувати${suffix}` };

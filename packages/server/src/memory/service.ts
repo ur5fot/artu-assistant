@@ -75,6 +75,11 @@ export interface MemoryService {
 
   forgetLast(params: {
     currentMessageTimestamp: number;
+    // When supplied, the current user message is excluded from the "previous"
+    // lookup by message_id, so a prior message saved in the same millisecond
+    // (bot + HTTP race) is still found. Without it, `timestamp < current` drops
+    // both siblings.
+    currentMessageId?: string;
     dryRun?: boolean;
     // When supplied on the apply path, only these fact ids are marked forgotten
     // — the set is frozen at dry-run time so facts the async extractor appends
@@ -356,7 +361,11 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
     },
 
     async forgetLast(params) {
-      const prev = findLastUserMessageBefore(db, params.currentMessageTimestamp);
+      const prev = findLastUserMessageBefore(
+        db,
+        params.currentMessageTimestamp,
+        params.currentMessageId,
+      );
       if (!prev) return { forgotten: [], sourceMessageId: null, reason: 'no previous user message' };
       const facts = findFactsBySourceMessageId(db, prev.messageId);
       if (facts.length === 0) {

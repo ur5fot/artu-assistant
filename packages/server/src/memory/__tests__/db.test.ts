@@ -420,5 +420,37 @@ describe('memory db', () => {
       ).run();
       expect(findLastUserMessageBefore(db, 2000)).toBeNull();
     });
+
+    it('finds prior message even on same-ms collision when currentMessageId is supplied', () => {
+      const db = getDb();
+      const ins = db.prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'x', ?)",
+      );
+      ins.run('M_PREV', 1000);
+      ins.run('M_CURRENT', 1000);
+      // Without exclude: `< 1000` misses both same-ms rows.
+      expect(findLastUserMessageBefore(db, 1000)).toBeNull();
+      // With exclude: tuple-based ordering (timestamp, id) < (1000, M_CURRENT.id)
+      // correctly finds M_PREV (id lower than M_CURRENT).
+      expect(
+        findLastUserMessageBefore(db, 1000, 'M_CURRENT')?.messageId,
+      ).toBe('M_PREV');
+    });
+
+    it('ignores same-ms message inserted AFTER current (concurrent future race)', () => {
+      const db = getDb();
+      const ins = db.prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'x', ?)",
+      );
+      // Insertion order: M_CURRENT first (lower id), then M_FUTURE at same ms
+      // (higher id) — simulates another channel writing concurrently while the
+      // current turn's tool loop is still running.
+      ins.run('M_CURRENT', 1000);
+      ins.run('M_FUTURE', 1000);
+      // Must NOT return M_FUTURE: it was inserted after M_CURRENT, so it's
+      // not a prior user turn. `message_id != M_CURRENT` alone would wrongly
+      // pick M_FUTURE due to `ORDER BY id DESC`.
+      expect(findLastUserMessageBefore(db, 1000, 'M_CURRENT')).toBeNull();
+    });
   });
 });
