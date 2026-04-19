@@ -3,7 +3,7 @@ import { initDb, getDb } from '../../../db.js';
 import {
   getLocalCivilEpoch,
   isSameLocalDate,
-  hasUserActivityToday,
+  hasUserActivitySince,
   gatherData,
   composePrompt,
 } from '../../handlers/morningBrief.helpers.js';
@@ -99,43 +99,41 @@ describe('isSameLocalDate', () => {
   });
 });
 
-describe('hasUserActivityToday', () => {
-  it('returns false when chat_messages has no rows since today_start', () => {
-    const now = Date.UTC(2026, 3, 18, 6, 0, 0);
-    expect(hasUserActivityToday(getDb(), now, TZ)).toBe(false);
+describe('hasUserActivitySince', () => {
+  const since = Date.UTC(2026, 3, 18, 3, 0, 0); // 06:00 Kyiv 18th
+
+  it('returns false when chat_messages has no rows since the boundary', () => {
+    expect(hasUserActivitySince(getDb(), since)).toBe(false);
   });
 
-  it('returns true when at least one user message exists after today_start', () => {
-    const now = Date.UTC(2026, 3, 18, 6, 0, 0);
-    const ts = Date.UTC(2026, 3, 18, 4, 0, 0);
+  it('returns true when at least one user message exists at or after the boundary', () => {
+    const ts = since + 3600_000; // 07:00 Kyiv
     getDb()
       .prepare(
         "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'hi', ?)",
       )
       .run(`m-${ts}`, ts);
-    expect(hasUserActivityToday(getDb(), now, TZ)).toBe(true);
+    expect(hasUserActivitySince(getDb(), since)).toBe(true);
   });
 
-  it('ignores messages from previous local day', () => {
-    const now = Date.UTC(2026, 3, 18, 6, 0, 0);
-    const ts = Date.UTC(2026, 3, 17, 20, 0, 0);
+  it('ignores messages before the boundary (e.g. 03:00 local)', () => {
+    const ts = since - 3 * 3600_000; // 03:00 Kyiv — before 06:00
     getDb()
       .prepare(
         "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'hi', ?)",
       )
       .run(`m-${ts}`, ts);
-    expect(hasUserActivityToday(getDb(), now, TZ)).toBe(false);
+    expect(hasUserActivitySince(getDb(), since)).toBe(false);
   });
 
   it('ignores assistant messages (only user role counts)', () => {
-    const now = Date.UTC(2026, 3, 18, 6, 0, 0);
-    const ts = Date.UTC(2026, 3, 18, 4, 0, 0);
+    const ts = since + 3600_000;
     getDb()
       .prepare(
         "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'assistant', 'hi', ?)",
       )
       .run(`m-${ts}`, ts);
-    expect(hasUserActivityToday(getDb(), now, TZ)).toBe(false);
+    expect(hasUserActivitySince(getDb(), since)).toBe(false);
   });
 });
 

@@ -156,6 +156,26 @@ describe('createMorningBriefHandler', () => {
       expect(res).toBe(false);
     });
 
+    it('returns false when activity exists today but all messages are before 06:00 local', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 18, 6, 0, 0); // 09:00 Kyiv 18th
+      // Insert a message at 03:00 Kyiv 18th — after midnight but before 06:00
+      const earlyMorningTs = Date.UTC(2026, 3, 18, 0, 0, 0);
+      getDb()
+        .prepare(
+          "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('early', 'user', 'ку', ?)",
+        )
+        .run(earlyMorningTs);
+      const res = await h.trigger(
+        { now, lastFiredAt: null, lastResult: null },
+        { db: getDb() },
+      );
+      expect(res).toBe(false);
+    });
+
     it('returns true after 06:00 local, new local day, and activity present', async () => {
       const h = createMorningBriefHandler({
         piiProxy: fakeProxy(),

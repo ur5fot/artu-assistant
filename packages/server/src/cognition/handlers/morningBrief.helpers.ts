@@ -45,17 +45,15 @@ function localDateKey(ts: number, tz: string): string {
   }).format(new Date(ts));
 }
 
-export function hasUserActivityToday(
+export function hasUserActivitySince(
   db: Database.Database,
-  now: number,
-  tz: string,
+  since: number,
 ): boolean {
-  const todayStart = getLocalCivilEpoch(now, tz);
   const row = db
     .prepare(
       "SELECT 1 FROM chat_messages WHERE role = 'user' AND timestamp >= ? LIMIT 1",
     )
-    .get(todayStart);
+    .get(since);
   return row !== undefined;
 }
 
