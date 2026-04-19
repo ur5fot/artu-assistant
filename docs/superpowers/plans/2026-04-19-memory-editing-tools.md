@@ -1674,7 +1674,7 @@ git commit -m "feat: wire memoryConfirmService + pendingMemoryConfirms in index"
 
 ## Task 11: Full suite + typecheck pass
 
-- [ ] **Step 1: Full vitest**
+- [x] **Step 1: Full vitest**
 
 ```bash
 npx vitest run --root packages/server
@@ -1683,7 +1683,9 @@ npx vitest run --root packages/tool-memory
 
 Все зелёные. Зафиксируй итог (`N passed`).
 
-- [ ] **Step 2: Typecheck**
+Итог: server 558/558 passed (52 files), tool-memory 37/37 passed (4 files).
+
+- [x] **Step 2: Typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/server
@@ -1691,7 +1693,11 @@ npx tsc -p packages/shared
 npx tsc -p packages/tool-memory
 ```
 
-- [ ] **Step 3: Commit any touch-ups (если были)**
+Все три — exit 0, без ошибок.
+
+- [x] **Step 3: Commit any touch-ups (если были)**
+
+Правок не потребовалось — всё зелёное с первого прогона.
 
 ---
 
