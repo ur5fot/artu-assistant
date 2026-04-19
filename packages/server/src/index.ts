@@ -9,7 +9,8 @@ import cors from 'cors';
 import { createChatRouter } from './routes/chat.js';
 import { createConfirmRouter, type PendingConfirms } from './routes/confirm.js';
 import { createPlanReviewRouter, type PendingPlanReviews } from './routes/plan-review.js';
-import type { PendingMemoryConfirms } from './routes/memory-confirm.js';
+import { createMemoryConfirmRouter, type PendingMemoryConfirms } from './routes/memory-confirm.js';
+import { createMemoryConfirmService } from './services/memory-confirm-service.js';
 import { createPermissionsRouter } from './routes/permissions.js';
 import { createPiiRouter } from './routes/pii.js';
 import { createMessagesRouter } from './routes/messages.js';
@@ -187,6 +188,8 @@ const pendingConfirms: PendingConfirms = new Map();
 const permissionService = createPermissionService({ pending: pendingConfirms });
 const pendingPlanReviews: PendingPlanReviews = new Map();
 const planReviewService = createPlanReviewService({ pending: pendingPlanReviews });
+const pendingMemoryConfirms: PendingMemoryConfirms = new Map();
+const memoryConfirmService = createMemoryConfirmService({ pending: pendingMemoryConfirms });
 
 let memoryService: MemoryService | null = null;
 if (memoryEnabled && ollamaForMemory) {
@@ -273,6 +276,7 @@ if (discordToken) {
           signal: params.signal,
           pendingConfirms,
           pendingPlanReviews,
+          pendingMemoryConfirms,
           piiProxy,
           ollama: ollamaForRouter,
           registry,
@@ -288,6 +292,7 @@ if (discordToken) {
       reminderService,
       permissionService,
       planReviewService,
+      memoryConfirmService,
       commandService,
       requestTimeoutMs: (() => {
         const n = Number(process.env.DISCORD_REQUEST_TIMEOUT_MS);
@@ -313,6 +318,7 @@ const chatRouter = createChatRouter({
     runToolLoop({ messages, client, registry, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, pendingMemoryConfirms: pmc, piiProxy: pp, currentUserMessageId, currentUserMessageTimestamp }),
   pendingConfirms,
   pendingPlanReviews,
+  pendingMemoryConfirms,
   piiProxy,
   ollama: ollamaForRouter,
   registry,
@@ -322,6 +328,7 @@ const chatRouter = createChatRouter({
 app.use('/api', chatRouter);
 app.use('/api', createConfirmRouter({ service: permissionService }));
 app.use('/api', createPlanReviewRouter({ service: planReviewService }));
+app.use('/api', createMemoryConfirmRouter({ service: memoryConfirmService }));
 app.use('/api', createPermissionsRouter());
 app.use('/api', createMessagesRouter());
 app.use('/api', createMergeRouter());

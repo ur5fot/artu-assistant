@@ -1596,7 +1596,7 @@ git commit -m "feat(discord): memory confirm buttons + modal"
 
 **Why:** Регистрация `pendingMemoryConfirms`, `memoryConfirmService`, HTTP endpoint, передача в Discord deps и chat routes.
 
-- [ ] **Step 1: Инициализировать в index.ts**
+- [x] **Step 1: Инициализировать в index.ts**
 
 Найди место где создаются `pendingConfirms` и `pendingPlanReviews`:
 
@@ -1617,7 +1617,7 @@ const pendingMemoryConfirms: PendingMemoryConfirms = new Map();
 const memoryConfirmService = createMemoryConfirmService({ pending: pendingMemoryConfirms });
 ```
 
-- [ ] **Step 2: Подключить HTTP router**
+- [x] **Step 2: Подключить HTTP router**
 
 Найди где `app.use(...)` другие routers. Добавь:
 
@@ -1625,7 +1625,7 @@ const memoryConfirmService = createMemoryConfirmService({ pending: pendingMemory
 app.use(createMemoryConfirmRouter(pendingMemoryConfirms));
 ```
 
-- [ ] **Step 3: Прокинуть в Discord deps**
+- [x] **Step 3: Прокинуть в Discord deps**
 
 В `deps` объекте что передаётся в `startDiscordBot(...)`:
 
@@ -1637,11 +1637,11 @@ pendingMemoryConfirms,
 
 Соответственно в `packages/server/src/channels/discord/bot.ts` `Deps` interface и в `interactions.ts` `routeInteraction` — добавь поле `memoryConfirmService?: MemoryConfirmService`.
 
-- [ ] **Step 4: Прокинуть в chat pipeline**
+- [x] **Step 4: Прокинуть в chat pipeline**
 
 В вызове `runChatRequest(...)` (bot.ts и routes/chat.ts) добавь `pendingMemoryConfirms`.
 
-- [ ] **Step 5: Full typecheck**
+- [x] **Step 5: Full typecheck**
 
 ```bash
 npx tsc --noEmit -p packages/server
@@ -1649,13 +1649,13 @@ npx tsc --noEmit -p packages/server
 
 Все места использования новых deps должны быть покрыты. Если TS жалуется где-то — добавь `pendingMemoryConfirms: new Map()` в тестах или поля в deps объектах.
 
-- [ ] **Step 6: Full suite**
+- [x] **Step 6: Full suite**
 
 ```bash
 npx vitest run --root packages/server
 ```
 
-- [ ] **Step 7: Проверить запуск сервера**
+- [x] **Step 7: Проверить запуск сервера**
 
 ```bash
 timeout 5 npm --prefix packages/server run dev 2>&1 | head -50 || true
@@ -1663,7 +1663,7 @@ timeout 5 npm --prefix packages/server run dev 2>&1 | head -50 || true
 
 Ожидается что нет ошибок на startup. Цели: `[memory] enabled`, `[discord] bot started`, `Tools loaded: 13+`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/server/src/index.ts
