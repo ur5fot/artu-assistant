@@ -366,7 +366,7 @@ describe('callMorningBriefAI', () => {
       expect(toolResultMsg.content[0].content).toContain('network fail');
     });
 
-    it('max iterations: returns last text after 5 iterations of tool_use', async () => {
+    it('max iterations: forces final answer with tools disabled after 5 tool_use iterations', async () => {
       process.env.LOCAL_LLM_MODE = 'disabled';
       const handler = vi.fn(async () => ({
         success: true as const,
@@ -374,7 +374,14 @@ describe('callMorningBriefAI', () => {
         display: { type: 'text' as const, content: 'ok' },
       }));
       const tool = fakeWebSearchTool(handler as any);
-      const create = vi.fn(async () => makeToolUseResponse('web_search', { query: 'x' }));
+      const create = vi
+        .fn()
+        .mockImplementation(async (req: any) => {
+          if (Array.isArray(req.tools) && req.tools.length === 0) {
+            return makeTextResponse('Финальный ответ без инструментов.');
+          }
+          return makeToolUseResponse('web_search', { query: 'x' });
+        });
       const anthropic = { messages: { create } };
       const result = await callMorningBriefAI({
         piiProxy: fakeProxy(),
@@ -383,9 +390,11 @@ describe('callMorningBriefAI', () => {
         signal: new AbortController().signal,
         webSearchTool: tool,
       });
-      expect(create).toHaveBeenCalledTimes(5);
+      expect(create).toHaveBeenCalledTimes(6);
       expect(handler).toHaveBeenCalledTimes(5);
-      expect(result).toBe('');
+      expect(result).toBe('Финальный ответ без инструментов.');
+      const finalCall = create.mock.calls[5][0];
+      expect(finalCall.tools).toEqual([]);
     });
 
     it('ollama path: tool loop is NOT used when LOCAL_LLM_MODE=enabled', async () => {

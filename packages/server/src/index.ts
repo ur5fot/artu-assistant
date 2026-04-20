@@ -300,12 +300,16 @@ if (discordToken) {
       })(),
     });
     console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
+    const webSearchTool = registry.get('web_search') ?? null;
+    if (!webSearchTool) {
+      console.warn('[morningBrief] web_search tool not registered — brief will run without weather lookup');
+    }
     cognitionService.register(
       createMorningBriefHandler({
         piiProxy,
         anthropic: client.anthropic,
         ollama: ollamaForRouter,
-        webSearchTool: registry.get('web_search') ?? null,
+        webSearchTool,
       }),
     );
   } catch (err) {

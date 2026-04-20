@@ -4,6 +4,7 @@ import type { ToolDefinition } from '@r2/shared';
 import type { PiiProxy } from '../../pii/proxy.js';
 import type { OllamaClient } from '../../ai/ollama.js';
 import { toClaudeTool } from '../../tools/base.js';
+import { deanonDeep } from '../../ai/tool-helpers.js';
 
 const SYSTEM_PROMPT = `Ты — R2, персональный ассистент dim. Язык ответа — ТОЛЬКО русский.
 
@@ -48,21 +49,6 @@ function extractText(content: any[]): string {
   return textBlock && textBlock.type === 'text' ? textBlock.text : '';
 }
 
-async function deanonymizeArgs(
-  piiProxy: PiiProxy,
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(input)) {
-    if (typeof v === 'string') {
-      out[k] = await piiProxy.deanonymize(v);
-    } else {
-      out[k] = v;
-    }
-  }
-  return out;
-}
-
 async function callClaude(
   anthropic: Anthropic,
   prompt: string,
@@ -74,8 +60,11 @@ async function callClaude(
   const tools = webSearchTool ? [toClaudeTool(webSearchTool)] : undefined;
   const messages: MessageParam[] = [{ role: 'user', content: prompt }];
   let lastText = '';
+  let lastEndedWithToolUse = false;
 
   for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
+    if (signal.aborted) return lastText;
+
     const msg = await anthropic.messages.create(
       {
         model,
@@ -91,6 +80,7 @@ async function callClaude(
     lastText = extractText(content);
 
     if (msg.stop_reason !== 'tool_use') return lastText;
+    lastEndedWithToolUse = true;
 
     const toolUse = content.find((b) => b.type === 'tool_use');
     if (!toolUse || !webSearchTool) return lastText;
@@ -105,8 +95,8 @@ async function callClaude(
         isError = true;
       } else {
         const rawArgs = (toolUse.input ?? {}) as Record<string, unknown>;
-        const args = await deanonymizeArgs(piiProxy, rawArgs);
-        const result = await webSearchTool.handler(args, {});
+        const args = (await deanonDeep(rawArgs, piiProxy)) as Record<string, unknown>;
+        const result = await webSearchTool.handler(args, { signal });
         if (result.success) {
           resultText = result.display?.content ?? 'No results';
         } else {
@@ -132,7 +122,24 @@ async function callClaude(
     });
   }
 
-  console.warn('[morningBrief] hit max tool iterations, returning last text');
+  if (lastEndedWithToolUse && !signal.aborted) {
+    console.warn('[morningBrief] hit max tool iterations, asking for final answer');
+    const finalMsg = await anthropic.messages.create(
+      {
+        model,
+        max_tokens: MAX_TOKENS,
+        system: SYSTEM_PROMPT,
+        messages: [
+          ...messages,
+          { role: 'user', content: 'Хватит инструментов. Дай финальный ответ сейчас.' },
+        ],
+        tools: [],
+      },
+      { signal },
+    );
+    return extractText(finalMsg.content as any[]);
+  }
+
   return lastText;
 }
 
