@@ -70,4 +70,22 @@ describe('prompts overlay integration', () => {
       expect(mockedGetOverlay).toHaveBeenCalledWith('ollama');
     });
   });
+
+  describe('multi-turn coalescing rule', () => {
+    beforeEach(() => {
+      mockedGetOverlay.mockReturnValue(null);
+    });
+
+    it('getSystemPrompt contains multi-turn rule marker', () => {
+      const out = getSystemPrompt();
+      expect(out).toContain('Склей повну команду з історії');
+      expect(out).toContain('коротко (1-3 слова)');
+    });
+
+    it('getLocalSystemPrompt contains multi-turn rule marker', () => {
+      const out = getLocalSystemPrompt();
+      expect(out).toContain('Склей повну команду з історії');
+      expect(out).toContain('коротко (1-3 слова)');
+    });
+  });
 });
