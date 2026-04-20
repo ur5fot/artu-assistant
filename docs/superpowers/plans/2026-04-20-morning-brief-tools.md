@@ -91,8 +91,8 @@
 
 ### Task 5: [Final] Обновить документацию
 
-- [ ] `AGENTS.md`: если есть секция про cognition/handlers — упомянуть что morningBrief делает web_search для погоды.
-- [ ] env vars документация не меняется (tools реестр используется тот же).
+- [x] `AGENTS.md`: если есть секция про cognition/handlers — упомянуть что morningBrief делает web_search для погоды.
+- [x] env vars документация не меняется (tools реестр используется тот же).
 
 ## Technical Details
 
