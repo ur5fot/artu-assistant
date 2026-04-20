@@ -12,6 +12,7 @@ import { getLocalSystemPrompt } from './prompts.js';
 import { toOllamaToolDef } from './ollama.js';
 import { runOllamaToolLoop } from './ollama-tool-loop.js';
 import { stripTimestampPrefix } from './timestamp-strip.js';
+import { sanitizeHistory } from './sanitize-history.js';
 
 export interface RunChatRequestParams {
   messages: MessageParam[];
@@ -154,6 +155,12 @@ async function emitEscalationAndFallback(params: RunChatRequestParams, reason: s
 }
 
 export async function runChatRequest(params: RunChatRequestParams): Promise<void> {
+  // Normalize past assistant turns so legacy formatting (markdown tables,
+  // etc.) doesn't prime the model to replicate it. Applied ONCE at the
+  // edge so both the Claude fallback and the Ollama branch see a clean
+  // history without needing to know about the sanitization.
+  params = { ...params, messages: sanitizeHistory(params.messages) };
+
   const mode = process.env.LOCAL_LLM_MODE || 'enabled';
 
   if (mode === 'disabled' || params.ollama === null || params.forceProvider === 'claude') {
