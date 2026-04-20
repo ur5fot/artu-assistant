@@ -49,6 +49,10 @@ export interface DiscordBotDeps {
   requestTimeoutMs?: number;
   /** Chat context budget in chars (default 60000). */
   contextBudgetChars?: number;
+  /** Debounce window (ms) for coalescing burst user messages into one LLM
+   *  call. Default: DISCORD_COALESCE_MS env or 1500. Set to 0 in tests to
+   *  minimise the wait. */
+  coalesceMs?: number;
   /** Override the Client instance (testing only). */
   _client?: Client;
   /** Optional reminder event bus — when provided, reminder events are forwarded as Discord DMs. */
@@ -146,7 +150,22 @@ export async function startDiscordBot(
     });
 
   const timeoutMs = deps.requestTimeoutMs ?? 120_000;
+  const envCoalesce = Number(process.env.DISCORD_COALESCE_MS);
+  const coalesceMs = deps.coalesceMs ?? (Number.isFinite(envCoalesce) && envCoalesce >= 0 ? envCoalesce : 1500);
   const userQueues = new Map<string, Promise<void>>();
+  // Coalescing: each incoming DM is saved to the chat_messages table immediately,
+  // then a debounce timer is armed. Subsequent messages from the same user within
+  // `coalesceMs` reset the timer and replace `lastMsg`/`lastMessageId`. When the
+  // timer fires, handleMessage runs once with the entire burst already sitting
+  // in history — the existing history-builder collapses consecutive same-role
+  // rows into a single user turn so the LLM sees the full intent.
+  interface PendingEntry {
+    timer: ReturnType<typeof setTimeout>;
+    lastMsg: Message;
+    lastMessageId: string;
+    lastTimestamp: number;
+  }
+  const pendingMessages = new Map<string, PendingEntry>();
   // Shared across all requests — a modal interaction can fire long after the
   // original request's handleMessage() returned, so the lookup must outlive
   // any per-request closure. Entries are deleted when the confirm is resolved
@@ -206,6 +225,24 @@ export async function startDiscordBot(
     }
   });
 
+  const firePending = (userId: string) => {
+    const entry = pendingMessages.get(userId);
+    if (!entry) return;
+    pendingMessages.delete(userId);
+    const prev = userQueues.get(userId) ?? Promise.resolve();
+    const safe = prev.then(() => handleMessage(entry.lastMsg, {
+      alreadySaved: true,
+      userMessageId: entry.lastMessageId,
+      userMessageTimestamp: entry.lastTimestamp,
+    })).catch(() => {});
+    userQueues.set(userId, safe);
+    safe.then(() => {
+      if (userQueues.get(userId) === safe) {
+        userQueues.delete(userId);
+      }
+    });
+  };
+
   client.on('messageCreate', async (msg: Message) => {
     if (msg.author.bot) return;
     if (msg.channel.type !== ChannelType.DM) return;
@@ -213,17 +250,42 @@ export async function startDiscordBot(
     if (!msg.content.trim()) return;
 
     const userId = msg.author.id;
-    const prev = userQueues.get(userId) ?? Promise.resolve();
-    const safe = prev.then(() => handleMessage(msg)).catch(() => {});
-    userQueues.set(userId, safe);
-    safe.then(() => {
-      if (userQueues.get(userId) === safe) {
-        userQueues.delete(userId);
-      }
+    const source = `discord:${userId}`;
+    const messageId = crypto.randomUUID();
+    const timestamp = Date.now();
+    try {
+      deps.saveMessage({
+        messageId,
+        role: 'user',
+        content: msg.content,
+        timestamp,
+        source,
+      });
+    } catch (err) {
+      console.error(
+        '[discord] saveMessage failed on ingest:',
+        err instanceof Error ? err.message : err,
+      );
+      return;
+    }
+
+    const prev = pendingMessages.get(userId);
+    if (prev) clearTimeout(prev.timer);
+    pendingMessages.set(userId, {
+      timer: setTimeout(() => firePending(userId), coalesceMs),
+      lastMsg: msg,
+      lastMessageId: messageId,
+      lastTimestamp: timestamp,
     });
   });
 
-  async function handleMessage(msg: Message): Promise<void> {
+  interface HandleMessageOpts {
+    alreadySaved?: boolean;
+    userMessageId?: string;
+    userMessageTimestamp?: number;
+  }
+
+  async function handleMessage(msg: Message, opts: HandleMessageOpts = {}): Promise<void> {
     let typingInterval: ReturnType<typeof setInterval> | undefined;
     let sendSucceeded = false;
     const ac = new AbortController();
@@ -328,21 +390,32 @@ export async function startDiscordBot(
           built.push({ role, content: r.content });
         }
       }
-      built.push({ role: 'user', content: msg.content });
+      // If the message (and any burst siblings) was already saved by the
+      // coalescing path, the DB read above already carries the current user
+      // turn — appending msg.content here would duplicate the latest line.
+      if (!opts.alreadySaved) {
+        built.push({ role: 'user', content: msg.content });
+      }
 
       const budgetRaw = deps.contextBudgetChars ?? Number(process.env.CHAT_CONTEXT_BUDGET_CHARS);
       const contextBudget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? budgetRaw : 60000;
       const messages: MessageParam[] = truncateMessages(built, contextBudget);
 
-      const userMessageId = crypto.randomUUID();
-      const userMessageTimestamp = Date.now();
-      deps.saveMessage({
-        messageId: userMessageId,
-        role: 'user',
-        content: msg.content,
-        timestamp: userMessageTimestamp,
-        source,
-      });
+      const userMessageId = opts.alreadySaved && opts.userMessageId
+        ? opts.userMessageId
+        : crypto.randomUUID();
+      const userMessageTimestamp = opts.alreadySaved && typeof opts.userMessageTimestamp === 'number'
+        ? opts.userMessageTimestamp
+        : Date.now();
+      if (!opts.alreadySaved) {
+        deps.saveMessage({
+          messageId: userMessageId,
+          role: 'user',
+          content: msg.content,
+          timestamp: userMessageTimestamp,
+          source,
+        });
+      }
 
       let buffer = '';
       let assistantText = '';
@@ -952,6 +1025,15 @@ export async function startDiscordBot(
 
   return {
     stop: async () => {
+      // Drop any pending coalescing timers — their incoming messages are
+      // already persisted to chat_messages, so a future session will pick
+      // them up in history. Firing handleMessage against a destroyed client
+      // would throw inside DM send. (Full graceful-flush-on-SIGTERM is out
+      // of scope; the persistence side is what matters.)
+      for (const entry of pendingMessages.values()) {
+        clearTimeout(entry.timer);
+      }
+      pendingMessages.clear();
       if (reminderListener && deps.reminderBus) {
         deps.reminderBus.off('push', reminderListener);
       }

@@ -36,10 +36,17 @@ function makeMessage(overrides: Record<string, any> = {}) {
 }
 
 function makeFakeDb(rows: Array<{ role: string; content: string }> = []) {
+  // Expose the internal row array so the default saveMessage mock can
+  // append on ingest — this mirrors the production behaviour where
+  // messageCreate persists each burst message BEFORE handleMessage reads
+  // history. Without this, tests under the coalesced flow would see an
+  // empty DB and the LLM would get no context.
+  const internal = [...rows];
   return {
     prepare: vi.fn().mockReturnValue({
-      all: vi.fn().mockReturnValue([...rows]),
+      all: vi.fn(() => [...internal]),
     }),
+    _rows: internal,
   };
 }
 
@@ -47,7 +54,12 @@ async function setup(overrides: Partial<DiscordBotDeps> = {}) {
   const client = overrides._client ?? makeFakeClient();
   const runChatRequest = overrides.runChatRequest ?? vi.fn<any>().mockResolvedValue(undefined);
   const db = overrides.db ?? makeFakeDb();
-  const saveMsgFn = overrides.saveMessage ?? vi.fn();
+  const saveMsgFn = overrides.saveMessage ?? vi.fn((params: { role: string; content: string }) => {
+    const internal = (db as any)._rows;
+    // Prepend so `prepare().all()` mimics `ORDER BY timestamp DESC` (most
+    // recent first). The production bot calls reverse() on the result.
+    if (Array.isArray(internal)) internal.unshift({ role: params.role, content: params.content });
+  });
 
   const deps: DiscordBotDeps = {
     token: 'test-token',
@@ -58,6 +70,9 @@ async function setup(overrides: Partial<DiscordBotDeps> = {}) {
     saveMessage: saveMsgFn as any,
     memoryService: null,
     _client: client as Client,
+    // Default to 0ms debounce so existing tests keep their existing
+    // `await delay(...)` waits small. Coalescing-specific tests override.
+    coalesceMs: 0,
     ...overrides,
   };
 
@@ -1280,6 +1295,145 @@ describe('cognition_publish handling', () => {
     expect(markPublished).toHaveBeenCalledTimes(1);
     expect(markPublished).toHaveBeenCalledWith(42, expect.any(Number));
     await stop();
+  });
+});
+
+describe('multi-turn coalescing', () => {
+  async function flushMicrotasks(rounds = 8) {
+    for (let i = 0; i < rounds; i++) {
+      await Promise.resolve();
+    }
+  }
+
+  function makeBurstMessage(content: string, channel: ReturnType<typeof makeDmChannel>) {
+    return {
+      author: { bot: false, id: '123' },
+      channel,
+      content,
+    } as any;
+  }
+
+  it('three messages within the window collapse to one LLM call, three user saves', async () => {
+    vi.useFakeTimers();
+    try {
+      const runChatRequest = vi.fn<any>().mockResolvedValue(undefined);
+      const { client, saveMessage, db } = await setup({
+        runChatRequest: runChatRequest as any,
+        coalesceMs: 1500,
+      });
+
+      const channel = makeDmChannel();
+      client.emit('messageCreate', makeBurstMessage('изменить user.nickname', channel));
+      await vi.advanceTimersByTimeAsync(500);
+      client.emit('messageCreate', makeBurstMessage('name', channel));
+      await vi.advanceTimersByTimeAsync(500);
+      client.emit('messageCreate', makeBurstMessage('изменить', channel));
+      // Burst is over; advance past the full window from the last message.
+      await vi.advanceTimersByTimeAsync(1500);
+      await flushMicrotasks();
+
+      expect(runChatRequest).toHaveBeenCalledTimes(1);
+      // Three user rows saved on ingest (the runChatRequest mock emits no
+      // `done` event, so no assistant save is appended).
+      const userSaves = saveMessage.mock.calls.filter(
+        (c: any[]) => (c[0] as { role: string }).role === 'user',
+      );
+      expect(userSaves).toHaveLength(3);
+      const userContents = userSaves.map((c: any[]) => (c[0] as { content: string }).content);
+      expect(userContents).toEqual(['изменить user.nickname', 'name', 'изменить']);
+
+      const messages = (runChatRequest.mock.calls[0]![0] as {
+        messages: Array<{ role: string; content: string }>;
+      }).messages;
+      const lastTurn = messages[messages.length - 1]!;
+      expect(lastTurn.role).toBe('user');
+      // All three burst messages must appear collapsed into one user turn.
+      expect(lastTurn.content).toContain('изменить user.nickname');
+      expect(lastTurn.content).toContain('name');
+      expect(lastTurn.content).toContain('изменить');
+
+      // Internal DB-backed rows should carry only the burst (no duplicates).
+      expect((db as any)._rows.filter((r: { role: string }) => r.role === 'user')).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gap longer than the window starts a new burst → two LLM calls', async () => {
+    vi.useFakeTimers();
+    try {
+      const runChatRequest = vi.fn<any>().mockResolvedValue(undefined);
+      const { client } = await setup({
+        runChatRequest: runChatRequest as any,
+        coalesceMs: 1500,
+      });
+
+      const channel = makeDmChannel();
+      client.emit('messageCreate', makeBurstMessage('first', channel));
+      // 2s gap — past the 1.5s window, so firePending fires for `first`.
+      await vi.advanceTimersByTimeAsync(2000);
+      await flushMicrotasks();
+
+      client.emit('messageCreate', makeBurstMessage('second', channel));
+      await vi.advanceTimersByTimeAsync(2000);
+      await flushMicrotasks();
+
+      expect(runChatRequest).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('single message works as before — one LLM call after the debounce window', async () => {
+    vi.useFakeTimers();
+    try {
+      const runChatRequest = vi.fn<any>().mockResolvedValue(undefined);
+      const { client } = await setup({
+        runChatRequest: runChatRequest as any,
+        coalesceMs: 1500,
+      });
+
+      const channel = makeDmChannel();
+      client.emit('messageCreate', makeBurstMessage('hello', channel));
+      // Before the window elapses no LLM call should have been placed.
+      await vi.advanceTimersByTimeAsync(1000);
+      await flushMicrotasks();
+      expect(runChatRequest).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(500);
+      await flushMicrotasks();
+      expect(runChatRequest).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('DISCORD_COALESCE_MS env var overrides the default window', async () => {
+    vi.useFakeTimers();
+    const saved = process.env.DISCORD_COALESCE_MS;
+    process.env.DISCORD_COALESCE_MS = '500';
+    try {
+      const runChatRequest = vi.fn<any>().mockResolvedValue(undefined);
+      // Explicitly omit coalesceMs override — the env path should win.
+      const { client } = await setup({
+        runChatRequest: runChatRequest as any,
+        coalesceMs: undefined,
+      });
+
+      const channel = makeDmChannel();
+      client.emit('messageCreate', makeBurstMessage('hello', channel));
+      await vi.advanceTimersByTimeAsync(400);
+      await flushMicrotasks();
+      expect(runChatRequest).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(200);
+      await flushMicrotasks();
+      expect(runChatRequest).toHaveBeenCalledTimes(1);
+    } finally {
+      if (saved === undefined) delete process.env.DISCORD_COALESCE_MS;
+      else process.env.DISCORD_COALESCE_MS = saved;
+      vi.useRealTimers();
+    }
   });
 });
 
