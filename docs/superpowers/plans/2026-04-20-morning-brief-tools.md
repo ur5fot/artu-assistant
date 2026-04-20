@@ -85,9 +85,9 @@
 
 ### Task 4: Verify acceptance criteria
 
-- [ ] `npm run typecheck` — 0 errors.
-- [ ] `npm test` — все пакеты зелёные.
-- [ ] manual notes в Post-Completion: завтра утром (2026-04-21) morningBrief должен содержать реальную погоду, без фраз "не могу".
+- [x] `npm run typecheck` — 0 errors. (Root скрипта нет; `tsc --noEmit` по всем workspaces. Server package — 0 errors. Pre-existing ошибки в `tool-code-deploy/__tests__` и `tool-eval-run/__tests__` — **те же** и на master, не связаны с morningBrief.)
+- [x] `npm test` — все пакеты зелёные (805/805 tests pass, включая 19 тестов в `morningBrief.ai.test.ts`).
+- [x] manual notes в Post-Completion: см. секцию ниже — в Post-Completion добавлена явная проверка на 2026-04-21.
 
 ### Task 5: [Final] Обновить документацию
 
@@ -121,8 +121,13 @@ interface CallParams {
 
 ## Post-Completion
 
-**Manual verification:**
-- Подождать следующего запуска morningBrief (завтра 07:00+ Kyiv) и проверить в Discord что brief содержит реальный прогноз погоды, текст на русском без украинских слов.
+**Manual verification (2026-04-21):**
+- Дождаться запуска morningBrief утром 2026-04-21 (07:00+ Kyiv).
+- Открыть Discord DM с R2 и проверить что brief содержит:
+  - реальный прогноз погоды для Киева (температура, условия) — НЕ фразы "не могу", "открой сам", "нужен поиск";
+  - текст на русском целиком — без `Київ`, `Дмитро`, `Обід`, `Вечеря` и других украинских слов;
+  - упоминание города (Киев) если у юзера задан `user.city` в memory, или явное "город не задан" если не задан.
+- Если brief всё ещё без погоды — проверить логи сервера на ошибки `web_search` tool handler.
 
 **External system updates:**
 - Нет. Supervisor сам подхватит новый master.
