@@ -430,7 +430,12 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       const facts = ranked.map((r) => r.fact);
 
       const hits = vectorSearch(db, { embedding: vec, limit: 10, kind: 'entry' });
-      const entryHits = hits.filter((h) => h.score >= 0.6);
+      // Drop past assistant messages from recall. Including them turns the
+      // memory block into stylistic priming — the model mimics its own past
+      // templated responses (e.g. "❓ УТОЧНЕННЯ, ДМИТРО:" headers) instead of
+      // following the current system-prompt rules. User turns are still
+      // useful context about what was asked before.
+      const entryHits = hits.filter((h) => h.score >= 0.6 && h.kind !== 'assistant_msg');
 
       if (facts.length === 0 && entryHits.length === 0) return EMPTY_PREFIX_RESULT;
 
