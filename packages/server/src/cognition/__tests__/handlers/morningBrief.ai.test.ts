@@ -462,6 +462,46 @@ describe('callMorningBriefAI', () => {
       expect(toolResultMsg.content[1].content).toContain('ok:новости');
     });
 
+    it('re-anonymizes tool result before feeding back to Claude', async () => {
+      process.env.LOCAL_LLM_MODE = 'disabled';
+      const handler = vi.fn(async () => ({
+        success: true as const,
+        data: [],
+        display: { type: 'text' as const, content: 'contact: dim@example.com' },
+      }));
+      const tool = fakeWebSearchTool(handler as any);
+      const create = vi.fn()
+        .mockResolvedValueOnce(makeToolUseResponse('web_search', { query: 'x' }))
+        .mockResolvedValueOnce(makeTextResponse('ok'));
+      const anthropic = { messages: { create } };
+      const proxy: PiiProxy = {
+        async anonymize(text) {
+          return {
+            text: text.replace('dim', '[TOKEN_USER]'),
+            entities: text.includes('dim')
+              ? [{ type: 'PERSON', token: '[TOKEN_USER]', original: 'dim' }]
+              : [],
+          };
+        },
+        async deanonymize(text) {
+          return text.replace('[TOKEN_USER]', 'dim');
+        },
+      };
+      await callMorningBriefAI({
+        piiProxy: proxy,
+        anthropic: anthropic as any,
+        prompt: 'x',
+        signal: new AbortController().signal,
+        webSearchTool: tool,
+      });
+      const secondCall = create.mock.calls[1][0];
+      const toolResultMsg = secondCall.messages.find(
+        (m: any) => Array.isArray(m.content) && m.content[0]?.type === 'tool_result',
+      );
+      expect(toolResultMsg.content[0].content).toBe('contact: [TOKEN_USER]@example.com');
+      expect(toolResultMsg.content[0].content).not.toContain('dim@');
+    });
+
     it('deanonymizes tool args before calling handler', async () => {
       process.env.LOCAL_LLM_MODE = 'disabled';
       let receivedQuery = '';

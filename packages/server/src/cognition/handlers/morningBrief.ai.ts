@@ -110,10 +110,14 @@ async function callClaude(
         resultText = err instanceof Error ? err.message : String(err);
         isError = true;
       }
+      // Re-anonymize tool output before feeding back to Claude — keeps the
+      // LLM's view consistent with the anonymized prompt even when search
+      // results surface real PII (same pattern as executeToolWithPermission).
+      const anonResult = await piiProxy.anonymize(resultText);
       toolResults.push({
         type: 'tool_result',
         tool_use_id: toolUse.id,
-        content: resultText,
+        content: anonResult.text,
         is_error: isError,
       });
     }
