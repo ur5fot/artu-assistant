@@ -503,6 +503,7 @@ CLAUDE_HAIKU_MODEL=claude-haiku-4-5-20251001  # evaluator model
 DISCORD_BOT_TOKEN=                 # bot token; if unset the bot does not start
 DISCORD_ALLOWED_USER_IDS=          # comma-separated Discord user IDs; required when token is set
 DISCORD_REQUEST_TIMEOUT_MS=300000  # per-message request timeout; on expiry unresolved permission/plan-review embeds are edited to "⚠️ expired"
+DISCORD_COALESCE_MS=1500           # debounce window for burst coalescing; each new DM resets the timer, LLM runs once after idle
 # Local LLM router (Phase 4G)
 LOCAL_LLM_MODE=enabled            # enabled | disabled (chat router only; memory independent)
 OLLAMA_URL=http://localhost:11434
@@ -534,6 +535,7 @@ R2 can receive messages via Discord DMs in addition to the web UI. The bot is wh
 - `DISCORD_BOT_TOKEN` — bot token; if unset the bot does not start
 - `DISCORD_ALLOWED_USER_IDS` — comma-separated Discord user IDs; required when token is set
 - `DISCORD_REQUEST_TIMEOUT_MS` — per-message request timeout in ms (default 300000); on expiry unresolved permission/plan-review embeds are edited to `⚠️ expired`
+- `DISCORD_COALESCE_MS` — burst coalescing debounce window in ms (default 1500); incoming DMs are saved immediately but `handleMessage` (history read + LLM call) only fires after this much idle time, so a series of short multi-turn messages triggers the LLM once
 
 ### Slash commands
 
@@ -561,6 +563,8 @@ Embeds are edited in place on resolution (success/denial) or request timeout (�
 ### Architecture
 
 The adapter lives in `packages/server/src/channels/discord/bot.ts`. It plugs directly into `runChatRequest` with `source='discord:<userId>'`, reusing the full pipeline (tool loop, memory, PII). Messages are isolated from web chat via the `source` column in `chat_messages`.
+
+Multi-turn burst coalescing: each incoming DM is saved to `chat_messages` immediately, then a per-user debounce timer (`DISCORD_COALESCE_MS`, default 1500 ms) is armed. Additional DMs reset the timer; when idle elapses, `handleMessage` runs once with `{ alreadySaved: true }` and reads the full burst from DB as a single user turn (the history builder collapses consecutive same-role messages). This lets the LLM see the full intent after a chain of short clarifying replies and respond once instead of on every fragment. `userQueues` still serializes processing so a new burst cannot overlap with an in-flight LLM call. Extracted memory facts anchor to the last message of the burst — see comment in `packages/server/src/memory/service.ts` `runIndexTurn`.
 
 The Discord bot also subscribes to `reminderBus` and forwards `reminder_ring` events as interactive embeds to all whitelisted users; on `reminder_done`/`reminder_dismissed`/`reminder_snoozed` the corresponding embed is edited in place for the owning user. No additional configuration beyond the standard Discord bot setup is required.
 
