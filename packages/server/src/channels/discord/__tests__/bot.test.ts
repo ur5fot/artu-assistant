@@ -1536,6 +1536,53 @@ describe('multi-turn coalescing', () => {
       vi.useRealTimers();
     }
   });
+
+  it('trailing assistant rows from reminders/web chat do not leave the LLM without a user turn', async () => {
+    vi.useFakeTimers();
+    try {
+      // Simulate an external writer (reminder or web chat) persisting an
+      // assistant row into chat_messages between the Discord burst ingest
+      // and the debounce fire.
+      const db = makeFakeDb();
+      let assistantInjected = false;
+      const saveMsgFn = vi.fn((params: { role: string; content: string }) => {
+        const internal = (db as any)._rows;
+        if (Array.isArray(internal)) {
+          internal.unshift({ role: params.role, content: params.content });
+          // Right after the first user ingest, pretend a reminder fired and
+          // appended an assistant row with a newer timestamp.
+          if (!assistantInjected && params.role === 'user') {
+            assistantInjected = true;
+            internal.unshift({ role: 'assistant', content: '⏰ reminder ring' });
+          }
+        }
+      });
+
+      const runChatRequest = vi.fn<any>().mockResolvedValue(undefined);
+      const { client } = await setup({
+        runChatRequest: runChatRequest as any,
+        saveMessage: saveMsgFn as any,
+        db: db as any,
+        coalesceMs: 1500,
+      });
+
+      const channel = makeDmChannel();
+      client.emit('messageCreate', makeBurstMessage('hello', channel));
+      await vi.advanceTimersByTimeAsync(1500);
+      await flushMicrotasks();
+
+      expect(runChatRequest).toHaveBeenCalledTimes(1);
+      const messages = (runChatRequest.mock.calls[0]![0] as {
+        messages: Array<{ role: string; content: string }>;
+      }).messages;
+      // Critical: despite the injected trailing assistant row, the final
+      // turn must be the user burst so Anthropic sees a fresh user prompt.
+      expect(messages[messages.length - 1]!.role).toBe('user');
+      expect(messages[messages.length - 1]!.content).toContain('hello');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('sendReply', () => {

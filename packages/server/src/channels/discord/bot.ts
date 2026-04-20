@@ -404,6 +404,23 @@ export async function startDiscordBot(
       // turn — appending msg.content here would duplicate the latest line.
       if (!opts.alreadySaved) {
         built.push({ role: 'user', content: msg.content });
+      } else {
+        // chat_messages is shared across channels. Between ingest and
+        // debounce-fire, a reminder ring (reminders/scheduler.ts) or a web
+        // chat reply (routes/chat.ts) can persist an `assistant` row AFTER
+        // the burst's user rows. The history builder would then end in
+        // `assistant`, and `alreadySaved=true` skips appending msg.content —
+        // so runChatRequest would be called without a trailing user turn.
+        // Drop trailing assistant turns so the burst surfaces as the final
+        // turn. The burst's user rows are guaranteed to be in `built` (we
+        // just saved them), so this cannot leave the history empty in
+        // practice; guard for the edge case defensively.
+        while (built.length > 0 && built[built.length - 1].role === 'assistant') {
+          built.pop();
+        }
+        if (built.length === 0) {
+          built.push({ role: 'user', content: msg.content });
+        }
       }
 
       const budgetRaw = deps.contextBudgetChars ?? Number(process.env.CHAT_CONTEXT_BUDGET_CHARS);
