@@ -71,21 +71,7 @@ async function callClaude(
   webSearchTool: ToolDefinition | null | undefined,
 ): Promise<string> {
   const model = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
-
-  if (!webSearchTool) {
-    const msg = await anthropic.messages.create(
-      {
-        model,
-        max_tokens: MAX_TOKENS,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: prompt }],
-      },
-      { signal },
-    );
-    return extractText(msg.content);
-  }
-
-  const tools = [toClaudeTool(webSearchTool)];
+  const tools = webSearchTool ? [toClaudeTool(webSearchTool)] : undefined;
   const messages: MessageParam[] = [{ role: 'user', content: prompt }];
   let lastText = '';
 
@@ -104,12 +90,10 @@ async function callClaude(
     const content = msg.content as any[];
     lastText = extractText(content);
 
-    if (msg.stop_reason !== 'tool_use') {
-      return lastText;
-    }
+    if (msg.stop_reason !== 'tool_use') return lastText;
 
     const toolUse = content.find((b) => b.type === 'tool_use');
-    if (!toolUse) return lastText;
+    if (!toolUse || !webSearchTool) return lastText;
 
     messages.push({ role: 'assistant', content: content as any });
 
@@ -124,9 +108,7 @@ async function callClaude(
         const args = await deanonymizeArgs(piiProxy, rawArgs);
         const result = await webSearchTool.handler(args, {});
         if (result.success) {
-          const display = result.display?.content ?? '';
-          const data = display || JSON.stringify(result.data ?? '');
-          resultText = data || 'No results';
+          resultText = result.display?.content ?? 'No results';
         } else {
           resultText = result.error || 'Tool returned failure';
           isError = true;
@@ -137,21 +119,20 @@ async function callClaude(
       isError = true;
     }
 
-    const anonymizedResult = await piiProxy.anonymize(resultText);
-
     messages.push({
       role: 'user',
       content: [
         {
           type: 'tool_result',
           tool_use_id: toolUse.id,
-          content: anonymizedResult.text,
+          content: resultText,
           is_error: isError,
         } as any,
       ],
     });
   }
 
+  console.warn('[morningBrief] hit max tool iterations, returning last text');
   return lastText;
 }
 
