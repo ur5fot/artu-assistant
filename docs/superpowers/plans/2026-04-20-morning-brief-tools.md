@@ -59,23 +59,23 @@
 
 ### Task 2: Tool-loop с web_search в callMorningBriefAI
 
-- [ ] в `morningBrief.ai.ts` принять в `CallParams` **новый опциональный** `webSearchTool: ToolDefinition | null` (импорт из `@r2/tools` или передаётся сверху).
-- [ ] переписать `callClaude(...)` → `callClaudeWithTools(...)`:
-  - [ ] если `webSearchTool` передан → собрать `tools` массив через `toClaudeTool`.
-  - [ ] цикл до 5 итераций: `anthropic.messages.create({ model, max_tokens, system, messages, tools })`.
-  - [ ] если `stop_reason === 'tool_use'` → найти `tool_use` блок, вызвать `webSearchTool.handler(params, ctx={})`, добавить `tool_result` в messages, continue.
-  - [ ] если `stop_reason === 'end_turn'` или iteration limit → извлечь текст из `content[].text`, return.
-  - [ ] если tool handler бросил / вернул `success=false` → вставить `tool_result` с `is_error: true` и content = текст ошибки, continue (LLM сам решит что писать без погоды).
-- [ ] ollama path оставить как есть (без tools).
-- [ ] обновить `morningBrief.ts` deps: добавить `webSearchTool?: ToolDefinition | null`, прокинуть в `callMorningBriefAI`.
-- [ ] в `index.ts` при создании morningBrief handler — прокинуть `webSearchTool` из registry (или из уже созданного `createWebSearchTool`).
-- [ ] тесты:
-  - [ ] happy path: mock anthropic → iter1 `tool_use`, iter2 `text`. Проверить что tool вызван 1 раз, финальный текст содержит результат поиска.
-  - [ ] no-tool path: mock сразу `text`. Проверить что tool **не** вызывался.
-  - [ ] tool error: mock handler rejects. Проверить что brief вернул не-пустой текст (fallback).
-  - [ ] max iterations: mock 6 подряд `tool_use`. Проверить что возвращается текст (пустой или whatever content[].text) после 5 итераций.
-  - [ ] ollama path: `LOCAL_LLM_MODE=enabled` + ollama set — проверить что tool loop **не** запускался (ollama вызов напрямую).
-- [ ] `npm -w @r2-d2/server test` — pass.
+- [x] в `morningBrief.ai.ts` принять в `CallParams` **новый опциональный** `webSearchTool: ToolDefinition | null` (импорт из `@r2/tools` или передаётся сверху).
+- [x] переписать `callClaude(...)` → `callClaudeWithTools(...)`:
+  - [x] если `webSearchTool` передан → собрать `tools` массив через `toClaudeTool`.
+  - [x] цикл до 5 итераций: `anthropic.messages.create({ model, max_tokens, system, messages, tools })`.
+  - [x] если `stop_reason === 'tool_use'` → найти `tool_use` блок, вызвать `webSearchTool.handler(params, ctx={})`, добавить `tool_result` в messages, continue.
+  - [x] если `stop_reason === 'end_turn'` или iteration limit → извлечь текст из `content[].text`, return.
+  - [x] если tool handler бросил / вернул `success=false` → вставить `tool_result` с `is_error: true` и content = текст ошибки, continue (LLM сам решит что писать без погоды).
+- [x] ollama path оставить как есть (без tools).
+- [x] обновить `morningBrief.ts` deps: добавить `webSearchTool?: ToolDefinition | null`, прокинуть в `callMorningBriefAI`.
+- [x] в `index.ts` при создании morningBrief handler — прокинуть `webSearchTool` из registry (или из уже созданного `createWebSearchTool`).
+- [x] тесты:
+  - [x] happy path: mock anthropic → iter1 `tool_use`, iter2 `text`. Проверить что tool вызван 1 раз, финальный текст содержит результат поиска.
+  - [x] no-tool path: mock сразу `text`. Проверить что tool **не** вызывался.
+  - [x] tool error: mock handler rejects. Проверить что brief вернул не-пустой текст (fallback).
+  - [x] max iterations: mock 6 подряд `tool_use`. Проверить что возвращается текст (пустой или whatever content[].text) после 5 итераций.
+  - [x] ollama path: `LOCAL_LLM_MODE=enabled` + ollama set — проверить что tool loop **не** запускался (ollama вызов напрямую).
+- [x] `npm -w @r2-d2/server test` — pass.
 
 ### Task 3: Regression — check composePrompt содержит координаты города
 

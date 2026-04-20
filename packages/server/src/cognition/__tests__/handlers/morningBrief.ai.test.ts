@@ -1,6 +1,48 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { callMorningBriefAI } from '../../handlers/morningBrief.ai.js';
 import type { PiiProxy } from '../../../pii/proxy.js';
+import type { ToolDefinition, ToolResult } from '@r2/shared';
+
+function fakeWebSearchTool(handler: (params: Record<string, unknown>) => Promise<ToolResult>): ToolDefinition {
+  return {
+    name: 'web_search',
+    description: 'search',
+    permissionLevel: 'auto',
+    provider: 'all',
+    parameters: {
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    },
+    handler,
+  };
+}
+
+function makeToolUseResponse(toolName: string, input: Record<string, unknown>, id = 'tu_1') {
+  return {
+    id: 'msg_test',
+    content: [{ type: 'tool_use', id, name: toolName, input }],
+    role: 'assistant',
+    model: 'claude-sonnet-4-6',
+    stop_reason: 'tool_use',
+    stop_sequence: null,
+    type: 'message',
+    usage: { input_tokens: 10, output_tokens: 5 },
+  };
+}
+
+function makeTextResponse(text: string) {
+  return {
+    id: 'msg_test',
+    content: [{ type: 'text', text }],
+    role: 'assistant',
+    model: 'claude-sonnet-4-6',
+    stop_reason: 'end_turn',
+    stop_sequence: null,
+    type: 'message',
+    usage: { input_tokens: 10, output_tokens: 5 },
+  };
+}
 
 function fakeProxy(): PiiProxy {
   return {
@@ -221,5 +263,175 @@ describe('callMorningBriefAI', () => {
     expect(result).toBe('from-claude');
     expect(ollama.chat).toHaveBeenCalledOnce();
     expect(anthropic.messages.create).toHaveBeenCalledOnce();
+  });
+
+  describe('web_search tool loop', () => {
+    it('happy path: Claude calls web_search, uses result in final text', async () => {
+      process.env.LOCAL_LLM_MODE = 'disabled';
+      const handler = vi.fn(async () => ({
+        success: true,
+        data: [],
+        display: { type: 'text' as const, content: 'Погода в Киеве: +15' },
+      }));
+      const tool = fakeWebSearchTool(handler as any);
+      const create = vi.fn()
+        .mockResolvedValueOnce(makeToolUseResponse('web_search', { query: 'погода Киев' }))
+        .mockResolvedValueOnce(makeTextResponse('Доброе утро! +15 в Киеве.'));
+      const anthropic = { messages: { create } };
+      const result = await callMorningBriefAI({
+        piiProxy: fakeProxy(),
+        anthropic: anthropic as any,
+        prompt: 'brief',
+        signal: new AbortController().signal,
+        webSearchTool: tool,
+      });
+      expect(result).toBe('Доброе утро! +15 в Киеве.');
+      expect(handler).toHaveBeenCalledOnce();
+      expect(create).toHaveBeenCalledTimes(2);
+      const secondCall = create.mock.calls[1][0];
+      const toolResultMsg = secondCall.messages.find(
+        (m: any) => Array.isArray(m.content) && m.content[0]?.type === 'tool_result',
+      );
+      expect(toolResultMsg).toBeDefined();
+      expect(toolResultMsg.content[0].content).toContain('Погода в Киеве');
+    });
+
+    it('no-tool path: Claude responds with text immediately', async () => {
+      process.env.LOCAL_LLM_MODE = 'disabled';
+      const handler = vi.fn();
+      const tool = fakeWebSearchTool(handler as any);
+      const create = vi.fn().mockResolvedValueOnce(makeTextResponse('Доброе утро!'));
+      const anthropic = { messages: { create } };
+      const result = await callMorningBriefAI({
+        piiProxy: fakeProxy(),
+        anthropic: anthropic as any,
+        prompt: 'x',
+        signal: new AbortController().signal,
+        webSearchTool: tool,
+      });
+      expect(result).toBe('Доброе утро!');
+      expect(handler).not.toHaveBeenCalled();
+      expect(create).toHaveBeenCalledOnce();
+      const firstCall = create.mock.calls[0][0];
+      expect(firstCall.tools).toBeDefined();
+      expect(firstCall.tools.length).toBe(1);
+      expect(firstCall.tools[0].name).toBe('web_search');
+    });
+
+    it('tool error: returns brief text despite handler rejection', async () => {
+      process.env.LOCAL_LLM_MODE = 'disabled';
+      const handler = vi.fn(async () => { throw new Error('searxng down'); });
+      const tool = fakeWebSearchTool(handler as any);
+      const create = vi.fn()
+        .mockResolvedValueOnce(makeToolUseResponse('web_search', { query: 'погода' }))
+        .mockResolvedValueOnce(makeTextResponse('Доброе утро, без погоды.'));
+      const anthropic = { messages: { create } };
+      const result = await callMorningBriefAI({
+        piiProxy: fakeProxy(),
+        anthropic: anthropic as any,
+        prompt: 'x',
+        signal: new AbortController().signal,
+        webSearchTool: tool,
+      });
+      expect(result).toBe('Доброе утро, без погоды.');
+      const secondCall = create.mock.calls[1][0];
+      const toolResultMsg = secondCall.messages.find(
+        (m: any) => Array.isArray(m.content) && m.content[0]?.type === 'tool_result',
+      );
+      expect(toolResultMsg.content[0].is_error).toBe(true);
+      expect(toolResultMsg.content[0].content).toContain('searxng down');
+    });
+
+    it('tool success=false: marks tool_result as error and continues', async () => {
+      process.env.LOCAL_LLM_MODE = 'disabled';
+      const handler = vi.fn(async () => ({ success: false as const, error: 'network fail' }));
+      const tool = fakeWebSearchTool(handler as any);
+      const create = vi.fn()
+        .mockResolvedValueOnce(makeToolUseResponse('web_search', { query: 'погода' }))
+        .mockResolvedValueOnce(makeTextResponse('Итог без погоды.'));
+      const anthropic = { messages: { create } };
+      const result = await callMorningBriefAI({
+        piiProxy: fakeProxy(),
+        anthropic: anthropic as any,
+        prompt: 'x',
+        signal: new AbortController().signal,
+        webSearchTool: tool,
+      });
+      expect(result).toBe('Итог без погоды.');
+      const secondCall = create.mock.calls[1][0];
+      const toolResultMsg = secondCall.messages.find(
+        (m: any) => Array.isArray(m.content) && m.content[0]?.type === 'tool_result',
+      );
+      expect(toolResultMsg.content[0].is_error).toBe(true);
+      expect(toolResultMsg.content[0].content).toContain('network fail');
+    });
+
+    it('max iterations: returns last text after 5 iterations of tool_use', async () => {
+      process.env.LOCAL_LLM_MODE = 'disabled';
+      const handler = vi.fn(async () => ({
+        success: true as const,
+        data: [],
+        display: { type: 'text' as const, content: 'ok' },
+      }));
+      const tool = fakeWebSearchTool(handler as any);
+      const create = vi.fn(async () => makeToolUseResponse('web_search', { query: 'x' }));
+      const anthropic = { messages: { create } };
+      const result = await callMorningBriefAI({
+        piiProxy: fakeProxy(),
+        anthropic: anthropic as any,
+        prompt: 'x',
+        signal: new AbortController().signal,
+        webSearchTool: tool,
+      });
+      expect(create).toHaveBeenCalledTimes(5);
+      expect(handler).toHaveBeenCalledTimes(5);
+      expect(result).toBe('');
+    });
+
+    it('ollama path: tool loop is NOT used when LOCAL_LLM_MODE=enabled', async () => {
+      process.env.LOCAL_LLM_MODE = 'enabled';
+      const handler = vi.fn();
+      const tool = fakeWebSearchTool(handler as any);
+      const anthropic = fakeAnthropic('unused');
+      const ollama = fakeOllama('Доброе утро от локалки');
+      const result = await callMorningBriefAI({
+        piiProxy: fakeProxy(),
+        anthropic: anthropic as any,
+        ollama: ollama as any,
+        prompt: 'x',
+        signal: new AbortController().signal,
+        webSearchTool: tool,
+      });
+      expect(result).toBe('Доброе утро от локалки');
+      expect(handler).not.toHaveBeenCalled();
+      expect(anthropic.messages.create).not.toHaveBeenCalled();
+      expect(ollama.chat).toHaveBeenCalledOnce();
+    });
+
+    it('deanonymizes tool args before calling handler', async () => {
+      process.env.LOCAL_LLM_MODE = 'disabled';
+      let receivedQuery = '';
+      const handler = vi.fn(async (params: Record<string, unknown>) => {
+        receivedQuery = params.query as string;
+        return {
+          success: true as const,
+          data: [],
+          display: { type: 'text' as const, content: 'ok' },
+        };
+      });
+      const tool = fakeWebSearchTool(handler as any);
+      const create = vi.fn()
+        .mockResolvedValueOnce(makeToolUseResponse('web_search', { query: 'погода [TOKEN_USER]' }))
+        .mockResolvedValueOnce(makeTextResponse('done'));
+      const anthropic = { messages: { create } };
+      await callMorningBriefAI({
+        piiProxy: fakeProxy(),
+        anthropic: anthropic as any,
+        prompt: 'x',
+        signal: new AbortController().signal,
+        webSearchTool: tool,
+      });
+      expect(receivedQuery).toBe('погода dim');
+    });
   });
 });

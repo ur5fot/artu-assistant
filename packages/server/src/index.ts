@@ -305,6 +305,7 @@ if (discordToken) {
         piiProxy,
         anthropic: client.anthropic,
         ollama: ollamaForRouter,
+        webSearchTool: registry.get('web_search') ?? null,
       }),
     );
   } catch (err) {

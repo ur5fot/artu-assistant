@@ -1,4 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
+import type { ToolDefinition } from '@r2/shared';
 import type { Handler } from '../types.js';
 import type { PiiProxy } from '../../pii/proxy.js';
 import type { OllamaClient } from '../../ai/ollama.js';
@@ -18,10 +19,11 @@ interface Deps {
   piiProxy: PiiProxy;
   anthropic: Anthropic;
   ollama?: OllamaClient | null;
+  webSearchTool?: ToolDefinition | null;
 }
 
 export function createMorningBriefHandler(deps: Deps): Handler {
-  const { piiProxy, anthropic, ollama = null } = deps;
+  const { piiProxy, anthropic, ollama = null, webSearchTool = null } = deps;
   return {
     name: 'morningBrief',
     async trigger(state, ctx) {
@@ -50,6 +52,7 @@ export function createMorningBriefHandler(deps: Deps): Handler {
           ollama,
           prompt,
           signal: ctx.signal,
+          webSearchTool,
         });
         if (!text.trim()) return { skip: true, reason: 'empty AI response' };
         return { publish: true, content: text };
