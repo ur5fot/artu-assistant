@@ -79,9 +79,9 @@
 
 ### Task 3: Regression — check composePrompt содержит координаты города
 
-- [ ] проверить в `morningBrief.helpers.ts:composePrompt` — есть ли в prompt'е город юзера (чтобы LLM знал **где** искать погоду). Если нет — добавить. Факт `user.city` или `user.location` из memory должен попадать.
-- [ ] тест: `composePrompt(data с city='Киев')` → output содержит "Киев".
-- [ ] если `user.city` отсутствует в memory — LLM должен явно написать "город не задан" вместо рандомного поиска.
+- [x] проверить в `morningBrief.helpers.ts:composePrompt` — есть ли в prompt'е город юзера (чтобы LLM знал **где** искать погоду). Если нет — добавить. Факт `user.city` или `user.location` из memory должен попадать.
+- [x] тест: `composePrompt(data с city='Киев')` → output содержит "Киев".
+- [x] если `user.city` отсутствует в memory — LLM должен явно написать "город не задан" вместо рандомного поиска.
 
 ### Task 4: Verify acceptance criteria
 
