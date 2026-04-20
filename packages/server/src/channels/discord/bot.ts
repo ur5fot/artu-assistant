@@ -706,11 +706,18 @@ export async function startDiscordBot(
       if (ac.signal.aborted && !sendSucceeded) {
         await sendReply(dmChannel, '⏱️ Request timed out. Please try again.');
       } else if (assistantText && sendSucceeded) {
+        // Anchor assistant row to userMessageTimestamp+1 rather than Date.now().
+        // A new burst arriving during this handleMessage's LLM call persists its
+        // rows with Date.now() ingest timestamps; saving the reply at wall-clock
+        // `now` would interleave it AFTER those later user rows, causing the
+        // next handleMessage to see a history ending in assistant (collapsed
+        // user turn + assistant reply, `alreadySaved=true` skips appending) and
+        // call runChatRequest with no fresh user input.
         deps.saveMessage({
           messageId: crypto.randomUUID(),
           role: 'assistant',
           content: assistantText,
-          timestamp: Date.now(),
+          timestamp: userMessageTimestamp + 1,
           source,
         });
 

@@ -1497,6 +1497,45 @@ describe('multi-turn coalescing', () => {
       vi.useRealTimers();
     }
   });
+
+  it('assistant save timestamp anchors to last burst msg, not wall-clock', async () => {
+    vi.useFakeTimers();
+    try {
+      const runChatRequest = vi.fn<any>().mockImplementation(async (args: any) => {
+        args.onEvent({ type: 'text_delta', content: 'ok' });
+        args.onEvent({ type: 'done' });
+      });
+      const { client, saveMessage } = await setup({
+        runChatRequest: runChatRequest as any,
+        coalesceMs: 1500,
+      });
+
+      const channel = makeDmChannel();
+      client.emit('messageCreate', makeBurstMessage('a', channel));
+      await vi.advanceTimersByTimeAsync(200);
+      client.emit('messageCreate', makeBurstMessage('b', channel));
+      await vi.advanceTimersByTimeAsync(1500);
+      await flushMicrotasks(16);
+
+      const userSaves = saveMessage.mock.calls.filter(
+        (c: any[]) => (c[0] as { role: string }).role === 'user',
+      );
+      const assistantSaves = saveMessage.mock.calls.filter(
+        (c: any[]) => (c[0] as { role: string }).role === 'assistant',
+      );
+      expect(userSaves).toHaveLength(2);
+      expect(assistantSaves).toHaveLength(1);
+
+      const lastUserTs = (userSaves[userSaves.length - 1][0] as { timestamp: number }).timestamp;
+      const assistantTs = (assistantSaves[0][0] as { timestamp: number }).timestamp;
+      // Without this anchor, a new burst arriving during the LLM call would be
+      // saved with Date.now() BEFORE the assistant row and corrupt multi-turn
+      // history for the next handleMessage.
+      expect(assistantTs).toBe(lastUserTs + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('sendReply', () => {
