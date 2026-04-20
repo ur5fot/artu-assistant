@@ -193,6 +193,20 @@ describe('callMorningBriefAI', () => {
     expect(anthropic.messages.create).toHaveBeenCalledOnce();
   });
 
+  it('system prompt instructs to translate Ukrainian words to Russian', async () => {
+    const anthropic = fakeAnthropic('ok');
+    await callMorningBriefAI({
+      piiProxy: fakeProxy(),
+      anthropic: anthropic as any,
+      prompt: 'x',
+      signal: new AbortController().signal,
+    });
+    const call = (anthropic.messages.create.mock.calls as any[])[0][0];
+    expect(call.system).toContain('ТОЛЬКО русский');
+    expect(call.system).toContain('Київ → Киев');
+    expect(call.system).toContain('Не копируй украинские слова');
+  });
+
   it('falls back to Claude when ollama throws', async () => {
     process.env.LOCAL_LLM_MODE = 'enabled';
     const anthropic = fakeAnthropic('from-claude');

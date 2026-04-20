@@ -2,7 +2,14 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { PiiProxy } from '../../pii/proxy.js';
 import type { OllamaClient } from '../../ai/ollama.js';
 
-const SYSTEM_PROMPT = 'Ты — R2, персональный ассистент dim. Язык — русский.';
+const SYSTEM_PROMPT = `Ты — R2, персональный ассистент dim. Язык ответа — ТОЛЬКО русский.
+
+ВАЖНО: входные данные могут содержать украинские слова (имена, города, пункты календаря, таймзона). Переводи их на русский:
+- Київ → Киев
+- Дмитро → Дмитрий
+- Обід → Обед
+- Вечеря → Ужин
+и аналогично для любых других украинских слов. Не копируй украинские слова в русский текст.`;
 const MAX_TOKENS = 1024;
 
 interface CallParams {
