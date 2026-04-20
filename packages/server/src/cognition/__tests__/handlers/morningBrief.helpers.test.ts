@@ -168,7 +168,52 @@ describe('gatherData', () => {
 
   it('returns empty arrays on fresh DB', () => {
     const data = gatherData(getDb(), now, TZ);
-    expect(data).toEqual({ reminders: [], notes: [], recentContext: [] });
+    expect(data).toEqual({ reminders: [], notes: [], recentContext: [], city: null });
+  });
+
+  it('returns city from user.city regardless of 14d freshness', () => {
+    const db = getDb();
+    // 90 days old — far outside note freshness window.
+    db.prepare(
+      'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, NULL, 0)',
+    ).run('user.city', 'Киев', now - 90 * 86400_000, now - 90 * 86400_000);
+    const data = gatherData(db, now, TZ);
+    expect(data.city).toBe('Киев');
+  });
+
+  it('falls back to user.location when user.city absent', () => {
+    const db = getDb();
+    db.prepare(
+      'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, NULL, 0)',
+    ).run('user.location', 'Одеса', now, now);
+    expect(gatherData(db, now, TZ).city).toBe('Одеса');
+  });
+
+  it('prefers user.city over user.location when both exist', () => {
+    const db = getDb();
+    const insert = db.prepare(
+      'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, NULL, 0)',
+    );
+    insert.run('user.location', 'Одеса', now, now);
+    insert.run('user.city', 'Киев', now - 1000, now - 1000);
+    expect(gatherData(db, now, TZ).city).toBe('Киев');
+  });
+
+  it('ignores superseded / forgotten city rows', () => {
+    const db = getDb();
+    const insert = db.prepare(
+      'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+    // Insert newer first (active), then old pointing to it — partial unique
+    // index forbids two active rows with same key.
+    const newer = insert.run('user.city', 'Киев', now, now, null, 0);
+    insert.run('user.city', 'Львов', now - 1000, now - 1000, newer.lastInsertRowid, 0);
+    insert.run('user.location', 'Харьков', now, now, null, 1); // forgotten
+    expect(gatherData(db, now, TZ).city).toBe('Киев');
+  });
+
+  it('returns null city when none stored', () => {
+    expect(gatherData(getDb(), now, TZ).city).toBeNull();
   });
 
   it('returns active memory_facts with last_mentioned_at within 14d', () => {
@@ -268,6 +313,7 @@ describe('composePrompt', () => {
         recentContext: [
           { role: 'user', content: 'сегодня дождь?', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
         ],
+        city: 'Киев',
       },
       TZ,
     );
@@ -282,7 +328,7 @@ describe('composePrompt', () => {
 
   it('shows "нет" for empty sections', () => {
     const prompt = composePrompt(
-      { reminders: [], notes: [], recentContext: [] },
+      { reminders: [], notes: [], recentContext: [], city: null },
       TZ,
     );
     expect(prompt).toMatch(/## Reminders на сегодня\/завтра\s+нет/);
@@ -301,6 +347,7 @@ describe('composePrompt', () => {
         recentContext: [
           { role: 'user', content: 'x', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
         ],
+        city: null,
       },
       TZ,
     );
@@ -308,5 +355,21 @@ describe('composePrompt', () => {
     expect(prompt).toContain('[2026-04-18 07:00] user: x');
     expect(prompt).not.toContain('Z');
     expect(prompt).not.toContain('T11:00');
+  });
+
+  it('includes user city in prompt header', () => {
+    const prompt = composePrompt(
+      { reminders: [], notes: [], recentContext: [], city: 'Киев' },
+      TZ,
+    );
+    expect(prompt).toContain('Киев');
+  });
+
+  it('tells LLM city is not set when city is null', () => {
+    const prompt = composePrompt(
+      { reminders: [], notes: [], recentContext: [], city: null },
+      TZ,
+    );
+    expect(prompt).toContain('город не задан');
   });
 });

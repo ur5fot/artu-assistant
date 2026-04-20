@@ -78,6 +78,7 @@ export interface BriefData {
   reminders: ReminderRow[];
   notes: NoteRow[];
   recentContext: ChatRow[];
+  city: string | null;
 }
 
 const NOTE_FRESHNESS_MS = 14 * 86400_000;
@@ -139,7 +140,16 @@ export function gatherData(
         : r.content,
   }));
 
-  return { reminders, notes, recentContext };
+  // Lookup city by-passing the 14-day freshness window: location rarely gets
+  // re-mentioned, but weather-related tools need it every morning.
+  const cityRow = db
+    .prepare(
+      "SELECT value FROM memory_facts WHERE key IN ('user.city','user.location') AND superseded_by IS NULL AND forgotten = 0 ORDER BY key = 'user.city' DESC, last_mentioned_at DESC LIMIT 1",
+    )
+    .get() as { value: string } | undefined;
+  const city = cityRow?.value ?? null;
+
+  return { reminders, notes, recentContext, city };
 }
 
 function formatLocal(ts: number, tz: string): string {
@@ -163,8 +173,11 @@ function section(title: string, rows: string[]): string {
 }
 
 export function composePrompt(data: BriefData, tz: string): string {
+  const cityLine = data.city
+    ? `Город пользователя: ${data.city}.`
+    : 'Город пользователя: не задан — погоду искать не нужно, напиши "город не задан".';
   return [
-    `Собери утренний brief для dim (русский язык). Время — ${tz}.`,
+    `Собери утренний brief для dim (русский язык). Время — ${tz}. ${cityLine}`,
     '',
     section(
       'Reminders на сегодня/завтра',
