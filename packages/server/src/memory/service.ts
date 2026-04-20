@@ -204,6 +204,12 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
         const vec = await safeEmbed(factText);
         if (!vec) continue;
         try {
+          // With Discord burst coalescing, `userMessageId` is the id of the
+          // LAST message in the burst. Facts extracted from the whole burst's
+          // combined text are all tagged with this anchor — which matches
+          // `findLastUserMessageBefore` semantics in `forgetLast`, so
+          // "забудь що я тільки що сказав" in the next turn correctly targets
+          // facts derived from the preceding burst.
           insertOrSupersedeFact(db, {
             key: fact.key,
             value: normalizedValue,
