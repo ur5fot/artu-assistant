@@ -82,44 +82,43 @@ async function callClaude(
     if (msg.stop_reason !== 'tool_use') return lastText;
     lastEndedWithToolUse = true;
 
-    const toolUse = content.find((b) => b.type === 'tool_use');
-    if (!toolUse || !webSearchTool) return lastText;
+    const toolUseBlocks = content.filter((b) => b.type === 'tool_use');
+    if (toolUseBlocks.length === 0 || !webSearchTool) return lastText;
 
     messages.push({ role: 'assistant', content: content as any });
 
-    let resultText: string;
-    let isError = false;
-    try {
-      if (toolUse.name !== webSearchTool.name) {
-        resultText = `Unknown tool: ${toolUse.name}`;
-        isError = true;
-      } else {
-        const rawArgs = (toolUse.input ?? {}) as Record<string, unknown>;
-        const args = (await deanonDeep(rawArgs, piiProxy)) as Record<string, unknown>;
-        const result = await webSearchTool.handler(args, { signal });
-        if (result.success) {
-          resultText = result.display?.content ?? 'No results';
-        } else {
-          resultText = result.error || 'Tool returned failure';
+    const toolResults: Array<Record<string, unknown>> = [];
+    for (const toolUse of toolUseBlocks) {
+      let resultText: string;
+      let isError = false;
+      try {
+        if (toolUse.name !== webSearchTool.name) {
+          resultText = `Unknown tool: ${toolUse.name}`;
           isError = true;
+        } else {
+          const rawArgs = (toolUse.input ?? {}) as Record<string, unknown>;
+          const args = (await deanonDeep(rawArgs, piiProxy)) as Record<string, unknown>;
+          const result = await webSearchTool.handler(args, { signal });
+          if (result.success) {
+            resultText = result.display?.content ?? 'No results';
+          } else {
+            resultText = result.error || 'Tool returned failure';
+            isError = true;
+          }
         }
+      } catch (err) {
+        resultText = err instanceof Error ? err.message : String(err);
+        isError = true;
       }
-    } catch (err) {
-      resultText = err instanceof Error ? err.message : String(err);
-      isError = true;
+      toolResults.push({
+        type: 'tool_result',
+        tool_use_id: toolUse.id,
+        content: resultText,
+        is_error: isError,
+      });
     }
 
-    messages.push({
-      role: 'user',
-      content: [
-        {
-          type: 'tool_result',
-          tool_use_id: toolUse.id,
-          content: resultText,
-          is_error: isError,
-        } as any,
-      ],
-    });
+    messages.push({ role: 'user', content: toolResults as any });
   }
 
   if (lastEndedWithToolUse && !signal.aborted) {

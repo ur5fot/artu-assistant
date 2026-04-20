@@ -417,6 +417,51 @@ describe('callMorningBriefAI', () => {
       expect(ollama.chat).toHaveBeenCalledOnce();
     });
 
+    it('handles parallel tool_use blocks: runs each and returns one tool_result per block', async () => {
+      process.env.LOCAL_LLM_MODE = 'disabled';
+      const handler = vi.fn(async (params: Record<string, unknown>) => ({
+        success: true as const,
+        data: [],
+        display: { type: 'text' as const, content: `ok:${params.query}` },
+      }));
+      const tool = fakeWebSearchTool(handler as any);
+      const parallelToolUseResponse = {
+        id: 'msg_test',
+        content: [
+          { type: 'tool_use', id: 'tu_a', name: 'web_search', input: { query: 'погода' } },
+          { type: 'tool_use', id: 'tu_b', name: 'web_search', input: { query: 'новости' } },
+        ],
+        role: 'assistant',
+        model: 'claude-sonnet-4-6',
+        stop_reason: 'tool_use',
+        stop_sequence: null,
+        type: 'message',
+        usage: { input_tokens: 10, output_tokens: 5 },
+      };
+      const create = vi.fn()
+        .mockResolvedValueOnce(parallelToolUseResponse)
+        .mockResolvedValueOnce(makeTextResponse('Готово.'));
+      const anthropic = { messages: { create } };
+      const result = await callMorningBriefAI({
+        piiProxy: fakeProxy(),
+        anthropic: anthropic as any,
+        prompt: 'x',
+        signal: new AbortController().signal,
+        webSearchTool: tool,
+      });
+      expect(result).toBe('Готово.');
+      expect(handler).toHaveBeenCalledTimes(2);
+      const secondCall = create.mock.calls[1][0];
+      const toolResultMsg = secondCall.messages.find(
+        (m: any) => Array.isArray(m.content) && m.content[0]?.type === 'tool_result',
+      );
+      expect(toolResultMsg.content).toHaveLength(2);
+      expect(toolResultMsg.content[0].tool_use_id).toBe('tu_a');
+      expect(toolResultMsg.content[1].tool_use_id).toBe('tu_b');
+      expect(toolResultMsg.content[0].content).toContain('ok:погода');
+      expect(toolResultMsg.content[1].content).toContain('ok:новости');
+    });
+
     it('deanonymizes tool args before calling handler', async () => {
       process.env.LOCAL_LLM_MODE = 'disabled';
       let receivedQuery = '';
