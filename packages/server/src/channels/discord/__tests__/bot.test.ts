@@ -1354,6 +1354,68 @@ describe('multi-turn coalescing', () => {
 
       // Internal DB-backed rows should carry only the burst (no duplicates).
       expect((db as any)._rows.filter((r: { role: string }) => r.role === 'user')).toHaveLength(3);
+
+      // currentUserMessageId must point at the LAST burst save — otherwise
+      // memory_forget_last / indexTurn would anchor to the wrong message.
+      const lastUserSave = userSaves[userSaves.length - 1][0] as { messageId: string; timestamp: number };
+      const chatCall = runChatRequest.mock.calls[0]![0] as {
+        currentUserMessageId: string;
+        currentUserMessageTimestamp: number;
+      };
+      expect(chatCall.currentUserMessageId).toBe(lastUserSave.messageId);
+      expect(chatCall.currentUserMessageTimestamp).toBe(lastUserSave.timestamp);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stop() drops pending timers so no LLM call fires after shutdown', async () => {
+    vi.useFakeTimers();
+    try {
+      const runChatRequest = vi.fn<any>().mockResolvedValue(undefined);
+      const { client, bot } = await setup({
+        runChatRequest: runChatRequest as any,
+        coalesceMs: 1500,
+      });
+
+      const channel = makeDmChannel();
+      client.emit('messageCreate', makeBurstMessage('hello', channel));
+      await vi.advanceTimersByTimeAsync(500);
+
+      // Shutdown mid-burst. Pending timer must be cancelled.
+      await bot.stop();
+
+      await vi.advanceTimersByTimeAsync(5000);
+      await flushMicrotasks();
+
+      expect(runChatRequest).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('saveMessage failure on ingest sends an error DM and arms no timer', async () => {
+    vi.useFakeTimers();
+    try {
+      const runChatRequest = vi.fn<any>().mockResolvedValue(undefined);
+      const saveMessage = vi.fn(() => {
+        throw new Error('db busy');
+      });
+      const { client } = await setup({
+        runChatRequest: runChatRequest as any,
+        saveMessage: saveMessage as any,
+        coalesceMs: 1500,
+      });
+
+      const channel = makeDmChannel();
+      client.emit('messageCreate', makeBurstMessage('hello', channel));
+      await vi.advanceTimersByTimeAsync(5000);
+      await flushMicrotasks();
+
+      expect(runChatRequest).not.toHaveBeenCalled();
+      expect(channel.send).toHaveBeenCalledWith(
+        expect.stringContaining('Something went wrong'),
+      );
     } finally {
       vi.useRealTimers();
     }

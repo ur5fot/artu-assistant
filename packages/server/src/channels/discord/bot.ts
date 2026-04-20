@@ -150,7 +150,10 @@ export async function startDiscordBot(
     });
 
   const timeoutMs = deps.requestTimeoutMs ?? 120_000;
-  const envCoalesce = Number(process.env.DISCORD_COALESCE_MS);
+  // Empty/whitespace DISCORD_COALESCE_MS must fall through to the default —
+  // `Number('')` is 0, which would silently disable debouncing.
+  const rawCoalesceEnv = process.env.DISCORD_COALESCE_MS?.trim();
+  const envCoalesce = rawCoalesceEnv ? Number(rawCoalesceEnv) : NaN;
   const coalesceMs = deps.coalesceMs ?? (Number.isFinite(envCoalesce) && envCoalesce >= 0 ? envCoalesce : 1500);
   const userQueues = new Map<string, Promise<void>>();
   // Coalescing: each incoming DM is saved to the chat_messages table immediately,
@@ -266,6 +269,12 @@ export async function startDiscordBot(
         '[discord] saveMessage failed on ingest:',
         err instanceof Error ? err.message : err,
       );
+      try {
+        const dmChannel = msg.channel as DMChannel;
+        await dmChannel.send('⚠️ Something went wrong. Please try again later.');
+      } catch {
+        // ignore send failure
+      }
       return;
     }
 
@@ -706,9 +715,16 @@ export async function startDiscordBot(
         });
 
         if (deps.memoryService) {
+          // Use the coalesced user turn from history (all burst fragments
+          // joined by the history builder) instead of just `msg.content`,
+          // which would be only the LAST fragment. Falls back to msg.content
+          // if somehow the last built row is not a user turn.
+          const lastBuilt = built[built.length - 1];
+          const userMessageForIndex =
+            lastBuilt && lastBuilt.role === 'user' ? lastBuilt.content : msg.content;
           deps.memoryService
             .indexTurn({
-              userMessage: msg.content,
+              userMessage: userMessageForIndex,
               userMessageId,
               assistantMessage: assistantText,
               timestamp: Date.now(),

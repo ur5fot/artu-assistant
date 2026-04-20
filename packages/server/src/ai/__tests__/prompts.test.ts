@@ -87,5 +87,16 @@ describe('prompts overlay integration', () => {
       expect(out).toContain('Склей повну команду з історії');
       expect(out).toContain('коротко (1-3 слова)');
     });
+
+    it('multi-turn rule survives when overlay is applied', () => {
+      // Overlay is appended, not replacing the base — so the rule must
+      // still be present. Guards against a regression that swaps append
+      // for replace and silently strips BASE_RULES.
+      mockedGetOverlay.mockReturnValue('відповідай англійською');
+      const claudeOut = getSystemPrompt();
+      const ollamaOut = getLocalSystemPrompt();
+      expect(claudeOut).toContain('Склей повну команду з історії');
+      expect(ollamaOut).toContain('Склей повну команду з історії');
+    });
   });
 });

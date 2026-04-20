@@ -60,4 +60,9 @@ only configured user IDs can interact with it.
 6. Invite the bot via OAuth2 URL Generator (scope `bot`, permission `Send Messages`) into that server
 7. Restart the server, find the bot in your private server's member list, click → **Message** to start a DM
 
+Multi-turn messages: the bot waits ~1.5s of idle time before replying, so a
+chain of short DMs ("Change user.nickname" → "Name" → "Do it") is treated as
+one turn and the model answers once. Tune via `DISCORD_COALESCE_MS` in
+`.env` (milliseconds, default `1500`).
+
 See `AGENTS.md` for detailed setup instructions.
