@@ -1052,7 +1052,7 @@ git commit -m "feat(morning-brief): rewrite composePrompt with recap + gap pream
 - Modify: `packages/server/src/cognition/handlers/morningBrief.ts`
 - Test: `packages/server/src/cognition/__tests__/handlers/morningBrief.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `morningBrief.test.ts` in the `describe('trigger', ...)` block:
 
@@ -1149,9 +1149,9 @@ it('gap-return: does not fire when gapDays is 1 (only)', async () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL on the new tests (no gap-return logic yet)**
+- [x] **Step 2: Run — expect FAIL on the new tests (no gap-return logic yet)**
 
-- [ ] **Step 3: Update `morningBrief.ts` trigger**
+- [x] **Step 3: Update `morningBrief.ts` trigger**
 
 Replace the `trigger` function in `morningBrief.ts`:
 
@@ -1195,11 +1195,11 @@ import {
     },
 ```
 
-- [ ] **Step 4: Run — expect PASS on all trigger tests**
+- [x] **Step 4: Run — expect PASS on all trigger tests**
 
 Run: `npm -w @r2/server test -- morningBrief`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.ts packages/server/src/cognition/__tests__/handlers/morningBrief.test.ts

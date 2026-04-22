@@ -7,8 +7,11 @@ import {
   composePrompt,
   gatherData,
   hasUserActivitySince,
+  hasUserActivityInLastHour,
   isSameLocalDate,
   getLocalCivilEpoch,
+  getLastBriefPublishAt,
+  computeGapDays,
 } from './morningBrief.helpers.js';
 import { callMorningBriefAI } from './morningBrief.ai.js';
 
@@ -27,12 +30,8 @@ export function createMorningBriefHandler(deps: Deps): Handler {
   return {
     name: 'morningBrief',
     async trigger(state, ctx) {
-      // DST-aware: resolves to civil 06:00 local even on transition days,
-      // where naive `midnight + 6h` would drift to 05:00 or 07:00.
-      const sixAmLocal = getLocalCivilEpoch(state.now, TZ, 0, ACTIVITY_START_HOUR);
-      if (state.now < sixAmLocal) return false;
-      // Only a successful publish today blocks re-firing.
-      // Errors and skips should retry on the next tick.
+      // Guard: a successful publish today blocks re-firing across both branches.
+      // Errors and skips fall through to retry on the next tick.
       const publishedToday =
         state.lastResult !== null &&
         'publish' in state.lastResult &&
@@ -40,7 +39,23 @@ export function createMorningBriefHandler(deps: Deps): Handler {
         state.lastFiredAt !== null &&
         isSameLocalDate(state.lastFiredAt, state.now, TZ);
       if (publishedToday) return false;
-      return hasUserActivitySince(ctx.db, sixAmLocal);
+
+      // Branch A — morning window: fire at/after 06:00 local with any activity
+      // since 06:00 today. DST-aware civil time avoids drift on transition days.
+      const sixAmLocal = getLocalCivilEpoch(state.now, TZ, 0, ACTIVITY_START_HOUR);
+      if (state.now >= sixAmLocal && hasUserActivitySince(ctx.db, sixAmLocal)) {
+        return true;
+      }
+
+      // Branch B — gap-return: catch the user's first message after >=2 missed
+      // local days. Last-hour activity gate avoids firing on a stale message.
+      const lastPublishAt = getLastBriefPublishAt(ctx.db);
+      const gapDays = computeGapDays(lastPublishAt, state.now, TZ);
+      if (gapDays >= 2 && hasUserActivityInLastHour(ctx.db, state.now)) {
+        return true;
+      }
+
+      return false;
     },
     async run(ctx) {
       try {
