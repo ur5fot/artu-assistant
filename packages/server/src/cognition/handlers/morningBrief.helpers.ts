@@ -455,9 +455,19 @@ export function composePrompt(data: BriefData, tz: string): string {
   const cityLine = data.city
     ? `Город пользователя: ${data.city}.`
     : 'Город пользователя: не задан — погоду искать не нужно, напиши "город не задан".';
-  return [
-    `Собери утренний brief для dim (русский язык). Время — ${tz}. ${cityLine}`,
-    '',
+
+  const gapPreamble =
+    data.gapDays > 0
+      ? [
+          `⚠️ Gap: ${data.gapDays} дней — начни ответ с "Пока меня не было ${data.gapDays} дней, вот что было".`,
+          '',
+        ].join('\n')
+      : '';
+
+  const periodHeader = `## Прошлый период (${formatLocal(data.previousPeriodFrom, tz)} — ${formatLocal(data.previousPeriodTo, tz)})`;
+  const periodBody = renderPreviousPeriod(data.previousPeriod, tz);
+
+  const todaySection = [
     section(
       'Reminders на сегодня/завтра',
       data.reminders.map((r) => `- ${formatLocal(r.nextFireAt, tz)}: ${r.text}`),
@@ -469,12 +479,36 @@ export function composePrompt(data: BriefData, tz: string): string {
     ),
     '',
     section(
-      'Recent context',
+      'Recent context (48h)',
       data.recentContext.map(
         (c) => `- [${formatLocal(c.ts, tz)}] ${c.role}: ${c.content}`,
       ),
     ),
+  ].join('\n');
+
+  const todayGuide =
+    data.gapDays > 0
+      ? '1. "Пока меня не было N дней..." — 2-4 строки выжимка периода\n2. Что висит — 1-5 пунктов, если нет — "висящего нет"\n3. Сегодня — 3-5 bullets: конкретно, не дневник'
+      : '1. Что висит со вчера — 1-4 пункта, если нет — "вчера закрыто чисто"\n2. Сегодня — 3-5 bullets';
+
+  return [
+    `Собери утренний brief для dim (русский язык). Время — ${tz}. ${cityLine}`,
     '',
-    'Формат: 5-8 bullet points. Включи: (1) что конкретно на сегодня, (2) открытые темы которые висят, (3) конкретные предложения действий. Коротко. Не повторяй данные дословно — анализируй.',
+    gapPreamble,
+    periodHeader,
+    periodBody,
+    '',
+    '## Сегодня / завтра',
+    todaySection,
+    '',
+    'Проанализируй прошлый период с разных углов. Найди:',
+    '- что висит (вопросы без ответа, задачи без закрытия, overdue reminders)',
+    '- что повторяется (одинаковые темы в чате, застрявшие решения)',
+    '- что упустил (важное упомянуто мельком и пропало)',
+    '',
+    'Формат:',
+    todayGuide,
+    '',
+    'Не пересказывай raw данные дословно — делай выводы. Предлагай конкретные действия где возможно.',
   ].join('\n');
 }

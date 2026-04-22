@@ -12,7 +12,10 @@ import {
   gatherPreviousPeriod,
   renderPreviousPeriod,
 } from '../../handlers/morningBrief.helpers.js';
-import type { ChatRow } from '../../handlers/morningBrief.helpers.js';
+import type {
+  ChatRow,
+  PreviousPeriodBundle,
+} from '../../handlers/morningBrief.helpers.js';
 
 const TZ = 'Europe/Kyiv';
 
@@ -347,7 +350,7 @@ describe('composePrompt', () => {
     expect(prompt).toContain('user.note.x');
     expect(prompt).toContain('## Recent context');
     expect(prompt).toContain('сегодня дождь?');
-    expect(prompt).toContain('5-8 bullet points');
+    expect(prompt).toContain('Не пересказывай');
   });
 
   it('shows "нет" for empty sections', () => {
@@ -357,7 +360,7 @@ describe('composePrompt', () => {
     );
     expect(prompt).toMatch(/## Reminders на сегодня\/завтра\s+нет/);
     expect(prompt).toMatch(/## Открытые заметки\s+нет/);
-    expect(prompt).toMatch(/## Recent context\s+нет/);
+    expect(prompt).toMatch(/## Recent context \(48h\)\s+нет/);
   });
 
   it('formats timestamps in the passed tz (no Z, no UTC)', () => {
@@ -729,5 +732,95 @@ describe('gatherData extended', () => {
     const data = gatherData(db, now, TZ);
     expect(data.gapDays).toBe(0);
     expect(data.previousPeriod.chat.length).toBe(1);
+  });
+});
+
+describe('composePrompt with gap and previousPeriod', () => {
+  const emptyBundle: PreviousPeriodBundle = {
+    chat: [],
+    memoryCreated: [],
+    memoryUpdated: [],
+    memoryForgotten: [],
+    audit: [],
+    cognition: [],
+    remindersOverdue: [],
+    remindersCreated: [],
+  };
+
+  it('includes gap preamble when gapDays > 0', () => {
+    const p = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Kyiv',
+        gapDays: 3,
+        previousPeriod: emptyBundle,
+        previousPeriodFrom: 1_700_000_000_000,
+        previousPeriodTo: 1_700_259_200_000,
+      },
+      TZ,
+    );
+    expect(p).toContain('Gap: 3');
+    expect(p).toContain('"Пока меня не было');
+  });
+
+  it('omits gap preamble when gapDays = 0 and asks about висящее со вчера', () => {
+    const p = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Kyiv',
+        gapDays: 0,
+        previousPeriod: emptyBundle,
+        previousPeriodFrom: 1_700_000_000_000,
+        previousPeriodTo: 1_700_086_400_000,
+      },
+      TZ,
+    );
+    expect(p).not.toContain('Gap:');
+    expect(p).toContain('Что висит со вчера');
+  });
+
+  it('includes "Прошлый период" section with rendered bundle content', () => {
+    const p = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Kyiv',
+        gapDays: 1,
+        previousPeriod: {
+          ...emptyBundle,
+          chat: [{ role: 'user', ts: 1_700_000_000_000, content: 'вопрос висит' }],
+        },
+        previousPeriodFrom: 1_700_000_000_000,
+        previousPeriodTo: 1_700_086_400_000,
+      },
+      TZ,
+    );
+    expect(p).toContain('## Прошлый период');
+    expect(p).toContain('вопрос висит');
+  });
+
+  it('instructs the LLM to analyze (висит / повторяется / упустил), not retell', () => {
+    const p = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Kyiv',
+        gapDays: 0,
+        previousPeriod: emptyBundle,
+        previousPeriodFrom: 1,
+        previousPeriodTo: 2,
+      },
+      TZ,
+    );
+    expect(p).toContain('что висит');
+    expect(p).toContain('что повторяется');
+    expect(p).toContain('что упустил');
+    expect(p).toContain('Не пересказывай');
   });
 });

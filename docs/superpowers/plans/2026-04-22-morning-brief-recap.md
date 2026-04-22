@@ -866,7 +866,7 @@ git commit -m "feat(morning-brief): gatherData emits gapDays + previousPeriod bu
 - Modify: `packages/server/src/cognition/handlers/morningBrief.helpers.ts`
 - Test: `packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append:
 
@@ -962,9 +962,9 @@ describe('composePrompt with gap and previousPeriod', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
-- [ ] **Step 3: Rewrite `composePrompt`**
+- [x] **Step 3: Rewrite `composePrompt`**
 
 Replace entire body of `composePrompt` in `morningBrief.helpers.ts` with:
 
@@ -1032,12 +1032,12 @@ export function composePrompt(data: BriefData, tz: string): string {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS on new tests, existing `composePrompt` tests will likely break**
+- [x] **Step 4: Run — expect PASS on new tests, existing `composePrompt` tests will likely break**
 
 Run: `npm -w @r2/server test -- morningBrief.helpers`
 Expected: existing tests asserting exact prompt wording need relaxing. Update them to check for presence of key substrings (use `toContain`, not `toBe`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.helpers.ts packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts
