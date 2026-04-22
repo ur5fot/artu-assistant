@@ -1212,22 +1212,22 @@ git commit -m "feat(morning-brief): add gap-return trigger branch"
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Full server typecheck**
+- [x] **Step 1: Full server typecheck**
 
 Run: `npx tsc --noEmit -p packages/server/tsconfig.json`
 Expected: 0 new errors. If `tool-code-deploy` / `tool-eval-run` have pre-existing test-file errors (see prior plan notes), those are not part of this change — confirm unchanged.
 
-- [ ] **Step 2: Full server test suite**
+- [x] **Step 2: Full server test suite**
 
 Run: `npm -w @r2/server test`
 Expected: all files green. If unrelated tests fail, investigate — your changes to `BriefData`/`composePrompt` may have broken tests that relied on exact shape. Relax assertions (`toMatchObject` / `toContain`) instead of rewriting logic.
 
-- [ ] **Step 3: Full monorepo test**
+- [x] **Step 3: Full monorepo test**
 
 Run: `npm test`
 Expected: 100% pass.
 
-- [ ] **Step 4: Commit if any test fixes made**
+- [x] **Step 4: Commit if any test fixes made**
 
 ```bash
 git add -A
