@@ -12,6 +12,7 @@ import {
   getLocalCivilEpoch,
   getLastBriefPublishAt,
   computeGapDays,
+  GAP_MODE_THRESHOLD,
 } from './morningBrief.helpers.js';
 import { callMorningBriefAI } from './morningBrief.ai.js';
 
@@ -47,11 +48,15 @@ export function createMorningBriefHandler(deps: Deps): Handler {
         return true;
       }
 
-      // Branch B — gap-return: catch the user's first message after >=2 missed
-      // local days. Last-hour activity gate avoids firing on a stale message.
+      // Branch B — gap-return: catch the user's first message after a gap of
+      // GAP_MODE_THRESHOLD or more local days. Last-hour activity gate avoids
+      // firing on a stale message.
       const lastPublishAt = getLastBriefPublishAt(ctx.db);
       const gapDays = computeGapDays(lastPublishAt, state.now, TZ);
-      if (gapDays >= 2 && hasUserActivityInLastHour(ctx.db, state.now)) {
+      if (
+        gapDays >= GAP_MODE_THRESHOLD &&
+        hasUserActivityInLastHour(ctx.db, state.now)
+      ) {
         return true;
       }
 

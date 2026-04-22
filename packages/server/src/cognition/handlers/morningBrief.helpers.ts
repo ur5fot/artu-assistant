@@ -205,11 +205,13 @@ export function gatherPreviousPeriod(
     lastMentionedAt: number;
   }>;
 
+  // `created_at < from` keeps facts created+forgotten in the same period
+  // out of memoryForgotten — they already appear in memoryCreated.
   const memoryForgotten = db
     .prepare(
-      'SELECT key, last_mentioned_at AS lastMentionedAt FROM memory_facts WHERE forgotten = 1 AND last_mentioned_at >= ? AND last_mentioned_at < ? ORDER BY last_mentioned_at DESC LIMIT ?',
+      'SELECT key, last_mentioned_at AS lastMentionedAt FROM memory_facts WHERE forgotten = 1 AND last_mentioned_at >= ? AND last_mentioned_at < ? AND created_at < ? ORDER BY last_mentioned_at DESC LIMIT ?',
     )
-    .all(from, to, BUNDLE_MEMORY_MAX) as Array<{
+    .all(from, to, from, BUNDLE_MEMORY_MAX) as Array<{
     key: string;
     lastMentionedAt: number;
   }>;
@@ -275,6 +277,18 @@ export function gatherPreviousPeriod(
 }
 
 const MAX_BUNDLE_CHARS = 12000;
+const MAX_BUNDLE_PREFIX_RESERVE = 80;
+
+// Russian plural agreement for "день": 1 день, 2-4 дня, 5+ дней.
+// Special case: 11-14 always take "дней" regardless of last digit.
+export function pluralizeDays(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return `${n} дней`;
+  if (mod10 === 1) return `${n} день`;
+  if (mod10 >= 2 && mod10 <= 4) return `${n} дня`;
+  return `${n} дней`;
+}
 
 function renderSection(title: string, lines: string[]): string | null {
   if (lines.length === 0) return null;
@@ -330,8 +344,13 @@ export function renderPreviousPeriod(
 
   const joined = sections.join('\n\n');
   if (joined.length <= MAX_BUNDLE_CHARS) return joined;
-  // Tail-first trim: keep the last MAX_BUNDLE_CHARS, count dropped lines.
-  const trimmedTail = joined.slice(joined.length - MAX_BUNDLE_CHARS);
+  // Tail-first trim: reserve room for the prefix marker so total stays under
+  // MAX_BUNDLE_CHARS, then snap to the next newline so the first kept line
+  // is whole (not a truncated mid-line fragment).
+  const tailBudget = MAX_BUNDLE_CHARS - MAX_BUNDLE_PREFIX_RESERVE;
+  const rawTail = joined.slice(joined.length - tailBudget);
+  const firstNewline = rawTail.indexOf('\n');
+  const trimmedTail = firstNewline === -1 ? rawTail : rawTail.slice(firstNewline + 1);
   const droppedChars = joined.length - trimmedTail.length;
   const approxDroppedLines = (joined.slice(0, droppedChars).match(/\n/g) ?? []).length;
   return `...и ${approxDroppedLines} событий раньше опущено\n${trimmedTail}`;
@@ -407,12 +426,15 @@ export function gatherData(
 
   const lastBriefPublishAt = getLastBriefPublishAt(db);
   const gapDays = computeGapDays(lastBriefPublishAt, now, tz);
-  // With a prior publish: span [lastPublish, todayStart) — the completed days
-  // between the last brief and local midnight.
-  // Without one: span [now - 48h, now) — last 48h including today so the
-  // fallback actually captures recent activity.
+  // With a prior publish on a normal morning (gapDays < 2): span
+  //   [lastPublish, todayStart) — completed days only; today's activity stays
+  //   in "Recent context (48h)".
+  // Gap-return (gapDays >= 2) or first-run: span [from, now) — the bundle
+  //   must include today, since gap-return is triggered by today's first
+  //   message and that message belongs in the recap.
   const previousPeriodFrom = lastBriefPublishAt ?? now - 48 * 3600_000;
-  const previousPeriodTo = lastBriefPublishAt !== null ? todayStart : now;
+  const previousPeriodTo =
+    lastBriefPublishAt !== null && gapDays < 2 ? todayStart : now;
   // Same-day republish: lastPublishAt > todayStart, so clamp to avoid an
   // inverted range (SQLite would return nothing but the helper would still
   // run 7 queries with nonsense bounds).
@@ -451,18 +473,24 @@ function section(title: string, rows: string[]): string {
   return `## ${title}\n${body}`;
 }
 
+// Trigger Branch B and the gap preamble use the same threshold — keep them in
+// sync so a brief that fires via the morning window after one missed day
+// doesn't apologize for being away.
+export const GAP_MODE_THRESHOLD = 2;
+
 export function composePrompt(data: BriefData, tz: string): string {
   const cityLine = data.city
     ? `Город пользователя: ${data.city}.`
     : 'Город пользователя: не задан — погоду искать не нужно, напиши "город не задан".';
 
-  const gapPreamble =
-    data.gapDays > 0
-      ? [
-          `⚠️ Gap: ${data.gapDays} дней — начни ответ с "Пока меня не было ${data.gapDays} дней, вот что было".`,
-          '',
-        ].join('\n')
-      : '';
+  const gapMode = data.gapDays >= GAP_MODE_THRESHOLD;
+  const daysPhrase = pluralizeDays(data.gapDays);
+  const gapPreamble = gapMode
+    ? [
+        `⚠️ Gap: ${data.gapDays} — начни ответ с "Пока меня не было ${daysPhrase}, вот что было".`,
+        '',
+      ].join('\n')
+    : '';
 
   const periodHeader = `## Прошлый период (${formatLocal(data.previousPeriodFrom, tz)} — ${formatLocal(data.previousPeriodTo, tz)})`;
   const periodBody = renderPreviousPeriod(data.previousPeriod, tz);
@@ -486,10 +514,9 @@ export function composePrompt(data: BriefData, tz: string): string {
     ),
   ].join('\n');
 
-  const todayGuide =
-    data.gapDays > 0
-      ? '1. "Пока меня не было N дней..." — 2-4 строки выжимка периода\n2. Что висит — 1-5 пунктов, если нет — "висящего нет"\n3. Сегодня — 3-5 bullets: конкретно, не дневник'
-      : '1. Что висит со вчера — 1-4 пункта, если нет — "вчера закрыто чисто"\n2. Сегодня — 3-5 bullets';
+  const todayGuide = gapMode
+    ? `1. "Пока меня не было ${daysPhrase}..." — 2-4 строки выжимка периода\n2. Что висит — 1-5 пунктов, если нет — "висящего нет"\n3. Сегодня — 3-5 bullets: конкретно, не дневник`
+    : '1. Что висит со вчера — 1-4 пункта, если нет — "вчера закрыто чисто"\n2. Сегодня — 3-5 bullets';
 
   return [
     `Собери утренний brief для dim (русский язык). Время — ${tz}. ${cityLine}`,

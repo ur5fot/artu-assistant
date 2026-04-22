@@ -11,6 +11,7 @@ import {
   computeGapDays,
   gatherPreviousPeriod,
   renderPreviousPeriod,
+  pluralizeDays,
 } from '../../handlers/morningBrief.helpers.js';
 import type {
   ChatRow,
@@ -564,6 +565,20 @@ describe('gatherPreviousPeriod', () => {
     expect(bundle.memoryForgotten.map((r) => r.key)).toEqual(['k.forg']);
   });
 
+  it('does not double-list facts created and forgotten in the same period', () => {
+    const db = getDb();
+    const from = 1000;
+    const to = 2000;
+    // Created AND forgotten inside [from, to) — should only appear in
+    // memoryCreated, not also in memoryForgotten.
+    db.prepare(
+      "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.both', 'v', 1500, 1900, 5, 1)",
+    ).run();
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.memoryCreated.map((r) => r.key)).toEqual(['k.both']);
+    expect(bundle.memoryForgotten).toEqual([]);
+  });
+
   it('collects audit_log only for heavy tools', () => {
     const db = getDb();
     const isoInside = '2026-04-22 10:00:00';
@@ -735,6 +750,97 @@ describe('gatherData extended', () => {
   });
 });
 
+describe('pluralizeDays', () => {
+  it('uses "день" for 1, 21, 31, 101', () => {
+    expect(pluralizeDays(1)).toBe('1 день');
+    expect(pluralizeDays(21)).toBe('21 день');
+    expect(pluralizeDays(31)).toBe('31 день');
+    expect(pluralizeDays(101)).toBe('101 день');
+  });
+
+  it('uses "дня" for 2-4, 22-24, 32-34', () => {
+    expect(pluralizeDays(2)).toBe('2 дня');
+    expect(pluralizeDays(3)).toBe('3 дня');
+    expect(pluralizeDays(4)).toBe('4 дня');
+    expect(pluralizeDays(22)).toBe('22 дня');
+    expect(pluralizeDays(34)).toBe('34 дня');
+  });
+
+  it('uses "дней" for 0, 5-20, 25-30, 100', () => {
+    expect(pluralizeDays(0)).toBe('0 дней');
+    expect(pluralizeDays(5)).toBe('5 дней');
+    expect(pluralizeDays(11)).toBe('11 дней');
+    expect(pluralizeDays(12)).toBe('12 дней');
+    expect(pluralizeDays(14)).toBe('14 дней');
+    expect(pluralizeDays(20)).toBe('20 дней');
+    expect(pluralizeDays(100)).toBe('100 дней');
+    expect(pluralizeDays(112)).toBe('112 дней');
+  });
+});
+
+describe('renderPreviousPeriod tail-trim shape', () => {
+  it('starts with the marker and the kept tail begins at a line boundary', () => {
+    const bigChat: ChatRow[] = [];
+    for (let i = 0; i < 80; i++) {
+      bigChat.push({
+        role: 'user',
+        ts: 1_700_000_000_000 + i * 60_000,
+        content: 'x'.repeat(450),
+      });
+    }
+    const rendered = renderPreviousPeriod(
+      {
+        chat: bigChat,
+        memoryCreated: [],
+        memoryUpdated: [],
+        memoryForgotten: [],
+        audit: [],
+        cognition: [],
+        remindersOverdue: [],
+        remindersCreated: [],
+      },
+      'Europe/Kyiv',
+    );
+    // Marker is the first line, then full kept lines (each starts with "- [").
+    const marker = rendered.split('\n', 1)[0];
+    expect(marker.startsWith('...и ')).toBe(true);
+    const firstKept = rendered.split('\n')[1];
+    expect(firstKept.startsWith('- [')).toBe(true);
+    // Total stays under the budget (no overshoot from the prepended marker).
+    expect(rendered.length).toBeLessThanOrEqual(12000);
+  });
+});
+
+describe('gatherData gap-return window', () => {
+  it('previousPeriodTo equals now when gapDays >= 2 (today included)', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0); // 15:00 Kyiv
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('morningBrief', Date.UTC(2026, 3, 19, 3, 0, 0), 10, 'publish', 'brief');
+    // Today's first-return message — must land in the bundle.
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('return', 'user', 'я вернулся', ?)",
+    ).run(now - 10 * 60_000);
+    const data = gatherData(db, now, TZ);
+    expect(data.gapDays).toBeGreaterThanOrEqual(2);
+    expect(data.previousPeriodTo).toBe(now);
+    expect(data.previousPeriod.chat.map((r) => r.content)).toContain('я вернулся');
+  });
+
+  it('previousPeriodTo equals todayStart for normal morning (gapDays < 2)', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0); // 12:00 Kyiv
+    const todayStart = getLocalCivilEpoch(now, TZ);
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('morningBrief', Date.UTC(2026, 3, 21, 3, 0, 0), 10, 'publish', 'yesterday');
+    const data = gatherData(db, now, TZ);
+    expect(data.gapDays).toBe(1);
+    expect(data.previousPeriodTo).toBe(todayStart);
+  });
+});
+
 describe('composePrompt with gap and previousPeriod', () => {
   const emptyBundle: PreviousPeriodBundle = {
     chat: [],
@@ -747,7 +853,7 @@ describe('composePrompt with gap and previousPeriod', () => {
     remindersCreated: [],
   };
 
-  it('includes gap preamble when gapDays > 0', () => {
+  it('includes gap preamble when gapDays >= 2', () => {
     const p = composePrompt(
       {
         reminders: [],
@@ -762,7 +868,48 @@ describe('composePrompt with gap and previousPeriod', () => {
       TZ,
     );
     expect(p).toContain('Gap: 3');
-    expect(p).toContain('"Пока меня не было');
+    expect(p).toContain('"Пока меня не было 3 дня');
+  });
+
+  it('omits gap preamble when gapDays = 1 (one missed day handled by morning window)', () => {
+    const p = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Kyiv',
+        gapDays: 1,
+        previousPeriod: emptyBundle,
+        previousPeriodFrom: 1_700_000_000_000,
+        previousPeriodTo: 1_700_086_400_000,
+      },
+      TZ,
+    );
+    expect(p).not.toContain('Gap:');
+    expect(p).not.toContain('Пока меня не было');
+    expect(p).toContain('Что висит со вчера');
+  });
+
+  it('uses Russian plural agreement for gap days (день / дня / дней)', () => {
+    const make = (gapDays: number): string =>
+      composePrompt(
+        {
+          reminders: [],
+          notes: [],
+          recentContext: [],
+          city: 'Kyiv',
+          gapDays,
+          previousPeriod: emptyBundle,
+          previousPeriodFrom: 1_700_000_000_000,
+          previousPeriodTo: 1_700_086_400_000,
+        },
+        TZ,
+      );
+    expect(make(2)).toContain('не было 2 дня');
+    expect(make(5)).toContain('не было 5 дней');
+    expect(make(11)).toContain('не было 11 дней');
+    expect(make(21)).toContain('не было 21 день');
+    expect(make(22)).toContain('не было 22 дня');
   });
 
   it('omits gap preamble when gapDays = 0 and asks about висящее со вчера', () => {
