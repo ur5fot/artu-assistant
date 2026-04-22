@@ -770,7 +770,7 @@ git commit -m "feat(morning-brief): renderPreviousPeriod with tail-first truncat
 - Modify: `packages/server/src/cognition/handlers/morningBrief.helpers.ts`
 - Test: `packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append:
 
@@ -814,9 +814,9 @@ describe('gatherData extended', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL (property does not exist)**
+- [x] **Step 2: Run — expect FAIL (property does not exist)**
 
-- [ ] **Step 3: Update `BriefData` + `gatherData`**
+- [x] **Step 3: Update `BriefData` + `gatherData`**
 
 Modify in `morningBrief.helpers.ts`:
 
@@ -846,12 +846,12 @@ const previousPeriod = gatherPreviousPeriod(db, safeFrom, previousPeriodTo);
 return { reminders, notes, recentContext, city, gapDays, previousPeriod, previousPeriodFrom: safeFrom, previousPeriodTo };
 ```
 
-- [ ] **Step 4: Run — expect PASS on new tests, but existing tests may break if they asserted exact `BriefData` shape**
+- [x] **Step 4: Run — expect PASS on new tests, but existing tests may break if they asserted exact `BriefData` shape**
 
 Run: `npm -w @r2/server test -- morningBrief.helpers`
 Expected: Fix any existing `gatherData` tests that did `toEqual({...})` without the new fields. Adjust to `toMatchObject` OR add the new fields.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.helpers.ts packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts

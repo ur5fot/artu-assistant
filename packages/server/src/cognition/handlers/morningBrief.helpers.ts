@@ -121,6 +121,10 @@ export interface BriefData {
   notes: NoteRow[];
   recentContext: ChatRow[];
   city: string | null;
+  gapDays: number;
+  previousPeriod: PreviousPeriodBundle;
+  previousPeriodFrom: number;
+  previousPeriodTo: number;
 }
 
 export interface PreviousPeriodBundle {
@@ -401,7 +405,30 @@ export function gatherData(
     .get() as { value: string } | undefined;
   const city = cityRow?.value ?? null;
 
-  return { reminders, notes, recentContext, city };
+  const lastBriefPublishAt = getLastBriefPublishAt(db);
+  const gapDays = computeGapDays(lastBriefPublishAt, now, tz);
+  // With a prior publish: span [lastPublish, todayStart) — the completed days
+  // between the last brief and local midnight.
+  // Without one: span [now - 48h, now) — last 48h including today so the
+  // fallback actually captures recent activity.
+  const previousPeriodFrom = lastBriefPublishAt ?? now - 48 * 3600_000;
+  const previousPeriodTo = lastBriefPublishAt !== null ? todayStart : now;
+  // Same-day republish: lastPublishAt > todayStart, so clamp to avoid an
+  // inverted range (SQLite would return nothing but the helper would still
+  // run 7 queries with nonsense bounds).
+  const safeFrom = Math.min(previousPeriodFrom, previousPeriodTo);
+  const previousPeriod = gatherPreviousPeriod(db, safeFrom, previousPeriodTo);
+
+  return {
+    reminders,
+    notes,
+    recentContext,
+    city,
+    gapDays,
+    previousPeriod,
+    previousPeriodFrom: safeFrom,
+    previousPeriodTo,
+  };
 }
 
 export function formatLocal(ts: number, tz: string): string {

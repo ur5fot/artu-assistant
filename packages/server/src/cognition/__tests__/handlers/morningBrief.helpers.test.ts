@@ -174,7 +174,7 @@ describe('gatherData', () => {
 
   it('returns empty arrays on fresh DB', () => {
     const data = gatherData(getDb(), now, TZ);
-    expect(data).toEqual({ reminders: [], notes: [], recentContext: [], city: null });
+    expect(data).toMatchObject({ reminders: [], notes: [], recentContext: [], city: null });
   });
 
   it('returns city from user.city regardless of 14d freshness', () => {
@@ -303,6 +303,23 @@ describe('gatherData', () => {
 });
 
 describe('composePrompt', () => {
+  const emptyBundle = {
+    chat: [],
+    memoryCreated: [],
+    memoryUpdated: [],
+    memoryForgotten: [],
+    audit: [],
+    cognition: [],
+    remindersOverdue: [],
+    remindersCreated: [],
+  };
+  const recapDefaults = {
+    gapDays: 0,
+    previousPeriod: emptyBundle,
+    previousPeriodFrom: 0,
+    previousPeriodTo: 0,
+  };
+
   it('formats all sections when data present', () => {
     const prompt = composePrompt(
       {
@@ -320,6 +337,7 @@ describe('composePrompt', () => {
           { role: 'user', content: 'сегодня дождь?', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
         ],
         city: 'Киев',
+        ...recapDefaults,
       },
       TZ,
     );
@@ -334,7 +352,7 @@ describe('composePrompt', () => {
 
   it('shows "нет" for empty sections', () => {
     const prompt = composePrompt(
-      { reminders: [], notes: [], recentContext: [], city: null },
+      { reminders: [], notes: [], recentContext: [], city: null, ...recapDefaults },
       TZ,
     );
     expect(prompt).toMatch(/## Reminders на сегодня\/завтра\s+нет/);
@@ -354,6 +372,7 @@ describe('composePrompt', () => {
           { role: 'user', content: 'x', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
         ],
         city: null,
+        ...recapDefaults,
       },
       TZ,
     );
@@ -365,7 +384,7 @@ describe('composePrompt', () => {
 
   it('includes user city in prompt header', () => {
     const prompt = composePrompt(
-      { reminders: [], notes: [], recentContext: [], city: 'Киев' },
+      { reminders: [], notes: [], recentContext: [], city: 'Киев', ...recapDefaults },
       TZ,
     );
     expect(prompt).toContain('Киев');
@@ -373,7 +392,7 @@ describe('composePrompt', () => {
 
   it('tells LLM city is not set when city is null', () => {
     const prompt = composePrompt(
-      { reminders: [], notes: [], recentContext: [], city: null },
+      { reminders: [], notes: [], recentContext: [], city: null, ...recapDefaults },
       TZ,
     );
     expect(prompt).toContain('город не задан');
@@ -672,5 +691,43 @@ describe('renderPreviousPeriod', () => {
       'Europe/Kyiv',
     );
     expect(rendered.trim()).toBe('активности не было');
+  });
+});
+
+describe('gatherData extended', () => {
+  it('includes previousPeriod bundle and gapDays=0 when last publish is today', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0); // 12:00 Kyiv
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('morningBrief', Date.UTC(2026, 3, 22, 3, 0, 0), 10, 'publish', 'brief');
+    // previousPeriod spans [lastPublish, todayStart) — on a same-day republish
+    // the range collapses to empty (to <= from). Handler must still return a
+    // well-formed bundle (all empty arrays), not throw.
+    const data = gatherData(db, now, TZ);
+    expect(data.gapDays).toBe(0);
+    expect(data.previousPeriod).toBeDefined();
+    expect(data.previousPeriod.chat).toEqual([]);
+  });
+
+  it('sets gapDays to 2 when last publish was 2 local days ago', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0);
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('morningBrief', Date.UTC(2026, 3, 20, 3, 0, 0), 10, 'publish', 'brief');
+    const data = gatherData(db, now, TZ);
+    expect(data.gapDays).toBe(2);
+  });
+
+  it('falls back to last 48h window when no prior publish exists', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0);
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('x', 'user', 'hi', ?)",
+    ).run(now - 6 * 3600_000);
+    const data = gatherData(db, now, TZ);
+    expect(data.gapDays).toBe(0);
+    expect(data.previousPeriod.chat.length).toBe(1);
   });
 });
