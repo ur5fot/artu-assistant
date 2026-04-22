@@ -146,7 +146,7 @@ git commit -m "feat(morning-brief): add getLastBriefPublishAt helper"
 - Modify: `packages/server/src/cognition/handlers/morningBrief.helpers.ts`
 - Test: `packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append:
 
@@ -186,11 +186,11 @@ describe('computeGapDays', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- morningBrief.helpers`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `morningBrief.helpers.ts`:
 
@@ -216,9 +216,9 @@ export function computeGapDays(
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.helpers.ts packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts

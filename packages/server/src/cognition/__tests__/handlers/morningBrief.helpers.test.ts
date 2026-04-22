@@ -7,6 +7,7 @@ import {
   gatherData,
   composePrompt,
   getLastBriefPublishAt,
+  computeGapDays,
 } from '../../handlers/morningBrief.helpers.js';
 
 const TZ = 'Europe/Kyiv';
@@ -409,5 +410,37 @@ describe('getLastBriefPublishAt', () => {
         .run(name, ts, 10, outcome);
     }
     expect(getLastBriefPublishAt(getDb())).toBe(300);
+  });
+});
+
+describe('computeGapDays', () => {
+  it('returns 0 when lastPublishAt is null (first run)', () => {
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0);
+    expect(computeGapDays(null, now, TZ)).toBe(0);
+  });
+
+  it('returns 0 when lastPublishAt is on same local date as now', () => {
+    const lastPublish = Date.UTC(2026, 3, 22, 3, 0, 0); // 06:00 Kyiv 22nd
+    const now = Date.UTC(2026, 3, 22, 15, 0, 0); // 18:00 Kyiv same day
+    expect(computeGapDays(lastPublish, now, TZ)).toBe(0);
+  });
+
+  it('returns 1 when lastPublishAt is yesterday local', () => {
+    const lastPublish = Date.UTC(2026, 3, 21, 3, 0, 0); // 06:00 Kyiv 21st
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0); // 12:00 Kyiv 22nd
+    expect(computeGapDays(lastPublish, now, TZ)).toBe(1);
+  });
+
+  it('returns 3 when last publish 3 local days ago', () => {
+    const lastPublish = Date.UTC(2026, 3, 19, 3, 0, 0);
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0);
+    expect(computeGapDays(lastPublish, now, TZ)).toBe(3);
+  });
+
+  it('is DST-aware across spring-forward', () => {
+    // Kyiv spring-forward 2026-03-29: 03:00→04:00. Measure 2-day gap crossing it.
+    const lastPublish = Date.UTC(2026, 2, 28, 6, 0, 0); // 08:00 Kyiv 28th (pre-DST)
+    const now = Date.UTC(2026, 2, 30, 6, 0, 0); // 09:00 Kyiv 30th (post-DST UTC+3)
+    expect(computeGapDays(lastPublish, now, TZ)).toBe(2);
   });
 });

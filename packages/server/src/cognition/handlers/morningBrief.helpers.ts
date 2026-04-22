@@ -66,6 +66,27 @@ export function getLastBriefPublishAt(db: Database.Database): number | null {
   return row?.ts ?? null;
 }
 
+export function computeGapDays(
+  lastPublishAt: number | null,
+  now: number,
+  tz: string,
+): number {
+  if (lastPublishAt === null) return 0;
+  const lastStart = getLocalCivilEpoch(lastPublishAt, tz);
+  const todayStart = getLocalCivilEpoch(now, tz);
+  if (todayStart <= lastStart) return 0;
+  // Walk civil day boundaries from lastStart forward — DST-safe because
+  // +26h always lands on the next local day (handles 23h/25h DST days),
+  // and getLocalCivilEpoch normalizes back to local midnight.
+  let days = 0;
+  let cursor = lastStart;
+  while (cursor < todayStart && days < 365) {
+    cursor = getLocalCivilEpoch(cursor + 26 * 3600_000, tz);
+    days++;
+  }
+  return days;
+}
+
 export interface ReminderRow {
   text: string;
   nextFireAt: number;
