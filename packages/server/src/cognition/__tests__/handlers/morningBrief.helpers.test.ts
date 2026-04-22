@@ -6,6 +6,7 @@ import {
   hasUserActivitySince,
   gatherData,
   composePrompt,
+  getLastBriefPublishAt,
 } from '../../handlers/morningBrief.helpers.js';
 
 const TZ = 'Europe/Kyiv';
@@ -371,5 +372,42 @@ describe('composePrompt', () => {
       TZ,
     );
     expect(prompt).toContain('город не задан');
+  });
+});
+
+describe('getLastBriefPublishAt', () => {
+  it('returns null when cognition_handler_runs is empty', () => {
+    expect(getLastBriefPublishAt(getDb())).toBeNull();
+  });
+
+  it('returns null when runs exist but none with publish outcome', () => {
+    getDb()
+      .prepare(
+        'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+      )
+      .run('morningBrief', 1000, 10, 'error');
+    getDb()
+      .prepare(
+        'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+      )
+      .run('morningBrief', 2000, 10, 'skip');
+    expect(getLastBriefPublishAt(getDb())).toBeNull();
+  });
+
+  it('returns the most recent publish fired_at, ignoring other handlers', () => {
+    const rows: Array<[string, number, string]> = [
+      ['morningBrief', 100, 'publish'],
+      ['pulse', 500, 'publish'],
+      ['morningBrief', 300, 'publish'],
+      ['morningBrief', 200, 'error'],
+    ];
+    for (const [name, ts, outcome] of rows) {
+      getDb()
+        .prepare(
+          'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+        )
+        .run(name, ts, 10, outcome);
+    }
+    expect(getLastBriefPublishAt(getDb())).toBe(300);
   });
 });

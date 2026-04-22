@@ -51,7 +51,7 @@ All changes are additive to existing API — no file splits, no renames.
 - Modify: `packages/server/src/cognition/handlers/morningBrief.helpers.ts`
 - Test: `packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts`
 
-- [ ] **Step 1: Write failing test "returns null when no runs exist"**
+- [x] **Step 1: Write failing test "returns null when no runs exist"**
 
 Append at end of `morningBrief.helpers.test.ts`:
 
@@ -65,12 +65,12 @@ describe('getLastBriefPublishAt', () => {
 });
 ```
 
-- [ ] **Step 2: Run test — expect FAIL**
+- [x] **Step 2: Run test — expect FAIL**
 
 Run: `npm -w @r2/server test -- morningBrief.helpers`
 Expected: `TypeError: getLastBriefPublishAt is not a function` or export-not-found.
 
-- [ ] **Step 3: Implement in `morningBrief.helpers.ts`**
+- [x] **Step 3: Implement in `morningBrief.helpers.ts`**
 
 Append:
 
@@ -85,12 +85,12 @@ export function getLastBriefPublishAt(db: Database.Database): number | null {
 }
 ```
 
-- [ ] **Step 4: Run test — expect PASS**
+- [x] **Step 4: Run test — expect PASS**
 
 Run: `npm -w @r2/server test -- morningBrief.helpers`
 Expected: 1 new test passes.
 
-- [ ] **Step 5: Add remaining test cases**
+- [x] **Step 5: Add remaining test cases**
 
 Append to `describe('getLastBriefPublishAt', ...)`:
 
@@ -127,11 +127,11 @@ it('returns the most recent publish fired_at, ignoring other handlers', () => {
 });
 ```
 
-- [ ] **Step 6: Run — expect PASS for all 3 new tests**
+- [x] **Step 6: Run — expect PASS for all 3 new tests**
 
 Run: `npm -w @r2/server test -- morningBrief.helpers`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.helpers.ts packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts

@@ -57,6 +57,15 @@ export function hasUserActivitySince(
   return row !== undefined;
 }
 
+export function getLastBriefPublishAt(db: Database.Database): number | null {
+  const row = db
+    .prepare(
+      "SELECT MAX(fired_at) AS ts FROM cognition_handler_runs WHERE handler_name = 'morningBrief' AND outcome = 'publish'",
+    )
+    .get() as { ts: number | null } | undefined;
+  return row?.ts ?? null;
+}
+
 export interface ReminderRow {
   text: string;
   nextFireAt: number;
