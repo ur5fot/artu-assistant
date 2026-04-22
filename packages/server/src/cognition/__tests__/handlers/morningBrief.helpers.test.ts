@@ -9,6 +9,7 @@ import {
   composePrompt,
   getLastBriefPublishAt,
   computeGapDays,
+  gatherPreviousPeriod,
 } from '../../handlers/morningBrief.helpers.js';
 
 const TZ = 'Europe/Kyiv';
@@ -479,5 +480,130 @@ describe('hasUserActivityInLastHour', () => {
       )
       .run(now - 10 * 60_000);
     expect(hasUserActivityInLastHour(getDb(), now)).toBe(false);
+  });
+});
+
+describe('gatherPreviousPeriod', () => {
+  it('returns empty bundle when period is empty', () => {
+    const bundle = gatherPreviousPeriod(getDb(), 1000, 2000);
+    expect(bundle).toEqual({
+      chat: [],
+      memoryCreated: [],
+      memoryUpdated: [],
+      memoryForgotten: [],
+      audit: [],
+      cognition: [],
+      remindersOverdue: [],
+      remindersCreated: [],
+    });
+  });
+
+  it('collects chat messages in [from, to)', () => {
+    const from = 1000;
+    const to = 2000;
+    const db = getDb();
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'before', ?)",
+    ).run(500);
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('b', 'user', 'inside', ?)",
+    ).run(1500);
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('c', 'assistant', 'inside-2', ?)",
+    ).run(1800);
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('d', 'user', 'after', ?)",
+    ).run(2500);
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.chat.map((r) => r.content)).toEqual(['inside', 'inside-2']);
+  });
+
+  it('classifies memory_facts as created / updated / forgotten correctly', () => {
+    const db = getDb();
+    const from = 1000;
+    const to = 2000;
+    // Created inside period
+    db.prepare(
+      "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.new', 'v', 1500, 1500, 5, 0)",
+    ).run();
+    // Created before, updated inside, not forgotten → updated
+    db.prepare(
+      "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.upd', 'v', 500, 1700, 5, 0)",
+    ).run();
+    // Forgotten inside (last_mentioned_at inside, forgotten=1)
+    db.prepare(
+      "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.forg', 'v', 200, 1900, 5, 1)",
+    ).run();
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.memoryCreated.map((r) => r.key)).toEqual(['k.new']);
+    expect(bundle.memoryUpdated.map((r) => r.key)).toEqual(['k.upd']);
+    expect(bundle.memoryForgotten.map((r) => r.key)).toEqual(['k.forg']);
+  });
+
+  it('collects audit_log only for heavy tools', () => {
+    const db = getDb();
+    const isoInside = '2026-04-22 10:00:00';
+    db.prepare(
+      'INSERT INTO audit_log (tool_name, input, result, success, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run('code_task', '{}', 'ok', 1, 100, isoInside);
+    db.prepare(
+      'INSERT INTO audit_log (tool_name, input, result, success, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run('web_search', '{}', 'ok', 1, 100, isoInside);
+    const bundle = gatherPreviousPeriod(
+      db,
+      Date.parse('2026-04-21T00:00:00Z'),
+      Date.parse('2026-04-23T00:00:00Z'),
+    );
+    const names = bundle.audit.map((r) => r.toolName);
+    expect(names).toContain('code_task');
+    expect(names).not.toContain('web_search');
+  });
+
+  it('excludes morningBrief from cognition runs', () => {
+    const db = getDb();
+    const from = 1000;
+    const to = 2000;
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('morningBrief', 1500, 10, 'publish', 'old brief');
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('pulse', 1600, 10, 'publish', 'pulse');
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.cognition.map((r) => r.handlerName)).toEqual(['pulse']);
+  });
+
+  it('collects overdue active reminders within 30d lookback, excluding inactive', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0);
+    const to = now;
+    const from = now - 86400_000;
+    // Active, overdue within window
+    db.prepare(
+      'INSERT INTO reminders (text, schedule_json, next_fire_at_ms, active, created_at) VALUES (?, ?, ?, ?, ?)',
+    ).run('buy milk', '{}', now - 2 * 3600_000, 1, now - 3 * 86400_000);
+    // Inactive — must be excluded
+    db.prepare(
+      'INSERT INTO reminders (text, schedule_json, next_fire_at_ms, active, created_at) VALUES (?, ?, ?, ?, ?)',
+    ).run('old reminder', '{}', now - 2 * 3600_000, 0, now - 3 * 86400_000);
+    // Active but outside 30d lookback
+    db.prepare(
+      'INSERT INTO reminders (text, schedule_json, next_fire_at_ms, active, created_at) VALUES (?, ?, ?, ?, ?)',
+    ).run('ancient', '{}', now - 60 * 86400_000, 1, now - 60 * 86400_000);
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.remindersOverdue.map((r) => r.text)).toEqual(['buy milk']);
+  });
+
+  it('applies row-count caps per source', () => {
+    const db = getDb();
+    const from = 1000;
+    const to = 2000;
+    for (let i = 0; i < 120; i++) {
+      db.prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'msg', ?)",
+      ).run(`m${i}`, 1000 + i);
+    }
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.chat.length).toBe(80);
   });
 });

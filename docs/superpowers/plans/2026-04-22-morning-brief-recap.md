@@ -314,7 +314,7 @@ git commit -m "feat(morning-brief): add hasUserActivityInLastHour helper"
 - Modify: `packages/server/src/cognition/handlers/morningBrief.helpers.ts`
 - Test: `packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts`
 
-- [ ] **Step 1: Write failing test "collects all 7 source kinds"**
+- [x] **Step 1: Write failing test "collects all 7 source kinds"**
 
 Append:
 
@@ -358,9 +358,9 @@ describe('gatherPreviousPeriod', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
-- [ ] **Step 3: Implement `gatherPreviousPeriod`**
+- [x] **Step 3: Implement `gatherPreviousPeriod`**
 
 Append to `morningBrief.helpers.ts`:
 
@@ -484,9 +484,9 @@ export function gatherPreviousPeriod(
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS for the 2 initial tests**
+- [x] **Step 4: Run — expect PASS for the 2 initial tests**
 
-- [ ] **Step 5: Add per-source tests**
+- [x] **Step 5: Add per-source tests**
 
 Append to `describe('gatherPreviousPeriod', ...)`:
 
@@ -586,11 +586,11 @@ it('applies row-count caps per source', () => {
 });
 ```
 
-- [ ] **Step 6: Run — expect PASS for all new tests**
+- [x] **Step 6: Run — expect PASS for all new tests**
 
 Run: `npm -w @r2/server test -- morningBrief.helpers`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.helpers.ts packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts

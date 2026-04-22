@@ -123,6 +123,153 @@ export interface BriefData {
   city: string | null;
 }
 
+export interface PreviousPeriodBundle {
+  chat: ChatRow[];
+  memoryCreated: Array<{ key: string; value: string; createdAt: number }>;
+  memoryUpdated: Array<{ key: string; lastMentionedAt: number }>;
+  memoryForgotten: Array<{ key: string; lastMentionedAt: number }>;
+  audit: Array<{ toolName: string; result: string; createdAt: string; success: number }>;
+  cognition: Array<{
+    handlerName: string;
+    firedAt: number;
+    outcome: string;
+    content: string | null;
+  }>;
+  remindersOverdue: Array<{ text: string; nextFireAt: number }>;
+  remindersCreated: Array<{ text: string; createdAt: number }>;
+}
+
+const BUNDLE_CHAT_MAX = 80;
+const BUNDLE_CHAT_CONTENT_MAX = 500;
+const BUNDLE_MEMORY_MAX = 30;
+const BUNDLE_MEMORY_VALUE_MAX = 300;
+const BUNDLE_AUDIT_MAX = 20;
+const BUNDLE_AUDIT_RESULT_MAX = 300;
+const BUNDLE_COGNITION_MAX = 20;
+const BUNDLE_COGNITION_CONTENT_MAX = 400;
+const BUNDLE_REMINDERS_MAX = 20;
+const BUNDLE_REMINDERS_OVERDUE_LOOKBACK_MS = 30 * 86400_000;
+const AUDIT_HEAVY_TOOLS = ['code_task', 'code_deploy', 'eval_add', 'eval_run'];
+
+function truncStr(s: string | null | undefined, max: number): string {
+  if (!s) return '';
+  return s.length > max ? s.slice(0, max) : s;
+}
+
+// audit_log.created_at is stored as SQLite `datetime('now')` TEXT (UTC,
+// "YYYY-MM-DD HH:MM:SS"). To filter by ms-epoch bounds, convert both bounds
+// to the same string format — SQLite's lexicographic comparison matches
+// chronological order for this format.
+function epochToSqliteDateTime(ms: number): string {
+  return new Date(ms).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+}
+
+export function gatherPreviousPeriod(
+  db: Database.Database,
+  from: number,
+  to: number,
+): PreviousPeriodBundle {
+  const chatRaw = db
+    .prepare(
+      'SELECT role, content, timestamp AS ts FROM chat_messages WHERE timestamp >= ? AND timestamp < ? ORDER BY timestamp ASC LIMIT ?',
+    )
+    .all(from, to, BUNDLE_CHAT_MAX) as Array<{ role: string; content: string; ts: number }>;
+  const chat: ChatRow[] = chatRaw.map((r) => ({
+    role: r.role,
+    ts: r.ts,
+    content: truncStr(r.content, BUNDLE_CHAT_CONTENT_MAX),
+  }));
+
+  const memoryCreated = (
+    db
+      .prepare(
+        'SELECT key, value, created_at AS createdAt FROM memory_facts WHERE created_at >= ? AND created_at < ? ORDER BY created_at DESC LIMIT ?',
+      )
+      .all(from, to, BUNDLE_MEMORY_MAX) as Array<{
+      key: string;
+      value: string;
+      createdAt: number;
+    }>
+  ).map((r) => ({ ...r, value: truncStr(r.value, BUNDLE_MEMORY_VALUE_MAX) }));
+
+  const memoryUpdated = db
+    .prepare(
+      'SELECT key, last_mentioned_at AS lastMentionedAt FROM memory_facts WHERE last_mentioned_at >= ? AND last_mentioned_at < ? AND created_at < ? AND forgotten = 0 ORDER BY last_mentioned_at DESC LIMIT ?',
+    )
+    .all(from, to, from, BUNDLE_MEMORY_MAX) as Array<{
+    key: string;
+    lastMentionedAt: number;
+  }>;
+
+  const memoryForgotten = db
+    .prepare(
+      'SELECT key, last_mentioned_at AS lastMentionedAt FROM memory_facts WHERE forgotten = 1 AND last_mentioned_at >= ? AND last_mentioned_at < ? ORDER BY last_mentioned_at DESC LIMIT ?',
+    )
+    .all(from, to, BUNDLE_MEMORY_MAX) as Array<{
+    key: string;
+    lastMentionedAt: number;
+  }>;
+
+  const fromIso = epochToSqliteDateTime(from);
+  const toIso = epochToSqliteDateTime(to);
+  const placeholders = AUDIT_HEAVY_TOOLS.map(() => '?').join(',');
+  const auditRaw = db
+    .prepare(
+      `SELECT tool_name AS toolName, result, created_at AS createdAt, success FROM audit_log WHERE tool_name IN (${placeholders}) AND created_at >= ? AND created_at < ? ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(...AUDIT_HEAVY_TOOLS, fromIso, toIso, BUNDLE_AUDIT_MAX) as Array<{
+    toolName: string;
+    result: string;
+    createdAt: string;
+    success: number;
+  }>;
+  const audit = auditRaw.map((r) => ({
+    ...r,
+    result: truncStr(r.result, BUNDLE_AUDIT_RESULT_MAX),
+  }));
+
+  const cognitionRaw = db
+    .prepare(
+      "SELECT handler_name AS handlerName, fired_at AS firedAt, outcome, content FROM cognition_handler_runs WHERE handler_name != 'morningBrief' AND fired_at >= ? AND fired_at < ? ORDER BY fired_at DESC LIMIT ?",
+    )
+    .all(from, to, BUNDLE_COGNITION_MAX) as Array<{
+    handlerName: string;
+    firedAt: number;
+    outcome: string;
+    content: string | null;
+  }>;
+  const cognition = cognitionRaw.map((r) => ({
+    ...r,
+    content: r.content ? truncStr(r.content, BUNDLE_COGNITION_CONTENT_MAX) : null,
+  }));
+
+  const remindersOverdue = db
+    .prepare(
+      'SELECT text, next_fire_at_ms AS nextFireAt FROM reminders WHERE active = 1 AND next_fire_at_ms < ? AND next_fire_at_ms >= ? ORDER BY next_fire_at_ms DESC LIMIT ?',
+    )
+    .all(to, to - BUNDLE_REMINDERS_OVERDUE_LOOKBACK_MS, BUNDLE_REMINDERS_MAX) as Array<{
+    text: string;
+    nextFireAt: number;
+  }>;
+
+  const remindersCreated = db
+    .prepare(
+      'SELECT text, created_at AS createdAt FROM reminders WHERE created_at >= ? AND created_at < ? ORDER BY created_at DESC LIMIT ?',
+    )
+    .all(from, to, BUNDLE_REMINDERS_MAX) as Array<{ text: string; createdAt: number }>;
+
+  return {
+    chat,
+    memoryCreated,
+    memoryUpdated,
+    memoryForgotten,
+    audit,
+    cognition,
+    remindersOverdue,
+    remindersCreated,
+  };
+}
+
 const NOTE_FRESHNESS_MS = 14 * 86400_000;
 const NOTE_MAX_ROWS = 50;
 const NOTE_VALUE_TRUNCATE_CHARS = 300;
