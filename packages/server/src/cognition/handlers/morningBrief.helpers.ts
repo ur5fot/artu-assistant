@@ -184,10 +184,14 @@ export function gatherPreviousPeriod(
     content: truncStr(r.content, BUNDLE_CHAT_CONTENT_MAX),
   }));
 
+  // `superseded_by IS NULL OR superseded_by = id` keeps the active row and
+  // self-referenced forgotten rows but drops rows superseded by a newer one,
+  // so when a user revises a fact in-period the recap shows only the final
+  // value instead of every historical version of the same key.
   const memoryCreated = (
     db
       .prepare(
-        'SELECT key, value, created_at AS createdAt FROM memory_facts WHERE created_at >= ? AND created_at < ? ORDER BY created_at DESC LIMIT ?',
+        'SELECT key, value, created_at AS createdAt FROM memory_facts WHERE created_at >= ? AND created_at < ? AND (superseded_by IS NULL OR superseded_by = id) ORDER BY created_at DESC LIMIT ?',
       )
       .all(from, to, BUNDLE_MEMORY_MAX) as Array<{
       key: string;
