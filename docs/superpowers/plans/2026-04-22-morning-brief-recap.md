@@ -605,7 +605,7 @@ git commit -m "feat(morning-brief): gatherPreviousPeriod collects 7-source bundl
 - Modify: `packages/server/src/cognition/handlers/morningBrief.helpers.ts`
 - Test: `packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append:
 
@@ -680,9 +680,9 @@ Also ensure `ChatRow` is imported (it's already exported from helpers):
 import type { ChatRow } from '../../handlers/morningBrief.helpers.js';
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
-- [ ] **Step 3: Implement `renderPreviousPeriod` + truncation**
+- [x] **Step 3: Implement `renderPreviousPeriod` + truncation**
 
 Append to `morningBrief.helpers.ts`:
 
@@ -753,9 +753,9 @@ export function renderPreviousPeriod(
 
 Also `formatLocal` is already in the file (unexported) — if it's currently a local `function`, promote it to `export function` so `renderPreviousPeriod` uses the same formatter as `composePrompt`.
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.helpers.ts packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts

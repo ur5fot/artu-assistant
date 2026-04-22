@@ -270,6 +270,69 @@ export function gatherPreviousPeriod(
   };
 }
 
+const MAX_BUNDLE_CHARS = 12000;
+
+function renderSection(title: string, lines: string[]): string | null {
+  if (lines.length === 0) return null;
+  return `### ${title}\n${lines.join('\n')}`;
+}
+
+export function renderPreviousPeriod(
+  bundle: PreviousPeriodBundle,
+  tz: string,
+): string {
+  const sections: string[] = [];
+
+  const chatLines = bundle.chat.map(
+    (c) => `- [${formatLocal(c.ts, tz)}] ${c.role}: ${c.content}`,
+  );
+  const chatSec = renderSection('Chat', chatLines);
+  if (chatSec) sections.push(chatSec);
+
+  const memLines: string[] = [];
+  for (const r of bundle.memoryCreated) memLines.push(`- created: ${r.key} = ${r.value}`);
+  for (const r of bundle.memoryUpdated) memLines.push(`- updated: ${r.key}`);
+  for (const r of bundle.memoryForgotten) memLines.push(`- forgotten: ${r.key}`);
+  const memSec = renderSection('Memory изменения', memLines);
+  if (memSec) sections.push(memSec);
+
+  const toolLines = bundle.audit.map(
+    (a) =>
+      `- [${a.createdAt}] ${a.toolName}${a.success === 0 ? ' (fail)' : ''}: ${a.result}`,
+  );
+  const toolSec = renderSection('Tool runs', toolLines);
+  if (toolSec) sections.push(toolSec);
+
+  const cogLines = bundle.cognition.map(
+    (c) =>
+      `- [${formatLocal(c.firedAt, tz)}] ${c.handlerName} (${c.outcome})${c.content ? ': ' + c.content : ''}`,
+  );
+  const cogSec = renderSection('Cognition runs', cogLines);
+  if (cogSec) sections.push(cogSec);
+
+  const ovdLines = bundle.remindersOverdue.map(
+    (r) => `- [${formatLocal(r.nextFireAt, tz)}] ${r.text}`,
+  );
+  const ovdSec = renderSection('Reminders overdue', ovdLines);
+  if (ovdSec) sections.push(ovdSec);
+
+  const newRemLines = bundle.remindersCreated.map(
+    (r) => `- [${formatLocal(r.createdAt, tz)}] ${r.text}`,
+  );
+  const newRemSec = renderSection('Reminders созданные', newRemLines);
+  if (newRemSec) sections.push(newRemSec);
+
+  if (sections.length === 0) return 'активности не было';
+
+  const joined = sections.join('\n\n');
+  if (joined.length <= MAX_BUNDLE_CHARS) return joined;
+  // Tail-first trim: keep the last MAX_BUNDLE_CHARS, count dropped lines.
+  const trimmedTail = joined.slice(joined.length - MAX_BUNDLE_CHARS);
+  const droppedChars = joined.length - trimmedTail.length;
+  const approxDroppedLines = (joined.slice(0, droppedChars).match(/\n/g) ?? []).length;
+  return `...и ${approxDroppedLines} событий раньше опущено\n${trimmedTail}`;
+}
+
 const NOTE_FRESHNESS_MS = 14 * 86400_000;
 const NOTE_MAX_ROWS = 50;
 const NOTE_VALUE_TRUNCATE_CHARS = 300;
@@ -341,7 +404,7 @@ export function gatherData(
   return { reminders, notes, recentContext, city };
 }
 
-function formatLocal(ts: number, tz: string): string {
+export function formatLocal(ts: number, tz: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: tz,
     year: 'numeric',

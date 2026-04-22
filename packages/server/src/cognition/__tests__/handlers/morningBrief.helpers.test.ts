@@ -10,7 +10,9 @@ import {
   getLastBriefPublishAt,
   computeGapDays,
   gatherPreviousPeriod,
+  renderPreviousPeriod,
 } from '../../handlers/morningBrief.helpers.js';
+import type { ChatRow } from '../../handlers/morningBrief.helpers.js';
 
 const TZ = 'Europe/Kyiv';
 
@@ -605,5 +607,70 @@ describe('gatherPreviousPeriod', () => {
     }
     const bundle = gatherPreviousPeriod(db, from, to);
     expect(bundle.chat.length).toBe(80);
+  });
+});
+
+describe('renderPreviousPeriod', () => {
+  it('includes "tail-only" marker when rendered body exceeds MAX_BUNDLE_CHARS', () => {
+    const bigChat: ChatRow[] = [];
+    for (let i = 0; i < 80; i++) {
+      bigChat.push({
+        role: 'user',
+        ts: 1_700_000_000_000 + i * 60_000,
+        content: 'x'.repeat(450),
+      });
+    }
+    const rendered = renderPreviousPeriod(
+      {
+        chat: bigChat,
+        memoryCreated: [],
+        memoryUpdated: [],
+        memoryForgotten: [],
+        audit: [],
+        cognition: [],
+        remindersOverdue: [],
+        remindersCreated: [],
+      },
+      'Europe/Kyiv',
+    );
+    expect(rendered).toContain('...и ');
+    expect(rendered).toContain('событий раньше опущено');
+    expect(rendered.length).toBeLessThanOrEqual(12500);
+  });
+
+  it('renders compact markdown with all non-empty sections', () => {
+    const rendered = renderPreviousPeriod(
+      {
+        chat: [{ role: 'user', ts: 1_700_000_000_000, content: 'hello' }],
+        memoryCreated: [{ key: 'k', value: 'v', createdAt: 1_700_000_000_000 }],
+        memoryUpdated: [],
+        memoryForgotten: [],
+        audit: [],
+        cognition: [],
+        remindersOverdue: [],
+        remindersCreated: [],
+      },
+      'Europe/Kyiv',
+    );
+    expect(rendered).toContain('### Chat');
+    expect(rendered).toContain('### Memory изменения');
+    expect(rendered).not.toContain('### Tool runs');
+  });
+
+  it('returns "активности не было" when every section is empty', () => {
+    const rendered = renderPreviousPeriod(
+      {
+        chat: [],
+        memoryCreated: [],
+        memoryUpdated: [],
+        memoryForgotten: [],
+        audit: [],
+        cognition: [],
+        remindersOverdue: [],
+        remindersCreated: [],
+      },
+      'Europe/Kyiv',
+    );
+    expect(rendered.trim()).toBe('активности не было');
   });
 });
