@@ -579,6 +579,33 @@ describe('gatherPreviousPeriod', () => {
     expect(bundle.memoryForgotten).toEqual([]);
   });
 
+  it('excludes superseded rows from memoryUpdated when a fact was touched then revised in-period', () => {
+    const db = getDb();
+    const from = 1000;
+    const to = 2000;
+    // Old row: created before period, last_mentioned_at bumped in-period via a
+    // touch pass, then superseded later in-period. Without the superseded_by
+    // filter on memoryUpdated, the stale key would appear alongside the new
+    // row in memoryCreated.
+    const oldIns = db
+      .prepare(
+        "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.y', 'old', 500, 1300, 5, 0)",
+      )
+      .run();
+    const oldId = Number(oldIns.lastInsertRowid);
+    db.prepare('UPDATE memory_facts SET superseded_by = id WHERE id = ?').run(oldId);
+    const newIns = db
+      .prepare(
+        "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.y', 'new', 1700, 1700, 5, 0)",
+      )
+      .run();
+    const newId = Number(newIns.lastInsertRowid);
+    db.prepare('UPDATE memory_facts SET superseded_by = ? WHERE id = ?').run(newId, oldId);
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.memoryCreated.map((r) => r.value)).toEqual(['new']);
+    expect(bundle.memoryUpdated).toEqual([]);
+  });
+
   it('excludes superseded rows from memoryCreated when the fact is revised in-period', () => {
     const db = getDb();
     const from = 1000;

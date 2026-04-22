@@ -200,9 +200,13 @@ export function gatherPreviousPeriod(
     }>
   ).map((r) => ({ ...r, value: truncStr(r.value, BUNDLE_MEMORY_VALUE_MAX) }));
 
+  // Mirror memoryCreated's supersede filter: without it, a fact that was
+  // mentioned in-period and then revised later in the same period would show
+  // up as both "created" (new row) and "updated" (superseded old row with
+  // bumped last_mentioned_at) for the same key.
   const memoryUpdated = db
     .prepare(
-      'SELECT key, last_mentioned_at AS lastMentionedAt FROM memory_facts WHERE last_mentioned_at >= ? AND last_mentioned_at < ? AND created_at < ? AND forgotten = 0 ORDER BY last_mentioned_at DESC LIMIT ?',
+      'SELECT key, last_mentioned_at AS lastMentionedAt FROM memory_facts WHERE last_mentioned_at >= ? AND last_mentioned_at < ? AND created_at < ? AND forgotten = 0 AND superseded_by IS NULL ORDER BY last_mentioned_at DESC LIMIT ?',
     )
     .all(from, to, from, BUNDLE_MEMORY_MAX) as Array<{
     key: string;
