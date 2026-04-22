@@ -57,6 +57,18 @@ export function hasUserActivitySince(
   return row !== undefined;
 }
 
+export function hasUserActivityInLastHour(
+  db: Database.Database,
+  now: number,
+): boolean {
+  const row = db
+    .prepare(
+      "SELECT 1 FROM chat_messages WHERE role = 'user' AND timestamp >= ? LIMIT 1",
+    )
+    .get(now - 3600_000);
+  return row !== undefined;
+}
+
 export function getLastBriefPublishAt(db: Database.Database): number | null {
   const row = db
     .prepare(

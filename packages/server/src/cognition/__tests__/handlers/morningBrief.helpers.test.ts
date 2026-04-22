@@ -4,6 +4,7 @@ import {
   getLocalCivilEpoch,
   isSameLocalDate,
   hasUserActivitySince,
+  hasUserActivityInLastHour,
   gatherData,
   composePrompt,
   getLastBriefPublishAt,
@@ -442,5 +443,41 @@ describe('computeGapDays', () => {
     const lastPublish = Date.UTC(2026, 2, 28, 6, 0, 0); // 08:00 Kyiv 28th (pre-DST)
     const now = Date.UTC(2026, 2, 30, 6, 0, 0); // 09:00 Kyiv 30th (post-DST UTC+3)
     expect(computeGapDays(lastPublish, now, TZ)).toBe(2);
+  });
+});
+
+describe('hasUserActivityInLastHour', () => {
+  it('returns false when no chat messages at all', () => {
+    expect(hasUserActivityInLastHour(getDb(), Date.now())).toBe(false);
+  });
+
+  it('returns false when last user message is > 1 hour old', () => {
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0);
+    getDb()
+      .prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+      )
+      .run(now - 2 * 3600_000);
+    expect(hasUserActivityInLastHour(getDb(), now)).toBe(false);
+  });
+
+  it('returns true when user message within last hour', () => {
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0);
+    getDb()
+      .prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+      )
+      .run(now - 30 * 60_000);
+    expect(hasUserActivityInLastHour(getDb(), now)).toBe(true);
+  });
+
+  it('ignores assistant messages', () => {
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0);
+    getDb()
+      .prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'assistant', 'hi', ?)",
+      )
+      .run(now - 10 * 60_000);
+    expect(hasUserActivityInLastHour(getDb(), now)).toBe(false);
   });
 });

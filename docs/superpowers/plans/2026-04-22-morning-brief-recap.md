@@ -233,7 +233,7 @@ git commit -m "feat(morning-brief): add computeGapDays helper (DST-aware)"
 - Modify: `packages/server/src/cognition/handlers/morningBrief.helpers.ts`
 - Test: `packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append:
 
@@ -277,9 +277,9 @@ describe('hasUserActivityInLastHour', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
-- [ ] **Step 3: Implement in `morningBrief.helpers.ts`**
+- [x] **Step 3: Implement in `morningBrief.helpers.ts`**
 
 Append:
 
@@ -297,9 +297,9 @@ export function hasUserActivityInLastHour(
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/morningBrief.helpers.ts packages/server/src/cognition/__tests__/handlers/morningBrief.helpers.test.ts
