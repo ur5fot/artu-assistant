@@ -1243,11 +1243,11 @@ git commit -m "test(morning-brief): relax assertions broken by BriefData extensi
 **Files:**
 - Modify: `AGENTS.md` (if it mentions morningBrief)
 
-- [ ] **Step 1: Check AGENTS.md for morningBrief mentions**
+- [x] **Step 1: Check AGENTS.md for morningBrief mentions**
 
 Run: `grep -n 'morningBrief\|morning brief' AGENTS.md || echo "no mentions"`
 
-- [ ] **Step 2: If mentions exist, append recap + gap note**
+- [x] **Step 2: If mentions exist, append recap + gap note**
 
 Add one bullet under the morningBrief section:
 
@@ -1255,7 +1255,7 @@ Add one bullet under the morningBrief section:
 
 Skip this step if AGENTS.md does not mention morningBrief.
 
-- [ ] **Step 3: Commit if modified**
+- [x] **Step 3: Commit if modified**
 
 ```bash
 git add AGENTS.md
