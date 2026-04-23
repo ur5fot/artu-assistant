@@ -172,6 +172,12 @@ export function gatherPreviousPeriod(
   db: Database.Database,
   from: number,
   to: number,
+  // `overdueCutoff` controls only the reminders-overdue "as-of" bound:
+  // overdue means "currently overdue", not "became overdue in-period". On a
+  // normal morning `to = todayStart` (local midnight), so without a separate
+  // cutoff a reminder due between midnight and brief time would be dropped.
+  // Defaults to `to` so existing callers/tests keep prior behavior.
+  overdueCutoff: number = to,
 ): PreviousPeriodBundle {
   const chatRaw = db
     .prepare(
@@ -261,7 +267,11 @@ export function gatherPreviousPeriod(
     .prepare(
       'SELECT text, next_fire_at_ms AS nextFireAt FROM reminders WHERE active = 1 AND next_fire_at_ms < ? AND next_fire_at_ms >= ? ORDER BY next_fire_at_ms DESC LIMIT ?',
     )
-    .all(to, to - BUNDLE_REMINDERS_OVERDUE_LOOKBACK_MS, BUNDLE_REMINDERS_MAX) as Array<{
+    .all(
+      overdueCutoff,
+      overdueCutoff - BUNDLE_REMINDERS_OVERDUE_LOOKBACK_MS,
+      BUNDLE_REMINDERS_MAX,
+    ) as Array<{
     text: string;
     nextFireAt: number;
   }>;
@@ -447,7 +457,10 @@ export function gatherData(
   // inverted range (SQLite would return nothing but the helper would still
   // run 7 queries with nonsense bounds).
   const safeFrom = Math.min(previousPeriodFrom, previousPeriodTo);
-  const previousPeriod = gatherPreviousPeriod(db, safeFrom, previousPeriodTo);
+  // Pass `now` as overdueCutoff: on a normal morning `previousPeriodTo =
+  // todayStart`, but a reminder due between midnight and brief time is
+  // currently overdue and must appear in the recap.
+  const previousPeriod = gatherPreviousPeriod(db, safeFrom, previousPeriodTo, now);
 
   return {
     reminders,

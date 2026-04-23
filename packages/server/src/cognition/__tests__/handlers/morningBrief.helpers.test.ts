@@ -685,6 +685,24 @@ describe('gatherPreviousPeriod', () => {
     expect(bundle.remindersOverdue.map((r) => r.text)).toEqual(['buy milk']);
   });
 
+  it('uses overdueCutoff instead of `to` for the overdue-reminders filter', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 6, 0, 0); // 09:00 Kyiv
+    const todayStart = Date.UTC(2026, 3, 21, 21, 0, 0); // 00:00 Kyiv 22nd
+    // Reminder due at 05:00 Kyiv today — between local midnight and `now`.
+    // With `to = todayStart` and cutoff = to, this row would be dropped.
+    // Passing `now` as overdueCutoff keeps it in the recap as currently overdue.
+    const dueAt = Date.UTC(2026, 3, 22, 2, 0, 0);
+    db.prepare(
+      'INSERT INTO reminders (text, schedule_json, next_fire_at_ms, active, created_at) VALUES (?, ?, ?, ?, ?)',
+    ).run('take pills', '{}', dueAt, 1, now - 2 * 86400_000);
+    const fromPeriod = now - 2 * 86400_000;
+    const missed = gatherPreviousPeriod(db, fromPeriod, todayStart);
+    expect(missed.remindersOverdue.map((r) => r.text)).toEqual([]);
+    const kept = gatherPreviousPeriod(db, fromPeriod, todayStart, now);
+    expect(kept.remindersOverdue.map((r) => r.text)).toEqual(['take pills']);
+  });
+
   it('applies row-count caps per source', () => {
     const db = getDb();
     const from = 1000;
@@ -724,7 +742,7 @@ describe('renderPreviousPeriod', () => {
     );
     expect(rendered).toContain('...и ');
     expect(rendered).toContain('событий раньше опущено');
-    expect(rendered.length).toBeLessThanOrEqual(12500);
+    expect(rendered.length).toBeLessThanOrEqual(12000);
   });
 
   it('renders compact markdown with all non-empty sections', () => {
@@ -744,6 +762,28 @@ describe('renderPreviousPeriod', () => {
     expect(rendered).toContain('### Chat');
     expect(rendered).toContain('### Memory изменения');
     expect(rendered).not.toContain('### Tool runs');
+  });
+
+  it('appends " (fail)" to failed audit rows and omits the marker for successful ones', () => {
+    const rendered = renderPreviousPeriod(
+      {
+        chat: [],
+        memoryCreated: [],
+        memoryUpdated: [],
+        memoryForgotten: [],
+        audit: [
+          { toolName: 'code_task', result: 'ok', createdAt: '2026-04-22 10:00:00', success: 1 },
+          { toolName: 'eval_run', result: 'nope', createdAt: '2026-04-22 10:01:00', success: 0 },
+        ],
+        cognition: [],
+        remindersOverdue: [],
+        remindersCreated: [],
+      },
+      'Europe/Kyiv',
+    );
+    expect(rendered).toContain('code_task: ok');
+    expect(rendered).not.toContain('code_task (fail)');
+    expect(rendered).toContain('eval_run (fail): nope');
   });
 
   it('returns "активности не было" when every section is empty', () => {
