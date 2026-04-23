@@ -111,9 +111,10 @@ describe('isSameLocalDate', () => {
 
 describe('hasUserActivitySince', () => {
   const since = Date.UTC(2026, 3, 18, 3, 0, 0); // 06:00 Kyiv 18th
+  const now = since + 12 * 3600_000; // 18:00 Kyiv 18th
 
   it('returns false when chat_messages has no rows since the boundary', () => {
-    expect(hasUserActivitySince(getDb(), since)).toBe(false);
+    expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
   });
 
   it('returns true when at least one user message exists at or after the boundary', () => {
@@ -123,7 +124,7 @@ describe('hasUserActivitySince', () => {
         "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'hi', ?)",
       )
       .run(`m-${ts}`, ts);
-    expect(hasUserActivitySince(getDb(), since)).toBe(true);
+    expect(hasUserActivitySince(getDb(), since, now)).toBe(true);
   });
 
   it('ignores messages before the boundary (e.g. 03:00 local)', () => {
@@ -133,7 +134,7 @@ describe('hasUserActivitySince', () => {
         "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'hi', ?)",
       )
       .run(`m-${ts}`, ts);
-    expect(hasUserActivitySince(getDb(), since)).toBe(false);
+    expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
   });
 
   it('ignores assistant messages (only user role counts)', () => {
@@ -143,7 +144,17 @@ describe('hasUserActivitySince', () => {
         "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'assistant', 'hi', ?)",
       )
       .run(`m-${ts}`, ts);
-    expect(hasUserActivitySince(getDb(), since)).toBe(false);
+    expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
+  });
+
+  it('ignores future-dated messages beyond now (client-spoofed timestamps)', () => {
+    const ts = now + 24 * 3600_000; // 1 day in the future
+    getDb()
+      .prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'hi', ?)",
+      )
+      .run(`m-${ts}`, ts);
+    expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
   });
 });
 
@@ -470,6 +481,13 @@ describe('computeGapDays', () => {
     const now = Date.UTC(2026, 2, 30, 6, 0, 0); // 09:00 Kyiv 30th (post-DST UTC+3)
     expect(computeGapDays(lastPublish, now, TZ)).toBe(2);
   });
+
+  it('reports true gap for absences > 365 days (no saturation)', () => {
+    const lastPublish = Date.UTC(2024, 3, 22, 3, 0, 0);
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0);
+    // ~2 years in Kyiv TZ: 2024-04-22 → 2026-04-22 = 730 days.
+    expect(computeGapDays(lastPublish, now, TZ)).toBe(730);
+  });
 });
 
 describe('hasUserActivityInLastHour', () => {
@@ -504,6 +522,16 @@ describe('hasUserActivityInLastHour', () => {
         "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'assistant', 'hi', ?)",
       )
       .run(now - 10 * 60_000);
+    expect(hasUserActivityInLastHour(getDb(), now)).toBe(false);
+  });
+
+  it('ignores future-dated messages beyond now (client-spoofed timestamps)', () => {
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0);
+    getDb()
+      .prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+      )
+      .run(now + 24 * 3600_000); // 1 day in the future
     expect(hasUserActivityInLastHour(getDb(), now)).toBe(false);
   });
 });

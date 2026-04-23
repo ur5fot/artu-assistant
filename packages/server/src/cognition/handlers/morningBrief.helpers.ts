@@ -45,15 +45,19 @@ function localDateKey(ts: number, tz: string): string {
   }).format(new Date(ts));
 }
 
+// Upper bound `timestamp <= ?` guards against client-provided future timestamps
+// (web `/api/chat` persists `lastMsg.timestamp` as-is) spoofing "recent activity"
+// and falsely firing the morning-brief trigger.
 export function hasUserActivitySince(
   db: Database.Database,
   since: number,
+  now: number,
 ): boolean {
   const row = db
     .prepare(
-      "SELECT 1 FROM chat_messages WHERE role = 'user' AND timestamp >= ? LIMIT 1",
+      "SELECT 1 FROM chat_messages WHERE role = 'user' AND timestamp >= ? AND timestamp <= ? LIMIT 1",
     )
-    .get(since);
+    .get(since, now);
   return row !== undefined;
 }
 
@@ -63,9 +67,9 @@ export function hasUserActivityInLastHour(
 ): boolean {
   const row = db
     .prepare(
-      "SELECT 1 FROM chat_messages WHERE role = 'user' AND timestamp >= ? LIMIT 1",
+      "SELECT 1 FROM chat_messages WHERE role = 'user' AND timestamp >= ? AND timestamp <= ? LIMIT 1",
     )
-    .get(now - 3600_000);
+    .get(now - 3600_000, now);
   return row !== undefined;
 }
 
@@ -87,16 +91,11 @@ export function computeGapDays(
   const lastStart = getLocalCivilEpoch(lastPublishAt, tz);
   const todayStart = getLocalCivilEpoch(now, tz);
   if (todayStart <= lastStart) return 0;
-  // Walk civil day boundaries from lastStart forward — DST-safe because
-  // +26h always lands on the next local day (handles 23h/25h DST days),
-  // and getLocalCivilEpoch normalizes back to local midnight.
-  let days = 0;
-  let cursor = lastStart;
-  while (cursor < todayStart && days < 365) {
-    cursor = getLocalCivilEpoch(cursor + 26 * 3600_000, tz);
-    days++;
-  }
-  return days;
+  // O(1) civil-day delta. Both bounds are UTC instants for local midnight, so
+  // their diff is exactly N × 86400000 ± DST offset (≤ 1h). Round to nearest
+  // day — DST-safe without the 365-day loop cap that silently truncated
+  // user-facing gap counts on long absences.
+  return Math.round((todayStart - lastStart) / 86400_000);
 }
 
 export interface ReminderRow {

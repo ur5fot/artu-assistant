@@ -44,7 +44,10 @@ export function createMorningBriefHandler(deps: Deps): Handler {
       // Branch A — morning window: fire at/after 06:00 local with any activity
       // since 06:00 today. DST-aware civil time avoids drift on transition days.
       const sixAmLocal = getLocalCivilEpoch(state.now, TZ, 0, ACTIVITY_START_HOUR);
-      if (state.now >= sixAmLocal && hasUserActivitySince(ctx.db, sixAmLocal)) {
+      if (
+        state.now >= sixAmLocal &&
+        hasUserActivitySince(ctx.db, sixAmLocal, state.now)
+      ) {
         return true;
       }
 
