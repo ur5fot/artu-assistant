@@ -4,8 +4,18 @@ import {
   getLocalCivilEpoch,
   isSameLocalDate,
   hasUserActivitySince,
+  hasUserActivityInLastHour,
   gatherData,
   composePrompt,
+  getLastBriefPublishAt,
+  computeGapDays,
+  gatherPreviousPeriod,
+  renderPreviousPeriod,
+  pluralizeDays,
+} from '../../handlers/morningBrief.helpers.js';
+import type {
+  ChatRow,
+  PreviousPeriodBundle,
 } from '../../handlers/morningBrief.helpers.js';
 
 const TZ = 'Europe/Kyiv';
@@ -101,9 +111,10 @@ describe('isSameLocalDate', () => {
 
 describe('hasUserActivitySince', () => {
   const since = Date.UTC(2026, 3, 18, 3, 0, 0); // 06:00 Kyiv 18th
+  const now = since + 12 * 3600_000; // 18:00 Kyiv 18th
 
   it('returns false when chat_messages has no rows since the boundary', () => {
-    expect(hasUserActivitySince(getDb(), since)).toBe(false);
+    expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
   });
 
   it('returns true when at least one user message exists at or after the boundary', () => {
@@ -113,7 +124,7 @@ describe('hasUserActivitySince', () => {
         "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'hi', ?)",
       )
       .run(`m-${ts}`, ts);
-    expect(hasUserActivitySince(getDb(), since)).toBe(true);
+    expect(hasUserActivitySince(getDb(), since, now)).toBe(true);
   });
 
   it('ignores messages before the boundary (e.g. 03:00 local)', () => {
@@ -123,7 +134,7 @@ describe('hasUserActivitySince', () => {
         "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'hi', ?)",
       )
       .run(`m-${ts}`, ts);
-    expect(hasUserActivitySince(getDb(), since)).toBe(false);
+    expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
   });
 
   it('ignores assistant messages (only user role counts)', () => {
@@ -133,7 +144,17 @@ describe('hasUserActivitySince', () => {
         "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'assistant', 'hi', ?)",
       )
       .run(`m-${ts}`, ts);
-    expect(hasUserActivitySince(getDb(), since)).toBe(false);
+    expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
+  });
+
+  it('ignores future-dated messages beyond now (client-spoofed timestamps)', () => {
+    const ts = now + 24 * 3600_000; // 1 day in the future
+    getDb()
+      .prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'hi', ?)",
+      )
+      .run(`m-${ts}`, ts);
+    expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
   });
 });
 
@@ -168,7 +189,7 @@ describe('gatherData', () => {
 
   it('returns empty arrays on fresh DB', () => {
     const data = gatherData(getDb(), now, TZ);
-    expect(data).toEqual({ reminders: [], notes: [], recentContext: [], city: null });
+    expect(data).toMatchObject({ reminders: [], notes: [], recentContext: [], city: null });
   });
 
   it('returns city from user.city regardless of 14d freshness', () => {
@@ -297,6 +318,23 @@ describe('gatherData', () => {
 });
 
 describe('composePrompt', () => {
+  const emptyBundle = {
+    chat: [],
+    memoryCreated: [],
+    memoryUpdated: [],
+    memoryForgotten: [],
+    audit: [],
+    cognition: [],
+    remindersOverdue: [],
+    remindersCreated: [],
+  };
+  const recapDefaults = {
+    gapDays: 0,
+    previousPeriod: emptyBundle,
+    previousPeriodFrom: 0,
+    previousPeriodTo: 0,
+  };
+
   it('formats all sections when data present', () => {
     const prompt = composePrompt(
       {
@@ -314,6 +352,7 @@ describe('composePrompt', () => {
           { role: 'user', content: 'сегодня дождь?', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
         ],
         city: 'Киев',
+        ...recapDefaults,
       },
       TZ,
     );
@@ -323,17 +362,17 @@ describe('composePrompt', () => {
     expect(prompt).toContain('user.note.x');
     expect(prompt).toContain('## Recent context');
     expect(prompt).toContain('сегодня дождь?');
-    expect(prompt).toContain('5-8 bullet points');
+    expect(prompt).toContain('Не пересказывай');
   });
 
   it('shows "нет" for empty sections', () => {
     const prompt = composePrompt(
-      { reminders: [], notes: [], recentContext: [], city: null },
+      { reminders: [], notes: [], recentContext: [], city: null, ...recapDefaults },
       TZ,
     );
     expect(prompt).toMatch(/## Reminders на сегодня\/завтра\s+нет/);
     expect(prompt).toMatch(/## Открытые заметки\s+нет/);
-    expect(prompt).toMatch(/## Recent context\s+нет/);
+    expect(prompt).toMatch(/## Recent context \(48h\)\s+нет/);
   });
 
   it('formats timestamps in the passed tz (no Z, no UTC)', () => {
@@ -348,6 +387,7 @@ describe('composePrompt', () => {
           { role: 'user', content: 'x', ts: Date.UTC(2026, 3, 18, 4, 0, 0) },
         ],
         city: null,
+        ...recapDefaults,
       },
       TZ,
     );
@@ -359,7 +399,7 @@ describe('composePrompt', () => {
 
   it('includes user city in prompt header', () => {
     const prompt = composePrompt(
-      { reminders: [], notes: [], recentContext: [], city: 'Киев' },
+      { reminders: [], notes: [], recentContext: [], city: 'Киев', ...recapDefaults },
       TZ,
     );
     expect(prompt).toContain('Киев');
@@ -367,9 +407,691 @@ describe('composePrompt', () => {
 
   it('tells LLM city is not set when city is null', () => {
     const prompt = composePrompt(
-      { reminders: [], notes: [], recentContext: [], city: null },
+      { reminders: [], notes: [], recentContext: [], city: null, ...recapDefaults },
       TZ,
     );
     expect(prompt).toContain('город не задан');
+  });
+});
+
+describe('getLastBriefPublishAt', () => {
+  it('returns null when cognition_handler_runs is empty', () => {
+    expect(getLastBriefPublishAt(getDb())).toBeNull();
+  });
+
+  it('returns null when runs exist but none with publish outcome', () => {
+    getDb()
+      .prepare(
+        'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+      )
+      .run('morningBrief', 1000, 10, 'error');
+    getDb()
+      .prepare(
+        'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+      )
+      .run('morningBrief', 2000, 10, 'skip');
+    expect(getLastBriefPublishAt(getDb())).toBeNull();
+  });
+
+  it('returns the most recent publish fired_at, ignoring other handlers', () => {
+    const rows: Array<[string, number, string]> = [
+      ['morningBrief', 100, 'publish'],
+      ['pulse', 500, 'publish'],
+      ['morningBrief', 300, 'publish'],
+      ['morningBrief', 200, 'error'],
+    ];
+    for (const [name, ts, outcome] of rows) {
+      getDb()
+        .prepare(
+          'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+        )
+        .run(name, ts, 10, outcome);
+    }
+    expect(getLastBriefPublishAt(getDb())).toBe(300);
+  });
+});
+
+describe('computeGapDays', () => {
+  it('returns 0 when lastPublishAt is null (first run)', () => {
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0);
+    expect(computeGapDays(null, now, TZ)).toBe(0);
+  });
+
+  it('returns 0 when lastPublishAt is on same local date as now', () => {
+    const lastPublish = Date.UTC(2026, 3, 22, 3, 0, 0); // 06:00 Kyiv 22nd
+    const now = Date.UTC(2026, 3, 22, 15, 0, 0); // 18:00 Kyiv same day
+    expect(computeGapDays(lastPublish, now, TZ)).toBe(0);
+  });
+
+  it('returns 1 when lastPublishAt is yesterday local', () => {
+    const lastPublish = Date.UTC(2026, 3, 21, 3, 0, 0); // 06:00 Kyiv 21st
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0); // 12:00 Kyiv 22nd
+    expect(computeGapDays(lastPublish, now, TZ)).toBe(1);
+  });
+
+  it('returns 3 when last publish 3 local days ago', () => {
+    const lastPublish = Date.UTC(2026, 3, 19, 3, 0, 0);
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0);
+    expect(computeGapDays(lastPublish, now, TZ)).toBe(3);
+  });
+
+  it('is DST-aware across spring-forward', () => {
+    // Kyiv spring-forward 2026-03-29: 03:00→04:00. Measure 2-day gap crossing it.
+    const lastPublish = Date.UTC(2026, 2, 28, 6, 0, 0); // 08:00 Kyiv 28th (pre-DST)
+    const now = Date.UTC(2026, 2, 30, 6, 0, 0); // 09:00 Kyiv 30th (post-DST UTC+3)
+    expect(computeGapDays(lastPublish, now, TZ)).toBe(2);
+  });
+
+  it('reports true gap for absences > 365 days (no saturation)', () => {
+    const lastPublish = Date.UTC(2024, 3, 22, 3, 0, 0);
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0);
+    // ~2 years in Kyiv TZ: 2024-04-22 → 2026-04-22 = 730 days.
+    expect(computeGapDays(lastPublish, now, TZ)).toBe(730);
+  });
+});
+
+describe('hasUserActivityInLastHour', () => {
+  it('returns false when no chat messages at all', () => {
+    expect(hasUserActivityInLastHour(getDb(), Date.now())).toBe(false);
+  });
+
+  it('returns false when last user message is > 1 hour old', () => {
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0);
+    getDb()
+      .prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+      )
+      .run(now - 2 * 3600_000);
+    expect(hasUserActivityInLastHour(getDb(), now)).toBe(false);
+  });
+
+  it('returns true when user message within last hour', () => {
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0);
+    getDb()
+      .prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+      )
+      .run(now - 30 * 60_000);
+    expect(hasUserActivityInLastHour(getDb(), now)).toBe(true);
+  });
+
+  it('ignores assistant messages', () => {
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0);
+    getDb()
+      .prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'assistant', 'hi', ?)",
+      )
+      .run(now - 10 * 60_000);
+    expect(hasUserActivityInLastHour(getDb(), now)).toBe(false);
+  });
+
+  it('ignores future-dated messages beyond now (client-spoofed timestamps)', () => {
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0);
+    getDb()
+      .prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+      )
+      .run(now + 24 * 3600_000); // 1 day in the future
+    expect(hasUserActivityInLastHour(getDb(), now)).toBe(false);
+  });
+});
+
+describe('gatherPreviousPeriod', () => {
+  it('returns empty bundle when period is empty', () => {
+    const bundle = gatherPreviousPeriod(getDb(), 1000, 2000);
+    expect(bundle).toEqual({
+      chat: [],
+      memoryCreated: [],
+      memoryUpdated: [],
+      memoryForgotten: [],
+      audit: [],
+      cognition: [],
+      remindersOverdue: [],
+      remindersCreated: [],
+    });
+  });
+
+  it('collects chat messages in [from, to)', () => {
+    const from = 1000;
+    const to = 2000;
+    const db = getDb();
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'before', ?)",
+    ).run(500);
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('b', 'user', 'inside', ?)",
+    ).run(1500);
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('c', 'assistant', 'inside-2', ?)",
+    ).run(1800);
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('d', 'user', 'after', ?)",
+    ).run(2500);
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.chat.map((r) => r.content)).toEqual(['inside', 'inside-2']);
+  });
+
+  it('classifies memory_facts as created / updated / forgotten correctly', () => {
+    const db = getDb();
+    const from = 1000;
+    const to = 2000;
+    // Created inside period
+    db.prepare(
+      "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.new', 'v', 1500, 1500, 5, 0)",
+    ).run();
+    // Created before, updated inside, not forgotten → updated
+    db.prepare(
+      "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.upd', 'v', 500, 1700, 5, 0)",
+    ).run();
+    // Forgotten inside (last_mentioned_at inside, forgotten=1)
+    db.prepare(
+      "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.forg', 'v', 200, 1900, 5, 1)",
+    ).run();
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.memoryCreated.map((r) => r.key)).toEqual(['k.new']);
+    expect(bundle.memoryUpdated.map((r) => r.key)).toEqual(['k.upd']);
+    expect(bundle.memoryForgotten.map((r) => r.key)).toEqual(['k.forg']);
+  });
+
+  it('does not double-list facts created and forgotten in the same period', () => {
+    const db = getDb();
+    const from = 1000;
+    const to = 2000;
+    // Created AND forgotten inside [from, to) — should only appear in
+    // memoryCreated, not also in memoryForgotten.
+    db.prepare(
+      "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.both', 'v', 1500, 1900, 5, 1)",
+    ).run();
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.memoryCreated.map((r) => r.key)).toEqual(['k.both']);
+    expect(bundle.memoryForgotten).toEqual([]);
+  });
+
+  it('excludes superseded rows from memoryUpdated when a fact was touched then revised in-period', () => {
+    const db = getDb();
+    const from = 1000;
+    const to = 2000;
+    // Old row: created before period, last_mentioned_at bumped in-period via a
+    // touch pass, then superseded later in-period. Without the superseded_by
+    // filter on memoryUpdated, the stale key would appear alongside the new
+    // row in memoryCreated.
+    const oldIns = db
+      .prepare(
+        "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.y', 'old', 500, 1300, 5, 0)",
+      )
+      .run();
+    const oldId = Number(oldIns.lastInsertRowid);
+    db.prepare('UPDATE memory_facts SET superseded_by = id WHERE id = ?').run(oldId);
+    const newIns = db
+      .prepare(
+        "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.y', 'new', 1700, 1700, 5, 0)",
+      )
+      .run();
+    const newId = Number(newIns.lastInsertRowid);
+    db.prepare('UPDATE memory_facts SET superseded_by = ? WHERE id = ?').run(newId, oldId);
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.memoryCreated.map((r) => r.value)).toEqual(['new']);
+    expect(bundle.memoryUpdated).toEqual([]);
+  });
+
+  it('excludes superseded rows from memoryCreated when the fact is revised in-period', () => {
+    const db = getDb();
+    const from = 1000;
+    const to = 2000;
+    // Mirror insertOrSupersedeFact flow: mark old row superseded with a
+    // self-ref placeholder BEFORE inserting new, so the active-key unique
+    // index sees only one live row at a time. Then repoint old → newId.
+    const oldIns = db
+      .prepare(
+        "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.x', 'old', 1200, 1200, 5, 0)",
+      )
+      .run();
+    const oldId = Number(oldIns.lastInsertRowid);
+    db.prepare('UPDATE memory_facts SET superseded_by = id WHERE id = ?').run(oldId);
+    const newIns = db
+      .prepare(
+        "INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten) VALUES ('k.x', 'new', 1500, 1500, 5, 0)",
+      )
+      .run();
+    const newId = Number(newIns.lastInsertRowid);
+    db.prepare('UPDATE memory_facts SET superseded_by = ? WHERE id = ?').run(newId, oldId);
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.memoryCreated.map((r) => r.value)).toEqual(['new']);
+  });
+
+  it('collects audit_log only for heavy tools', () => {
+    const db = getDb();
+    const isoInside = '2026-04-22 10:00:00';
+    db.prepare(
+      'INSERT INTO audit_log (tool_name, input, result, success, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run('code_task', '{}', 'ok', 1, 100, isoInside);
+    db.prepare(
+      'INSERT INTO audit_log (tool_name, input, result, success, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run('web_search', '{}', 'ok', 1, 100, isoInside);
+    const bundle = gatherPreviousPeriod(
+      db,
+      Date.parse('2026-04-21T00:00:00Z'),
+      Date.parse('2026-04-23T00:00:00Z'),
+    );
+    const names = bundle.audit.map((r) => r.toolName);
+    expect(names).toContain('code_task');
+    expect(names).not.toContain('web_search');
+  });
+
+  it('excludes morningBrief from cognition runs', () => {
+    const db = getDb();
+    const from = 1000;
+    const to = 2000;
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('morningBrief', 1500, 10, 'publish', 'old brief');
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('pulse', 1600, 10, 'publish', 'pulse');
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.cognition.map((r) => r.handlerName)).toEqual(['pulse']);
+  });
+
+  it('collects overdue active reminders within 30d lookback, excluding inactive', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0);
+    const to = now;
+    const from = now - 86400_000;
+    // Active, overdue within window
+    db.prepare(
+      'INSERT INTO reminders (text, schedule_json, next_fire_at_ms, active, created_at) VALUES (?, ?, ?, ?, ?)',
+    ).run('buy milk', '{}', now - 2 * 3600_000, 1, now - 3 * 86400_000);
+    // Inactive — must be excluded
+    db.prepare(
+      'INSERT INTO reminders (text, schedule_json, next_fire_at_ms, active, created_at) VALUES (?, ?, ?, ?, ?)',
+    ).run('old reminder', '{}', now - 2 * 3600_000, 0, now - 3 * 86400_000);
+    // Active but outside 30d lookback
+    db.prepare(
+      'INSERT INTO reminders (text, schedule_json, next_fire_at_ms, active, created_at) VALUES (?, ?, ?, ?, ?)',
+    ).run('ancient', '{}', now - 60 * 86400_000, 1, now - 60 * 86400_000);
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.remindersOverdue.map((r) => r.text)).toEqual(['buy milk']);
+  });
+
+  it('uses overdueCutoff instead of `to` for the overdue-reminders filter', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 6, 0, 0); // 09:00 Kyiv
+    const todayStart = Date.UTC(2026, 3, 21, 21, 0, 0); // 00:00 Kyiv 22nd
+    // Reminder due at 05:00 Kyiv today — between local midnight and `now`.
+    // With `to = todayStart` and cutoff = to, this row would be dropped.
+    // Passing `now` as overdueCutoff keeps it in the recap as currently overdue.
+    const dueAt = Date.UTC(2026, 3, 22, 2, 0, 0);
+    db.prepare(
+      'INSERT INTO reminders (text, schedule_json, next_fire_at_ms, active, created_at) VALUES (?, ?, ?, ?, ?)',
+    ).run('take pills', '{}', dueAt, 1, now - 2 * 86400_000);
+    const fromPeriod = now - 2 * 86400_000;
+    const missed = gatherPreviousPeriod(db, fromPeriod, todayStart);
+    expect(missed.remindersOverdue.map((r) => r.text)).toEqual([]);
+    const kept = gatherPreviousPeriod(db, fromPeriod, todayStart, now);
+    expect(kept.remindersOverdue.map((r) => r.text)).toEqual(['take pills']);
+  });
+
+  it('applies row-count caps per source', () => {
+    const db = getDb();
+    const from = 1000;
+    const to = 2000;
+    for (let i = 0; i < 120; i++) {
+      db.prepare(
+        "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', 'msg', ?)",
+      ).run(`m${i}`, 1000 + i);
+    }
+    const bundle = gatherPreviousPeriod(db, from, to);
+    expect(bundle.chat.length).toBe(80);
+    // Keep the newest 80 (ts 1040..1119), not the oldest 80 (ts 1000..1079).
+    // Bundle stays chronological: first row is oldest kept, last is newest.
+    expect(bundle.chat[0].ts).toBe(1040);
+    expect(bundle.chat[bundle.chat.length - 1].ts).toBe(1119);
+  });
+});
+
+describe('renderPreviousPeriod', () => {
+  it('includes "tail-only" marker when rendered body exceeds MAX_BUNDLE_CHARS', () => {
+    const bigChat: ChatRow[] = [];
+    for (let i = 0; i < 80; i++) {
+      bigChat.push({
+        role: 'user',
+        ts: 1_700_000_000_000 + i * 60_000,
+        content: 'x'.repeat(450),
+      });
+    }
+    const rendered = renderPreviousPeriod(
+      {
+        chat: bigChat,
+        memoryCreated: [],
+        memoryUpdated: [],
+        memoryForgotten: [],
+        audit: [],
+        cognition: [],
+        remindersOverdue: [],
+        remindersCreated: [],
+      },
+      'Europe/Kyiv',
+    );
+    expect(rendered).toContain('...и ');
+    expect(rendered).toContain('событий раньше опущено');
+    expect(rendered.length).toBeLessThanOrEqual(12000);
+  });
+
+  it('renders compact markdown with all non-empty sections', () => {
+    const rendered = renderPreviousPeriod(
+      {
+        chat: [{ role: 'user', ts: 1_700_000_000_000, content: 'hello' }],
+        memoryCreated: [{ key: 'k', value: 'v', createdAt: 1_700_000_000_000 }],
+        memoryUpdated: [],
+        memoryForgotten: [],
+        audit: [],
+        cognition: [],
+        remindersOverdue: [],
+        remindersCreated: [],
+      },
+      'Europe/Kyiv',
+    );
+    expect(rendered).toContain('### Chat');
+    expect(rendered).toContain('### Memory изменения');
+    expect(rendered).not.toContain('### Tool runs');
+  });
+
+  it('appends " (fail)" to failed audit rows and omits the marker for successful ones', () => {
+    const rendered = renderPreviousPeriod(
+      {
+        chat: [],
+        memoryCreated: [],
+        memoryUpdated: [],
+        memoryForgotten: [],
+        audit: [
+          { toolName: 'code_task', result: 'ok', createdAt: '2026-04-22 10:00:00', success: 1 },
+          { toolName: 'eval_run', result: 'nope', createdAt: '2026-04-22 10:01:00', success: 0 },
+        ],
+        cognition: [],
+        remindersOverdue: [],
+        remindersCreated: [],
+      },
+      'Europe/Kyiv',
+    );
+    expect(rendered).toContain('code_task: ok');
+    expect(rendered).not.toContain('code_task (fail)');
+    expect(rendered).toContain('eval_run (fail): nope');
+  });
+
+  it('returns "активности не было" when every section is empty', () => {
+    const rendered = renderPreviousPeriod(
+      {
+        chat: [],
+        memoryCreated: [],
+        memoryUpdated: [],
+        memoryForgotten: [],
+        audit: [],
+        cognition: [],
+        remindersOverdue: [],
+        remindersCreated: [],
+      },
+      'Europe/Kyiv',
+    );
+    expect(rendered.trim()).toBe('активности не было');
+  });
+});
+
+describe('gatherData extended', () => {
+  it('includes previousPeriod bundle and gapDays=0 when last publish is today', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0); // 12:00 Kyiv
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('morningBrief', Date.UTC(2026, 3, 22, 3, 0, 0), 10, 'publish', 'brief');
+    // previousPeriod spans [lastPublish, todayStart) — on a same-day republish
+    // the range collapses to empty (to <= from). Handler must still return a
+    // well-formed bundle (all empty arrays), not throw.
+    const data = gatherData(db, now, TZ);
+    expect(data.gapDays).toBe(0);
+    expect(data.previousPeriod).toBeDefined();
+    expect(data.previousPeriod.chat).toEqual([]);
+  });
+
+  it('sets gapDays to 2 when last publish was 2 local days ago', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0);
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('morningBrief', Date.UTC(2026, 3, 20, 3, 0, 0), 10, 'publish', 'brief');
+    const data = gatherData(db, now, TZ);
+    expect(data.gapDays).toBe(2);
+  });
+
+  it('falls back to last 48h window when no prior publish exists', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0);
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('x', 'user', 'hi', ?)",
+    ).run(now - 6 * 3600_000);
+    const data = gatherData(db, now, TZ);
+    expect(data.gapDays).toBe(0);
+    expect(data.previousPeriod.chat.length).toBe(1);
+  });
+});
+
+describe('pluralizeDays', () => {
+  it('uses "день" for 1, 21, 31, 101', () => {
+    expect(pluralizeDays(1)).toBe('1 день');
+    expect(pluralizeDays(21)).toBe('21 день');
+    expect(pluralizeDays(31)).toBe('31 день');
+    expect(pluralizeDays(101)).toBe('101 день');
+  });
+
+  it('uses "дня" for 2-4, 22-24, 32-34', () => {
+    expect(pluralizeDays(2)).toBe('2 дня');
+    expect(pluralizeDays(3)).toBe('3 дня');
+    expect(pluralizeDays(4)).toBe('4 дня');
+    expect(pluralizeDays(22)).toBe('22 дня');
+    expect(pluralizeDays(34)).toBe('34 дня');
+  });
+
+  it('uses "дней" for 0, 5-20, 25-30, 100', () => {
+    expect(pluralizeDays(0)).toBe('0 дней');
+    expect(pluralizeDays(5)).toBe('5 дней');
+    expect(pluralizeDays(11)).toBe('11 дней');
+    expect(pluralizeDays(12)).toBe('12 дней');
+    expect(pluralizeDays(14)).toBe('14 дней');
+    expect(pluralizeDays(20)).toBe('20 дней');
+    expect(pluralizeDays(100)).toBe('100 дней');
+    expect(pluralizeDays(112)).toBe('112 дней');
+  });
+});
+
+describe('renderPreviousPeriod tail-trim shape', () => {
+  it('starts with the marker and the kept tail begins at a line boundary', () => {
+    const bigChat: ChatRow[] = [];
+    for (let i = 0; i < 80; i++) {
+      bigChat.push({
+        role: 'user',
+        ts: 1_700_000_000_000 + i * 60_000,
+        content: 'x'.repeat(450),
+      });
+    }
+    const rendered = renderPreviousPeriod(
+      {
+        chat: bigChat,
+        memoryCreated: [],
+        memoryUpdated: [],
+        memoryForgotten: [],
+        audit: [],
+        cognition: [],
+        remindersOverdue: [],
+        remindersCreated: [],
+      },
+      'Europe/Kyiv',
+    );
+    // Marker is the first line, then full kept lines (each starts with "- [").
+    const marker = rendered.split('\n', 1)[0];
+    expect(marker.startsWith('...и ')).toBe(true);
+    const firstKept = rendered.split('\n')[1];
+    expect(firstKept.startsWith('- [')).toBe(true);
+    // Total stays under the budget (no overshoot from the prepended marker).
+    expect(rendered.length).toBeLessThanOrEqual(12000);
+  });
+});
+
+describe('gatherData gap-return window', () => {
+  it('previousPeriodTo equals now when gapDays >= 2 (today included)', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 12, 0, 0); // 15:00 Kyiv
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('morningBrief', Date.UTC(2026, 3, 19, 3, 0, 0), 10, 'publish', 'brief');
+    // Today's first-return message — must land in the bundle.
+    db.prepare(
+      "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('return', 'user', 'я вернулся', ?)",
+    ).run(now - 10 * 60_000);
+    const data = gatherData(db, now, TZ);
+    expect(data.gapDays).toBeGreaterThanOrEqual(2);
+    expect(data.previousPeriodTo).toBe(now);
+    expect(data.previousPeriod.chat.map((r) => r.content)).toContain('я вернулся');
+  });
+
+  it('previousPeriodTo equals todayStart for normal morning (gapDays < 2)', () => {
+    const db = getDb();
+    const now = Date.UTC(2026, 3, 22, 9, 0, 0); // 12:00 Kyiv
+    const todayStart = getLocalCivilEpoch(now, TZ);
+    db.prepare(
+      'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
+    ).run('morningBrief', Date.UTC(2026, 3, 21, 3, 0, 0), 10, 'publish', 'yesterday');
+    const data = gatherData(db, now, TZ);
+    expect(data.gapDays).toBe(1);
+    expect(data.previousPeriodTo).toBe(todayStart);
+  });
+});
+
+describe('composePrompt with gap and previousPeriod', () => {
+  const emptyBundle: PreviousPeriodBundle = {
+    chat: [],
+    memoryCreated: [],
+    memoryUpdated: [],
+    memoryForgotten: [],
+    audit: [],
+    cognition: [],
+    remindersOverdue: [],
+    remindersCreated: [],
+  };
+
+  it('includes gap preamble when gapDays >= 2', () => {
+    const p = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Kyiv',
+        gapDays: 3,
+        previousPeriod: emptyBundle,
+        previousPeriodFrom: 1_700_000_000_000,
+        previousPeriodTo: 1_700_259_200_000,
+      },
+      TZ,
+    );
+    expect(p).toContain('Gap: 3');
+    expect(p).toContain('"Пока меня не было 3 дня');
+  });
+
+  it('omits gap preamble when gapDays = 1 (one missed day handled by morning window)', () => {
+    const p = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Kyiv',
+        gapDays: 1,
+        previousPeriod: emptyBundle,
+        previousPeriodFrom: 1_700_000_000_000,
+        previousPeriodTo: 1_700_086_400_000,
+      },
+      TZ,
+    );
+    expect(p).not.toContain('Gap:');
+    expect(p).not.toContain('Пока меня не было');
+    expect(p).toContain('Что висит со вчера');
+  });
+
+  it('uses Russian plural agreement for gap days (день / дня / дней)', () => {
+    const make = (gapDays: number): string =>
+      composePrompt(
+        {
+          reminders: [],
+          notes: [],
+          recentContext: [],
+          city: 'Kyiv',
+          gapDays,
+          previousPeriod: emptyBundle,
+          previousPeriodFrom: 1_700_000_000_000,
+          previousPeriodTo: 1_700_086_400_000,
+        },
+        TZ,
+      );
+    expect(make(2)).toContain('не было 2 дня');
+    expect(make(5)).toContain('не было 5 дней');
+    expect(make(11)).toContain('не было 11 дней');
+    expect(make(21)).toContain('не было 21 день');
+    expect(make(22)).toContain('не было 22 дня');
+  });
+
+  it('omits gap preamble when gapDays = 0 and asks about висящее со вчера', () => {
+    const p = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Kyiv',
+        gapDays: 0,
+        previousPeriod: emptyBundle,
+        previousPeriodFrom: 1_700_000_000_000,
+        previousPeriodTo: 1_700_086_400_000,
+      },
+      TZ,
+    );
+    expect(p).not.toContain('Gap:');
+    expect(p).toContain('Что висит со вчера');
+  });
+
+  it('includes "Прошлый период" section with rendered bundle content', () => {
+    const p = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Kyiv',
+        gapDays: 1,
+        previousPeriod: {
+          ...emptyBundle,
+          chat: [{ role: 'user', ts: 1_700_000_000_000, content: 'вопрос висит' }],
+        },
+        previousPeriodFrom: 1_700_000_000_000,
+        previousPeriodTo: 1_700_086_400_000,
+      },
+      TZ,
+    );
+    expect(p).toContain('## Прошлый период');
+    expect(p).toContain('вопрос висит');
+  });
+
+  it('instructs the LLM to analyze (висит / повторяется / упустил), not retell', () => {
+    const p = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Kyiv',
+        gapDays: 0,
+        previousPeriod: emptyBundle,
+        previousPeriodFrom: 1,
+        previousPeriodTo: 2,
+      },
+      TZ,
+    );
+    expect(p).toContain('что висит');
+    expect(p).toContain('что повторяется');
+    expect(p).toContain('что упустил');
+    expect(p).toContain('Не пересказывай');
   });
 });
