@@ -714,6 +714,10 @@ describe('gatherPreviousPeriod', () => {
     }
     const bundle = gatherPreviousPeriod(db, from, to);
     expect(bundle.chat.length).toBe(80);
+    // Keep the newest 80 (ts 1040..1119), not the oldest 80 (ts 1000..1079).
+    // Bundle stays chronological: first row is oldest kept, last is newest.
+    expect(bundle.chat[0].ts).toBe(1040);
+    expect(bundle.chat[bundle.chat.length - 1].ts).toBe(1119);
   });
 });
 

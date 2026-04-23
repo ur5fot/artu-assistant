@@ -179,12 +179,16 @@ export function gatherPreviousPeriod(
   // Defaults to `to` so existing callers/tests keep prior behavior.
   overdueCutoff: number = to,
 ): PreviousPeriodBundle {
+  // DESC + reverse keeps the NEWEST BUNDLE_CHAT_MAX rows when the period has
+  // more messages than the cap, while preserving chronological display order.
+  // ASC + LIMIT would keep the oldest, dropping the latest context the recap
+  // needs most.
   const chatRaw = db
     .prepare(
-      'SELECT role, content, timestamp AS ts FROM chat_messages WHERE timestamp >= ? AND timestamp < ? ORDER BY timestamp ASC LIMIT ?',
+      'SELECT role, content, timestamp AS ts FROM chat_messages WHERE timestamp >= ? AND timestamp < ? ORDER BY timestamp DESC LIMIT ?',
     )
     .all(from, to, BUNDLE_CHAT_MAX) as Array<{ role: string; content: string; ts: number }>;
-  const chat: ChatRow[] = chatRaw.map((r) => ({
+  const chat: ChatRow[] = chatRaw.reverse().map((r) => ({
     role: r.role,
     ts: r.ts,
     content: truncStr(r.content, BUNDLE_CHAT_CONTENT_MAX),
