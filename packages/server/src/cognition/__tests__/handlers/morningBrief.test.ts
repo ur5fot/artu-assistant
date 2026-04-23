@@ -193,6 +193,103 @@ describe('createMorningBriefHandler', () => {
       );
       expect(res).toBe(true);
     });
+
+    it('gap-return: fires at 15:00 when gapDays >= 2 and user active in last hour', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 22, 12, 0, 0); // 15:00 Kyiv 22nd
+      getDb()
+        .prepare(
+          'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+        )
+        .run('morningBrief', Date.UTC(2026, 3, 19, 3, 0, 0), 10, 'publish');
+      getDb()
+        .prepare(
+          "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+        )
+        .run(now - 20 * 60_000);
+      const res = await h.trigger(
+        { now, lastFiredAt: null, lastResult: null },
+        { db: getDb() },
+      );
+      expect(res).toBe(true);
+    });
+
+    it('gap-return: does not fire when user was not active in last hour', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 22, 12, 0, 0); // 15:00 Kyiv 22nd
+      getDb()
+        .prepare(
+          'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+        )
+        .run('morningBrief', Date.UTC(2026, 3, 19, 3, 0, 0), 10, 'publish');
+      // Activity at 04:00 Kyiv 22nd — before 06:00 local, so Branch A
+      // (morning window) cannot fire either. Isolates gap-return Branch B.
+      getDb()
+        .prepare(
+          "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+        )
+        .run(Date.UTC(2026, 3, 22, 1, 0, 0));
+      const res = await h.trigger(
+        { now, lastFiredAt: null, lastResult: null },
+        { db: getDb() },
+      );
+      expect(res).toBe(false);
+    });
+
+    it('gap-return: publishedToday still blocks even after gap-return fires once', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 22, 18, 0, 0); // 21:00 Kyiv
+      const earlierToday = Date.UTC(2026, 3, 22, 12, 0, 0);
+      getDb()
+        .prepare(
+          'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+        )
+        .run('morningBrief', earlierToday, 10, 'publish');
+      getDb()
+        .prepare(
+          "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+        )
+        .run(now - 10 * 60_000);
+      const res = await h.trigger(
+        { now, lastFiredAt: earlierToday, lastResult: { publish: true, content: 'already' } },
+        { db: getDb() },
+      );
+      expect(res).toBe(false);
+    });
+
+    it('gap-return: does not fire when gapDays is 1 (only)', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 22, 12, 0, 0); // 15:00 Kyiv 22nd
+      getDb()
+        .prepare(
+          'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+        )
+        .run('morningBrief', Date.UTC(2026, 3, 21, 3, 0, 0), 10, 'publish'); // 1 day ago
+      getDb()
+        .prepare(
+          "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('a', 'user', 'hi', ?)",
+        )
+        .run(now - 10 * 60_000);
+      const res = await h.trigger(
+        { now, lastFiredAt: null, lastResult: null },
+        { db: getDb() },
+      );
+      // gap-return alone (gapDays=1) does NOT fire, but 06:00 branch catches
+      // because now (15:00) > 06:00 and activity (10 min ago) falls after 06:00.
+      expect(res).toBe(true);
+    });
   });
 
   describe('run', () => {
