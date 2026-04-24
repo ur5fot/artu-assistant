@@ -1843,7 +1843,7 @@ git commit -m "feat(emails): wire poller + emailDigest handler into server boots
 - Create: `packages/tool-emails/src/types.ts`
 - Create: `packages/tool-emails/src/index.ts` (stub export)
 
-- [ ] **Step 1: Create package.json**
+- [x] **Step 1: Create package.json**
 
 ```json
 {
@@ -1864,13 +1864,13 @@ git commit -m "feat(emails): wire poller + emailDigest handler into server boots
 
 (Adjust vitest version to match `packages/server/package.json` root once verified with `npm ls vitest -w @r2/server`.)
 
-- [ ] **Step 2: Create tsconfig.json — copy from `packages/tool-reminder/tsconfig.json`**
+- [x] **Step 2: Create tsconfig.json — copy from `packages/tool-reminder/tsconfig.json`**
 
 ```bash
 cp packages/tool-reminder/tsconfig.json packages/tool-emails/tsconfig.json
 ```
 
-- [ ] **Step 3: Create `src/types.ts` with dep interfaces**
+- [x] **Step 3: Create `src/types.ts` with dep interfaces**
 
 ```typescript
 import type { ImapAccount, FullMessage, EmailPendingRow } from '../../server/src/emails/types.js';
@@ -1890,7 +1890,7 @@ export interface ImapClientLike {
 }
 ```
 
-- [ ] **Step 4: Create `src/index.ts` stub**
+- [x] **Step 4: Create `src/index.ts` stub**
 
 ```typescript
 import type { ToolDefinition } from '@r2/shared';
@@ -1907,12 +1907,12 @@ export function createTool(_deps: Deps): ToolDefinition[] {
 export default createTool;
 ```
 
-- [ ] **Step 5: Install workspace + verify resolution**
+- [x] **Step 5: Install workspace + verify resolution**
 
 Run: `npm install`
 Expected: `@r2/tool-emails` shows up via workspace symlink.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/tool-emails/package.json packages/tool-emails/tsconfig.json packages/tool-emails/src/types.ts packages/tool-emails/src/index.ts package-lock.json
