@@ -1927,7 +1927,7 @@ git commit -m "feat(tool-emails): scaffold @r2/tool-emails package"
 - Modify: `packages/tool-emails/src/index.ts`
 - Create: `packages/tool-emails/src/__tests__/index.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/tool-emails/src/__tests__/index.test.ts`:
 
@@ -1998,11 +1998,11 @@ describe('emails_list tool', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/tool-emails test`
 
-- [ ] **Step 3: Implement `emails_list` in `src/index.ts`**
+- [x] **Step 3: Implement `emails_list` in `src/index.ts`**
 
 Replace the stub:
 
@@ -2067,12 +2067,12 @@ export function createTool(deps: Deps): ToolDefinition[] {
 export default createTool;
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/tool-emails test`
 Expected: 3 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-emails/src/index.ts packages/tool-emails/src/__tests__/index.test.ts
