@@ -116,7 +116,13 @@ describe('formatDigest', () => {
     const long = 'x'.repeat(300);
     const out = formatDigest([mk(1, 5, 'A <a@b>', 'S', long)]);
     const ln = out.text.split('\n').find((l) => l.includes('[5]'))!;
-    expect(ln.length).toBeLessThan(300);
+    // Line = "🟡 [5] A — S: " + snippet. Prefix is well under 60 chars, and
+    // SUMMARY_CHARS=140, so a full line stays under ~210. Loosening this to
+    // < 300 would let a regression doubling the snippet go undetected.
+    expect(ln.length).toBeLessThan(220);
+    // Also assert the actual snippet portion does not exceed SUMMARY_CHARS.
+    const snippetPart = ln.split(': ').slice(1).join(': ');
+    expect(snippetPart.length).toBeLessThanOrEqual(140);
   });
 
   it('returns under 2000 chars and appends "…ещё N" tail with exact count', () => {
