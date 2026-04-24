@@ -1084,7 +1084,7 @@ git commit -m "feat(emails): add batched LLM importance scorer with Ollama→Cla
 - Create: `packages/server/src/emails/multi-account-poller.ts`
 - Create: `packages/server/src/emails/__tests__/multi-account-poller.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/emails/__tests__/multi-account-poller.test.ts`:
 
@@ -1187,11 +1187,11 @@ describe('runPollTick', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- multi-account-poller.test`
 
-- [ ] **Step 3: Implement `emails/multi-account-poller.ts`**
+- [x] **Step 3: Implement `emails/multi-account-poller.ts`**
 
 ```typescript
 import type { ImapAccount, NewMessage } from './types.js';
@@ -1279,12 +1279,12 @@ export function startEmailPoller(params: StartParams): () => void {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- multi-account-poller.test`
 Expected: 4 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/emails/multi-account-poller.ts packages/server/src/emails/__tests__/multi-account-poller.test.ts
