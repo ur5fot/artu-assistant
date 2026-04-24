@@ -2227,7 +2227,7 @@ git commit -m "feat(tool-emails): implement emails_get tool"
 - Modify: `packages/server/src/tools/base.ts`
 - Modify: `packages/server/src/tools/__tests__/registry.test.ts` (optional — add emails_list discovery assertion)
 
-- [ ] **Step 1: Extend `ToolDeps`**
+- [x] **Step 1: Extend `ToolDeps`**
 
 In `packages/server/src/tools/base.ts`, add imports and extend interface:
 
@@ -2253,12 +2253,12 @@ export interface ToolDeps {
 }
 ```
 
-- [ ] **Step 2: Rebuild + type-check**
+- [x] **Step 2: Rebuild + type-check**
 
 Run: `npm -w @r2/server run build`
 Expected: no type errors.
 
-- [ ] **Step 3: Add discovery assertion (optional but recommended)**
+- [x] **Step 3: Add discovery assertion (optional but recommended)**
 
 In `packages/server/src/tools/__tests__/registry.test.ts`, append:
 
@@ -2294,12 +2294,12 @@ it('discovers emails_list and emails_get when deps are provided', async () => {
 });
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `npm -w @r2/server test`
 Expected: all tests pass including new discovery test.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/tools/base.ts packages/server/src/tools/__tests__/registry.test.ts

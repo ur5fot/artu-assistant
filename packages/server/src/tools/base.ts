@@ -44,8 +44,8 @@ export interface ToolDeps {
   piiProxy: PiiProxy;
   memoryService: MemoryService | null;
   reminderStore: ReminderStore | null;
-  emailStore?: EmailStore | null;
-  imapClient?: ImapClient | null;
+  emailStore: EmailStore | null;
+  imapClient: ImapClient | null;
 }
 
 export type ToolFactory = (deps: ToolDeps) => SharedToolDefinition | SharedToolDefinition[];
