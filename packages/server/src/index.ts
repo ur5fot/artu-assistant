@@ -46,6 +46,7 @@ import { fetchNewMessages, fetchFullBody } from './emails/imap-client.js';
 import { scoreBatch } from './emails/scorer.js';
 import { startEmailPoller } from './emails/multi-account-poller.js';
 import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
+import { MORNING_FALLBACK_HOUR } from './cognition/handlers/emailDigest.helpers.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
@@ -391,7 +392,12 @@ if (discordToken) {
           tz: 'Europe/Kyiv',
           threshold: envInt(process.env.EMAIL_DIGEST_THRESHOLD, 3, 1),
           cooldownMs: envInt(process.env.EMAIL_DIGEST_COOLDOWN_MS, 7200_000, 0),
-          quietStart: envInt(process.env.EMAIL_QUIET_HOUR_START, 22, 0, 23),
+          // quietStart must exceed MORNING_FALLBACK_HOUR — otherwise the
+          // evening-quiet window overlaps the morning fallback release and the
+          // digest is permanently gated (inQuietHours and morningBriefPublishedToday
+          // both trip on the same hour). quietStart=0 would also silently disable
+          // the digest since `hour >= 0` is always true.
+          quietStart: envInt(process.env.EMAIL_QUIET_HOUR_START, 22, MORNING_FALLBACK_HOUR + 1, 23),
         }),
       );
     }

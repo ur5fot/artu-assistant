@@ -9,7 +9,7 @@ const TAIL_BUDGET = 50;
 // gated on a handler that may never register (Discord bot off) or that may
 // consistently error out.
 const MORNING_BRIEF_LOOKBACK_DAYS = 7;
-const MORNING_FALLBACK_HOUR = 9;
+export const MORNING_FALLBACK_HOUR = 9;
 
 function localParts(epochMs: number, tz: string): { year: number; month: number; day: number; hour: number } {
   const fmt = new Intl.DateTimeFormat('en-US', {

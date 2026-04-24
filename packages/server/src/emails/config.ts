@@ -20,13 +20,23 @@ export function parseImapAccounts(raw: string | undefined): ImapAccount[] {
       throw new Error(`IMAP accounts contain duplicate id "${item.id}"`);
     }
     seen.add(item.id);
+    // Strict typing for tls/port: Boolean("false") === true silently enables TLS
+    // and Boolean(0) === false silently disables it — neither is intended.
+    // Likewise Number("abc") === NaN would surface as an opaque connect failure.
+    if (typeof item.tls !== 'boolean') {
+      throw new Error(`IMAP account "${item.id}" field "tls" must be a JSON boolean`);
+    }
+    const port = Number(item.port);
+    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+      throw new Error(`IMAP account "${item.id}" field "port" must be a positive integer (1-65535)`);
+    }
     out.push({
       id: String(item.id),
       host: String(item.host),
-      port: Number(item.port),
+      port,
       user: String(item.user),
       password: String(item.password),
-      tls: Boolean(item.tls),
+      tls: item.tls,
     });
   }
   return out;

@@ -35,4 +35,20 @@ describe('parseImapAccounts', () => {
   it('throws on malformed JSON', () => {
     expect(() => parseImapAccounts('{bad json')).toThrow();
   });
+
+  it('throws when tls is not a JSON boolean (prevents Boolean("false")===true footgun)', () => {
+    const raw = JSON.stringify([{ id: 'x', host: 'h', port: 993, user: 'u', password: 'p', tls: 'false' }]);
+    expect(() => parseImapAccounts(raw)).toThrow(/tls.*boolean/);
+  });
+
+  it('throws when port is non-numeric or out of range', () => {
+    const notNumber = JSON.stringify([{ id: 'x', host: 'h', port: 'abc', user: 'u', password: 'p', tls: true }]);
+    expect(() => parseImapAccounts(notNumber)).toThrow(/port.*positive integer/);
+
+    const tooHigh = JSON.stringify([{ id: 'x', host: 'h', port: 99999, user: 'u', password: 'p', tls: true }]);
+    expect(() => parseImapAccounts(tooHigh)).toThrow(/port.*positive integer/);
+
+    const zero = JSON.stringify([{ id: 'x', host: 'h', port: 0, user: 'u', password: 'p', tls: true }]);
+    expect(() => parseImapAccounts(zero)).toThrow(/port.*positive integer/);
+  });
 });
