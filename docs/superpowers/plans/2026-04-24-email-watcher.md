@@ -171,7 +171,7 @@ git commit -m "feat(emails): add email_account_state and email_pending tables"
 - Create: `packages/server/src/emails/config.ts`
 - Create: `packages/server/src/emails/__tests__/config.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/emails/__tests__/config.test.ts`:
 
@@ -216,12 +216,12 @@ describe('parseImapAccounts', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- config.test`
 Expected: import failure, config.ts not yet created.
 
-- [ ] **Step 3: Implement types and parser**
+- [x] **Step 3: Implement types and parser**
 
 Create `packages/server/src/emails/types.ts`:
 
@@ -303,12 +303,12 @@ export function parseImapAccounts(raw: string | undefined): ImapAccount[] {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- config.test`
 Expected: 5 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/emails/types.ts packages/server/src/emails/config.ts packages/server/src/emails/__tests__/config.test.ts
