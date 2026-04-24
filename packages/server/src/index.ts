@@ -40,6 +40,12 @@ import { runChatRequest } from './ai/router.js';
 import { createCognitionService } from './cognition/service.js';
 import { pulseHandler } from './cognition/handlers/pulse.js';
 import { createMorningBriefHandler } from './cognition/handlers/morningBrief.js';
+import { parseImapAccounts } from './emails/config.js';
+import { createEmailStore } from './emails/store.js';
+import { fetchNewMessages, fetchFullBody } from './emails/imap-client.js';
+import { scoreBatch } from './emails/scorer.js';
+import { startEmailPoller } from './emails/multi-account-poller.js';
+import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
@@ -172,6 +178,22 @@ const reminderStore = createReminderStore({ db: getDb() });
 const reminderService = createReminderService({ store: reminderStore, bus: reminderBus });
 const stopScheduler = startScheduler({ store: reminderStore, db: getDb(), bus: reminderBus });
 
+const emailStore = createEmailStore({ db: getDb() });
+const imapAccounts = (() => {
+  try {
+    return parseImapAccounts(process.env.IMAP_ACCOUNTS);
+  } catch (err) {
+    console.error('[emails] IMAP_ACCOUNTS invalid:', err instanceof Error ? err.message : err);
+    return [];
+  }
+})();
+const emailEnabled = (process.env.EMAIL_ENABLED || 'true') !== 'false' && imapAccounts.length > 0;
+const imapClientForTool = {
+  fetchNewMessages,
+  fetchFullBody,
+  getAccount: (id: string) => imapAccounts.find((a) => a.id === id) ?? null,
+};
+
 const cognitionService = createCognitionService({
   db: getDb(),
   bus: reminderBus,
@@ -254,6 +276,8 @@ await discoverTools(registry, {
   piiProxy,
   memoryService,
   reminderStore,
+  emailStore,
+  imapClient: imapClientForTool,
 });
 
 // Discord bot (optional — only starts if DISCORD_BOT_TOKEN is set)
@@ -312,6 +336,35 @@ if (discordToken) {
         webSearchTool,
       }),
     );
+
+    if (emailEnabled) {
+      const stopEmailPoller = startEmailPoller({
+        accounts: imapAccounts,
+        store: emailStore,
+        fetcher: (acc, sinceUid, limit) => fetchNewMessages(acc, sinceUid, limit),
+        scorer: (msgs) =>
+          scoreBatch(msgs, {
+            piiProxy,
+            ollama: ollamaForMemory ?? null,
+            anthropic: client.anthropic,
+            signal: new AbortController().signal,
+          }),
+        intervalMs: Number(process.env.EMAIL_POLL_INTERVAL_MS) || 300_000,
+      });
+      cognitionService.register(
+        createEmailDigestHandler({
+          store: emailStore,
+          tz: 'Europe/Kyiv',
+          threshold: Number(process.env.EMAIL_DIGEST_THRESHOLD) || 3,
+          cooldownMs: Number(process.env.EMAIL_DIGEST_COOLDOWN_MS) || 7200_000,
+          quietStart: Number(process.env.EMAIL_QUIET_HOUR_START) || 22,
+        }),
+      );
+      process.on('beforeExit', () => stopEmailPoller());
+      console.log(`[emails] poller started for ${imapAccounts.length} account(s)`);
+    } else {
+      console.log('[emails] disabled (EMAIL_ENABLED=false or IMAP_ACCOUNTS empty)');
+    }
   } catch (err) {
     console.error('[discord] bot failed to start:', err instanceof Error ? err.message : err);
     discordBot = null;

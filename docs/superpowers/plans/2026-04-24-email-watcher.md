@@ -1729,11 +1729,11 @@ git commit -m "feat(emails): add emailDigest cognition handler (trigger + run)"
 **Files:**
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Read the registration block for morningBrief**
+- [x] **Step 1: Read the registration block for morningBrief**
 
 Examine `packages/server/src/index.ts` lines ~260-320 where `startDiscordBot` + `cognitionService.register(createMorningBriefHandler(...))` happens. New code goes immediately after.
 
-- [ ] **Step 2: Add imports at the top of `index.ts`**
+- [x] **Step 2: Add imports at the top of `index.ts`**
 
 Add near existing `createMorningBriefHandler` import:
 
@@ -1746,7 +1746,7 @@ import { startEmailPoller } from './emails/multi-account-poller.js';
 import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
 ```
 
-- [ ] **Step 3: Parse accounts + init store early (before tool discovery)**
+- [x] **Step 3: Parse accounts + init store early (before tool discovery)**
 
 After `const reminderStore = createReminderStore(...)` and before `discoverTools`, add:
 
@@ -1767,7 +1767,7 @@ const imapClientForTool = {
 };
 ```
 
-- [ ] **Step 4: Pass `emailStore` + `imapClientForTool` to `discoverTools`**
+- [x] **Step 4: Pass `emailStore` + `imapClientForTool` to `discoverTools`**
 
 Update the `discoverTools` call to include:
 
@@ -1786,7 +1786,7 @@ await discoverTools(registry, {
 
 (ToolDeps extension is in Task 13.)
 
-- [ ] **Step 5: Start poller + register handler after Discord bot started**
+- [x] **Step 5: Start poller + register handler after Discord bot started**
 
 In the existing `if (discordToken) { ... }` block, right after `cognitionService.register(createMorningBriefHandler({ ... }))`, add:
 
@@ -1821,12 +1821,12 @@ if (emailEnabled) {
 }
 ```
 
-- [ ] **Step 6: Type-check the server package**
+- [x] **Step 6: Type-check the server package**
 
 Run: `npm -w @r2/server run build`
 Expected: no type errors. If `ToolDeps` complains, proceed to Task 13 first (or perform the type extension in this task).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/index.ts

@@ -7,8 +7,16 @@ import type { PendingPlanReviews } from '../routes/plan-review.js';
 import type { PendingMemoryConfirms } from '../routes/memory-confirm.js';
 import type { MemoryService } from '../memory/service.js';
 import type { ReminderStore } from '../reminders/store.js';
+import type { EmailStore } from '../emails/store.js';
+import type { ImapAccount, NewMessage, FullMessage } from '../emails/types.js';
 
 export type { ToolDefinition, ToolContext, PlanReviewResponse } from '@r2/shared';
+
+export interface ImapClient {
+  fetchNewMessages: (account: ImapAccount, sinceUid: number, limit: number) => Promise<NewMessage[]>;
+  fetchFullBody: (account: ImapAccount, uid: number) => Promise<FullMessage>;
+  getAccount: (id: string) => ImapAccount | null;
+}
 
 export function toClaudeTool(tool: SharedToolDefinition) {
   return {
@@ -36,6 +44,8 @@ export interface ToolDeps {
   piiProxy: PiiProxy;
   memoryService: MemoryService | null;
   reminderStore: ReminderStore | null;
+  emailStore?: EmailStore | null;
+  imapClient?: ImapClient | null;
 }
 
 export type ToolFactory = (deps: ToolDeps) => SharedToolDefinition | SharedToolDefinition[];
