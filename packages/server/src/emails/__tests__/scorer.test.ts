@@ -112,6 +112,14 @@ describe('scoreBatch', () => {
         signal: new AbortController().signal,
       }),
     ).rejects.toThrow(/claude down/);
+    // Ollama-first is the contract: a regression that bypassed the local LLM
+    // would still surface Claude's error and pass the assertion above. Pin
+    // the order explicitly so that regression is caught.
+    expect(brokenOllama.chat).toHaveBeenCalled();
+    expect(brokenAnthropic.messages.create).toHaveBeenCalled();
+    const ollamaOrder = brokenOllama.chat.mock.invocationCallOrder[0];
+    const claudeOrder = brokenAnthropic.messages.create.mock.invocationCallOrder[0];
+    expect(ollamaOrder).toBeLessThan(claudeOrder);
   });
 
   it('handles >MAX_BATCH messages across multiple batches', async () => {

@@ -71,6 +71,24 @@ describe('emails_list tool', () => {
     expect(store.fetchInWindow).toHaveBeenLastCalledWith(72, 50, expect.any(Number));
   });
 
+  it('clamps since_hours to [1, 720] and uses 72 as default', async () => {
+    const store = mkStore([]);
+    const tools = createTool({ emailStore: store, imapClient: mkImap() });
+    const list = tools.find((t) => t.name === 'emails_list')!;
+
+    await list.handler({});
+    expect(store.fetchInWindow).toHaveBeenLastCalledWith(72, 10, expect.any(Number));
+
+    await list.handler({ since_hours: 0 });
+    expect(store.fetchInWindow).toHaveBeenLastCalledWith(1, 10, expect.any(Number));
+
+    await list.handler({ since_hours: 99_999 });
+    expect(store.fetchInWindow).toHaveBeenLastCalledWith(720, 10, expect.any(Number));
+
+    await list.handler({ since_hours: 'abc' });
+    expect(store.fetchInWindow).toHaveBeenLastCalledWith(72, 10, expect.any(Number));
+  });
+
   it('returns error when emailStore is null', async () => {
     const tools = createTool({ emailStore: null, imapClient: mkImap() });
     const list = tools.find((t) => t.name === 'emails_list')!;
@@ -115,6 +133,20 @@ describe('emails_get tool', () => {
     const res = await get.handler({ id: 999 });
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/not found/i);
+  });
+
+  it('rejects invalid ids (0, negative, non-numeric, missing)', async () => {
+    const tools = createTool({
+      emailStore: mkStore([mkRow(5, 5)]),
+      imapClient: mkImap(),
+    });
+    const get = tools.find((t) => t.name === 'emails_get')!;
+
+    for (const bad of [0, -1, 'abc', NaN, undefined] as unknown[]) {
+      const res = await get.handler(bad === undefined ? {} : { id: bad });
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/positive number/i);
+    }
   });
 
   it('returns error when account missing', async () => {
