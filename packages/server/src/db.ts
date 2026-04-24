@@ -191,6 +191,36 @@ export function initDb(dbPath?: string): void {
       ON cognition_handler_runs(handler_name, fired_at DESC)
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_account_state (
+      account_id TEXT PRIMARY KEY,
+      last_seen_uid INTEGER NOT NULL DEFAULT 0,
+      last_poll_at INTEGER,
+      last_error TEXT
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_pending (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      account_id TEXT NOT NULL,
+      message_uid INTEGER NOT NULL,
+      from_addr TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      snippet TEXT NOT NULL,
+      importance INTEGER NOT NULL,
+      received_at INTEGER NOT NULL,
+      added_at INTEGER NOT NULL,
+      delivered_at INTEGER,
+      UNIQUE(account_id, message_uid)
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_email_pending_undelivered
+      ON email_pending(delivered_at, importance DESC, received_at DESC)
+  `);
+
   // Migration: add `source` column if missing
   const cols = db.prepare("PRAGMA table_info(chat_messages)").all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === 'source')) {

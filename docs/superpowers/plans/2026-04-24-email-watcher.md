@@ -66,7 +66,7 @@
 - Modify: `packages/server/src/db.ts`
 - Test: `packages/server/src/__tests__/db.test.ts` (create if absent; else append)
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append or create `packages/server/src/__tests__/db.test.ts`:
 
@@ -109,12 +109,12 @@ describe('email tables', () => {
 });
 ```
 
-- [ ] **Step 2: Run test — expect FAIL**
+- [x] **Step 2: Run test — expect FAIL**
 
 Run: `npm -w @r2/server test -- db.test`
 Expected: "no such table" or table missing.
 
-- [ ] **Step 3: Implement — append tables to `db.ts` `initDb`**
+- [x] **Step 3: Implement — append tables to `db.ts` `initDb`**
 
 Insert after the last existing `CREATE TABLE` block (after `cognition_handler_runs`):
 
@@ -150,12 +150,12 @@ db.exec(`
 `);
 ```
 
-- [ ] **Step 4: Run test — expect PASS**
+- [x] **Step 4: Run test — expect PASS**
 
 Run: `npm -w @r2/server test -- db.test`
 Expected: 3 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/__tests__/db.test.ts
