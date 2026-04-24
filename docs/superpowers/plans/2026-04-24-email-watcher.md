@@ -323,7 +323,7 @@ git commit -m "feat(emails): add IMAP_ACCOUNTS config parser and shared types"
 - Create: `packages/server/src/emails/store.ts`
 - Create: `packages/server/src/emails/__tests__/store.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/emails/__tests__/store.test.ts`:
 
@@ -426,12 +426,12 @@ describe('createEmailStore', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- store.test`
 Expected: module not found.
 
-- [ ] **Step 3: Implement `emails/store.ts`**
+- [x] **Step 3: Implement `emails/store.ts`**
 
 ```typescript
 import type Database from 'better-sqlite3';
@@ -535,12 +535,12 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- store.test`
 Expected: 8 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/emails/store.ts packages/server/src/emails/__tests__/store.test.ts
