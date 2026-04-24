@@ -117,6 +117,9 @@ describe('scoreBatch', () => {
     // the order explicitly so that regression is caught.
     expect(brokenOllama.chat).toHaveBeenCalled();
     expect(brokenAnthropic.messages.create).toHaveBeenCalled();
+    const ollamaOrder = brokenOllama.chat.mock.invocationCallOrder[0];
+    const claudeOrder = brokenAnthropic.messages.create.mock.invocationCallOrder[0];
+    expect(ollamaOrder).toBeLessThan(claudeOrder);
   });
 
   it('handles >MAX_BATCH messages across multiple batches', async () => {

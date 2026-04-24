@@ -120,8 +120,11 @@ describe('formatDigest', () => {
     // SUMMARY_CHARS=140, so a full line stays under ~210. Loosening this to
     // < 300 would let a regression doubling the snippet go undetected.
     expect(ln.length).toBeLessThan(220);
-    // Also assert the actual snippet portion does not exceed SUMMARY_CHARS.
+    // Also assert the actual snippet portion does not exceed SUMMARY_CHARS —
+    // and is non-empty, so a regression that drops the snippet entirely fails.
     const snippetPart = ln.split(': ').slice(1).join(': ');
+    expect(snippetPart.length).toBeGreaterThan(0);
+    expect(snippetPart).toBe('x'.repeat(140));
     expect(snippetPart.length).toBeLessThanOrEqual(140);
   });
 
