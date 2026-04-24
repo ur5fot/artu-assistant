@@ -2359,7 +2359,7 @@ git commit -m "docs(emails): add env.example entries and smoke test checklist"
 
 ## Task 15: Full regression + merge to dev
 
-- [ ] **Step 1: Run full test suite**
+- [x] **Step 1: Run full test suite**
 
 ```bash
 npm test
@@ -2367,7 +2367,9 @@ npm test
 
 Expected: all packages green. If any pre-existing tests flake, investigate but don't fix unrelated.
 
-- [ ] **Step 2: Build the server package**
+Result (2026-04-24): 86 test files, 940 tests — all green.
+
+- [x] **Step 2: Build the server package**
 
 ```bash
 npm -w @r2/server run build
@@ -2375,7 +2377,9 @@ npm -w @r2/server run build
 
 Expected: clean TypeScript compile.
 
-- [ ] **Step 3: Manual dry-run (no real accounts)**
+Result (2026-04-24): `tsc` exit 0, dist/ populated.
+
+- [x] **Step 3: Manual dry-run (no real accounts)**
 
 With `IMAP_ACCOUNTS=[]`:
 
@@ -2388,6 +2392,8 @@ Expected log lines:
 - Tool discovery logs `emails_list` and `emails_get`
 
 Kill server (Ctrl+C).
+
+Result (2026-04-24): server booted on http://localhost:3004; tool discovery logged `emails_list` and `emails_get`; no errors. Note: `[emails] disabled ...` log is emitted only when `DISCORD_BOT_TOKEN` is set (it sits inside the Discord bot init block), so with an empty token it is gated out — expected.
 
 - [ ] **Step 4: Merge to dev branch per project flow**
 
