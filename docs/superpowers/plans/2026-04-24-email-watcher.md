@@ -2087,7 +2087,7 @@ git commit -m "feat(tool-emails): implement emails_list tool"
 - Modify: `packages/tool-emails/src/index.ts`
 - Modify: `packages/tool-emails/src/__tests__/index.test.ts`
 
-- [ ] **Step 1: Append failing tests**
+- [x] **Step 1: Append failing tests**
 
 Append to `index.test.ts`:
 
@@ -2144,11 +2144,11 @@ describe('emails_get tool', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/tool-emails test`
 
-- [ ] **Step 3: Implement `emails_get` in `src/index.ts`**
+- [x] **Step 3: Implement `emails_get` in `src/index.ts`**
 
 Add above `export function createTool(...)`:
 
@@ -2207,12 +2207,12 @@ export function createTool(deps: Deps): ToolDefinition[] {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/tool-emails test`
 Expected: 4 new tests pass (7 total in file).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-emails/src/index.ts packages/tool-emails/src/__tests__/index.test.ts

@@ -69,3 +69,66 @@ describe('emails_list tool', () => {
     expect(res.error).toMatch(/email/i);
   });
 });
+
+describe('emails_get tool', () => {
+  it('returns full body for known id', async () => {
+    const rows = [mkRow(5, 5)];
+    const fetchFullBody = vi.fn(async () => ({
+      uid: 5,
+      from: 'A <a@b>',
+      subject: 'S',
+      bodyText: 'Full body here',
+      receivedAt: 1000,
+    }));
+    const tools = createTool({
+      emailStore: mkStore(rows),
+      imapClient: mkImap({ fetchFullBody }),
+    });
+    const get = tools.find((t) => t.name === 'emails_get')!;
+    const res = await get.handler({ id: 5 });
+    expect(res.success).toBe(true);
+    const data = JSON.parse(res.data as string);
+    expect(data.body_text).toBe('Full body here');
+    expect(data.id).toBe(5);
+    expect(data.from).toBe('A <a@b>');
+    expect(data.subject).toBe('S');
+    expect(data.received_at).toBe(1000);
+  });
+
+  it('returns error when id unknown', async () => {
+    const tools = createTool({
+      emailStore: mkStore([]),
+      imapClient: mkImap(),
+    });
+    const get = tools.find((t) => t.name === 'emails_get')!;
+    const res = await get.handler({ id: 999 });
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/not found/i);
+  });
+
+  it('returns error when account missing', async () => {
+    const tools = createTool({
+      emailStore: mkStore([mkRow(5, 5)]),
+      imapClient: mkImap({ getAccount: () => null }),
+    });
+    const get = tools.find((t) => t.name === 'emails_get')!;
+    const res = await get.handler({ id: 5 });
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/account/i);
+  });
+
+  it('propagates IMAP fetch failure', async () => {
+    const tools = createTool({
+      emailStore: mkStore([mkRow(5, 5)]),
+      imapClient: mkImap({
+        fetchFullBody: vi.fn(async () => {
+          throw new Error('boom');
+        }),
+      }),
+    });
+    const get = tools.find((t) => t.name === 'emails_get')!;
+    const res = await get.handler({ id: 5 });
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('boom');
+  });
+});

@@ -58,8 +58,55 @@ function createEmailsListTool(deps: Deps): ToolDefinition {
   };
 }
 
+function createEmailsGetTool(deps: Deps): ToolDefinition {
+  return {
+    name: 'emails_get',
+    description:
+      'Получить полное тело письма по id (берёшь id из результата emails_list). Делает запрос к IMAP, не кешируется. Используй когда юзер просит показать или разобрать конкретное письмо.',
+    permissionLevel: 'auto',
+    provider: 'all',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'number', description: 'id записи из emails_list' },
+      },
+      required: ['id'],
+    },
+    async handler(params: Record<string, unknown>): Promise<ToolResult> {
+      if (!deps.emailStore || !deps.imapClient) {
+        return { success: false, error: 'Email integration is not enabled on this server' };
+      }
+      const id = Number(params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return { success: false, error: 'id must be a positive number' };
+      }
+      const row = deps.emailStore.findByPendingId(id);
+      if (!row) return { success: false, error: `Email with id=${id} not found` };
+      const account = deps.imapClient.getAccount(row.account_id);
+      if (!account) {
+        return { success: false, error: `Account "${row.account_id}" is no longer configured` };
+      }
+      try {
+        const full = await deps.imapClient.fetchFullBody(account, row.message_uid);
+        return {
+          success: true,
+          data: JSON.stringify({
+            id: row.id,
+            from: full.from,
+            subject: full.subject,
+            received_at: full.receivedAt,
+            body_text: full.bodyText,
+          }),
+        };
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  };
+}
+
 export function createTool(deps: Deps): ToolDefinition[] {
-  return [createEmailsListTool(deps)];
+  return [createEmailsListTool(deps), createEmailsGetTool(deps)];
 }
 
 export default createTool;
