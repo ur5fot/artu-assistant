@@ -1299,7 +1299,7 @@ git commit -m "feat(emails): add multi-account poller with per-account error iso
 - Create: `packages/server/src/cognition/handlers/emailDigest.helpers.ts`
 - Create: `packages/server/src/cognition/__tests__/handlers/emailDigest.helpers.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/cognition/__tests__/handlers/emailDigest.helpers.test.ts`:
 
@@ -1412,11 +1412,11 @@ describe('formatDigest', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- emailDigest.helpers.test`
 
-- [ ] **Step 3: Implement `cognition/handlers/emailDigest.helpers.ts`**
+- [x] **Step 3: Implement `cognition/handlers/emailDigest.helpers.ts`**
 
 ```typescript
 import type Database from 'better-sqlite3';
@@ -1515,12 +1515,12 @@ export function formatDigest(rows: EmailPendingRow[]): string {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- emailDigest.helpers.test`
 Expected: 11 tests pass (some DST edge cases may be sensitive — tolerate if timezone constants need adjustment, re-check with actual `Intl.DateTimeFormat` output).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/emailDigest.helpers.ts packages/server/src/cognition/__tests__/handlers/emailDigest.helpers.test.ts
