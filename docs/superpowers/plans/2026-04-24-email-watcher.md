@@ -2314,7 +2314,7 @@ git commit -m "feat(tool-emails): wire emailStore + imapClient through ToolDeps"
 - Modify: `.env.example` (or create if absent)
 - Modify: `README.md` or `docs/ops/env.md` (whichever holds env docs)
 
-- [ ] **Step 1: Add env entries to `.env.example`**
+- [x] **Step 1: Add env entries to `.env.example`**
 
 Append:
 
@@ -2331,7 +2331,7 @@ EMAIL_DIGEST_COOLDOWN_MS=7200000
 EMAIL_QUIET_HOUR_START=22
 ```
 
-- [ ] **Step 2: Add smoke-test checklist to the spec file**
+- [x] **Step 2: Add smoke-test checklist to the spec file**
 
 Append a new section to `docs/superpowers/specs/2026-04-24-email-watcher-design.md`:
 
@@ -2348,7 +2348,7 @@ Append a new section to `docs/superpowers/specs/2026-04-24-email-watcher-design.
 - [ ] Intentionally break one account's password → `last_error` logged, other accounts unaffected
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .env.example docs/superpowers/specs/2026-04-24-email-watcher-design.md
