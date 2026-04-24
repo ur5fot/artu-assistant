@@ -794,7 +794,7 @@ git commit -m "feat(emails): add imapflow dependency and IMAP client wrapper"
 - Create: `packages/server/src/emails/scorer.ts`
 - Create: `packages/server/src/emails/__tests__/scorer.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/emails/__tests__/scorer.test.ts`:
 
@@ -909,11 +909,11 @@ describe('scoreBatch', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- scorer.test`
 
-- [ ] **Step 3: Implement `emails/scorer.ts`**
+- [x] **Step 3: Implement `emails/scorer.ts`**
 
 ```typescript
 import type Anthropic from '@anthropic-ai/sdk';
@@ -1064,12 +1064,12 @@ export async function scoreBatch(
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- scorer.test`
 Expected: 7 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/emails/scorer.ts packages/server/src/emails/__tests__/scorer.test.ts
