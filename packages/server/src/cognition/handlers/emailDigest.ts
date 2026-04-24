@@ -44,11 +44,16 @@ export function createEmailDigestHandler(deps: Deps): Handler {
         // Pass the true backlog count so header and "…ещё N писем" stay
         // honest when the store returned a capped slice.
         const { text, includedIds } = formatDigest(pending, totalPending);
-        // Only mark rows that actually appear in the digest text. The rest
-        // (folded into the "…ещё N писем" tail) must surface in the next
-        // run so they aren't silently dropped.
-        deps.store.markDelivered(includedIds, ctx.firedAt);
-        return { publish: true, content: text };
+        // markDelivered runs only after the publish channel confirms delivery.
+        // Marking here would silently drop rows when Discord DM fails — the
+        // digest pushes nothing to the user yet countPendingUndelivered()
+        // would drop below threshold on the next tick. Rows folded into the
+        // "…ещё N писем" tail (outside includedIds) always stay pending.
+        return {
+          publish: true,
+          content: text,
+          onPublished: () => deps.store.markDelivered(includedIds, Date.now()),
+        };
       } catch (err) {
         return {
           error: true,

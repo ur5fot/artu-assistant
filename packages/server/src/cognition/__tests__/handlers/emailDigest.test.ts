@@ -120,7 +120,7 @@ describe('createEmailDigestHandler.run', () => {
     expect(res).toEqual({ skip: true, reason: 'no pending' });
   });
 
-  it('publishes digest and marks rows delivered', async () => {
+  it('publishes digest and marks rows delivered only after onPublished fires', async () => {
     const store = createEmailStore({ db: getDb() });
     mkPending({ uid: 1, importance: 5, received_at: 1000 });
     mkPending({ uid: 2, importance: 4, received_at: 1000 });
@@ -128,7 +128,24 @@ describe('createEmailDigestHandler.run', () => {
     const now = Date.UTC(2026, 3, 24, 12 - 3);
     const res = await h.run(mkCtx(now));
     expect('publish' in res && res.publish).toBe(true);
+    // Pre-publish: rows must still be pending so a DM failure retains them.
+    expect(store.countPendingUndelivered()).toBe(2);
+    if ('publish' in res && res.publish && res.onPublished) {
+      await res.onPublished();
+    }
     expect(store.countPendingUndelivered()).toBe(0);
+  });
+
+  it('DM failure (onPublished never fires) keeps rows pending for next tick', async () => {
+    const store = createEmailStore({ db: getDb() });
+    mkPending({ uid: 1, importance: 5, received_at: 1000 });
+    mkPending({ uid: 2, importance: 4, received_at: 1000 });
+    const h = createEmailDigestHandler({ store, tz: TZ, threshold: 1, cooldownMs: 100, quietStart: 22 });
+    const now = Date.UTC(2026, 3, 24, 12 - 3);
+    const res = await h.run(mkCtx(now));
+    expect('publish' in res && res.publish).toBe(true);
+    // Simulate the Discord listener never calling markPublished (DM failed).
+    expect(store.countPendingUndelivered()).toBe(2);
   });
 
   it('truncation-aware: rows folded into "…ещё N" tail are NOT marked delivered', async () => {
@@ -141,6 +158,9 @@ describe('createEmailDigestHandler.run', () => {
     const now = Date.UTC(2026, 3, 24, 12 - 3);
     const res = await h.run(mkCtx(now));
     expect('publish' in res && res.publish).toBe(true);
+    if ('publish' in res && res.publish && res.onPublished) {
+      await res.onPublished();
+    }
     const remaining = store.countPendingUndelivered();
     expect(remaining).toBeGreaterThan(0); // the "…ещё N" tail rows are still pending
   });
@@ -150,7 +170,10 @@ describe('createEmailDigestHandler.run', () => {
     mkPending({ uid: 1, importance: 5, received_at: 1000 });
     const h = createEmailDigestHandler({ store, tz: TZ, threshold: 1, cooldownMs: 100, quietStart: 22 });
     const now = Date.UTC(2026, 3, 24, 12 - 3);
-    await h.run(mkCtx(now));
+    const first = await h.run(mkCtx(now));
+    if ('publish' in first && first.publish && first.onPublished) {
+      await first.onPublished();
+    }
     const again = await h.run(mkCtx(now + 1000));
     expect(again).toEqual({ skip: true, reason: 'no pending' });
   });
@@ -170,6 +193,7 @@ describe('createEmailDigestHandler.run', () => {
       // Some rows were delivered from the top-50; remainder (including the
       // 30 never-fetched rows) must appear in the tail.
       expect(res.content).toMatch(/…ещё \d+ писем/);
+      if (res.onPublished) await res.onPublished();
     }
   });
 });

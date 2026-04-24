@@ -12,6 +12,7 @@ export interface JobQueue {
   size(): number;
   start(): void;
   stop(): Promise<void>;
+  firePublished(runId: number): void;
 }
 
 interface Deps {
@@ -25,6 +26,10 @@ export function createJobQueue(deps: Deps): JobQueue {
   const { registry, store, bus } = deps;
   const timeoutMs = deps.workerTimeoutMs ?? 60_000;
   const jobs: Job[] = [];
+  // Post-publish callbacks keyed by runId. Fired by firePublished() when the
+  // dispatching channel confirms the DM/push actually landed — the queue never
+  // knows that on its own, so cognitionService.markPublished forwards the ack.
+  const pendingPublishedCallbacks = new Map<number, () => void | Promise<void>>();
   let running = false;
   let inFlight: Promise<void> = Promise.resolve();
   let currentAc: AbortController | null = null;
@@ -79,6 +84,9 @@ export function createJobQueue(deps: Deps): JobQueue {
       });
 
       if ('publish' in result && result.publish) {
+        if (result.onPublished) {
+          pendingPublishedCallbacks.set(runId, result.onPublished);
+        }
         bus.emit('push', {
           type: 'cognition_publish',
           runId,
@@ -121,6 +129,18 @@ export function createJobQueue(deps: Deps): JobQueue {
         // inFlight errors are already logged by the enqueue catch handler;
         // stop() must still resolve so callers can finalize shutdown.
       }
+      pendingPublishedCallbacks.clear();
+    },
+    firePublished(runId) {
+      const cb = pendingPublishedCallbacks.get(runId);
+      if (!cb) return;
+      pendingPublishedCallbacks.delete(runId);
+      Promise.resolve(cb()).catch((err) =>
+        console.error(
+          '[cognition] onPublished callback failed:',
+          err instanceof Error ? err.message : err,
+        ),
+      );
     },
   };
 }

@@ -15,6 +15,7 @@ function fakeQueue() {
       size: () => enqueued.length,
       start: vi.fn(),
       stop: vi.fn(),
+      firePublished: vi.fn(),
     },
     enqueued,
   };

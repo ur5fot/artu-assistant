@@ -24,7 +24,7 @@ function makeClientStub(options: {
       if (throwOn === 'fetch') throw new Error('fetch fail');
       return fetchRows;
     });
-    fetchOne = vi.fn(async (_uid: number, _opts: any) => {
+    fetchOne = vi.fn(async (_uid: number, _query: any, _opts: any) => {
       return fetchRows[0] ?? null;
     });
   };

@@ -8,10 +8,24 @@ export function __setImapFlowCtor(c: ImapFlowCtor): void {
   Ctor = c;
 }
 
-const CONNECT_TIMEOUT_MS = 10_000;
+// imapflow's `socketTimeout` is a per-operation idle timeout, not just a connect
+// deadline. A SEARCH over a large INBOX plus a FETCH of up to 50 messages can
+// stall for tens of seconds on slow links; 10s would force setAccountError on
+// every tick and the account would never advance last_seen_uid.
+const SOCKET_TIMEOUT_MS = 60_000;
 const SNIPPET_LEN = 500;
 const FULL_BODY_LEN = 50_000;
 const TRUNCATION_MARKER = '\n…[truncated]';
+
+// Falling back to 0 when internalDate/envelope.date are missing would push the
+// row outside `fetchInWindow` (WHERE received_at >= now - H*3600000) forever —
+// the user would never see it in `emails_list` even though it was scored and
+// stored. Use "now" as a last resort so the row is at least discoverable.
+function pickReceivedAt(row: any): number {
+  if (row?.internalDate instanceof Date) return row.internalDate.getTime();
+  if (row?.envelope?.date instanceof Date) return row.envelope.date.getTime();
+  return Date.now();
+}
 
 function formatFrom(envelope: any): string {
   const from = envelope?.from?.[0];
@@ -28,7 +42,10 @@ function firstBodyPart(bodyParts: any): string {
       : Object.values(bodyParts);
   if (values.length === 0) return '';
   const value = values[0];
-  return Buffer.isBuffer(value) ? value.toString('utf-8') : String(value);
+  if (value == null) return '';
+  if (Buffer.isBuffer(value)) return value.toString('utf-8');
+  if (typeof value === 'string') return value;
+  return '';
 }
 
 // Snippet is used for LLM scoring — a single line of collapsed whitespace is
@@ -57,7 +74,7 @@ async function withClient<T>(account: ImapAccount, fn: (client: any) => Promise<
     secure: account.tls,
     auth: { user: account.user, pass: account.password },
     logger: false,
-    socketTimeout: CONNECT_TIMEOUT_MS,
+    socketTimeout: SOCKET_TIMEOUT_MS,
   });
   try {
     await client.connect();
@@ -101,7 +118,7 @@ export async function fetchNewMessages(
         from: formatFrom(row.envelope),
         subject: row.envelope?.subject ?? '',
         snippet: extractSnippet(row.bodyParts, SNIPPET_LEN),
-        receivedAt: row.internalDate instanceof Date ? row.internalDate.getTime() : 0,
+        receivedAt: pickReceivedAt(row),
       });
     }
     return out;
@@ -125,7 +142,7 @@ export async function fetchFullBody(account: ImapAccount, uid: number): Promise<
       from: formatFrom(row.envelope),
       subject: row.envelope?.subject ?? '',
       bodyText: extractBody(row.bodyParts, FULL_BODY_LEN),
-      receivedAt: row.internalDate instanceof Date ? row.internalDate.getTime() : 0,
+      receivedAt: pickReceivedAt(row),
     };
   });
 }

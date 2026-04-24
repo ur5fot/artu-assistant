@@ -21,6 +21,7 @@
     "@r2/shared": "*",
     "@r2/tool-code-deploy": "*",
     "@r2/tool-code-task": "*",
+    "@r2/tool-emails": "*",
     "@r2/tool-memory": "*",
     "@r2/tool-prompt-overlay": "*",
     "better-sqlite3": "^11.8.0",
