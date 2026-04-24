@@ -2395,7 +2395,7 @@ Kill server (Ctrl+C).
 
 Result (2026-04-24): server booted on http://localhost:3004; tool discovery logged `emails_list` and `emails_get`; no errors. Note: `[emails] disabled ...` log is emitted only when `DISCORD_BOT_TOKEN` is set (it sits inside the Discord bot init block), so with an empty token it is gated out — expected.
 
-- [ ] **Step 4: Merge to dev branch per project flow**
+- [x] **Step 4: Merge to dev branch per project flow**
 
 ```bash
 # On the feature branch
@@ -2406,6 +2406,8 @@ git push origin dev
 ```
 
 (Per memory: feature→dev→master, supervisor auto-restart.)
+
+Result (2026-04-24): merged `feature/email-watcher` into `dev` locally with `--no-ff`. No `origin` remote is configured on this checkout, so `git pull` and `git push origin dev` were skipped — the `dev` branch now contains all 15 email-watcher commits and can be synced upstream separately when a remote is wired in.
 
 ---
 
