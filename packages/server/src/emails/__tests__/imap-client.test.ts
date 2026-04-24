@@ -88,6 +88,43 @@ describe('fetchFullBody', () => {
     expect(full.bodyText).toContain('Full body text here');
   });
 
+  it('preserves newlines and normalizes CRLF — full body is not snippet-flattened', async () => {
+    const body = Buffer.from('Line 1\r\nLine 2\r\n\r\nParagraph 2');
+    __setImapFlowCtor(
+      makeClientStub({
+        fetchRows: [
+          {
+            uid: 5,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyParts: new Map([['1', body]]),
+            internalDate: new Date(0),
+          },
+        ],
+      }) as any,
+    );
+    const full = await fetchFullBody(account, 5);
+    expect(full.bodyText).toBe('Line 1\nLine 2\n\nParagraph 2');
+  });
+
+  it('appends truncation marker when body exceeds limit', async () => {
+    const big = Buffer.from('a'.repeat(60_000));
+    __setImapFlowCtor(
+      makeClientStub({
+        fetchRows: [
+          {
+            uid: 5,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyParts: new Map([['1', big]]),
+            internalDate: new Date(0),
+          },
+        ],
+      }) as any,
+    );
+    const full = await fetchFullBody(account, 5);
+    expect(full.bodyText.length).toBeLessThanOrEqual(50_000);
+    expect(full.bodyText).toContain('[truncated]');
+  });
+
   it('throws when uid not found', async () => {
     __setImapFlowCtor(makeClientStub({ fetchRows: [] }) as any);
     await expect(fetchFullBody(account, 999)).rejects.toThrow(/not found/i);

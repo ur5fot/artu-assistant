@@ -32,7 +32,11 @@ export async function runPollTick(params: TickParams): Promise<void> {
         const byUid = new Map(scored.map((s) => [s.uid, s.importance]));
 
         for (const m of msgs) {
-          const importance = byUid.get(m.uid) ?? 3;
+          // Scorer guarantees coverage on success (see scorer.ts normalize).
+          // A missing uid here signals a contract break, not a "low importance"
+          // call — skip rather than default to 3 and silently drop.
+          if (!byUid.has(m.uid)) continue;
+          const importance = byUid.get(m.uid)!;
           if (importance >= cutoff) {
             params.store.insertPending({
               account_id: acc.id,
@@ -65,18 +69,26 @@ interface StartParams extends Omit<TickParams, 'now'> {
 
 export function startEmailPoller(params: StartParams): () => void {
   let stopped = false;
-  const tick = async () => {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  // Self-scheduling loop: the next tick is only queued once the current one
+  // resolves. setInterval would fire concurrently when a tick runs longer
+  // than intervalMs (slow IMAP / LLM), doubling cost and racing on state.
+  const runOnce = async () => {
     if (stopped) return;
     try {
       await runPollTick({ ...params, now: Date.now() });
     } catch (err) {
       console.error('[emails] poll tick crashed:', err instanceof Error ? err.message : err);
     }
+    if (!stopped) {
+      timer = setTimeout(runOnce, params.intervalMs);
+    }
   };
-  void tick();
-  const timer = setInterval(() => void tick(), params.intervalMs);
+  void runOnce();
+
   return () => {
     stopped = true;
-    clearInterval(timer);
+    if (timer) clearTimeout(timer);
   };
 }

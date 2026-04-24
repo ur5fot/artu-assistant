@@ -23,16 +23,29 @@ export function createEmailDigestHandler(deps: Deps): Handler {
       if (deps.store.countPendingUndelivered() < deps.threshold) return false;
       if (inQuietHours(state.now, deps.quietStart, deps.tz)) return false;
       if (!morningBriefPublishedToday(ctx.db, state.now, deps.tz)) return false;
-      if (state.lastFiredAt && state.now - state.lastFiredAt < deps.cooldownMs) return false;
+      // Cooldown only applies after a successful publish. Errors and skips
+      // must be retry-able on the next tick — otherwise a transient Ollama /
+      // Discord failure would silence the digest for the full cooldown window
+      // while messages pile up.
+      const publishedRecently =
+        state.lastResult !== null &&
+        'publish' in state.lastResult &&
+        state.lastResult.publish === true &&
+        state.lastFiredAt !== null &&
+        state.now - state.lastFiredAt < deps.cooldownMs;
+      if (publishedRecently) return false;
       return true;
     },
     async run(ctx) {
       try {
         const pending = deps.store.fetchPendingUndelivered(maxRows);
         if (pending.length === 0) return { skip: true, reason: 'no pending' };
-        const content = formatDigest(pending);
-        deps.store.markDelivered(pending.map((r) => r.id), ctx.firedAt);
-        return { publish: true, content };
+        const { text, includedIds } = formatDigest(pending);
+        // Only mark rows that actually appear in the digest text. The rest
+        // (folded into the "…ещё N писем" tail) must surface in the next
+        // run so they aren't silently dropped.
+        deps.store.markDelivered(includedIds, ctx.firedAt);
+        return { publish: true, content: text };
       } catch (err) {
         return {
           error: true,

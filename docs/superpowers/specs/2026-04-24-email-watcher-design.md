@@ -100,9 +100,8 @@ ENV variable `IMAP_ACCOUNTS` — JSON array:
 - `EMAIL_POLL_INTERVAL_MS` — default `300000` (5 мин)
 - `EMAIL_DIGEST_THRESHOLD` — default `3`
 - `EMAIL_DIGEST_COOLDOWN_MS` — default `7200000` (2 часа)
-- `EMAIL_QUIET_HOUR_START` — default `22` (локальное время)
-- `EMAIL_QUIET_HOUR_END` — default `morning-brief` (не фиксировано — зависит от факта публикации)
-- `EMAIL_SCORE_MODEL` — default `qwen2.5:7b` (Ollama), fallback Claude
+- `EMAIL_QUIET_HOUR_START` — default `22` (локальное время). Morning-release определяется фактом публикации morning-brief; fallback на 09:00 локально если morning-brief не публиковался ≥ 7 дней (чтобы digest не завис навсегда).
+- Scorer model: используется shared `OLLAMA_MODEL` (Ollama) с fallback на `CLAUDE_MODEL` — отдельного `EMAIL_SCORE_MODEL` нет.
 
 ### 3. DB schema
 
@@ -181,8 +180,8 @@ trigger(state, ctx):
 ```
 
 Helpers:
-- `inQuietHours(now)` — локальный час `>= QUIET_START` (default 22) → true. "end" определяется не часом а фактом morning-brief publish — поэтому отдельный check.
-- `morningBriefPublishedToday(db, now)` — `SELECT MAX(fired_at) FROM cognition_handler_runs WHERE handler_name='morningBrief' AND outcome='publish'`, сравнить локальный день с today. Если местный час < 10 и в этом локальном дне morning-brief ещё не публиковался — держим (hold). Если morning-brief handler вообще не зарегистрирован (0 runs за 7+ дней) — fallback: считаем что release происходит в `QUIET_END_FALLBACK` (default 09:00), чтобы не зависнуть навсегда.
+- `inQuietHours(now)` — локальный час `>= QUIET_START` (default 22) → true. Утренний release полностью делегирован `morningBriefPublishedToday` — никакого отдельного `hour < X` в `inQuietHours` нет.
+- `morningBriefPublishedToday(db, now)` — `SELECT MAX(fired_at) FROM cognition_handler_runs WHERE handler_name='morningBrief' AND outcome='publish'`, сравнить локальный день с today. Если morning-brief handler вообще не публиковался за 7+ дней (либо нет записей, либо последняя старше 7 дней) — fallback: считаем что release происходит в 09:00 локально, чтобы digest не зависал навсегда.
 - cooldown по `state.lastFiredAt` (cognition уже это трекает).
 
 ### 6. `run()`: formatDigest

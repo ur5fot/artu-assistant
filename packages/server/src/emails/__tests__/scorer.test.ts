@@ -74,14 +74,69 @@ describe('scoreBatch', () => {
     expect(res[1].importance).toBe(1);
   });
 
-  it('returns importance=3 for uids missing from reply', async () => {
+  it('falls back to Claude when Ollama reply is missing uids', async () => {
+    // Ollama covers only uid=1; Claude covers both. Must NOT default uid=2 to 3.
     const res = await scoreBatch(msgs, {
       piiProxy: fakeProxy(),
       ollama: fakeOllama('[{"uid":1,"importance":5}]'),
+      anthropic: fakeAnthropic('[{"uid":1,"importance":5},{"uid":2,"importance":2}]'),
+      signal: new AbortController().signal,
+    });
+    expect(res).toEqual([
+      { uid: 1, importance: 5 },
+      { uid: 2, importance: 2 },
+    ]);
+  });
+
+  it('throws when BOTH Ollama and Claude replies are incomplete (protects last_seen_uid)', async () => {
+    await expect(
+      scoreBatch(msgs, {
+        piiProxy: fakeProxy(),
+        ollama: fakeOllama('[{"uid":1,"importance":5}]'),
+        anthropic: fakeAnthropic('[{"uid":1,"importance":4}]'),
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow(/did not cover every uid/i);
+  });
+
+  it('throws when both scorers throw (protects last_seen_uid)', async () => {
+    const brokenOllama = { chat: vi.fn(async () => { throw new Error('ollama down'); }) } as any;
+    const brokenAnthropic = {
+      messages: { create: vi.fn(async () => { throw new Error('claude down'); }) },
+    } as any;
+    await expect(
+      scoreBatch(msgs, {
+        piiProxy: fakeProxy(),
+        ollama: brokenOllama,
+        anthropic: brokenAnthropic,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow(/claude down/);
+  });
+
+  it('handles >MAX_BATCH messages across multiple batches', async () => {
+    const big = Array.from({ length: 23 }, (_, i) => ({
+      uid: i + 1, from: 'x', subject: 's', snippet: 'x',
+    }));
+    // Each Ollama call returns the full batch — scoreBatch calls it per batch (10, 10, 3).
+    const ollama = {
+      chat: vi.fn(async ({ messages }: { messages: Array<{ content: string }> }) => {
+        const prompt = messages[0].content;
+        const match = prompt.match(/"uid":\s*(\d+)/g) ?? [];
+        const uids = match.map((s) => Number(s.match(/\d+/)![0]));
+        const reply = uids.map((u) => ({ uid: u, importance: 4 }));
+        return { text: JSON.stringify(reply) };
+      }),
+    } as any;
+    const res = await scoreBatch(big, {
+      piiProxy: fakeProxy(),
+      ollama,
       anthropic: fakeAnthropic(''),
       signal: new AbortController().signal,
     });
-    expect(res).toContainEqual({ uid: 2, importance: 3 });
+    expect(res).toHaveLength(23);
+    expect(res.every((r) => r.importance === 4)).toBe(true);
+    expect(ollama.chat).toHaveBeenCalledTimes(3);
   });
 
   it('returns empty array for empty input', async () => {
@@ -94,7 +149,7 @@ describe('scoreBatch', () => {
     expect(res).toEqual([]);
   });
 
-  it('anonymizes subject+snippet via piiProxy before LLM', async () => {
+  it('anonymizes from+subject+snippet via piiProxy before LLM (3 calls per message)', async () => {
     const proxy = fakeProxy();
     const spy = vi.spyOn(proxy, 'anonymize');
     await scoreBatch(msgs, {
@@ -103,6 +158,6 @@ describe('scoreBatch', () => {
       anthropic: fakeAnthropic(''),
       signal: new AbortController().signal,
     });
-    expect(spy).toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledTimes(msgs.length * 3);
   });
 });

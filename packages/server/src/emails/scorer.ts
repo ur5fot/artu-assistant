@@ -54,16 +54,26 @@ function clamp(n: number): number {
   return Math.max(1, Math.min(5, Math.round(n)));
 }
 
-function normalize(raw: unknown, uids: number[]): Array<{ uid: number; importance: number }> {
+// Returns null when the LLM reply does not cover every requested uid — the
+// caller treats that the same as an unparseable response (falls back to the
+// other provider, or surfaces an error). Defaulting missing uids to 3 would
+// silently drop them below the cutoff while the poller advances last_seen_uid,
+// permanently losing those messages from view.
+function normalize(
+  raw: unknown,
+  uids: number[],
+): Array<{ uid: number; importance: number }> | null {
+  if (!Array.isArray(raw)) return null;
   const byUid = new Map<number, number>();
-  if (Array.isArray(raw)) {
-    for (const item of raw) {
-      if (item && typeof item.uid === 'number' && typeof item.importance === 'number') {
-        byUid.set(item.uid, clamp(item.importance));
-      }
+  for (const item of raw) {
+    if (item && typeof item.uid === 'number' && typeof item.importance === 'number') {
+      byUid.set(item.uid, clamp(item.importance));
     }
   }
-  return uids.map((uid) => ({ uid, importance: byUid.get(uid) ?? 3 }));
+  for (const uid of uids) {
+    if (!byUid.has(uid)) return null;
+  }
+  return uids.map((uid) => ({ uid, importance: byUid.get(uid)! }));
 }
 
 async function callOllama(
@@ -126,20 +136,27 @@ export async function scoreBatch(
         const raw = await callOllama(deps.ollama!, prompt, deps.signal);
         const parsed = extractJson(raw);
         scored = normalize(parsed, batch.map((m) => m.uid));
-      } catch {
+        if (!scored) {
+          console.warn('[emails.scorer] Ollama reply did not cover every uid, falling back to Claude');
+        }
+      } catch (err) {
+        console.warn(
+          '[emails.scorer] Ollama call failed, falling back to Claude:',
+          err instanceof Error ? err.message : err,
+        );
         scored = null;
       }
     }
     if (!scored) {
-      try {
-        const raw = await callClaude(deps.anthropic, prompt, deps.signal);
-        const parsed = extractJson(raw);
-        scored = normalize(parsed, batch.map((m) => m.uid));
-      } catch (err) {
-        // Both scorers failed — surface this instead of silently defaulting to
-        // importance=3, which combined with cutoff=4 would drop the batch and
-        // the poller would advance last_seen_uid past these messages.
-        throw err instanceof Error ? err : new Error(String(err));
+      const raw = await callClaude(deps.anthropic, prompt, deps.signal);
+      const parsed = extractJson(raw);
+      scored = normalize(parsed, batch.map((m) => m.uid));
+      if (!scored) {
+        // Both scorers failed — surface this instead of silently dropping
+        // messages. The poller's per-account catch turns the throw into
+        // setAccountError, and last_seen_uid is NOT advanced, so the batch
+        // is retried on the next tick.
+        throw new Error('scorer reply did not cover every uid (both Ollama and Claude)');
       }
     }
     result.push(...scored);

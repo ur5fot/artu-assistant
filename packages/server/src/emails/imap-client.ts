@@ -10,6 +10,8 @@ export function __setImapFlowCtor(c: ImapFlowCtor): void {
 
 const CONNECT_TIMEOUT_MS = 10_000;
 const SNIPPET_LEN = 500;
+const FULL_BODY_LEN = 50_000;
+const TRUNCATION_MARKER = '\n…[truncated]';
 
 function formatFrom(envelope: any): string {
   const from = envelope?.from?.[0];
@@ -18,15 +20,34 @@ function formatFrom(envelope: any): string {
   return from.address || from.name || 'unknown';
 }
 
-function extractSnippet(bodyParts: any, limit: number): string {
+function firstBodyPart(bodyParts: any): string {
   if (!bodyParts) return '';
-  const iter: Iterable<unknown> =
-    typeof bodyParts.values === 'function' ? bodyParts.values() : Object.values(bodyParts);
-  const first = iter[Symbol.iterator]().next();
-  if (first.done) return '';
-  const value = first.value;
-  const text = Buffer.isBuffer(value) ? value.toString('utf-8') : String(value);
+  const values =
+    typeof bodyParts.values === 'function'
+      ? Array.from(bodyParts.values() as Iterable<unknown>)
+      : Object.values(bodyParts);
+  if (values.length === 0) return '';
+  const value = values[0];
+  return Buffer.isBuffer(value) ? value.toString('utf-8') : String(value);
+}
+
+// Snippet is used for LLM scoring — a single line of collapsed whitespace is
+// fine (keeps prompt compact, scorer doesn't care about formatting).
+function extractSnippet(bodyParts: any, limit: number): string {
+  const text = firstBodyPart(bodyParts);
+  if (!text) return '';
   return text.replace(/\s+/g, ' ').trim().slice(0, limit);
+}
+
+// Body is returned to the user via emails_get — preserve newlines so signatures
+// and quoted replies stay readable. Normalize CRLF, drop NULs, and mark any
+// hard truncation so the caller sees it was cut.
+function extractBody(bodyParts: any, limit: number): string {
+  const text = firstBodyPart(bodyParts);
+  if (!text) return '';
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\0/g, '').trim();
+  if (normalized.length <= limit) return normalized;
+  return normalized.slice(0, limit - TRUNCATION_MARKER.length) + TRUNCATION_MARKER;
 }
 
 async function withClient<T>(account: ImapAccount, fn: (client: any) => Promise<T>): Promise<T> {
@@ -98,7 +119,7 @@ export async function fetchFullBody(account: ImapAccount, uid: number): Promise<
       uid,
       from: formatFrom(row.envelope),
       subject: row.envelope?.subject ?? '',
-      bodyText: extractSnippet(row.bodyParts, 50_000),
+      bodyText: extractBody(row.bodyParts, FULL_BODY_LEN),
       receivedAt: row.internalDate instanceof Date ? row.internalDate.getTime() : 0,
     };
   });

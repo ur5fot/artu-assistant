@@ -514,6 +514,13 @@ MEMORY_ENABLED=true                # kill switch; false skips sqlite-vec load
 MEMORY_EMBED_MODEL=nomic-embed-text
 MEMORY_EXTRACT_MODEL=qwen2.5:7b
 MEMORY_MAX_CONTEXT_TOKENS=2000     # budget for auto-retrieval prefix
+# Email watcher (Phase 4F)
+IMAP_ACCOUNTS=[]                   # JSON array of {id,host,port,user,password,tls}; empty disables the feature
+EMAIL_ENABLED=true                 # kill switch; false disables poller + handler regardless of accounts
+EMAIL_POLL_INTERVAL_MS=300000      # IMAP poll interval per account, ms (min 1 s)
+EMAIL_DIGEST_THRESHOLD=3           # pending undelivered count required to fire digest
+EMAIL_DIGEST_COOLDOWN_MS=7200000   # min gap between digest publishes (applies only after a successful publish)
+EMAIL_QUIET_HOUR_START=22          # local hour when evening quiet starts (0-23); morning release is tied to morning-brief publish, 09:00 fallback after 7d silence
 ```
 
 ## Discord Bot (DM channel)

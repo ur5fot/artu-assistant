@@ -90,13 +90,13 @@ function createEmailsGetTool(deps: Deps): ToolDefinition {
         const full = await deps.imapClient.fetchFullBody(account, row.message_uid);
         return {
           success: true,
-          data: JSON.stringify({
+          data: {
             id: row.id,
             from: full.from,
             subject: full.subject,
             received_at: full.receivedAt,
             body_text: full.bodyText,
-          }),
+          },
         };
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : String(err) };

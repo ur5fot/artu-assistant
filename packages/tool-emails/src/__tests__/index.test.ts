@@ -33,7 +33,7 @@ function mkImap(overrides: Partial<ImapClientLike> = {}): ImapClientLike {
 }
 
 describe('emails_list tool', () => {
-  it('returns JSON array of rows', async () => {
+  it('returns JSON array of rows with full public shape', async () => {
     const tools = createTool({
       emailStore: mkStore([mkRow(1, 5), mkRow(2, 4, true)]),
       imapClient: mkImap(),
@@ -44,8 +44,18 @@ describe('emails_list tool', () => {
     const data = res.data as Array<Record<string, unknown>>;
     expect(Array.isArray(data)).toBe(true);
     expect(data).toHaveLength(2);
-    expect(data[0]).toHaveProperty('importance');
-    expect(data[0]).toHaveProperty('delivered');
+    // Lock down the full emitted shape so renaming/dropping a field is caught.
+    expect(data[0]).toMatchObject({
+      id: 1,
+      account_id: 'a',
+      from: 'A <a@b>',
+      subject: 'S',
+      snippet: 'x',
+      importance: 5,
+      received_at: 1001,
+      delivered: false,
+    });
+    expect(data[1].delivered).toBe(true);
   });
 
   it('honours limit (default 10, max 50)', async () => {
@@ -87,7 +97,8 @@ describe('emails_get tool', () => {
     const get = tools.find((t) => t.name === 'emails_get')!;
     const res = await get.handler({ id: 5 });
     expect(res.success).toBe(true);
-    const data = JSON.parse(res.data as string);
+    // emails_get returns a structured object (matches emails_list's shape).
+    const data = res.data as Record<string, unknown>;
     expect(data.body_text).toBe('Full body here');
     expect(data.id).toBe(5);
     expect(data.from).toBe('A <a@b>');
