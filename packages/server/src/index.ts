@@ -49,6 +49,15 @@ import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
+function envInt(raw: string | undefined, fallback: number, min: number, max?: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  const i = Math.floor(n);
+  if (i < min) return fallback;
+  if (max !== undefined && i > max) return fallback;
+  return i;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -188,11 +197,17 @@ const imapAccounts = (() => {
   }
 })();
 const emailEnabled = (process.env.EMAIL_ENABLED || 'true') !== 'false' && imapAccounts.length > 0;
-const imapClientForTool = {
-  fetchNewMessages,
-  fetchFullBody,
-  getAccount: (id: string) => imapAccounts.find((a) => a.id === id) ?? null,
-};
+// When the feature is disabled, hand `null` to tool-emails so `emails_list` /
+// `emails_get` return a clear "not enabled" error instead of empty data or
+// references to stale accounts.
+const emailStoreForTool = emailEnabled ? emailStore : null;
+const imapClientForTool = emailEnabled
+  ? {
+      fetchNewMessages,
+      fetchFullBody,
+      getAccount: (id: string) => imapAccounts.find((a) => a.id === id) ?? null,
+    }
+  : null;
 
 const cognitionService = createCognitionService({
   db: getDb(),
@@ -276,12 +291,15 @@ await discoverTools(registry, {
   piiProxy,
   memoryService,
   reminderStore,
-  emailStore,
+  emailStore: emailStoreForTool,
   imapClient: imapClientForTool,
 });
 
 // Discord bot (optional — only starts if DISCORD_BOT_TOKEN is set)
 let discordBot: { stop(): Promise<void> } | null = null;
+// Email poller lifecycle handles (hoisted so SIGTERM can clean them up).
+let stopEmailPoller: (() => void) | null = null;
+let emailPollerAbort: AbortController | null = null;
 const discordToken = process.env.DISCORD_BOT_TOKEN;
 if (discordToken) {
   const rawIds = process.env.DISCORD_ALLOWED_USER_IDS || '';
@@ -338,29 +356,30 @@ if (discordToken) {
     );
 
     if (emailEnabled) {
-      const stopEmailPoller = startEmailPoller({
+      emailPollerAbort = new AbortController();
+      const pollerAbort = emailPollerAbort;
+      stopEmailPoller = startEmailPoller({
         accounts: imapAccounts,
         store: emailStore,
         fetcher: (acc, sinceUid, limit) => fetchNewMessages(acc, sinceUid, limit),
         scorer: (msgs) =>
           scoreBatch(msgs, {
             piiProxy,
-            ollama: ollamaForMemory ?? null,
+            ollama: ollamaForRouter,
             anthropic: client.anthropic,
-            signal: new AbortController().signal,
+            signal: pollerAbort.signal,
           }),
-        intervalMs: Number(process.env.EMAIL_POLL_INTERVAL_MS) || 300_000,
+        intervalMs: envInt(process.env.EMAIL_POLL_INTERVAL_MS, 300_000, 1_000),
       });
       cognitionService.register(
         createEmailDigestHandler({
           store: emailStore,
           tz: 'Europe/Kyiv',
-          threshold: Number(process.env.EMAIL_DIGEST_THRESHOLD) || 3,
-          cooldownMs: Number(process.env.EMAIL_DIGEST_COOLDOWN_MS) || 7200_000,
-          quietStart: Number(process.env.EMAIL_QUIET_HOUR_START) || 22,
+          threshold: envInt(process.env.EMAIL_DIGEST_THRESHOLD, 3, 1),
+          cooldownMs: envInt(process.env.EMAIL_DIGEST_COOLDOWN_MS, 7200_000, 0),
+          quietStart: envInt(process.env.EMAIL_QUIET_HOUR_START, 22, 0, 23),
         }),
       );
-      process.on('beforeExit', () => stopEmailPoller());
       console.log(`[emails] poller started for ${imapAccounts.length} account(s)`);
     } else {
       console.log('[emails] disabled (EMAIL_ENABLED=false or IMAP_ACCOUNTS empty)');
@@ -414,6 +433,8 @@ process.on('SIGTERM', async () => {
   console.log('Worker received SIGTERM, shutting down...');
   setTimeout(() => process.exit(1), 5000);
   stopScheduler();
+  stopEmailPoller?.();
+  emailPollerAbort?.abort();
   await cognitionService.stop().catch(() => {});
   await discordBot?.stop().catch(() => {});
   server.close(() => {

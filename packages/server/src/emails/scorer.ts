@@ -112,9 +112,10 @@ export async function scoreBatch(
   for (const batch of batches) {
     const anonymized: MsgInput[] = [];
     for (const m of batch) {
+      const sender = await deps.piiProxy.anonymize(stripAddress(m.from));
       const sub = await deps.piiProxy.anonymize(m.subject);
       const snip = await deps.piiProxy.anonymize(m.snippet);
-      anonymized.push({ uid: m.uid, from: m.from, subject: sub.text, snippet: snip.text });
+      anonymized.push({ uid: m.uid, from: sender.text, subject: sub.text, snippet: snip.text });
     }
     const prompt = buildPrompt(anonymized);
 
@@ -134,11 +135,21 @@ export async function scoreBatch(
         const raw = await callClaude(deps.anthropic, prompt, deps.signal);
         const parsed = extractJson(raw);
         scored = normalize(parsed, batch.map((m) => m.uid));
-      } catch {
-        scored = batch.map((m) => ({ uid: m.uid, importance: 3 }));
+      } catch (err) {
+        // Both scorers failed — surface this instead of silently defaulting to
+        // importance=3, which combined with cutoff=4 would drop the batch and
+        // the poller would advance last_seen_uid past these messages.
+        throw err instanceof Error ? err : new Error(String(err));
       }
     }
     result.push(...scored);
   }
   return result;
+}
+
+function stripAddress(from: string): string {
+  // "Alice <alice@x.com>" → "Alice"; "<a@b>" / "a@b" → "a@b" (piiProxy handles the address).
+  const m = from.match(/^(.+?)\s*<[^>]+>\s*$/);
+  if (m && m[1].trim()) return m[1].trim();
+  return from;
 }

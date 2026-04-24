@@ -22,12 +22,11 @@ function extractSnippet(bodyParts: any, limit: number): string {
   if (!bodyParts) return '';
   const iter: Iterable<unknown> =
     typeof bodyParts.values === 'function' ? bodyParts.values() : Object.values(bodyParts);
-  for (const value of iter) {
-    const text = Buffer.isBuffer(value) ? value.toString('utf-8') : String(value);
-    const clean = text.replace(/\s+/g, ' ').trim();
-    return clean.slice(0, limit);
-  }
-  return '';
+  const first = iter[Symbol.iterator]().next();
+  if (first.done) return '';
+  const value = first.value;
+  const text = Buffer.isBuffer(value) ? value.toString('utf-8') : String(value);
+  return text.replace(/\s+/g, ' ').trim().slice(0, limit);
 }
 
 async function withClient<T>(account: ImapAccount, fn: (client: any) => Promise<T>): Promise<T> {
@@ -54,14 +53,19 @@ export async function fetchNewMessages(
   limit: number,
 ): Promise<NewMessage[]> {
   return withClient(account, async (client) => {
-    const uids: number[] = (await client.search({ uid: `${sinceUid + 1}:*` })) || [];
+    const uids: number[] =
+      (await client.search({ uid: `${sinceUid + 1}:*` }, { uid: true })) || [];
     if (!uids || uids.length === 0) return [];
     const cap = uids.slice(-limit);
-    const rows = await client.fetchAll(cap, {
-      envelope: true,
-      internalDate: true,
-      bodyParts: ['1'],
-    });
+    const rows = await client.fetchAll(
+      cap,
+      {
+        envelope: true,
+        internalDate: true,
+        bodyParts: ['1'],
+      },
+      { uid: true },
+    );
     const out: NewMessage[] = [];
     for (const row of rows) {
       if (!row || typeof row.uid !== 'number') continue;
@@ -80,11 +84,15 @@ export async function fetchNewMessages(
 
 export async function fetchFullBody(account: ImapAccount, uid: number): Promise<FullMessage> {
   return withClient(account, async (client) => {
-    const row = await client.fetchOne(uid, {
-      envelope: true,
-      internalDate: true,
-      bodyParts: ['1'],
-    });
+    const row = await client.fetchOne(
+      uid,
+      {
+        envelope: true,
+        internalDate: true,
+        bodyParts: ['1'],
+      },
+      { uid: true },
+    );
     if (!row) throw new Error(`Message uid=${uid} not found in INBOX`);
     return {
       uid,
