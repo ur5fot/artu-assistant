@@ -556,7 +556,7 @@ git commit -m "feat(emails): add SQLite store for accounts and pending messages"
 - Create: `packages/server/src/emails/imap-client.ts`
 - Create: `packages/server/src/emails/__tests__/imap-client.test.ts`
 
-- [ ] **Step 1: Add dependency**
+- [x] **Step 1: Add dependency**
 
 Run:
 ```bash
@@ -565,7 +565,7 @@ npm -w @r2/server install imapflow@^1.0.160
 
 Verify `package.json` now has `"imapflow": "^1.0.160"`.
 
-- [ ] **Step 2: Write failing test (mocked imapflow)**
+- [x] **Step 2: Write failing test (mocked imapflow)**
 
 Create `packages/server/src/emails/__tests__/imap-client.test.ts`:
 
@@ -667,12 +667,12 @@ describe('fetchFullBody', () => {
 });
 ```
 
-- [ ] **Step 3: Run — expect FAIL**
+- [x] **Step 3: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- imap-client.test`
 Expected: module not found.
 
-- [ ] **Step 4: Implement `emails/imap-client.ts`**
+- [x] **Step 4: Implement `emails/imap-client.ts`**
 
 ```typescript
 import { ImapFlow } from 'imapflow';
@@ -774,12 +774,12 @@ export async function fetchFullBody(account: ImapAccount, uid: number): Promise<
 }
 ```
 
-- [ ] **Step 5: Run — expect PASS**
+- [x] **Step 5: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- imap-client.test`
 Expected: 5 tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/package.json package-lock.json packages/server/src/emails/imap-client.ts packages/server/src/emails/__tests__/imap-client.test.ts
