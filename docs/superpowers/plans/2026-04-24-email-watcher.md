@@ -66,7 +66,7 @@
 - Modify: `packages/server/src/db.ts`
 - Test: `packages/server/src/__tests__/db.test.ts` (create if absent; else append)
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append or create `packages/server/src/__tests__/db.test.ts`:
 
@@ -109,12 +109,12 @@ describe('email tables', () => {
 });
 ```
 
-- [ ] **Step 2: Run test — expect FAIL**
+- [x] **Step 2: Run test — expect FAIL**
 
 Run: `npm -w @r2/server test -- db.test`
 Expected: "no such table" or table missing.
 
-- [ ] **Step 3: Implement — append tables to `db.ts` `initDb`**
+- [x] **Step 3: Implement — append tables to `db.ts` `initDb`**
 
 Insert after the last existing `CREATE TABLE` block (after `cognition_handler_runs`):
 
@@ -150,12 +150,12 @@ db.exec(`
 `);
 ```
 
-- [ ] **Step 4: Run test — expect PASS**
+- [x] **Step 4: Run test — expect PASS**
 
 Run: `npm -w @r2/server test -- db.test`
 Expected: 3 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/db.ts packages/server/src/__tests__/db.test.ts
@@ -171,7 +171,7 @@ git commit -m "feat(emails): add email_account_state and email_pending tables"
 - Create: `packages/server/src/emails/config.ts`
 - Create: `packages/server/src/emails/__tests__/config.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/emails/__tests__/config.test.ts`:
 
@@ -216,12 +216,12 @@ describe('parseImapAccounts', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- config.test`
 Expected: import failure, config.ts not yet created.
 
-- [ ] **Step 3: Implement types and parser**
+- [x] **Step 3: Implement types and parser**
 
 Create `packages/server/src/emails/types.ts`:
 
@@ -303,12 +303,12 @@ export function parseImapAccounts(raw: string | undefined): ImapAccount[] {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- config.test`
 Expected: 5 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/emails/types.ts packages/server/src/emails/config.ts packages/server/src/emails/__tests__/config.test.ts
@@ -323,7 +323,7 @@ git commit -m "feat(emails): add IMAP_ACCOUNTS config parser and shared types"
 - Create: `packages/server/src/emails/store.ts`
 - Create: `packages/server/src/emails/__tests__/store.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/emails/__tests__/store.test.ts`:
 
@@ -426,12 +426,12 @@ describe('createEmailStore', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- store.test`
 Expected: module not found.
 
-- [ ] **Step 3: Implement `emails/store.ts`**
+- [x] **Step 3: Implement `emails/store.ts`**
 
 ```typescript
 import type Database from 'better-sqlite3';
@@ -535,12 +535,12 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- store.test`
 Expected: 8 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/emails/store.ts packages/server/src/emails/__tests__/store.test.ts
@@ -556,7 +556,7 @@ git commit -m "feat(emails): add SQLite store for accounts and pending messages"
 - Create: `packages/server/src/emails/imap-client.ts`
 - Create: `packages/server/src/emails/__tests__/imap-client.test.ts`
 
-- [ ] **Step 1: Add dependency**
+- [x] **Step 1: Add dependency**
 
 Run:
 ```bash
@@ -565,7 +565,7 @@ npm -w @r2/server install imapflow@^1.0.160
 
 Verify `package.json` now has `"imapflow": "^1.0.160"`.
 
-- [ ] **Step 2: Write failing test (mocked imapflow)**
+- [x] **Step 2: Write failing test (mocked imapflow)**
 
 Create `packages/server/src/emails/__tests__/imap-client.test.ts`:
 
@@ -667,12 +667,12 @@ describe('fetchFullBody', () => {
 });
 ```
 
-- [ ] **Step 3: Run — expect FAIL**
+- [x] **Step 3: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- imap-client.test`
 Expected: module not found.
 
-- [ ] **Step 4: Implement `emails/imap-client.ts`**
+- [x] **Step 4: Implement `emails/imap-client.ts`**
 
 ```typescript
 import { ImapFlow } from 'imapflow';
@@ -774,12 +774,12 @@ export async function fetchFullBody(account: ImapAccount, uid: number): Promise<
 }
 ```
 
-- [ ] **Step 5: Run — expect PASS**
+- [x] **Step 5: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- imap-client.test`
 Expected: 5 tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/package.json package-lock.json packages/server/src/emails/imap-client.ts packages/server/src/emails/__tests__/imap-client.test.ts
@@ -794,7 +794,7 @@ git commit -m "feat(emails): add imapflow dependency and IMAP client wrapper"
 - Create: `packages/server/src/emails/scorer.ts`
 - Create: `packages/server/src/emails/__tests__/scorer.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/emails/__tests__/scorer.test.ts`:
 
@@ -909,11 +909,11 @@ describe('scoreBatch', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- scorer.test`
 
-- [ ] **Step 3: Implement `emails/scorer.ts`**
+- [x] **Step 3: Implement `emails/scorer.ts`**
 
 ```typescript
 import type Anthropic from '@anthropic-ai/sdk';
@@ -1064,12 +1064,12 @@ export async function scoreBatch(
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- scorer.test`
 Expected: 7 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/emails/scorer.ts packages/server/src/emails/__tests__/scorer.test.ts
@@ -1084,7 +1084,7 @@ git commit -m "feat(emails): add batched LLM importance scorer with Ollama→Cla
 - Create: `packages/server/src/emails/multi-account-poller.ts`
 - Create: `packages/server/src/emails/__tests__/multi-account-poller.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/emails/__tests__/multi-account-poller.test.ts`:
 
@@ -1187,11 +1187,11 @@ describe('runPollTick', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- multi-account-poller.test`
 
-- [ ] **Step 3: Implement `emails/multi-account-poller.ts`**
+- [x] **Step 3: Implement `emails/multi-account-poller.ts`**
 
 ```typescript
 import type { ImapAccount, NewMessage } from './types.js';
@@ -1279,12 +1279,12 @@ export function startEmailPoller(params: StartParams): () => void {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- multi-account-poller.test`
 Expected: 4 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/emails/multi-account-poller.ts packages/server/src/emails/__tests__/multi-account-poller.test.ts
@@ -1299,7 +1299,7 @@ git commit -m "feat(emails): add multi-account poller with per-account error iso
 - Create: `packages/server/src/cognition/handlers/emailDigest.helpers.ts`
 - Create: `packages/server/src/cognition/__tests__/handlers/emailDigest.helpers.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/cognition/__tests__/handlers/emailDigest.helpers.test.ts`:
 
@@ -1412,11 +1412,11 @@ describe('formatDigest', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- emailDigest.helpers.test`
 
-- [ ] **Step 3: Implement `cognition/handlers/emailDigest.helpers.ts`**
+- [x] **Step 3: Implement `cognition/handlers/emailDigest.helpers.ts`**
 
 ```typescript
 import type Database from 'better-sqlite3';
@@ -1515,12 +1515,12 @@ export function formatDigest(rows: EmailPendingRow[]): string {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- emailDigest.helpers.test`
 Expected: 11 tests pass (some DST edge cases may be sensitive — tolerate if timezone constants need adjustment, re-check with actual `Intl.DateTimeFormat` output).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/emailDigest.helpers.ts packages/server/src/cognition/__tests__/handlers/emailDigest.helpers.test.ts
@@ -1535,7 +1535,7 @@ git commit -m "feat(emails): add emailDigest helpers (quiet hours, brief-hold, f
 - Create: `packages/server/src/cognition/handlers/emailDigest.ts`
 - Create: `packages/server/src/cognition/__tests__/handlers/emailDigest.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/cognition/__tests__/handlers/emailDigest.test.ts`:
 
@@ -1657,11 +1657,11 @@ describe('createEmailDigestHandler.run', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- emailDigest.test`
 
-- [ ] **Step 3: Implement `cognition/handlers/emailDigest.ts`**
+- [x] **Step 3: Implement `cognition/handlers/emailDigest.ts`**
 
 ```typescript
 import type { Handler } from '../types.js';
@@ -1710,12 +1710,12 @@ export function createEmailDigestHandler(deps: Deps): Handler {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- emailDigest.test`
 Expected: 8 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/emailDigest.ts packages/server/src/cognition/__tests__/handlers/emailDigest.test.ts
@@ -1729,11 +1729,11 @@ git commit -m "feat(emails): add emailDigest cognition handler (trigger + run)"
 **Files:**
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Read the registration block for morningBrief**
+- [x] **Step 1: Read the registration block for morningBrief**
 
 Examine `packages/server/src/index.ts` lines ~260-320 where `startDiscordBot` + `cognitionService.register(createMorningBriefHandler(...))` happens. New code goes immediately after.
 
-- [ ] **Step 2: Add imports at the top of `index.ts`**
+- [x] **Step 2: Add imports at the top of `index.ts`**
 
 Add near existing `createMorningBriefHandler` import:
 
@@ -1746,7 +1746,7 @@ import { startEmailPoller } from './emails/multi-account-poller.js';
 import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
 ```
 
-- [ ] **Step 3: Parse accounts + init store early (before tool discovery)**
+- [x] **Step 3: Parse accounts + init store early (before tool discovery)**
 
 After `const reminderStore = createReminderStore(...)` and before `discoverTools`, add:
 
@@ -1767,7 +1767,7 @@ const imapClientForTool = {
 };
 ```
 
-- [ ] **Step 4: Pass `emailStore` + `imapClientForTool` to `discoverTools`**
+- [x] **Step 4: Pass `emailStore` + `imapClientForTool` to `discoverTools`**
 
 Update the `discoverTools` call to include:
 
@@ -1786,7 +1786,7 @@ await discoverTools(registry, {
 
 (ToolDeps extension is in Task 13.)
 
-- [ ] **Step 5: Start poller + register handler after Discord bot started**
+- [x] **Step 5: Start poller + register handler after Discord bot started**
 
 In the existing `if (discordToken) { ... }` block, right after `cognitionService.register(createMorningBriefHandler({ ... }))`, add:
 
@@ -1821,12 +1821,12 @@ if (emailEnabled) {
 }
 ```
 
-- [ ] **Step 6: Type-check the server package**
+- [x] **Step 6: Type-check the server package**
 
 Run: `npm -w @r2/server run build`
 Expected: no type errors. If `ToolDeps` complains, proceed to Task 13 first (or perform the type extension in this task).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/index.ts
@@ -1843,7 +1843,7 @@ git commit -m "feat(emails): wire poller + emailDigest handler into server boots
 - Create: `packages/tool-emails/src/types.ts`
 - Create: `packages/tool-emails/src/index.ts` (stub export)
 
-- [ ] **Step 1: Create package.json**
+- [x] **Step 1: Create package.json**
 
 ```json
 {
@@ -1864,13 +1864,13 @@ git commit -m "feat(emails): wire poller + emailDigest handler into server boots
 
 (Adjust vitest version to match `packages/server/package.json` root once verified with `npm ls vitest -w @r2/server`.)
 
-- [ ] **Step 2: Create tsconfig.json — copy from `packages/tool-reminder/tsconfig.json`**
+- [x] **Step 2: Create tsconfig.json — copy from `packages/tool-reminder/tsconfig.json`**
 
 ```bash
 cp packages/tool-reminder/tsconfig.json packages/tool-emails/tsconfig.json
 ```
 
-- [ ] **Step 3: Create `src/types.ts` with dep interfaces**
+- [x] **Step 3: Create `src/types.ts` with dep interfaces**
 
 ```typescript
 import type { ImapAccount, FullMessage, EmailPendingRow } from '../../server/src/emails/types.js';
@@ -1890,7 +1890,7 @@ export interface ImapClientLike {
 }
 ```
 
-- [ ] **Step 4: Create `src/index.ts` stub**
+- [x] **Step 4: Create `src/index.ts` stub**
 
 ```typescript
 import type { ToolDefinition } from '@r2/shared';
@@ -1907,12 +1907,12 @@ export function createTool(_deps: Deps): ToolDefinition[] {
 export default createTool;
 ```
 
-- [ ] **Step 5: Install workspace + verify resolution**
+- [x] **Step 5: Install workspace + verify resolution**
 
 Run: `npm install`
 Expected: `@r2/tool-emails` shows up via workspace symlink.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/tool-emails/package.json packages/tool-emails/tsconfig.json packages/tool-emails/src/types.ts packages/tool-emails/src/index.ts package-lock.json
@@ -1927,7 +1927,7 @@ git commit -m "feat(tool-emails): scaffold @r2/tool-emails package"
 - Modify: `packages/tool-emails/src/index.ts`
 - Create: `packages/tool-emails/src/__tests__/index.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/tool-emails/src/__tests__/index.test.ts`:
 
@@ -1998,11 +1998,11 @@ describe('emails_list tool', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/tool-emails test`
 
-- [ ] **Step 3: Implement `emails_list` in `src/index.ts`**
+- [x] **Step 3: Implement `emails_list` in `src/index.ts`**
 
 Replace the stub:
 
@@ -2067,12 +2067,12 @@ export function createTool(deps: Deps): ToolDefinition[] {
 export default createTool;
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/tool-emails test`
 Expected: 3 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-emails/src/index.ts packages/tool-emails/src/__tests__/index.test.ts
@@ -2087,7 +2087,7 @@ git commit -m "feat(tool-emails): implement emails_list tool"
 - Modify: `packages/tool-emails/src/index.ts`
 - Modify: `packages/tool-emails/src/__tests__/index.test.ts`
 
-- [ ] **Step 1: Append failing tests**
+- [x] **Step 1: Append failing tests**
 
 Append to `index.test.ts`:
 
@@ -2144,11 +2144,11 @@ describe('emails_get tool', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/tool-emails test`
 
-- [ ] **Step 3: Implement `emails_get` in `src/index.ts`**
+- [x] **Step 3: Implement `emails_get` in `src/index.ts`**
 
 Add above `export function createTool(...)`:
 
@@ -2207,12 +2207,12 @@ export function createTool(deps: Deps): ToolDefinition[] {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/tool-emails test`
 Expected: 4 new tests pass (7 total in file).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/tool-emails/src/index.ts packages/tool-emails/src/__tests__/index.test.ts
@@ -2227,7 +2227,7 @@ git commit -m "feat(tool-emails): implement emails_get tool"
 - Modify: `packages/server/src/tools/base.ts`
 - Modify: `packages/server/src/tools/__tests__/registry.test.ts` (optional — add emails_list discovery assertion)
 
-- [ ] **Step 1: Extend `ToolDeps`**
+- [x] **Step 1: Extend `ToolDeps`**
 
 In `packages/server/src/tools/base.ts`, add imports and extend interface:
 
@@ -2253,12 +2253,12 @@ export interface ToolDeps {
 }
 ```
 
-- [ ] **Step 2: Rebuild + type-check**
+- [x] **Step 2: Rebuild + type-check**
 
 Run: `npm -w @r2/server run build`
 Expected: no type errors.
 
-- [ ] **Step 3: Add discovery assertion (optional but recommended)**
+- [x] **Step 3: Add discovery assertion (optional but recommended)**
 
 In `packages/server/src/tools/__tests__/registry.test.ts`, append:
 
@@ -2294,12 +2294,12 @@ it('discovers emails_list and emails_get when deps are provided', async () => {
 });
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `npm -w @r2/server test`
 Expected: all tests pass including new discovery test.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/tools/base.ts packages/server/src/tools/__tests__/registry.test.ts
@@ -2314,7 +2314,7 @@ git commit -m "feat(tool-emails): wire emailStore + imapClient through ToolDeps"
 - Modify: `.env.example` (or create if absent)
 - Modify: `README.md` or `docs/ops/env.md` (whichever holds env docs)
 
-- [ ] **Step 1: Add env entries to `.env.example`**
+- [x] **Step 1: Add env entries to `.env.example`**
 
 Append:
 
@@ -2331,7 +2331,7 @@ EMAIL_DIGEST_COOLDOWN_MS=7200000
 EMAIL_QUIET_HOUR_START=22
 ```
 
-- [ ] **Step 2: Add smoke-test checklist to the spec file**
+- [x] **Step 2: Add smoke-test checklist to the spec file**
 
 Append a new section to `docs/superpowers/specs/2026-04-24-email-watcher-design.md`:
 
@@ -2348,7 +2348,7 @@ Append a new section to `docs/superpowers/specs/2026-04-24-email-watcher-design.
 - [ ] Intentionally break one account's password → `last_error` logged, other accounts unaffected
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .env.example docs/superpowers/specs/2026-04-24-email-watcher-design.md
@@ -2359,7 +2359,7 @@ git commit -m "docs(emails): add env.example entries and smoke test checklist"
 
 ## Task 15: Full regression + merge to dev
 
-- [ ] **Step 1: Run full test suite**
+- [x] **Step 1: Run full test suite**
 
 ```bash
 npm test
@@ -2367,7 +2367,9 @@ npm test
 
 Expected: all packages green. If any pre-existing tests flake, investigate but don't fix unrelated.
 
-- [ ] **Step 2: Build the server package**
+Result (2026-04-24): 86 test files, 940 tests — all green.
+
+- [x] **Step 2: Build the server package**
 
 ```bash
 npm -w @r2/server run build
@@ -2375,7 +2377,9 @@ npm -w @r2/server run build
 
 Expected: clean TypeScript compile.
 
-- [ ] **Step 3: Manual dry-run (no real accounts)**
+Result (2026-04-24): `tsc` exit 0, dist/ populated.
+
+- [x] **Step 3: Manual dry-run (no real accounts)**
 
 With `IMAP_ACCOUNTS=[]`:
 
@@ -2389,7 +2393,9 @@ Expected log lines:
 
 Kill server (Ctrl+C).
 
-- [ ] **Step 4: Merge to dev branch per project flow**
+Result (2026-04-24): server booted on http://localhost:3004; tool discovery logged `emails_list` and `emails_get`; no errors. Note: `[emails] disabled ...` log is emitted only when `DISCORD_BOT_TOKEN` is set (it sits inside the Discord bot init block), so with an empty token it is gated out — expected.
+
+- [x] **Step 4: Merge to dev branch per project flow**
 
 ```bash
 # On the feature branch
@@ -2400,6 +2406,8 @@ git push origin dev
 ```
 
 (Per memory: feature→dev→master, supervisor auto-restart.)
+
+Result (2026-04-24): merged `feature/email-watcher` into `dev` locally with `--no-ff`. No `origin` remote is configured on this checkout, so `git pull` and `git push origin dev` were skipped — the `dev` branch now contains all 15 email-watcher commits and can be synced upstream separately when a remote is wired in.
 
 ---
 
