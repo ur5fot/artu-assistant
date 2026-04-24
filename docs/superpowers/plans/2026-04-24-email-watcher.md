@@ -1535,7 +1535,7 @@ git commit -m "feat(emails): add emailDigest helpers (quiet hours, brief-hold, f
 - Create: `packages/server/src/cognition/handlers/emailDigest.ts`
 - Create: `packages/server/src/cognition/__tests__/handlers/emailDigest.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `packages/server/src/cognition/__tests__/handlers/emailDigest.test.ts`:
 
@@ -1657,11 +1657,11 @@ describe('createEmailDigestHandler.run', () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [x] **Step 2: Run — expect FAIL**
 
 Run: `npm -w @r2/server test -- emailDigest.test`
 
-- [ ] **Step 3: Implement `cognition/handlers/emailDigest.ts`**
+- [x] **Step 3: Implement `cognition/handlers/emailDigest.ts`**
 
 ```typescript
 import type { Handler } from '../types.js';
@@ -1710,12 +1710,12 @@ export function createEmailDigestHandler(deps: Deps): Handler {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
 Run: `npm -w @r2/server test -- emailDigest.test`
 Expected: 8 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/cognition/handlers/emailDigest.ts packages/server/src/cognition/__tests__/handlers/emailDigest.test.ts
