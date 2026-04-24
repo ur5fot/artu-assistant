@@ -154,4 +154,22 @@ describe('createEmailDigestHandler.run', () => {
     const again = await h.run(mkCtx(now + 1000));
     expect(again).toEqual({ skip: true, reason: 'no pending' });
   });
+
+  it('header and tail reflect true backlog when pending exceeds maxRows cap', async () => {
+    const store = createEmailStore({ db: getDb() });
+    // 80 rows pending, default maxRows=50. Header must show 80, not 50.
+    for (let i = 1; i <= 80; i++) {
+      mkPending({ uid: i, importance: 5, received_at: 1000 + i });
+    }
+    const h = createEmailDigestHandler({ store, tz: TZ, threshold: 1, cooldownMs: 100, quietStart: 22 });
+    const now = Date.UTC(2026, 3, 24, 12 - 3);
+    const res = await h.run(mkCtx(now));
+    expect('publish' in res && res.publish).toBe(true);
+    if ('publish' in res && res.publish) {
+      expect(res.content).toContain('📬 80 важных');
+      // Some rows were delivered from the top-50; remainder (including the
+      // 30 never-fetched rows) must appear in the tail.
+      expect(res.content).toMatch(/…ещё \d+ писем/);
+    }
+  });
 });

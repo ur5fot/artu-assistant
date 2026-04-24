@@ -77,7 +77,12 @@ export async function fetchNewMessages(
     const uids: number[] =
       (await client.search({ uid: `${sinceUid + 1}:*` }, { uid: true })) || [];
     if (!uids || uids.length === 0) return [];
-    const cap = uids.slice(-limit);
+    // Oldest-first slice. IMAP SEARCH returns UIDs ascending; taking the head
+    // guarantees contiguous progress: maxUid of the fetched batch stays flush
+    // with the last processed UID. slice(-limit) would drop older items past
+    // the cap, and the poller's maxUid advancement would then silently skip
+    // them forever on the next tick (first-boot + big-backlog data loss).
+    const cap = uids.slice(0, limit);
     const rows = await client.fetchAll(
       cap,
       {

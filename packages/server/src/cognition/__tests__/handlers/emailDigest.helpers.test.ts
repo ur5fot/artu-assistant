@@ -148,4 +148,22 @@ describe('formatDigest', () => {
     expect(out.text).toContain('Alice');
     expect(out.text).not.toContain('<alice@bank.com>');
   });
+
+  it('uses totalPending for header and tail count when backlog exceeds rows slice', () => {
+    // Store returned a 50-row slice, but 80 rows are actually pending. Header
+    // must say 80, and "…ещё N" must reflect true backlog (80 - included).
+    const rows = Array.from({ length: 50 }, (_, i) => mk(i + 1, 5));
+    const out = formatDigest(rows, 80);
+    expect(out.text).toContain('📬 80 важных писем');
+    const included = out.includedIds.length;
+    expect(out.text).toContain(`…ещё ${80 - included} писем`);
+  });
+
+  it('falls back to rows.length when totalPending is undefined or smaller', () => {
+    const rows = [mk(1, 5), mk(2, 4)];
+    const withUndef = formatDigest(rows);
+    expect(withUndef.text).toContain('📬 2 важных');
+    const withSmaller = formatDigest(rows, 1);
+    expect(withSmaller.text).toContain('📬 2 важных');
+  });
 });

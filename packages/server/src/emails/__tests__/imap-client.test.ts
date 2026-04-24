@@ -67,6 +67,35 @@ describe('fetchNewMessages', () => {
     __setImapFlowCtor(makeClientStub({ throwOn: 'connect' }) as any);
     await expect(fetchNewMessages(account, 0, 10)).rejects.toThrow(/connect/);
   });
+
+  it('caps with oldest-first slice so backlog > limit does not skip older UIDs', async () => {
+    // 100 UIDs waiting, limit=10. slice(-limit) would return [91..100] and the
+    // poller's maxUid advancement would orphan UIDs 1..90 forever. slice(0, limit)
+    // returns [1..10] — oldest first, so last_seen_uid stays contiguous with
+    // what we have actually fetched.
+    const searchReturns = Array.from({ length: 100 }, (_, i) => i + 1);
+    let fetchedCap: number[] | null = null;
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn(async () => searchReturns);
+      fetchAll = vi.fn(async (cap: number[]) => {
+        fetchedCap = cap;
+        return cap.map((uid) => ({
+          uid,
+          envelope: { from: [{ address: 'x@y' }], subject: 's' },
+          bodyParts: new Map([['1', Buffer.from('snip')]]),
+          internalDate: new Date(0),
+        }));
+      });
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    const msgs = await fetchNewMessages(account, 0, 10);
+    expect(fetchedCap).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(msgs.map((m) => m.uid)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  });
 });
 
 describe('fetchFullBody', () => {

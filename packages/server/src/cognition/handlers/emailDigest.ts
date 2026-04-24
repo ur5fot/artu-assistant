@@ -38,9 +38,12 @@ export function createEmailDigestHandler(deps: Deps): Handler {
     },
     async run(ctx) {
       try {
+        const totalPending = deps.store.countPendingUndelivered();
         const pending = deps.store.fetchPendingUndelivered(maxRows);
         if (pending.length === 0) return { skip: true, reason: 'no pending' };
-        const { text, includedIds } = formatDigest(pending);
+        // Pass the true backlog count so header and "…ещё N писем" stay
+        // honest when the store returned a capped slice.
+        const { text, includedIds } = formatDigest(pending, totalPending);
         // Only mark rows that actually appear in the digest text. The rest
         // (folded into the "…ещё N писем" tail) must surface in the next
         // run so they aren't silently dropped.

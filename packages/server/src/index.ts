@@ -295,11 +295,37 @@ await discoverTools(registry, {
   imapClient: imapClientForTool,
 });
 
-// Discord bot (optional — only starts if DISCORD_BOT_TOKEN is set)
-let discordBot: { stop(): Promise<void> } | null = null;
 // Email poller lifecycle handles (hoisted so SIGTERM can clean them up).
 let stopEmailPoller: (() => void) | null = null;
 let emailPollerAbort: AbortController | null = null;
+
+// Polling runs independently of Discord. email_pending feeds on-demand tools
+// (emails_list/emails_get) as well as the digest handler; gating it on the
+// Discord bot would leave those tools silently empty if Discord is off or
+// fails to start at boot.
+if (emailEnabled) {
+  emailPollerAbort = new AbortController();
+  const pollerAbort = emailPollerAbort;
+  stopEmailPoller = startEmailPoller({
+    accounts: imapAccounts,
+    store: emailStore,
+    fetcher: (acc, sinceUid, limit) => fetchNewMessages(acc, sinceUid, limit),
+    scorer: (msgs) =>
+      scoreBatch(msgs, {
+        piiProxy,
+        ollama: ollamaForRouter,
+        anthropic: client.anthropic,
+        signal: pollerAbort.signal,
+      }),
+    intervalMs: envInt(process.env.EMAIL_POLL_INTERVAL_MS, 300_000, 1_000),
+  });
+  console.log(`[emails] poller started for ${imapAccounts.length} account(s)`);
+} else {
+  console.log('[emails] disabled (EMAIL_ENABLED=false or IMAP_ACCOUNTS empty)');
+}
+
+// Discord bot (optional — only starts if DISCORD_BOT_TOKEN is set)
+let discordBot: { stop(): Promise<void> } | null = null;
 const discordToken = process.env.DISCORD_BOT_TOKEN;
 if (discordToken) {
   const rawIds = process.env.DISCORD_ALLOWED_USER_IDS || '';
@@ -355,22 +381,10 @@ if (discordToken) {
       }),
     );
 
+    // Digest handler stays gated on Discord — it publishes via the cognition
+    // bus and there is nobody else to consume the event today. Polling is
+    // hoisted above so email_pending keeps filling regardless.
     if (emailEnabled) {
-      emailPollerAbort = new AbortController();
-      const pollerAbort = emailPollerAbort;
-      stopEmailPoller = startEmailPoller({
-        accounts: imapAccounts,
-        store: emailStore,
-        fetcher: (acc, sinceUid, limit) => fetchNewMessages(acc, sinceUid, limit),
-        scorer: (msgs) =>
-          scoreBatch(msgs, {
-            piiProxy,
-            ollama: ollamaForRouter,
-            anthropic: client.anthropic,
-            signal: pollerAbort.signal,
-          }),
-        intervalMs: envInt(process.env.EMAIL_POLL_INTERVAL_MS, 300_000, 1_000),
-      });
       cognitionService.register(
         createEmailDigestHandler({
           store: emailStore,
@@ -380,9 +394,6 @@ if (discordToken) {
           quietStart: envInt(process.env.EMAIL_QUIET_HOUR_START, 22, 0, 23),
         }),
       );
-      console.log(`[emails] poller started for ${imapAccounts.length} account(s)`);
-    } else {
-      console.log('[emails] disabled (EMAIL_ENABLED=false or IMAP_ACCOUNTS empty)');
     }
   } catch (err) {
     console.error('[discord] bot failed to start:', err instanceof Error ? err.message : err);

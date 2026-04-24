@@ -84,15 +84,21 @@ export interface FormattedDigest {
   includedIds: number[];
 }
 
-export function formatDigest(rows: EmailPendingRow[]): FormattedDigest {
-  const header = `📬 ${rows.length} важных писем`;
+export function formatDigest(rows: EmailPendingRow[], totalPending?: number): FormattedDigest {
+  // `rows` is the fetched slice (may be capped by store limit), while
+  // `totalPending` is the full COUNT(*) of undelivered rows. When the backlog
+  // exceeds the slice, header and "…ещё N" must reflect the real backlog —
+  // otherwise a user with 80 pending sees "50 важных" and "…ещё X" computed
+  // only against the fetched 50.
+  const total = totalPending !== undefined && totalPending > rows.length ? totalPending : rows.length;
+  const header = `📬 ${total} важных писем`;
   const lines: string[] = [header, ''];
   let used = header.length + 2;
   const included: number[] = [];
 
   for (const r of rows) {
     const ln = line(r);
-    const remaining = rows.length - included.length - 1;
+    const remaining = total - included.length - 1;
     // Always reserve room for a "…ещё N писем" tail when more rows follow.
     // When this is the last row we still enforce the hard Discord limit.
     const reserve = remaining > 0 ? TAIL_BUDGET : 0;
@@ -102,9 +108,9 @@ export function formatDigest(rows: EmailPendingRow[]): FormattedDigest {
     included.push(r.id);
   }
 
-  if (included.length < rows.length) {
+  if (included.length < total) {
     lines.push('');
-    lines.push(`…ещё ${rows.length - included.length} писем`);
+    lines.push(`…ещё ${total - included.length} писем`);
   }
 
   return { text: lines.join('\n'), includedIds: included };
