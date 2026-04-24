@@ -69,6 +69,9 @@ export function createCognitionService(deps: Deps): CognitionService {
     },
     markPublished(runId, publishedAt) {
       store.markPublished(runId, publishedAt);
+      // Fire any handler-registered post-publish callback (e.g. emailDigest
+      // marking email_pending rows delivered only after the DM confirmed).
+      queue.firePublished(runId);
     },
   };
 }

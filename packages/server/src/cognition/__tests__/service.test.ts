@@ -55,4 +55,5 @@ describe('CognitionService', () => {
       .get(Number(id)) as { published_at: number };
     expect(row.published_at).toBe(9999);
   });
+
 });

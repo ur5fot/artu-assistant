@@ -40,8 +40,24 @@ import { runChatRequest } from './ai/router.js';
 import { createCognitionService } from './cognition/service.js';
 import { pulseHandler } from './cognition/handlers/pulse.js';
 import { createMorningBriefHandler } from './cognition/handlers/morningBrief.js';
+import { parseImapAccounts } from './emails/config.js';
+import { createEmailStore } from './emails/store.js';
+import { fetchNewMessages, fetchFullBody } from './emails/imap-client.js';
+import { scoreBatch } from './emails/scorer.js';
+import { startEmailPoller } from './emails/multi-account-poller.js';
+import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
+import { MORNING_FALLBACK_HOUR } from './cognition/handlers/emailDigest.helpers.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+
+function envInt(raw: string | undefined, fallback: number, min: number, max?: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  const i = Math.floor(n);
+  if (i < min) return fallback;
+  if (max !== undefined && i > max) return fallback;
+  return i;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -172,6 +188,28 @@ const reminderStore = createReminderStore({ db: getDb() });
 const reminderService = createReminderService({ store: reminderStore, bus: reminderBus });
 const stopScheduler = startScheduler({ store: reminderStore, db: getDb(), bus: reminderBus });
 
+const emailStore = createEmailStore({ db: getDb() });
+const imapAccounts = (() => {
+  try {
+    return parseImapAccounts(process.env.IMAP_ACCOUNTS);
+  } catch (err) {
+    console.error('[emails] IMAP_ACCOUNTS invalid:', err instanceof Error ? err.message : err);
+    return [];
+  }
+})();
+const emailEnabled = (process.env.EMAIL_ENABLED || 'true') !== 'false' && imapAccounts.length > 0;
+// When the feature is disabled, hand `null` to tool-emails so `emails_list` /
+// `emails_get` return a clear "not enabled" error instead of empty data or
+// references to stale accounts.
+const emailStoreForTool = emailEnabled ? emailStore : null;
+const imapClientForTool = emailEnabled
+  ? {
+      fetchNewMessages,
+      fetchFullBody,
+      getAccount: (id: string) => imapAccounts.find((a) => a.id === id) ?? null,
+    }
+  : null;
+
 const cognitionService = createCognitionService({
   db: getDb(),
   bus: reminderBus,
@@ -254,7 +292,38 @@ await discoverTools(registry, {
   piiProxy,
   memoryService,
   reminderStore,
+  emailStore: emailStoreForTool,
+  imapClient: imapClientForTool,
 });
+
+// Email poller lifecycle handles (hoisted so SIGTERM can clean them up).
+let stopEmailPoller: (() => void) | null = null;
+let emailPollerAbort: AbortController | null = null;
+
+// Polling runs independently of Discord. email_pending feeds on-demand tools
+// (emails_list/emails_get) as well as the digest handler; gating it on the
+// Discord bot would leave those tools silently empty if Discord is off or
+// fails to start at boot.
+if (emailEnabled) {
+  emailPollerAbort = new AbortController();
+  const pollerAbort = emailPollerAbort;
+  stopEmailPoller = startEmailPoller({
+    accounts: imapAccounts,
+    store: emailStore,
+    fetcher: (acc, sinceUid, limit) => fetchNewMessages(acc, sinceUid, limit),
+    scorer: (msgs) =>
+      scoreBatch(msgs, {
+        piiProxy,
+        ollama: ollamaForRouter,
+        anthropic: client.anthropic,
+        signal: pollerAbort.signal,
+      }),
+    intervalMs: envInt(process.env.EMAIL_POLL_INTERVAL_MS, 300_000, 1_000),
+  });
+  console.log(`[emails] poller started for ${imapAccounts.length} account(s)`);
+} else {
+  console.log('[emails] disabled (EMAIL_ENABLED=false or IMAP_ACCOUNTS empty)');
+}
 
 // Discord bot (optional — only starts if DISCORD_BOT_TOKEN is set)
 let discordBot: { stop(): Promise<void> } | null = null;
@@ -312,6 +381,26 @@ if (discordToken) {
         webSearchTool,
       }),
     );
+
+    // Digest handler stays gated on Discord — it publishes via the cognition
+    // bus and there is nobody else to consume the event today. Polling is
+    // hoisted above so email_pending keeps filling regardless.
+    if (emailEnabled) {
+      cognitionService.register(
+        createEmailDigestHandler({
+          store: emailStore,
+          tz: 'Europe/Kyiv',
+          threshold: envInt(process.env.EMAIL_DIGEST_THRESHOLD, 3, 1),
+          cooldownMs: envInt(process.env.EMAIL_DIGEST_COOLDOWN_MS, 7200_000, 0),
+          // quietStart must exceed MORNING_FALLBACK_HOUR — otherwise the
+          // evening-quiet window overlaps the morning fallback release and the
+          // digest is permanently gated (inQuietHours and morningBriefPublishedToday
+          // both trip on the same hour). quietStart=0 would also silently disable
+          // the digest since `hour >= 0` is always true.
+          quietStart: envInt(process.env.EMAIL_QUIET_HOUR_START, 22, MORNING_FALLBACK_HOUR + 1, 23),
+        }),
+      );
+    }
   } catch (err) {
     console.error('[discord] bot failed to start:', err instanceof Error ? err.message : err);
     discordBot = null;
@@ -361,6 +450,8 @@ process.on('SIGTERM', async () => {
   console.log('Worker received SIGTERM, shutting down...');
   setTimeout(() => process.exit(1), 5000);
   stopScheduler();
+  stopEmailPoller?.();
+  emailPollerAbort?.abort();
   await cognitionService.stop().catch(() => {});
   await discordBot?.stop().catch(() => {});
   server.close(() => {

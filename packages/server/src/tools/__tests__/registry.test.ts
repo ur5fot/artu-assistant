@@ -98,6 +98,46 @@ describe('discoverTools', () => {
     expect(tools.some((t) => t.name === 'web_search')).toBe(true);
   });
 
+  it('discovers emails_list and emails_get when deps are provided', async () => {
+    const thisDir = path.dirname(fileURLToPath(import.meta.url));
+    const packagesDir = path.resolve(thisDir, '..', '..', '..', '..');
+    const hasEmails = fs.existsSync(path.join(packagesDir, 'tool-emails'));
+    if (!hasEmails) return; // skip if not in full repo context
+
+    const registry = createRegistry();
+    await discoverTools(registry, {
+      runLoop: vi.fn() as any,
+      client: {} as any,
+      registry,
+      piiProxy: {
+        async anonymize(t: string) { return { text: t, entities: [] }; },
+        async deanonymize(t: string) { return t; },
+      } as any,
+      memoryService: null,
+      reminderStore: null,
+      emailStore: {
+        fetchInWindow: () => [],
+        findByPendingId: () => null,
+        getLastSeenUid: () => 0,
+        updateLastSeenUid: () => {},
+        setAccountError: () => {},
+        getAccountError: () => null,
+        insertPending: () => {},
+        countPendingUndelivered: () => 0,
+        fetchPendingUndelivered: () => [],
+        markDelivered: () => {},
+      } as any,
+      imapClient: {
+        fetchNewMessages: async () => [],
+        fetchFullBody: async () => { throw new Error(); },
+        getAccount: () => null,
+      },
+    }, packagesDir);
+
+    expect(registry.get('emails_list')).toBeTruthy();
+    expect(registry.get('emails_get')).toBeTruthy();
+  });
+
   it('returns empty registry when no tool packages exist', async () => {
     // Pass a directory with no tool-* packages
     const registry = await discoverTools(undefined, undefined, '/tmp/nonexistent-dir-r2-test');
@@ -216,6 +256,8 @@ describe('discoverTools with factory support', () => {
       piiProxy: {} as any,
       memoryService: null,
       reminderStore: null,
+      emailStore: null,
+      imapClient: null,
     };
     await discoverTools(registry, deps, tmpDir);
 

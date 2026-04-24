@@ -159,6 +159,39 @@ describe('JobQueue', () => {
     await q.stop();
   });
 
+  it('firePublished invokes the run-local onPublished callback exactly once', async () => {
+    let publishedFired = 0;
+    const handler: Handler = {
+      name: 'h',
+      trigger: () => true,
+      run: async () => ({
+        publish: true,
+        content: 'x',
+        onPublished: () => { publishedFired += 1; },
+      }),
+    };
+    const { store, registry, bus, events } = setup([handler]);
+    const q = createJobQueue({ registry, store, bus });
+    q.start();
+    q.enqueue({ handlerName: 'h' });
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    const ev = events.find((e) => e.type === 'cognition_publish');
+    expect(ev).toBeDefined();
+    // Before firePublished: side-effect must not have run. Pre-firing the
+    // callback is what protects downstream DB state (e.g. email_pending)
+    // from being marked on a run whose DM actually failed.
+    expect(publishedFired).toBe(0);
+    q.firePublished(ev.runId);
+    await new Promise((r) => setImmediate(r));
+    expect(publishedFired).toBe(1);
+    // Idempotent: subsequent fires are no-ops (the callback was cleared).
+    q.firePublished(ev.runId);
+    await new Promise((r) => setImmediate(r));
+    expect(publishedFired).toBe(1);
+    await q.stop();
+  });
+
   it('stop awaits in-flight pump and skips recording after stop', async () => {
     let release!: () => void;
     const slow: Handler = {

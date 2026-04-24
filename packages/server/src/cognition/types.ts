@@ -1,7 +1,12 @@
 import type Database from 'better-sqlite3';
 
+// `onPublished` fires after the publish channel (Discord DM today) confirms a
+// successful send — use it for state transitions that must not happen when the
+// push fails silently (e.g., marking email_pending rows delivered only after
+// the user actually received the digest, so a Discord outage does not drop
+// those rows from the next digest run).
 export type HandlerResult =
-  | { publish: true; content: string }
+  | { publish: true; content: string; onPublished?: () => void | Promise<void> }
   | { skip: true; reason: string }
   | { error: true; message: string };
 
