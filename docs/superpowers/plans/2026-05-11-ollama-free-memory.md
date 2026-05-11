@@ -1482,7 +1482,7 @@ Add `pickEmbeddingProvider(env)` and `pickTextProvider(env, ollama, anthropic)` 
 **Files:**
 - Modify: `packages/server/src/index.ts`
 
-- [ ] **Step 1: Add imports**
+- [x] **Step 1: Add imports**
 
 Edit `packages/server/src/index.ts`. Update the existing import (line ~33):
 
@@ -1492,7 +1492,7 @@ import { createVoyageEmbeddingsClient } from './memory/voyageEmbeddings.js';
 import { createOllamaTextProvider, createClaudeTextProvider, type TextProvider } from './memory/textProvider.js';
 ```
 
-- [ ] **Step 2: Add `pickEmbeddingProvider` factory**
+- [x] **Step 2: Add `pickEmbeddingProvider` factory**
 
 After the imports and before the bootstrap section (around line 140), add:
 
@@ -1559,7 +1559,7 @@ function pickTextProvider(opts: {
 
 You'll need `import Anthropic from '@anthropic-ai/sdk';` for the type. If `createClaudeClient()` returns the typed Anthropic instance, just use `ReturnType<typeof createClaudeClient>` instead.
 
-- [ ] **Step 3: Replace the memory bootstrap block**
+- [x] **Step 3: Replace the memory bootstrap block**
 
 Find the block (around line 232-249) that starts with `let memoryService: MemoryService | null = null;` and replace through `console.log('[memory] disabled');`:
 
@@ -1621,7 +1621,7 @@ if (memoryEnabled) {
 }
 ```
 
-- [ ] **Step 4: Update `routerNeedsOllama` / `memoryNeedsOllama` gating**
+- [x] **Step 4: Update `routerNeedsOllama` / `memoryNeedsOllama` gating**
 
 The existing logic (~line 145-180) was:
 
@@ -1646,12 +1646,12 @@ Also update the error message at line 168 to mention the new escape hatch:
         `To skip Ollama entirely, set LOCAL_LLM_MODE=disabled, EMBEDDING_PROVIDER=voyage, MEMORY_TEXT_PROVIDER=claude.`,
 ```
 
-- [ ] **Step 5: Run all server tests**
+- [x] **Step 5: Run all server tests**
 
 Run: `npm test`
 Expected: PASS. Index.ts may not have its own tests but other modules that import from index will fail-compile if types drifted — TypeScript checks come through tests.
 
-- [ ] **Step 6: Manual smoke check — Ollama path still works**
+- [x] **Step 6: Manual smoke check — Ollama path still works** (skipped - manual test, not automatable)
 
 ```bash
 # In a separate terminal, ensure Ollama is running and mxbai-embed-large is pulled:
@@ -1664,7 +1664,7 @@ In the server log, look for: `[memory] enabled (embeddings=ollama:mxbai-embed-la
 
 Ctrl-C after confirming.
 
-- [ ] **Step 7: Manual smoke check — Voyage path**
+- [x] **Step 7: Manual smoke check — Voyage path** (skipped - manual test, not automatable)
 
 Get a Voyage API key from https://www.voyageai.com/. Set env and reboot:
 
@@ -1684,7 +1684,7 @@ Send a chat turn through Discord (or whichever channel is active). Check `select
 
 Restore the original db if needed: `mv packages/server/db.sqlite3.bak packages/server/db.sqlite3`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/server/src/index.ts

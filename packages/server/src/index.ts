@@ -30,10 +30,12 @@ import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { createRegistry, discoverTools } from './tools/registry.js';
 import { initDb, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, closeDb, getDb, saveMessage } from './db.js';
-import { createOllamaEmbeddingsClient } from './memory/embeddings.js';
+import { createOllamaEmbeddingsClient, type EmbeddingsClient } from './memory/embeddings.js';
+import { createVoyageEmbeddingsClient } from './memory/voyageEmbeddings.js';
 import { ensureEmbedModelMatches } from './memory/migration.js';
-import { createOllamaTextProvider } from './memory/textProvider.js';
+import { createOllamaTextProvider, createClaudeTextProvider, type TextProvider } from './memory/textProvider.js';
 import { createMemoryService, type MemoryService } from './memory/service.js';
+import type Anthropic from '@anthropic-ai/sdk';
 import { errorHandler } from './errors.js';
 import { createPiiProxy, createPassthroughProxy } from './pii/proxy.js';
 import { PiiVault } from './pii/vault.js';
@@ -145,7 +147,13 @@ const localLlmMode = (process.env.LOCAL_LLM_MODE || 'enabled') as 'enabled' | 'd
 const memoryEnabled = (process.env.MEMORY_ENABLED ?? 'true') !== 'false';
 
 const routerNeedsOllama = localLlmMode !== 'disabled';
-const memoryNeedsOllama = memoryEnabled;
+// Memory may run entirely via remote APIs (Voyage embeddings + Claude text
+// extraction). In that case it no longer needs Ollama, so the loopback-PII
+// guard below should not gate startup.
+const memoryNeedsOllama =
+  memoryEnabled &&
+  (process.env.EMBEDDING_PROVIDER ?? 'auto') !== 'voyage' &&
+  (process.env.MEMORY_TEXT_PROVIDER ?? 'auto') !== 'claude';
 
 // Router intentionally skips PII anonymization for the Ollama path on the
 // assumption that Ollama runs on the user's machine. If OLLAMA_URL points at a
@@ -167,7 +175,7 @@ if (routerNeedsOllama || memoryNeedsOllama) {
       throw new Error(
         `OLLAMA_URL=${rawUrl} is not loopback. The Ollama path sends unmasked PII. ` +
           `Set OLLAMA_ALLOW_REMOTE=1 to acknowledge this risk. ` +
-          `To skip Ollama entirely, set both LOCAL_LLM_MODE=disabled and MEMORY_ENABLED=false.`,
+          `To skip Ollama entirely, set LOCAL_LLM_MODE=disabled, EMBEDDING_PROVIDER=voyage, MEMORY_TEXT_PROVIDER=claude.`,
       );
     }
   } catch (err) {
@@ -231,32 +239,134 @@ const planReviewService = createPlanReviewService({ pending: pendingPlanReviews 
 const pendingMemoryConfirms: PendingMemoryConfirms = new Map();
 const memoryConfirmService = createMemoryConfirmService({ pending: pendingMemoryConfirms });
 
-let memoryService: MemoryService | null = null;
-if (memoryEnabled && ollamaForMemory) {
-  const embeddings = createOllamaEmbeddingsClient({
-    url: process.env.OLLAMA_URL || 'http://localhost:11434',
-    model: process.env.MEMORY_EMBED_MODEL || 'mxbai-embed-large',
-  });
+type EmbeddingProviderMode = 'auto' | 'ollama' | 'voyage';
 
-  let migrationOk = false;
-  try {
-    await ensureEmbedModelMatches(getDb(), embeddings);
-    migrationOk = true;
-  } catch (err) {
-    console.error('[memory] migration failed, disabling memory:', err instanceof Error ? err.message : err);
+function pickEmbeddingProvider(opts: {
+  mode: EmbeddingProviderMode;
+  ollama: OllamaClient | null;
+  ollamaUrl: string;
+  ollamaModel: string;
+  voyageKey: string | undefined;
+  voyageModel: string;
+}): EmbeddingsClient | null {
+  const { mode, ollama, ollamaUrl, ollamaModel, voyageKey, voyageModel } = opts;
+
+  if (mode === 'ollama') {
+    if (!ollama) {
+      throw new Error('EMBEDDING_PROVIDER=ollama requires an Ollama client (memory must be enabled)');
+    }
+    return createOllamaEmbeddingsClient({ url: ollamaUrl, model: ollamaModel });
   }
 
-  if (migrationOk) {
-    const parsedMaxTokens = Number(process.env.MEMORY_MAX_CONTEXT_TOKENS);
-    const maxContextTokens = Number.isFinite(parsedMaxTokens) && parsedMaxTokens > 0 ? parsedMaxTokens : 2000;
-    memoryService = createMemoryService({
-      db: getDb(),
-      embeddings,
-      textProvider: createOllamaTextProvider(ollamaForMemory),
-      extractorModel: process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b',
-      maxContextTokens,
+  if (mode === 'voyage') {
+    if (!voyageKey) throw new Error('EMBEDDING_PROVIDER=voyage requires VOYAGE_API_KEY');
+    return createVoyageEmbeddingsClient({ apiKey: voyageKey, model: voyageModel });
+  }
+
+  // auto: prefer local Ollama if available, otherwise fall back to Voyage.
+  if (ollama) {
+    return createOllamaEmbeddingsClient({ url: ollamaUrl, model: ollamaModel });
+  }
+  if (voyageKey) {
+    return createVoyageEmbeddingsClient({ apiKey: voyageKey, model: voyageModel });
+  }
+  return null;
+}
+
+type TextProviderMode = 'auto' | 'ollama' | 'claude';
+
+function pickTextProvider(opts: {
+  mode: TextProviderMode;
+  ollama: OllamaClient | null;
+  anthropic: Anthropic;
+  localLlmMode: 'enabled' | 'disabled';
+}): TextProvider {
+  const { mode, ollama, anthropic, localLlmMode } = opts;
+
+  if (mode === 'ollama') {
+    if (!ollama || localLlmMode === 'disabled') {
+      throw new Error('MEMORY_TEXT_PROVIDER=ollama requires ollama client and LOCAL_LLM_MODE!=disabled');
+    }
+    return createOllamaTextProvider(ollama);
+  }
+
+  if (mode === 'claude') {
+    return createClaudeTextProvider(anthropic);
+  }
+
+  // auto: prefer local Ollama if both available, otherwise Claude.
+  if (ollama && localLlmMode !== 'disabled') {
+    return createOllamaTextProvider(ollama);
+  }
+  return createClaudeTextProvider(anthropic);
+}
+
+let memoryService: MemoryService | null = null;
+if (memoryEnabled) {
+  const embeddingMode = (process.env.EMBEDDING_PROVIDER ?? 'auto') as EmbeddingProviderMode;
+  const textMode = (process.env.MEMORY_TEXT_PROVIDER ?? 'auto') as TextProviderMode;
+
+  let embeddings: EmbeddingsClient | null = null;
+  try {
+    embeddings = pickEmbeddingProvider({
+      mode: embeddingMode,
+      ollama: ollamaForMemory,
+      ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
+      ollamaModel: process.env.MEMORY_EMBED_MODEL || 'mxbai-embed-large',
+      voyageKey: process.env.VOYAGE_API_KEY,
+      voyageModel: process.env.VOYAGE_MODEL || 'voyage-3',
     });
-    console.log('[memory] enabled with', embeddings.identity);
+  } catch (err) {
+    console.error('[memory] embedding provider setup failed:', err instanceof Error ? err.message : err);
+  }
+
+  if (!embeddings) {
+    console.log('[memory] disabled — no embedding provider configured (set OLLAMA_URL or VOYAGE_API_KEY)');
+  } else {
+    let migrationOk = false;
+    try {
+      await ensureEmbedModelMatches(getDb(), embeddings);
+      migrationOk = true;
+    } catch (err) {
+      console.error('[memory] migration failed, disabling memory:', err instanceof Error ? err.message : err);
+    }
+
+    if (migrationOk) {
+      let textProvider: TextProvider | null = null;
+      try {
+        textProvider = pickTextProvider({
+          mode: textMode,
+          ollama: ollamaForMemory,
+          anthropic: client.anthropic,
+          localLlmMode,
+        });
+      } catch (err) {
+        console.error('[memory] text provider setup failed:', err instanceof Error ? err.message : err);
+      }
+
+      if (textProvider) {
+        const usingOllamaText =
+          textMode === 'ollama' || (textMode === 'auto' && !!ollamaForMemory && localLlmMode !== 'disabled');
+        const extractorModel = usingOllamaText
+          ? process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b'
+          : process.env.MEMORY_EXTRACT_MODEL_CLAUDE || 'claude-haiku-4-5-20251001';
+
+        const parsedMaxTokens = Number(process.env.MEMORY_MAX_CONTEXT_TOKENS);
+        const maxContextTokens =
+          Number.isFinite(parsedMaxTokens) && parsedMaxTokens > 0 ? parsedMaxTokens : 2000;
+
+        memoryService = createMemoryService({
+          db: getDb(),
+          embeddings,
+          textProvider,
+          extractorModel,
+          maxContextTokens,
+        });
+        console.log(
+          `[memory] enabled (embeddings=${embeddings.identity}, text=${usingOllamaText ? 'ollama' : 'claude'}, model=${extractorModel})`,
+        );
+      }
+    }
   }
 } else {
   console.log('[memory] disabled');
