@@ -65,6 +65,13 @@ export function initDb(dbPath?: string): void {
       ON memory_facts(key) WHERE superseded_by IS NULL
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memory_metadata (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
   if (memoryEnabled) {
     db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec_entries USING vec0(

@@ -31,6 +31,7 @@ import { runToolLoop } from './ai/tool-loop.js';
 import { createRegistry, discoverTools } from './tools/registry.js';
 import { initDb, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, closeDb, getDb, saveMessage } from './db.js';
 import { createOllamaEmbeddingsClient } from './memory/embeddings.js';
+import { ensureEmbedModelMatches } from './memory/migration.js';
 import { createMemoryService, type MemoryService } from './memory/service.js';
 import { errorHandler } from './errors.js';
 import { createPiiProxy, createPassthroughProxy } from './pii/proxy.js';
@@ -235,16 +236,27 @@ if (memoryEnabled && ollamaForMemory) {
     url: process.env.OLLAMA_URL || 'http://localhost:11434',
     model: process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text',
   });
-  const parsedMaxTokens = Number(process.env.MEMORY_MAX_CONTEXT_TOKENS);
-  const maxContextTokens = Number.isFinite(parsedMaxTokens) && parsedMaxTokens > 0 ? parsedMaxTokens : 2000;
-  memoryService = createMemoryService({
-    db: getDb(),
-    embeddings,
-    ollama: ollamaForMemory,
-    extractorModel: process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b',
-    maxContextTokens,
-  });
-  console.log('[memory] enabled with model', process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text');
+
+  let migrationOk = false;
+  try {
+    await ensureEmbedModelMatches(getDb(), embeddings);
+    migrationOk = true;
+  } catch (err) {
+    console.error('[memory] migration failed, disabling memory:', err instanceof Error ? err.message : err);
+  }
+
+  if (migrationOk) {
+    const parsedMaxTokens = Number(process.env.MEMORY_MAX_CONTEXT_TOKENS);
+    const maxContextTokens = Number.isFinite(parsedMaxTokens) && parsedMaxTokens > 0 ? parsedMaxTokens : 2000;
+    memoryService = createMemoryService({
+      db: getDb(),
+      embeddings,
+      ollama: ollamaForMemory,
+      extractorModel: process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b',
+      maxContextTokens,
+    });
+    console.log('[memory] enabled with', embeddings.identity);
+  }
 } else {
   console.log('[memory] disabled');
 }

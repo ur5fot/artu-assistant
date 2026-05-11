@@ -333,7 +333,7 @@ Add a key/value `memory_metadata` table. Add `memory/migration.ts` with `ensureE
 - Create: `packages/server/src/memory/__tests__/migration.test.ts`
 - Modify: `packages/server/src/memory/service.ts` (call `ensureEmbedModelMatches` in init)
 
-- [ ] **Step 1: Add `memory_metadata` table to `db.ts`**
+- [x] **Step 1: Add `memory_metadata` table to `db.ts`**
 
 In `packages/server/src/db.ts`, after the existing `memory_facts` index creation (around line 67), add:
 
@@ -346,7 +346,7 @@ In `packages/server/src/db.ts`, after the existing `memory_facts` index creation
   `);
 ```
 
-- [ ] **Step 2: Write failing migration test (first-run empty DB)**
+- [x] **Step 2: Write failing migration test (first-run empty DB)**
 
 Create `packages/server/src/memory/__tests__/migration.test.ts`:
 
@@ -421,12 +421,12 @@ describe('ensureEmbedModelMatches', () => {
 });
 ```
 
-- [ ] **Step 3: Run migration test, expect fail (file does not exist)**
+- [x] **Step 3: Run migration test, expect fail (file does not exist)**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/migration.test.ts`
 Expected: FAIL — `Cannot find module '../migration.js'`.
 
-- [ ] **Step 4: Create `migration.ts` with `ensureEmbedModelMatches`**
+- [x] **Step 4: Create `migration.ts` with `ensureEmbedModelMatches`**
 
 Create `packages/server/src/memory/migration.ts`:
 
@@ -545,12 +545,12 @@ export async function ensureEmbedModelMatches(
 }
 ```
 
-- [ ] **Step 5: Run migration tests, expect pass (2 cases)**
+- [x] **Step 5: Run migration tests, expect pass (2 cases)**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/migration.test.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Add identity-mismatch test (triggers wipe + reindex)**
+- [x] **Step 6: Add identity-mismatch test (triggers wipe + reindex)**
 
 Append to `migration.test.ts`:
 
@@ -607,12 +607,12 @@ Append to `migration.test.ts`:
   });
 ```
 
-- [ ] **Step 7: Run all migration tests, expect pass (4 tests)**
+- [x] **Step 7: Run all migration tests, expect pass (4 tests)**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/migration.test.ts`
 Expected: PASS (4 tests).
 
-- [ ] **Step 8: Call migration from `index.ts` before `createMemoryService`**
+- [x] **Step 8: Call migration from `index.ts` before `createMemoryService`**
 
 Migration must run before the service is constructed (so the schema is correct when service methods start firing). Easiest: call it synchronously in the existing bootstrap.
 
@@ -710,12 +710,12 @@ if (memoryEnabled && ollamaForMemory) {
 
 This requires `index.ts` to support top-level `await`. The current file is an ES module so top-level await should work without changes. If TypeScript complains about `await` outside an async context, verify `tsconfig.base.json` has `"module": "esnext"` or similar; if not, wrap the whole bootstrap in an `async function main() { ... } main();` IIFE.
 
-- [ ] **Step 9: Run service tests + migration tests**
+- [x] **Step 9: Run service tests + migration tests**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/`
 Expected: PASS. `service.test.ts` should be unchanged — `createMemoryService` is still synchronous; migration is the caller's responsibility now.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add packages/server/src/db.ts \
