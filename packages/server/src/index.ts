@@ -32,6 +32,7 @@ import { createRegistry, discoverTools } from './tools/registry.js';
 import { initDb, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, closeDb, getDb, saveMessage } from './db.js';
 import { createOllamaEmbeddingsClient } from './memory/embeddings.js';
 import { ensureEmbedModelMatches } from './memory/migration.js';
+import { createOllamaTextProvider } from './memory/textProvider.js';
 import { createMemoryService, type MemoryService } from './memory/service.js';
 import { errorHandler } from './errors.js';
 import { createPiiProxy, createPassthroughProxy } from './pii/proxy.js';
@@ -251,7 +252,7 @@ if (memoryEnabled && ollamaForMemory) {
     memoryService = createMemoryService({
       db: getDb(),
       embeddings,
-      ollama: ollamaForMemory,
+      textProvider: createOllamaTextProvider(ollamaForMemory),
       extractorModel: process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b',
       maxContextTokens,
     });

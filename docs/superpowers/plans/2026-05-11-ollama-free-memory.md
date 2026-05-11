@@ -921,7 +921,7 @@ Change the `extractFacts` signature from `OllamaClient` → `TextProvider`. Upda
 - Modify: `packages/server/src/memory/service.ts:2,115-121,191`
 - Modify: `packages/server/src/memory/__tests__/extractor.test.ts`
 
-- [ ] **Step 1: Update `extractor.ts` signature**
+- [x] **Step 1: Update `extractor.ts` signature**
 
 Edit `packages/server/src/memory/extractor.ts`.
 
@@ -959,7 +959,7 @@ And the call inside the function (around line 117):
   }
 ```
 
-- [ ] **Step 2: Update `service.ts` deps**
+- [x] **Step 2: Update `service.ts` deps**
 
 Edit `packages/server/src/memory/service.ts`.
 
@@ -997,7 +997,7 @@ Replace the `extractFacts(ollama, ...)` call (around line 191):
         });
 ```
 
-- [ ] **Step 3: Update `index.ts` to pass a `TextProvider` instead of `OllamaClient`**
+- [x] **Step 3: Update `index.ts` to pass a `TextProvider` instead of `OllamaClient`**
 
 Edit `packages/server/src/index.ts`. Add to imports (~line 34):
 
@@ -1017,7 +1017,7 @@ Replace the `createMemoryService` call (~line 240):
   });
 ```
 
-- [ ] **Step 4: Update `extractor.test.ts` mocks**
+- [x] **Step 4: Update `extractor.test.ts` mocks**
 
 Open `packages/server/src/memory/__tests__/extractor.test.ts`. Find every place that constructs an `OllamaClient` mock for `extractFacts(...)`. Replace with:
 
@@ -1029,7 +1029,7 @@ function makeTextProvider(response: string) {
 
 Replace each `extractFacts(ollamaMock, ...)` with `extractFacts(makeTextProvider('...'), ...)` (or pass the existing mock that already has matching `.chat()` shape).
 
-- [ ] **Step 5: Update `service.test.ts` mocks**
+- [x] **Step 5: Update `service.test.ts` mocks**
 
 Open `packages/server/src/memory/__tests__/service.test.ts`. Find places that build `ollama: { chat: ... }` and pass into `createMemoryService`. Rename to `textProvider:` and ensure shape matches:
 
@@ -1037,17 +1037,17 @@ Open `packages/server/src/memory/__tests__/service.test.ts`. Find places that bu
 textProvider: { chat: vi.fn().mockResolvedValue({ text: '[]' }) }
 ```
 
-- [ ] **Step 6: Run memory tests**
+- [x] **Step 6: Run memory tests**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/`
 Expected: PASS.
 
-- [ ] **Step 7: Run full project tests**
+- [x] **Step 7: Run full project tests**
 
 Run: `npm test`
 Expected: PASS. No regressions.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/server/src/memory/extractor.ts \

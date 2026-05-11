@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { OllamaClient } from '../ai/ollama.js';
+import type { TextProvider } from './textProvider.js';
 import type { EmbeddingsClient } from './embeddings.js';
 import {
   insertEntry,
@@ -115,7 +115,7 @@ export interface ForgetResult {
 interface MemoryServiceDeps {
   db: Database.Database;
   embeddings: EmbeddingsClient;
-  ollama: OllamaClient;
+  textProvider: TextProvider;
   extractorModel: string;
   maxContextTokens?: number;
 }
@@ -139,7 +139,7 @@ function sanitizeForMemoryBlock(text: string): string {
 }
 
 export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
-  const { db, embeddings, ollama } = deps;
+  const { db, embeddings, textProvider } = deps;
   // ~2 chars per token is conservative for Cyrillic on Claude/Ollama tokenizers
   // (a 4x factor that holds for English ASCII would blow the budget for Ukrainian).
   const contextBudget = (deps.maxContextTokens ?? 2000) * 2;
@@ -197,7 +197,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
 
       let facts: Array<{ key: string; value: string; importance: number }> = [];
       try {
-        facts = await extractFacts(ollama, {
+        facts = await extractFacts(textProvider, {
           userMessage,
           assistantMessage,
           model: deps.extractorModel,
