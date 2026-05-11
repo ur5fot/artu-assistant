@@ -37,7 +37,7 @@
 
 ---
 
-## Task 1: Extend `EmbeddingsClient` interface
+### Task 1: Extend `EmbeddingsClient` interface
 
 Add `dimension`, `identity`, `embedDocument`, `embedQuery` to the interface. Rename `createEmbeddingsClient` → `createOllamaEmbeddingsClient`. Keep dimension=768 for now (no schema change yet). All call sites in `service.ts` switch to `embedDocument`/`embedQuery`. Tests updated.
 
@@ -323,7 +323,7 @@ git commit -m "refactor(memory): extend EmbeddingsClient with dimension/identity
 
 ---
 
-## Task 2: `memory_metadata` table + migration scaffolding
+### Task 2: `memory_metadata` table + migration scaffolding
 
 Add a key/value `memory_metadata` table. Add `memory/migration.ts` with `ensureEmbedModelMatches(db, embeddings)` that records identity on first run and performs wipe + reindex on identity mismatch. Wire it into `createMemoryService`. No dim change yet — on first run with existing 768-dim data, identity becomes `ollama:nomic-embed-text` and no wipe happens.
 
@@ -728,7 +728,7 @@ git commit -m "feat(memory): add migration scaffolding with wipe+reindex on iden
 
 ---
 
-## Task 3: `TextProvider` interface + Ollama and Claude wraps
+### Task 3: `TextProvider` interface + Ollama and Claude wraps
 
 Create the `TextProvider` abstraction. `extractFacts` is ported in Task 4.
 
@@ -912,7 +912,7 @@ git commit -m "feat(memory): add TextProvider abstraction with Ollama and Claude
 
 ---
 
-## Task 4: Port `extractFacts` to `TextProvider`
+### Task 4: Port `extractFacts` to `TextProvider`
 
 Change the `extractFacts` signature from `OllamaClient` → `TextProvider`. Update `service.ts` deps. Existing prompt and parsing logic stays intact.
 
@@ -1060,7 +1060,7 @@ git commit -m "refactor(memory): port extractFacts to TextProvider abstraction"
 
 ---
 
-## Task 5: Voyage embeddings client
+### Task 5: Voyage embeddings client
 
 Add Voyage HTTP client with `embedDocument`/`embedQuery` (asymmetric `input_type`), circuit breaker, 429 retry. Not wired into bootstrap yet.
 
@@ -1366,7 +1366,7 @@ git commit -m "feat(memory): add Voyage embeddings client with document/query sp
 
 ---
 
-## Task 6: Bump standard to 1024 dim (atomic with migration)
+### Task 6: Bump standard to 1024 dim (atomic with migration)
 
 Change schema `FLOAT[768]` → `FLOAT[1024]`, bump `EXPECTED_EMBED_DIM` to 1024, update default `MEMORY_EMBED_MODEL` to `mxbai-embed-large`. The migration code from Task 2 detects the identity change (`ollama:nomic-embed-text` → `ollama:mxbai-embed-large`) and runs wipe + reindex automatically.
 
@@ -1475,7 +1475,7 @@ git commit -m "feat(memory): bump embedding dim standard to 1024 (mxbai-embed-la
 
 ---
 
-## Task 7: Bootstrap provider selection in `index.ts`
+### Task 7: Bootstrap provider selection in `index.ts`
 
 Add `pickEmbeddingProvider(env)` and `pickTextProvider(env, ollama, anthropic)` factories. Wire results into `createMemoryService`. Add env validation that fails loudly when `EMBEDDING_PROVIDER=voyage` and `VOYAGE_API_KEY` is missing.
 
@@ -1693,7 +1693,7 @@ git commit -m "feat(memory): bootstrap Voyage/Claude provider selection via env"
 
 ---
 
-## Task 8: Documentation
+### Task 8: Documentation
 
 Add user-facing docs for the new env vars.
 
