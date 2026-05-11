@@ -145,11 +145,20 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
   const contextBudget = (deps.maxContextTokens ?? 2000) * 2;
   let indexQueue: Promise<void> = Promise.resolve();
 
-  async function safeEmbed(text: string, signal?: AbortSignal): Promise<number[] | null> {
+  async function safeEmbedDocument(text: string, signal?: AbortSignal): Promise<number[] | null> {
     try {
-      return await embeddings.embed(text, signal);
+      return await embeddings.embedDocument(text, signal);
     } catch (err) {
-      console.warn('[memory] embed failed:', err instanceof Error ? err.message : err);
+      console.warn('[memory] embedDocument failed:', err instanceof Error ? err.message : err);
+      return null;
+    }
+  }
+
+  async function safeEmbedQuery(text: string, signal?: AbortSignal): Promise<number[] | null> {
+    try {
+      return await embeddings.embedQuery(text, signal);
+    } catch (err) {
+      console.warn('[memory] embedQuery failed:', err instanceof Error ? err.message : err);
       return null;
     }
   }
@@ -159,7 +168,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
     content: string,
     createdAt: number,
   ): Promise<void> {
-    const vec = await safeEmbed(content);
+    const vec = await safeEmbedDocument(content);
     if (!vec) return;
     try {
       insertEntry(db, { kind, sourceId: null, content, createdAt, embedding: vec });
@@ -201,7 +210,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
         const normalizedValue = fact.value.trim().replace(/\s+/g, ' ');
         if (!normalizedValue) continue;
         const factText = `${fact.key}: ${normalizedValue}`;
-        const vec = await safeEmbed(factText);
+        const vec = await safeEmbedDocument(factText);
         if (!vec) continue;
         try {
           // With Discord burst coalescing, `userMessageId` is the id of the
@@ -235,7 +244,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
 
     async search(params) {
       const { query, kind = 'all', limit = 10 } = params;
-      const vec = await safeEmbed(query);
+      const vec = await safeEmbedQuery(query);
       if (!vec) return [];
 
       const hits = vectorSearch(db, { embedding: vec, limit, kind });
@@ -265,7 +274,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       const importance = params.importance ?? 1;
       const createdAt = params.timestamp ?? Date.now();
       const factText = `${key}: ${value}`;
-      const vec = await safeEmbed(factText);
+      const vec = await safeEmbedDocument(factText);
       if (!vec) return null;
       try {
         const id = insertOrSupersedeFact(db, {
@@ -308,7 +317,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
         };
       }
 
-      const vec = await safeEmbed(query);
+      const vec = await safeEmbedQuery(query);
       if (!vec) return { forgotten: [], candidates: [] };
       const hits = vectorSearch(db, { embedding: vec, limit: 5, kind: 'fact' });
       const good = hits.filter((h) => h.score >= 0.6);
@@ -348,7 +357,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       }
       if (!normalizedValue) return { error: 'Порожнє нове значення', key };
       const factText = `${key}: ${normalizedValue}`;
-      const vec = await safeEmbed(factText);
+      const vec = await safeEmbedDocument(factText);
       if (!vec) return { error: 'Не вдалося отримати embedding', key };
       try {
         insertOrSupersedeFact(db, {
@@ -411,7 +420,7 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
 
     async buildContextPrefix(userMessage, signal) {
       if (signal?.aborted) return EMPTY_PREFIX_RESULT;
-      const vec = await safeEmbed(userMessage, signal);
+      const vec = await safeEmbedQuery(userMessage, signal);
       if (!vec || signal?.aborted) return EMPTY_PREFIX_RESULT;
 
       const now = Date.now();

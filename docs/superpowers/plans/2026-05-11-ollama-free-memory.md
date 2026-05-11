@@ -48,12 +48,12 @@ Add `dimension`, `identity`, `embedDocument`, `embedQuery` to the interface. Ren
 - Modify: `packages/server/src/memory/__tests__/embeddings.test.ts`
 - Modify: `packages/server/src/memory/__tests__/service.test.ts`
 
-- [ ] **Step 1: Read current embeddings test**
+- [x] **Step 1: Read current embeddings test**
 
 Run: `cat packages/server/src/memory/__tests__/embeddings.test.ts`
 Note shape — uses `vi.stubGlobal('fetch', mockFetch)`, `createEmbeddingsClient` factory, calls `.embed()`.
 
-- [ ] **Step 2: Rewrite `embeddings.ts` with extended interface**
+- [x] **Step 2: Rewrite `embeddings.ts` with extended interface**
 
 Replace the contents of `packages/server/src/memory/embeddings.ts` with:
 
@@ -138,12 +138,12 @@ export function createOllamaEmbeddingsClient(config: OllamaEmbeddingsClientConfi
 }
 ```
 
-- [ ] **Step 3: Run unit tests, expect them to break**
+- [x] **Step 3: Run unit tests, expect them to break**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/embeddings.test.ts`
 Expected: FAIL — old test imports `createEmbeddingsClient`, calls `.embed()`. We need to update them.
 
-- [ ] **Step 4: Update `embeddings.test.ts`**
+- [x] **Step 4: Update `embeddings.test.ts`**
 
 Replace the contents of `packages/server/src/memory/__tests__/embeddings.test.ts`:
 
@@ -221,12 +221,12 @@ describe('OllamaEmbeddingsClient', () => {
 });
 ```
 
-- [ ] **Step 5: Run embeddings tests, expect pass**
+- [x] **Step 5: Run embeddings tests, expect pass**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/embeddings.test.ts`
 Expected: PASS (5 tests).
 
-- [ ] **Step 6: Update `service.ts` to use new methods**
+- [x] **Step 6: Update `service.ts` to use new methods**
 
 Edit `packages/server/src/memory/service.ts`. Replace the `safeEmbed` helper and all call sites:
 
@@ -266,7 +266,7 @@ Now find each call site of `safeEmbed(...)` and replace:
 
 Search for `safeEmbed(` in the file and review each occurrence to pick the right variant (index-time → Document, search-time → Query).
 
-- [ ] **Step 7: Update `index.ts` bootstrap import**
+- [x] **Step 7: Update `index.ts` bootstrap import**
 
 Edit `packages/server/src/index.ts`. Change line 33:
 
@@ -283,7 +283,7 @@ And the call site (~line 234):
   });
 ```
 
-- [ ] **Step 8: Update `service.test.ts` mock to provide new methods**
+- [x] **Step 8: Update `service.test.ts` mock to provide new methods**
 
 Open `packages/server/src/memory/__tests__/service.test.ts`. Find every place that constructs a mock `embeddings`. The current shape is `{ embed: vi.fn().mockResolvedValue([...]) }`. Replace with:
 
@@ -300,17 +300,17 @@ function makeMockEmbeddings(dim = 768, identity = 'ollama:nomic-embed-text'): Em
 
 And update all `embeddings: { embed: ... }` constructors to use this helper. Add `import type { EmbeddingsClient } from '../embeddings.js';` to the top of the test file if not already there.
 
-- [ ] **Step 9: Run full memory test suite, expect pass**
+- [x] **Step 9: Run full memory test suite, expect pass**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/`
 Expected: ALL PASS. If `service.test.ts` still expects `.embed()`, fix those specific assertions.
 
-- [ ] **Step 10: Run full project tests**
+- [x] **Step 10: Run full project tests**
 
 Run: `npm test`
 Expected: ALL PASS. No regressions outside memory module.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add packages/server/src/memory/embeddings.ts \

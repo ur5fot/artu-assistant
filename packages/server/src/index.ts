@@ -30,7 +30,7 @@ import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { createRegistry, discoverTools } from './tools/registry.js';
 import { initDb, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, closeDb, getDb, saveMessage } from './db.js';
-import { createEmbeddingsClient } from './memory/embeddings.js';
+import { createOllamaEmbeddingsClient } from './memory/embeddings.js';
 import { createMemoryService, type MemoryService } from './memory/service.js';
 import { errorHandler } from './errors.js';
 import { createPiiProxy, createPassthroughProxy } from './pii/proxy.js';
@@ -231,7 +231,7 @@ const memoryConfirmService = createMemoryConfirmService({ pending: pendingMemory
 
 let memoryService: MemoryService | null = null;
 if (memoryEnabled && ollamaForMemory) {
-  const embeddings = createEmbeddingsClient({
+  const embeddings = createOllamaEmbeddingsClient({
     url: process.env.OLLAMA_URL || 'http://localhost:11434',
     model: process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text',
   });
