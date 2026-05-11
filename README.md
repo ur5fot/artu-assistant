@@ -66,3 +66,29 @@ one turn and the model answers once. Tune via `DISCORD_COALESCE_MS` in
 `.env` (milliseconds, default `1500`).
 
 See `AGENTS.md` for detailed setup instructions.
+
+### Running R2 without Ollama (API-only mode)
+
+By default R2 uses local Ollama for memory embeddings (`mxbai-embed-large`) and fact extraction (`qwen2.5:7b`). To run fully without Ollama (e.g. on a laptop with no GPU), use Voyage AI for embeddings and Claude for fact extraction:
+
+```bash
+# Required
+export EMBEDDING_PROVIDER=voyage
+export VOYAGE_API_KEY="<get from https://www.voyageai.com/>"
+export MEMORY_TEXT_PROVIDER=claude
+export LOCAL_LLM_MODE=disabled
+
+# Optional defaults (override if needed)
+export VOYAGE_MODEL=voyage-3                                # 1024 dim, default
+export MEMORY_EXTRACT_MODEL_CLAUDE=claude-haiku-4-5-20251001
+```
+
+Costs (rough, at low-volume personal use):
+- Voyage embeddings: ~$0.06 / 1M tokens — typical chat is fractions of a cent per turn
+- Claude Haiku fact extraction: ~$0.003 per turn
+
+On first start under a new provider, R2 wipes and re-embeds existing memory facts/entries automatically. Takes ~15 seconds for typical memory sizes.
+
+To switch back to local Ollama later, unset the env vars (or `EMBEDDING_PROVIDER=ollama`, `MEMORY_TEXT_PROVIDER=ollama`). The migration runs again automatically — re-embeds everything under Ollama.
+
+**Embedding standard:** all R2 memory uses 1024-dim embeddings. Supported models: `mxbai-embed-large` (Ollama), `voyage-3` / `voyage-3-large` (Voyage). Custom models with different dimensions are rejected at boot.

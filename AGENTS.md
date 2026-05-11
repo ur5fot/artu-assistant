@@ -393,9 +393,11 @@ First `docker compose up` takes longer because the analyzer image builds locally
 
 ### Memory System
 
-R2 remembers past conversations via a local vector database. Every chat turn is embedded with `nomic-embed-text` (via Ollama) and stored in sqlite-vec tables inside `data/r2.db`. Ollama also extracts structured facts about the user (`user.location`, `user.phone`, etc.) with versioning — when a fact changes, the old one is marked superseded and history is preserved.
+R2 remembers past conversations via a local vector database. Every chat turn is embedded with `mxbai-embed-large` (via Ollama, 1024-dim) and stored in sqlite-vec tables inside `data/r2.db`. Ollama also extracts structured facts about the user (`user.location`, `user.phone`, etc.) with versioning — when a fact changes, the old one is marked superseded and history is preserved.
 
-Setup requires an extra Ollama model pull: `ollama pull nomic-embed-text`. Memory is implemented in `packages/server/src/memory/` and exposed via the `@r2/tool-memory` workspace package. Slash-command invocations and tool results are intentionally NOT indexed: the former is a dispatcher, not user content; the latter bypasses the PII proxy and could leak secrets.
+Setup requires an extra Ollama model pull: `ollama pull mxbai-embed-large`. Memory is implemented in `packages/server/src/memory/` and exposed via the `@r2/tool-memory` workspace package. Slash-command invocations and tool results are intentionally NOT indexed: the former is a dispatcher, not user content; the latter bypasses the PII proxy and could leak secrets.
+
+To run without Ollama, set `EMBEDDING_PROVIDER=voyage` + `VOYAGE_API_KEY` and `MEMORY_TEXT_PROVIDER=claude` — embeddings switch to Voyage AI (`voyage-3`, 1024-dim), fact extraction to Claude Haiku. On provider switch, R2 auto-wipes and re-embeds existing memory. See README "Running R2 without Ollama" for details.
 
 Slash commands:
 - `/память <query>` — semantic search across stored memories (`memory_search` tool).
@@ -423,8 +425,13 @@ Chat history sent to the LLM is truncated to `CHAT_CONTEXT_BUDGET_CHARS` (defaul
 
 Configuration via env vars:
 - `MEMORY_ENABLED=true` — kill switch
-- `MEMORY_EMBED_MODEL=nomic-embed-text` — embedding model
-- `MEMORY_EXTRACT_MODEL=qwen2.5:7b` — fact extractor model
+- `EMBEDDING_PROVIDER=auto|ollama|voyage` — embedding provider (auto = ollama if reachable, else voyage)
+- `MEMORY_EMBED_MODEL=mxbai-embed-large` — Ollama embedding model (1024-dim)
+- `VOYAGE_API_KEY=<key>` — required when `EMBEDDING_PROVIDER=voyage`
+- `VOYAGE_MODEL=voyage-3` — Voyage embedding model (1024-dim; also `voyage-3-large`)
+- `MEMORY_TEXT_PROVIDER=auto|ollama|claude` — fact-extraction text provider
+- `MEMORY_EXTRACT_MODEL=qwen2.5:7b` — Ollama extractor model
+- `MEMORY_EXTRACT_MODEL_CLAUDE=claude-haiku-4-5-20251001` — Claude extractor model
 - `MEMORY_MAX_CONTEXT_TOKENS=2000` — budget for auto-retrieval prefix
 - `CHAT_CONTEXT_BUDGET_CHARS=60000` — messages[] char budget for LLM calls
 
