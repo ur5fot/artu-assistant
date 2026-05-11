@@ -149,11 +149,14 @@ const memoryEnabled = (process.env.MEMORY_ENABLED ?? 'true') !== 'false';
 const routerNeedsOllama = localLlmMode !== 'disabled';
 // Memory may run entirely via remote APIs (Voyage embeddings + Claude text
 // extraction). In that case it no longer needs Ollama, so the loopback-PII
-// guard below should not gate startup.
+// guard below should not gate startup. Need Ollama if EITHER half of memory
+// might use it — both halves must opt out (not just one) before we can skip
+// creating the client. AND here would silently disable mixed configs like
+// `EMBEDDING_PROVIDER=ollama, MEMORY_TEXT_PROVIDER=claude`.
 const memoryNeedsOllama =
   memoryEnabled &&
-  (process.env.EMBEDDING_PROVIDER ?? 'auto') !== 'voyage' &&
-  (process.env.MEMORY_TEXT_PROVIDER ?? 'auto') !== 'claude';
+  ((process.env.EMBEDDING_PROVIDER ?? 'auto') !== 'voyage' ||
+    (process.env.MEMORY_TEXT_PROVIDER ?? 'auto') !== 'claude');
 
 // Router intentionally skips PII anonymization for the Ollama path on the
 // assumption that Ollama runs on the user's machine. If OLLAMA_URL points at a

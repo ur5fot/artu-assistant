@@ -92,21 +92,11 @@ export async function ensureEmbedModelMatches(
 
   if (stored === current) return;
 
-  if (stored === null) {
-    // First boot under this code version. If the vec tables are non-empty, this
-    // is an existing DB that was indexed under whatever model was active before
-    // the metadata key was introduced — reindex under the current provider.
-    const row = db
-      .prepare('SELECT COUNT(*) AS c FROM memory_vec_entries')
-      .get() as { c: number };
-    const factRow = db
-      .prepare('SELECT COUNT(*) AS c FROM memory_vec_facts')
-      .get() as { c: number };
-    if (row.c === 0 && factRow.c === 0) {
-      writeStoredIdentity(db, current);
-      return;
-    }
-  }
-
+  // stored===null is "first boot under this code version" — but the vec tables
+  // may already exist at the OLD dimension (pre-1024 standard) because
+  // `CREATE VIRTUAL TABLE IF NOT EXISTS … FLOAT[1024]` in db.ts is a no-op
+  // when a 768-dim table is already there. Always run wipeAndReindex on the
+  // null path so the schema gets rebuilt at `embeddings.dimension`. For a
+  // truly empty DB this is a cheap DROP+CREATE with no embed calls.
   await wipeAndReindex({ db, embeddings, newIdentity: current });
 }

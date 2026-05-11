@@ -151,6 +151,63 @@ describe('ensureEmbedModelMatches', () => {
     expect(row.value).toBe('voyage:voyage-3');
   });
 
+  // Legacy DB with the old FLOAT[768] schema and zero rows — `CREATE VIRTUAL
+  // TABLE IF NOT EXISTS … FLOAT[1024]` in db.ts is a no-op when the 768-dim
+  // table already exists, so the migration must rebuild the schema even when
+  // there's no data. A regression that takes a "no rows → just record
+  // identity" shortcut would leave the wrong dim in place and the next insert
+  // would error at sqlite-vec level.
+  it('on legacy DB with empty vec tables at wrong dim, rebuilds schema at current dim', async () => {
+    const db = new Database(':memory:');
+    sqliteVec.load(db);
+    db.exec(`
+      CREATE TABLE memory_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL, source_id TEXT, content TEXT NOT NULL, created_at INTEGER NOT NULL
+      );
+      CREATE TABLE memory_facts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT NOT NULL, value TEXT NOT NULL, created_at INTEGER NOT NULL,
+        superseded_by INTEGER REFERENCES memory_facts(id),
+        last_mentioned_at INTEGER NOT NULL,
+        importance INTEGER NOT NULL DEFAULT 1,
+        forgotten INTEGER NOT NULL DEFAULT 0,
+        source_message_id TEXT
+      );
+      CREATE TABLE memory_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE VIRTUAL TABLE memory_vec_entries USING vec0(
+        entity_id INTEGER PRIMARY KEY, embedding FLOAT[768] distance_metric=cosine
+      );
+      CREATE VIRTUAL TABLE memory_vec_facts USING vec0(
+        entity_id INTEGER PRIMARY KEY, embedding FLOAT[768] distance_metric=cosine
+      );
+    `);
+
+    const embeddings = makeEmbeddings('voyage:voyage-3', 1024);
+    await ensureEmbedModelMatches(db, embeddings);
+
+    // After migration the tables must accept 1024-dim vectors. If the schema
+    // wasn't rebuilt, this insert errors with a dimension mismatch.
+    const buf = Buffer.from(new Float32Array(Array.from({ length: 1024 }, () => 0.1)).buffer);
+    expect(() => {
+      db.prepare('INSERT INTO memory_vec_entries (entity_id, embedding) VALUES (?, ?)').run(
+        BigInt(1),
+        buf,
+      );
+    }).not.toThrow();
+    expect(() => {
+      db.prepare('INSERT INTO memory_vec_facts (entity_id, embedding) VALUES (?, ?)').run(
+        BigInt(1),
+        buf,
+      );
+    }).not.toThrow();
+
+    const row = db
+      .prepare('SELECT value FROM memory_metadata WHERE key=?')
+      .get('embed_model') as { value: string };
+    expect(row.value).toBe('voyage:voyage-3');
+  });
+
   // wipeAndReindex pulls only active facts. A regression dropping the
   // `superseded_by IS NULL AND forgotten = 0` filter would re-embed (and pay
   // for) tombstoned rows and resurface them in search results.
