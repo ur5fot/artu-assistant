@@ -736,12 +736,12 @@ Create the `TextProvider` abstraction. `extractFacts` is ported in Task 4.
 - Create: `packages/server/src/memory/textProvider.ts`
 - Create: `packages/server/src/memory/__tests__/textProvider.test.ts`
 
-- [ ] **Step 1: Look up existing OllamaClient.chat shape**
+- [x] **Step 1: Look up existing OllamaClient.chat shape**
 
 Run: `grep -n "interface OllamaClient\|chat:" packages/server/src/ai/ollama.ts | head -10`
 Note: confirm `chat({ messages, model }) → Promise<{ text: string }>` shape so we can mirror it.
 
-- [ ] **Step 2: Write failing test for `createOllamaTextProvider`**
+- [x] **Step 2: Write failing test for `createOllamaTextProvider`**
 
 Create `packages/server/src/memory/__tests__/textProvider.test.ts`:
 
@@ -836,12 +836,12 @@ describe('createClaudeTextProvider', () => {
 });
 ```
 
-- [ ] **Step 3: Run test, expect fail (module missing)**
+- [x] **Step 3: Run test, expect fail (module missing)**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/textProvider.test.ts`
 Expected: FAIL — cannot find `../textProvider.js`.
 
-- [ ] **Step 4: Create `textProvider.ts`**
+- [x] **Step 4: Create `textProvider.ts`**
 
 Create `packages/server/src/memory/textProvider.ts`:
 
@@ -897,12 +897,12 @@ export function createClaudeTextProvider(anthropic: Anthropic): TextProvider {
 }
 ```
 
-- [ ] **Step 5: Run tests, expect pass**
+- [x] **Step 5: Run tests, expect pass**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/textProvider.test.ts`
 Expected: PASS (4 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/memory/textProvider.ts \
