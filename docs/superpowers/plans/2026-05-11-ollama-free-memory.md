@@ -1068,7 +1068,7 @@ Add Voyage HTTP client with `embedDocument`/`embedQuery` (asymmetric `input_type
 - Create: `packages/server/src/memory/voyageEmbeddings.ts`
 - Create: `packages/server/src/memory/__tests__/voyageEmbeddings.test.ts`
 
-- [ ] **Step 1: Write failing test (happy path + document/query split)**
+- [x] **Step 1: Write failing test (happy path + document/query split)**
 
 Create `packages/server/src/memory/__tests__/voyageEmbeddings.test.ts`:
 
@@ -1208,12 +1208,12 @@ describe('VoyageEmbeddingsClient', () => {
 });
 ```
 
-- [ ] **Step 2: Run test, expect fail (file missing)**
+- [x] **Step 2: Run test, expect fail (file missing)**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/voyageEmbeddings.test.ts`
 Expected: FAIL — `Cannot find module '../voyageEmbeddings.js'`.
 
-- [ ] **Step 3: Create `voyageEmbeddings.ts`**
+- [x] **Step 3: Create `voyageEmbeddings.ts`**
 
 Create `packages/server/src/memory/voyageEmbeddings.ts`:
 
@@ -1344,19 +1344,19 @@ export function createVoyageEmbeddingsClient(config: VoyageConfig): EmbeddingsCl
 }
 ```
 
-- [ ] **Step 4: Run Voyage tests, expect pass**
+- [x] **Step 4: Run Voyage tests, expect pass**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/voyageEmbeddings.test.ts`
 Expected: PASS (9 tests).
 
 If any test fails, inspect: 429 retry order, circuit-breaker reset on success, abort signal handling.
 
-- [ ] **Step 5: Run full memory tests**
+- [x] **Step 5: Run full memory tests**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/memory/voyageEmbeddings.ts \
