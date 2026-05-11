@@ -235,7 +235,7 @@ let memoryService: MemoryService | null = null;
 if (memoryEnabled && ollamaForMemory) {
   const embeddings = createOllamaEmbeddingsClient({
     url: process.env.OLLAMA_URL || 'http://localhost:11434',
-    model: process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text',
+    model: process.env.MEMORY_EMBED_MODEL || 'mxbai-embed-large',
   });
 
   let migrationOk = false;

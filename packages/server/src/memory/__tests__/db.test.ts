@@ -28,7 +28,7 @@ describe('memory db', () => {
   });
 
   function makeVec(seed: number): number[] {
-    const vec = new Array(768).fill(0);
+    const vec = new Array(1024).fill(0);
     vec[0] = seed;
     vec[1] = 1 - seed;
     return vec;

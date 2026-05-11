@@ -16,7 +16,7 @@ type MockEmbeddings = {
 function makeHashEmbedder(): MockEmbeddings {
   const impl = async (text: string): Promise<number[]> => {
     // Deterministic hash-based vector so similarity ordering is reproducible.
-    const vec = new Array(768).fill(0);
+    const vec = new Array(1024).fill(0);
     let h = 0;
     for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
     vec[0] = ((h >>> 0) % 1000) / 1000;
@@ -24,8 +24,8 @@ function makeHashEmbedder(): MockEmbeddings {
     return vec;
   };
   return {
-    dimension: 768,
-    identity: 'ollama:nomic-embed-text',
+    dimension: 1024,
+    identity: 'ollama:mxbai-embed-large',
     embedDocument: vi.fn().mockImplementation(impl),
     embedQuery: vi.fn().mockImplementation(impl),
   };

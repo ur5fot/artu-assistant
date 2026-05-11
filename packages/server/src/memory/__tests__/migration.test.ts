@@ -23,16 +23,16 @@ function makeDb(): Database.Database {
     );
     CREATE TABLE memory_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE VIRTUAL TABLE memory_vec_entries USING vec0(
-      entity_id INTEGER PRIMARY KEY, embedding FLOAT[768] distance_metric=cosine
+      entity_id INTEGER PRIMARY KEY, embedding FLOAT[1024] distance_metric=cosine
     );
     CREATE VIRTUAL TABLE memory_vec_facts USING vec0(
-      entity_id INTEGER PRIMARY KEY, embedding FLOAT[768] distance_metric=cosine
+      entity_id INTEGER PRIMARY KEY, embedding FLOAT[1024] distance_metric=cosine
     );
   `);
   return db;
 }
 
-function makeEmbeddings(identity: string, dim = 768): EmbeddingsClient {
+function makeEmbeddings(identity: string, dim = 1024): EmbeddingsClient {
   return {
     dimension: dim,
     identity,
@@ -68,7 +68,7 @@ describe('ensureEmbedModelMatches', () => {
 
   it('on identity change with existing data, wipes vec tables and reindexes', async () => {
     const db = makeDb();
-    const buf = Buffer.from(new Float32Array(Array.from({ length: 768 }, () => 0.1)).buffer);
+    const buf = Buffer.from(new Float32Array(Array.from({ length: 1024 }, () => 0.1)).buffer);
     db.prepare(
       `INSERT INTO memory_entries (kind, source_id, content, created_at) VALUES (?, ?, ?, ?)`,
     ).run('user_msg', null, 'hello world', 1000);

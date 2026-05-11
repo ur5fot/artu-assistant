@@ -1377,12 +1377,12 @@ Change schema `FLOAT[768]` → `FLOAT[1024]`, bump `EXPECTED_EMBED_DIM` to 1024,
 - Modify: `packages/server/src/memory/__tests__/embeddings.test.ts` (1024 dim in fixtures)
 - Modify: `packages/server/src/memory/__tests__/schema.test.ts` (if it asserts FLOAT[768])
 
-- [ ] **Step 1: Find any existing test referencing FLOAT[768] or 768 dimension assumption**
+- [x] **Step 1: Find any existing test referencing FLOAT[768] or 768 dimension assumption**
 
 Run: `grep -rn "768\|FLOAT\[768\]\|nomic-embed-text" packages/server/src/`
 List all hits. Each will need updating. Common spots: `embeddings.test.ts`, `schema.test.ts`, `service.test.ts` (mock dim), `db.test.ts`.
 
-- [ ] **Step 2: Update `db.ts` schema**
+- [x] **Step 2: Update `db.ts` schema**
 
 Edit `packages/server/src/db.ts`. Replace both occurrences of `FLOAT[768]` with `FLOAT[1024]` (lines ~72 and ~79):
 
@@ -1390,7 +1390,7 @@ Edit `packages/server/src/db.ts`. Replace both occurrences of `FLOAT[768]` with 
         embedding FLOAT[1024] distance_metric=cosine
 ```
 
-- [ ] **Step 3: Update `EXPECTED_EMBED_DIM`**
+- [x] **Step 3: Update `EXPECTED_EMBED_DIM`**
 
 Edit `packages/server/src/memory/embeddings.ts`. Change:
 
@@ -1398,22 +1398,22 @@ Edit `packages/server/src/memory/embeddings.ts`. Change:
 const EXPECTED_EMBED_DIM = 1024;
 ```
 
-- [ ] **Step 4: Update `index.ts` defaults**
+- [x] **Step 4: Update `index.ts` defaults**
 
 Edit `packages/server/src/index.ts`. Replace both occurrences of `'nomic-embed-text'` with `'mxbai-embed-large'` (lines ~236 and ~247).
 
-- [ ] **Step 5: Update `embeddings.test.ts` fixtures**
+- [x] **Step 5: Update `embeddings.test.ts` fixtures**
 
 In `packages/server/src/memory/__tests__/embeddings.test.ts`, replace:
 - `768` → `1024` in vector array lengths and dim assertions
 - `'nomic-embed-text'` → `'mxbai-embed-large'` in `createOllamaEmbeddingsClient({...})` constructor calls
 - The "throws on dimension mismatch" test: change `wrongDim` length to something other than 1024 (e.g., 768).
 
-- [ ] **Step 6: Update `schema.test.ts`**
+- [x] **Step 6: Update `schema.test.ts`**
 
 Open `packages/server/src/memory/__tests__/schema.test.ts`. If it asserts dimension, change 768 → 1024.
 
-- [ ] **Step 7: Update `service.test.ts` mock embeddings dim default**
+- [x] **Step 7: Update `service.test.ts` mock embeddings dim default**
 
 In `packages/server/src/memory/__tests__/service.test.ts`, change the helper:
 
@@ -1421,7 +1421,7 @@ In `packages/server/src/memory/__tests__/service.test.ts`, change the helper:
 function makeMockEmbeddings(dim = 1024, identity = 'ollama:mxbai-embed-large'): EmbeddingsClient {
 ```
 
-- [ ] **Step 8: Update `migration.test.ts` makeDb helper schema**
+- [x] **Step 8: Update `migration.test.ts` makeDb helper schema**
 
 In `packages/server/src/memory/__tests__/migration.test.ts`, update `makeDb()`:
 
@@ -1438,19 +1438,19 @@ And update the "identity change" test seed vectors: change the `Array.from({ len
 
 Actually — that test seeds a 1024-dim row purporting to be from the old 768-dim model. That's fine for the migration logic (it doesn't validate stored vec dim; it just trusts the metadata). What matters is that the OLD metadata says `ollama:nomic-embed-text` (768) and the NEW provider says `voyage:voyage-3` (1024) — identity mismatch triggers wipe + reindex. Keep the seed at FLOAT[1024] now since schema is 1024.
 
-- [ ] **Step 9: Run memory tests**
+- [x] **Step 9: Run memory tests**
 
 Run: `npx vitest run packages/server/src/memory/__tests__/`
 Expected: PASS.
 
 If `service.test.ts` fails because `createMemoryService` triggers `ensureEmbedModelMatches` and the in-memory test DB has 768-dim seed data that no longer matches schema — fix by ensuring test DBs are seeded with 1024-dim vectors OR start clean.
 
-- [ ] **Step 10: Run full project tests**
+- [x] **Step 10: Run full project tests**
 
 Run: `npm test`
 Expected: PASS.
 
-- [ ] **Step 11: Sanity check: existing dev DB will reindex on next boot**
+- [x] **Step 11: Sanity check: existing dev DB will reindex on next boot** (skipped - manual verification, not automatable)
 
 If you have a local `db.sqlite3` from before this change, it has 768-dim vec tables. Don't delete it — the migration code (from Task 2) is supposed to handle this. Verify by inspection:
 
@@ -1460,7 +1460,7 @@ sqlite3 packages/server/db.sqlite3 "SELECT * FROM memory_metadata"
 
 If the row says `ollama:nomic-embed-text` (or is missing), the next server start with `MEMORY_EMBED_MODEL=mxbai-embed-large` will trigger migration. **But:** you must have `mxbai-embed-large` pulled in Ollama for the reindex to succeed. If unsure, run `ollama pull mxbai-embed-large` before booting. (Don't actually boot — that's Task 7 territory.)
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add packages/server/src/db.ts \
