@@ -112,4 +112,71 @@ describe('ensureEmbedModelMatches', () => {
     await ensureEmbedModelMatches(db, embeddings);
     expect(embeddings.embedDocument).not.toHaveBeenCalled();
   });
+
+  // Legacy DB upgrade path: pre-metadata code wrote vec rows without ever
+  // recording an identity. On first boot under the new code, that DB has a
+  // null identity AND non-empty vec tables — the migration must treat it as a
+  // provider mismatch and reindex. A regression that simply writes the
+  // current identity without rebuilding would leave the old (potentially
+  // different-dim or different-model) vectors in place and corrupt search.
+  it('on legacy DB (no stored identity but vec data present), wipes and reindexes', async () => {
+    const db = makeDb();
+    const buf = Buffer.from(new Float32Array(Array.from({ length: 1024 }, () => 0.1)).buffer);
+    db.prepare(
+      `INSERT INTO memory_entries (kind, source_id, content, created_at) VALUES (?, ?, ?, ?)`,
+    ).run('user_msg', null, 'legacy entry', 1000);
+    db.prepare('INSERT INTO memory_vec_entries (entity_id, embedding) VALUES (?, ?)').run(
+      BigInt(1),
+      buf,
+    );
+    db.prepare(
+      `INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten)
+       VALUES (?, ?, ?, ?, ?, 0)`,
+    ).run('user.name', 'Roman', 1000, 1000, 1);
+    db.prepare('INSERT INTO memory_vec_facts (entity_id, embedding) VALUES (?, ?)').run(
+      BigInt(1),
+      buf,
+    );
+    // No memory_metadata row → stored identity is null.
+
+    const embeddings = makeEmbeddings('voyage:voyage-3', 1024);
+    await ensureEmbedModelMatches(db, embeddings);
+
+    expect(embeddings.embedDocument).toHaveBeenCalledTimes(2);
+    expect(embeddings.embedDocument).toHaveBeenCalledWith('legacy entry');
+    expect(embeddings.embedDocument).toHaveBeenCalledWith('user.name: Roman');
+    const row = db
+      .prepare('SELECT value FROM memory_metadata WHERE key=?')
+      .get('embed_model') as { value: string };
+    expect(row.value).toBe('voyage:voyage-3');
+  });
+
+  // wipeAndReindex pulls only active facts. A regression dropping the
+  // `superseded_by IS NULL AND forgotten = 0` filter would re-embed (and pay
+  // for) tombstoned rows and resurface them in search results.
+  it('on reindex, skips superseded and forgotten facts', async () => {
+    const db = makeDb();
+    db.prepare(
+      `INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten, superseded_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run('user.city', 'Київ', 1000, 1000, 1, 0, null);
+    db.prepare(
+      `INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten, superseded_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run('user.city', 'Одеса', 2000, 2000, 1, 0, 1);
+    db.prepare(
+      `INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, importance, forgotten, superseded_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run('user.hobby', 'fishing', 1500, 1500, 1, 1, null);
+    db.prepare('INSERT INTO memory_metadata (key, value) VALUES (?, ?)').run(
+      'embed_model',
+      'ollama:nomic-embed-text',
+    );
+
+    const embeddings = makeEmbeddings('voyage:voyage-3', 1024);
+    await ensureEmbedModelMatches(db, embeddings);
+
+    expect(embeddings.embedDocument).toHaveBeenCalledTimes(1);
+    expect(embeddings.embedDocument).toHaveBeenCalledWith('user.city: Київ');
+  });
 });

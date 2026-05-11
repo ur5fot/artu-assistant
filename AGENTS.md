@@ -514,14 +514,20 @@ DISCORD_ALLOWED_USER_IDS=          # comma-separated Discord user IDs; required 
 DISCORD_REQUEST_TIMEOUT_MS=300000  # per-message request timeout; on expiry unresolved permission/plan-review embeds are edited to "⚠️ expired"
 DISCORD_COALESCE_MS=1500           # debounce window for burst coalescing; each new DM resets the timer, LLM runs once after idle
 # Local LLM router (Phase 4G)
-LOCAL_LLM_MODE=enabled            # enabled | disabled (chat router only; memory independent)
+LOCAL_LLM_MODE=enabled            # enabled | disabled (gates chat router + the Ollama memory text-provider)
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b
 OLLAMA_TIMEOUT_MS=15000
+OLLAMA_ALLOW_REMOTE=               # =1 to permit non-loopback OLLAMA_URL (otherwise startup refuses — Ollama path bypasses PII anonymization)
 # Memory system (Phase 2 — Memory)
 MEMORY_ENABLED=true                # kill switch; false skips sqlite-vec load
-MEMORY_EMBED_MODEL=nomic-embed-text
-MEMORY_EXTRACT_MODEL=qwen2.5:7b
+EMBEDDING_PROVIDER=auto            # auto | ollama | voyage (auto = ollama if reachable, else voyage)
+MEMORY_TEXT_PROVIDER=auto          # auto | ollama | claude (auto = ollama if reachable and LOCAL_LLM_MODE!=disabled, else claude)
+MEMORY_EMBED_MODEL=mxbai-embed-large            # Ollama embedding model (1024-dim)
+MEMORY_EXTRACT_MODEL=qwen2.5:7b                 # Ollama extractor model
+MEMORY_EXTRACT_MODEL_CLAUDE=claude-haiku-4-5-20251001  # Claude extractor model (when text provider = claude)
+VOYAGE_API_KEY=                    # required when EMBEDDING_PROVIDER=voyage
+VOYAGE_MODEL=voyage-3              # voyage-3 | voyage-3-large (both 1024-dim)
 MEMORY_MAX_CONTEXT_TOKENS=2000     # budget for auto-retrieval prefix
 # Email watcher (Phase 4F)
 IMAP_ACCOUNTS=[]                   # JSON array of {id,host,port,user,password,tls}; empty disables the feature
