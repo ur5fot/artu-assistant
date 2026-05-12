@@ -79,6 +79,20 @@ export function createVoyageEmbeddingsClient(config: VoyageConfig): EmbeddingsCl
           throw lastErr;
         }
 
+        // Retry transient upstream failures (502/503/504 during Voyage
+        // maintenance or overload) with the same backoff as 429. Without this,
+        // a single 5xx trips the circuit breaker and blocks all memory ops for
+        // CIRCUIT_OPEN_MS even when the upstream recovers immediately.
+        if (res.status >= 500 && res.status < 600) {
+          await res.body?.cancel().catch(() => {});
+          lastErr = new Error(`Voyage error ${res.status}`);
+          if (attempt < MAX_RETRIES - 1) {
+            await new Promise((r) => setTimeout(r, baseBackoff * 2 ** attempt));
+            continue;
+          }
+          throw lastErr;
+        }
+
         if (!res.ok) {
           // Surface body content so operators can diagnose 400-class errors
           // (bad model name, malformed input, quota). cancel() loses the body.

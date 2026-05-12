@@ -390,8 +390,26 @@ if (memoryEnabled) {
     console.error('[memory] embedding provider setup failed:', err instanceof Error ? err.message : err);
   }
 
+  // Resolve text provider before migration. A misconfigured text provider is
+  // a cheap, immediate failure — running ensureEmbedModelMatches first would
+  // spend embedding API calls (and Voyage credits) on a DB rebuild that would
+  // then be discarded when the text provider check fails.
+  let textProvider: TextProvider | null = null;
+  try {
+    textProvider = pickTextProvider({
+      mode: textMode,
+      ollama: ollamaForMemory,
+      anthropic: client.anthropic,
+      localLlmMode,
+    });
+  } catch (err) {
+    console.error('[memory] text provider setup failed:', err instanceof Error ? err.message : err);
+  }
+
   if (!embeddings) {
     console.log('[memory] disabled — no embedding provider configured (set OLLAMA_URL or VOYAGE_API_KEY)');
+  } else if (!textProvider) {
+    console.log('[memory] disabled — text provider unavailable');
   } else {
     let migrationOk = false;
     try {
@@ -402,40 +420,26 @@ if (memoryEnabled) {
     }
 
     if (migrationOk) {
-      let textProvider: TextProvider | null = null;
-      try {
-        textProvider = pickTextProvider({
-          mode: textMode,
-          ollama: ollamaForMemory,
-          anthropic: client.anthropic,
-          localLlmMode,
-        });
-      } catch (err) {
-        console.error('[memory] text provider setup failed:', err instanceof Error ? err.message : err);
-      }
+      const usingOllamaText =
+        textMode === 'ollama' || (textMode === 'auto' && !!ollamaForMemory && localLlmMode !== 'disabled');
+      const extractorModel = usingOllamaText
+        ? process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b'
+        : process.env.MEMORY_EXTRACT_MODEL_CLAUDE || 'claude-haiku-4-5-20251001';
 
-      if (textProvider) {
-        const usingOllamaText =
-          textMode === 'ollama' || (textMode === 'auto' && !!ollamaForMemory && localLlmMode !== 'disabled');
-        const extractorModel = usingOllamaText
-          ? process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b'
-          : process.env.MEMORY_EXTRACT_MODEL_CLAUDE || 'claude-haiku-4-5-20251001';
+      const parsedMaxTokens = Number(process.env.MEMORY_MAX_CONTEXT_TOKENS);
+      const maxContextTokens =
+        Number.isFinite(parsedMaxTokens) && parsedMaxTokens > 0 ? parsedMaxTokens : 2000;
 
-        const parsedMaxTokens = Number(process.env.MEMORY_MAX_CONTEXT_TOKENS);
-        const maxContextTokens =
-          Number.isFinite(parsedMaxTokens) && parsedMaxTokens > 0 ? parsedMaxTokens : 2000;
-
-        memoryService = createMemoryService({
-          db: getDb(),
-          embeddings,
-          textProvider,
-          extractorModel,
-          maxContextTokens,
-        });
-        console.log(
-          `[memory] enabled (embeddings=${embeddings.identity}, text=${usingOllamaText ? 'ollama' : 'claude'}, model=${extractorModel})`,
-        );
-      }
+      memoryService = createMemoryService({
+        db: getDb(),
+        embeddings,
+        textProvider,
+        extractorModel,
+        maxContextTokens,
+      });
+      console.log(
+        `[memory] enabled (embeddings=${embeddings.identity}, text=${usingOllamaText ? 'ollama' : 'claude'}, model=${extractorModel})`,
+      );
     }
   }
 } else {

@@ -98,13 +98,33 @@ describe('VoyageEmbeddingsClient', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it('opens circuit breaker after 5xx', async () => {
+  it('retries on 5xx and recovers if transient', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 503, body: { cancel: () => Promise.resolve() } });
-    const client = createVoyageEmbeddingsClient({ apiKey: 'sk', model: 'voyage-3' });
+    mockFetch.mockResolvedValueOnce(ok(Array.from({ length: 1024 }, () => 0)));
+
+    const client = createVoyageEmbeddingsClient({
+      apiKey: 'sk',
+      model: 'voyage-3',
+      retryBackoffMs: 1,
+    });
+    const result = await client.embedDocument('hello');
+    expect(result).toHaveLength(1024);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens circuit breaker after exhausting 5xx retries', async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 503, body: { cancel: () => Promise.resolve() } });
+    const client = createVoyageEmbeddingsClient({
+      apiKey: 'sk',
+      model: 'voyage-3',
+      retryBackoffMs: 1,
+    });
 
     await expect(client.embedDocument('a')).rejects.toThrow('Voyage error 503');
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+
     await expect(client.embedDocument('b')).rejects.toThrow('Voyage circuit open');
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
   it('rejects dimension mismatch in response', async () => {
