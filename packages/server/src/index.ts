@@ -153,10 +153,17 @@ const routerNeedsOllama = localLlmMode !== 'disabled';
 // might use it — both halves must opt out (not just one) before we can skip
 // creating the client. AND here would silently disable mixed configs like
 // `EMBEDDING_PROVIDER=ollama, MEMORY_TEXT_PROVIDER=claude`.
+//
+// Text provider in `auto` mode falls back to Claude when LOCAL_LLM_MODE=disabled
+// (see pickTextProvider), so in that case the text half can never reach Ollama
+// even with MEMORY_TEXT_PROVIDER unset. Honor that here so an operator who
+// explicitly disabled local LLM doesn't get the PII guard fired by an
+// inherited OLLAMA_URL pointing at a stale remote host.
+const textHalfNeedsOllama =
+  (process.env.MEMORY_TEXT_PROVIDER ?? 'auto') !== 'claude' && localLlmMode !== 'disabled';
 const memoryNeedsOllama =
   memoryEnabled &&
-  ((process.env.EMBEDDING_PROVIDER ?? 'auto') !== 'voyage' ||
-    (process.env.MEMORY_TEXT_PROVIDER ?? 'auto') !== 'claude');
+  ((process.env.EMBEDDING_PROVIDER ?? 'auto') !== 'voyage' || textHalfNeedsOllama);
 
 // Router intentionally skips PII anonymization for the Ollama path on the
 // assumption that Ollama runs on the user's machine. If OLLAMA_URL points at a

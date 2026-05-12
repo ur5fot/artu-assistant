@@ -42,6 +42,10 @@ export function createClaudeTextProvider(anthropic: Anthropic): TextProvider {
       const response = await anthropic.messages.create({
         model: params.model,
         max_tokens: CLAUDE_MAX_TOKENS,
+        // Fact extraction is a deterministic structured-JSON task; the Ollama
+        // path forces temperature 0.2 for the same reason. Anthropic's default
+        // is 1.0, which materially degrades JSON parse rate and fact recall.
+        temperature: 0,
         system: systemContent || undefined,
         messages: nonSystem,
       });
