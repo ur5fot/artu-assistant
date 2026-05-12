@@ -44,7 +44,31 @@ describe('createClaudeTextProvider', () => {
         messages: [{ role: 'user', content: 'hi' }],
         system: undefined,
       }),
+      expect.objectContaining({ timeout: expect.any(Number) }),
     );
+  });
+
+  it('passes a bounded request timeout so a wedged call cannot block the index queue', async () => {
+    const anthropic = {
+      messages: {
+        create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] }),
+      },
+    } as any;
+
+    const provider = createClaudeTextProvider(anthropic);
+    await provider.chat({
+      messages: [{ role: 'user', content: 'hi' }],
+      model: 'claude-haiku-4-5-20251001',
+    });
+
+    const optionsArg = anthropic.messages.create.mock.calls[0][1];
+    expect(optionsArg).toBeDefined();
+    expect(typeof optionsArg.timeout).toBe('number');
+    // Anthropic SDK default is 10 minutes; the provider must override with a
+    // bounded value well below that so a single hung call cannot stall the
+    // serialized indexTurn queue for the full SDK window.
+    expect(optionsArg.timeout).toBeLessThan(60_000);
+    expect(optionsArg.timeout).toBeGreaterThan(0);
   });
 
   it('merges system messages into the system parameter', async () => {
@@ -68,6 +92,7 @@ describe('createClaudeTextProvider', () => {
         system: 'be terse',
         messages: [{ role: 'user', content: 'hi' }],
       }),
+      expect.objectContaining({ timeout: expect.any(Number) }),
     );
   });
 

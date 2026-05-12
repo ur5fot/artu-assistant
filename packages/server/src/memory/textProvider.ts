@@ -23,6 +23,12 @@ export function createOllamaTextProvider(ollama: OllamaClient): TextProvider {
 }
 
 const CLAUDE_MAX_TOKENS = 1024;
+// Anthropic SDK defaults to a 10-minute per-request timeout. Memory indexing
+// runs through a serialized queue (see service.ts indexQueue), so one wedged
+// upstream call would stall all subsequent turns for the full SDK window.
+// Cap fact extraction at 30s — matches the user-perceptible "is memory stuck?"
+// threshold and is well above typical Haiku latency for a 4 KB prompt.
+const CLAUDE_TIMEOUT_MS = 30_000;
 
 export function createClaudeTextProvider(anthropic: Anthropic): TextProvider {
   return {
@@ -39,16 +45,19 @@ export function createClaudeTextProvider(anthropic: Anthropic): TextProvider {
           content: m.content,
         }));
 
-      const response = await anthropic.messages.create({
-        model: params.model,
-        max_tokens: CLAUDE_MAX_TOKENS,
-        // Fact extraction is a deterministic structured-JSON task; the Ollama
-        // path forces temperature 0.2 for the same reason. Anthropic's default
-        // is 1.0, which materially degrades JSON parse rate and fact recall.
-        temperature: 0,
-        system: systemContent || undefined,
-        messages: nonSystem,
-      });
+      const response = await anthropic.messages.create(
+        {
+          model: params.model,
+          max_tokens: CLAUDE_MAX_TOKENS,
+          // Fact extraction is a deterministic structured-JSON task; the Ollama
+          // path forces temperature 0.2 for the same reason. Anthropic's default
+          // is 1.0, which materially degrades JSON parse rate and fact recall.
+          temperature: 0,
+          system: systemContent || undefined,
+          messages: nonSystem,
+        },
+        { timeout: CLAUDE_TIMEOUT_MS },
+      );
 
       // Truncated JSON output silently breaks extractor's parser; flag it so
       // operators can raise the cap or shorten input instead of losing facts.

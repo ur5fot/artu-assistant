@@ -196,6 +196,41 @@ if (routerNeedsOllama || memoryNeedsOllama) {
   }
 }
 
+// When memory uses Voyage or Claude, raw chat content and extracted facts
+// (which can include emails, phone numbers, addresses) cross the network to
+// those providers. The memory pipeline does NOT route through the PII proxy
+// the way the Claude chat path does (see tool-loop.ts), so this is a real
+// data boundary. Choosing a provider via env is not the same as accepting
+// that PII leaves the machine — mirror the OLLAMA_ALLOW_REMOTE pattern and
+// require an explicit acknowledgement via MEMORY_ALLOW_REMOTE_PII=1.
+if (memoryEnabled) {
+  const embeddingModeRaw = process.env.EMBEDDING_PROVIDER ?? 'auto';
+  const textModeRaw = process.env.MEMORY_TEXT_PROVIDER ?? 'auto';
+  // Embedding only resolves to Voyage when explicitly set: pickEmbeddingProvider
+  // 'auto' prefers Ollama and `ollamaForMemory` is created whenever embedding
+  // mode is not 'voyage' (see memoryNeedsOllama above).
+  const embeddingHalfRemote = embeddingModeRaw === 'voyage';
+  // Text resolves to Claude when explicitly chosen or when 'auto' has nowhere
+  // to fall back to — either Ollama isn't created for memory (which happens
+  // only when memory uses Voyage embeddings and text isn't pinned to Ollama),
+  // or LOCAL_LLM_MODE is disabled.
+  const textHalfRemote =
+    textModeRaw === 'claude' ||
+    (textModeRaw === 'auto' && (!memoryNeedsOllama || localLlmMode === 'disabled'));
+  const memoryUsesRemoteApi = embeddingHalfRemote || textHalfRemote;
+
+  if (memoryUsesRemoteApi && process.env.MEMORY_ALLOW_REMOTE_PII !== '1') {
+    throw new Error(
+      `Memory is configured to use a remote provider ` +
+        `(embedding=${embeddingModeRaw}, text=${textModeRaw}). ` +
+        `Raw chat content and extracted facts — including any PII like emails, ` +
+        `phone numbers, or addresses — will be sent to Voyage and/or Anthropic ` +
+        `without anonymization. Set MEMORY_ALLOW_REMOTE_PII=1 to acknowledge this, ` +
+        `or run memory locally via Ollama (EMBEDDING_PROVIDER=ollama, MEMORY_TEXT_PROVIDER=ollama).`,
+    );
+  }
+}
+
 const ollamaForRouter: OllamaClient | null = routerNeedsOllama ? createOllamaClient() : null;
 const ollamaForMemory: OllamaClient | null = memoryNeedsOllama ? createOllamaClient() : null;
 

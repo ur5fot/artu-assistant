@@ -77,11 +77,14 @@ export EMBEDDING_PROVIDER=voyage
 export VOYAGE_API_KEY="<get from https://www.voyageai.com/>"
 export MEMORY_TEXT_PROVIDER=claude
 export LOCAL_LLM_MODE=disabled
+export MEMORY_ALLOW_REMOTE_PII=1                            # required acknowledgment, see below
 
 # Optional defaults (override if needed)
 export VOYAGE_MODEL=voyage-3                                # 1024 dim, default
 export MEMORY_EXTRACT_MODEL_CLAUDE=claude-haiku-4-5-20251001
 ```
+
+**Privacy note (PII flows to external APIs in this mode).** The memory pipeline does not run through the PII anonymization proxy that protects the main Claude chat path. With remote providers enabled, every indexed user message, assistant reply, and extracted fact — including any emails, phone numbers, addresses, or other personal data the conversation contains — is sent to Voyage (for embeddings) and Anthropic (for fact extraction). To prevent accidental leakage, R2 refuses to start in this mode unless you set `MEMORY_ALLOW_REMOTE_PII=1` as an explicit acknowledgment. The same applies if you use `auto` and Ollama is not available, or if you mix Ollama embeddings with Claude fact extraction. If you need anonymization, keep the Ollama default or set `MEMORY_ENABLED=false`.
 
 Costs (rough, at low-volume personal use):
 - Voyage embeddings: ~$0.06 / 1M tokens — typical chat is fractions of a cent per turn
