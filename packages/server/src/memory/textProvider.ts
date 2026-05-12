@@ -46,6 +46,14 @@ export function createClaudeTextProvider(anthropic: Anthropic): TextProvider {
         messages: nonSystem,
       });
 
+      // Truncated JSON output silently breaks extractor's parser; flag it so
+      // operators can raise the cap or shorten input instead of losing facts.
+      if (response.stop_reason === 'max_tokens') {
+        console.warn(
+          `[memory] Claude text provider hit max_tokens (${CLAUDE_MAX_TOKENS}); output may be truncated`,
+        );
+      }
+
       const firstText = response.content.find((b) => b.type === 'text');
       return { text: firstText && 'text' in firstText ? firstText.text : '' };
     },

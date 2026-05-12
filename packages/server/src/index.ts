@@ -304,10 +304,35 @@ function pickTextProvider(opts: {
   return createClaudeTextProvider(anthropic);
 }
 
+const VALID_EMBEDDING_MODES = ['auto', 'ollama', 'voyage'] as const;
+const VALID_TEXT_MODES = ['auto', 'ollama', 'claude'] as const;
+
+function parseProviderMode<T extends string>(
+  name: string,
+  raw: string | undefined,
+  valid: readonly T[],
+): T {
+  const value = (raw ?? 'auto') as T;
+  if (!valid.includes(value)) {
+    throw new Error(
+      `Invalid ${name}=${raw}. Valid values: ${valid.join(', ')}`,
+    );
+  }
+  return value;
+}
+
 let memoryService: MemoryService | null = null;
 if (memoryEnabled) {
-  const embeddingMode = (process.env.EMBEDDING_PROVIDER ?? 'auto') as EmbeddingProviderMode;
-  const textMode = (process.env.MEMORY_TEXT_PROVIDER ?? 'auto') as TextProviderMode;
+  const embeddingMode = parseProviderMode(
+    'EMBEDDING_PROVIDER',
+    process.env.EMBEDDING_PROVIDER,
+    VALID_EMBEDDING_MODES,
+  );
+  const textMode = parseProviderMode(
+    'MEMORY_TEXT_PROVIDER',
+    process.env.MEMORY_TEXT_PROVIDER,
+    VALID_TEXT_MODES,
+  );
 
   let embeddings: EmbeddingsClient | null = null;
   try {

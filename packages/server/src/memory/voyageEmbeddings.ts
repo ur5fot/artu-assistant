@@ -80,8 +80,16 @@ export function createVoyageEmbeddingsClient(config: VoyageConfig): EmbeddingsCl
         }
 
         if (!res.ok) {
-          await res.body?.cancel().catch(() => {});
-          throw new Error(`Voyage error ${res.status}`);
+          // Surface body content so operators can diagnose 400-class errors
+          // (bad model name, malformed input, quota). cancel() loses the body.
+          let bodySnippet = '';
+          try {
+            const text = typeof res.text === 'function' ? await res.text() : '';
+            if (text) bodySnippet = `: ${text.slice(0, 200)}`;
+          } catch {
+            await res.body?.cancel().catch(() => {});
+          }
+          throw new Error(`Voyage error ${res.status}${bodySnippet}`);
         }
 
         const data = (await res.json()) as VoyageResponse;
@@ -102,11 +110,11 @@ export function createVoyageEmbeddingsClient(config: VoyageConfig): EmbeddingsCl
         return embedding;
       } catch (err) {
         const abortedByCaller = signal?.aborted === true;
-        const isRetriable429 = err instanceof Error && err.message.includes('429');
-        if (isRetriable429 && attempt < MAX_RETRIES - 1) {
-          continue;
-        }
-        if (!abortedByCaller) {
+        // Auth failures are not transient — a bad key won't recover in 30s.
+        // Opening the circuit on 401 hides the real cause behind a generic
+        // "circuit open" message on every subsequent call.
+        const isAuthError = err instanceof Error && err.message.includes('auth failed (401)');
+        if (!abortedByCaller && !isAuthError) {
           circuitOpenedAt = Date.now();
         }
         throw err;

@@ -393,7 +393,7 @@ First `docker compose up` takes longer because the analyzer image builds locally
 
 ### Memory System
 
-R2 remembers past conversations via a local vector database. Every chat turn is embedded with `mxbai-embed-large` (via Ollama, 1024-dim) and stored in sqlite-vec tables inside `data/r2.db`. Ollama also extracts structured facts about the user (`user.location`, `user.phone`, etc.) with versioning — when a fact changes, the old one is marked superseded and history is preserved.
+R2 remembers past conversations via a local vector database. Every chat turn is embedded with `mxbai-embed-large` (via Ollama, 1024-dim) and stored in sqlite-vec tables inside `data/r2.db`. A `TextProvider` (Ollama `qwen2.5:7b` or Claude Haiku — see below) extracts structured facts about the user (`user.location`, `user.phone`, etc.) with versioning — when a fact changes, the old one is marked superseded and history is preserved.
 
 Setup requires an extra Ollama model pull: `ollama pull mxbai-embed-large`. Memory is implemented in `packages/server/src/memory/` and exposed via the `@r2/tool-memory` workspace package. Slash-command invocations and tool results are intentionally NOT indexed: the former is a dispatcher, not user content; the latter bypasses the PII proxy and could leak secrets.
 
