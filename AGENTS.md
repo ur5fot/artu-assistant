@@ -425,13 +425,14 @@ Chat history sent to the LLM is truncated to `CHAT_CONTEXT_BUDGET_CHARS` (defaul
 
 Configuration via env vars:
 - `MEMORY_ENABLED=true` — kill switch
-- `EMBEDDING_PROVIDER=auto|ollama|voyage` — embedding provider (auto = ollama if reachable, else voyage)
+- `EMBEDDING_PROVIDER=auto|ollama|voyage` — embedding provider. Selection is env-based (no runtime ping): `auto` resolves to Ollama whenever the Ollama client is constructed for memory (i.e., not pinned to Voyage); set `voyage` explicitly to use Voyage.
 - `MEMORY_EMBED_MODEL=mxbai-embed-large` — Ollama embedding model (1024-dim)
 - `VOYAGE_API_KEY=<key>` — required when `EMBEDDING_PROVIDER=voyage`
 - `VOYAGE_MODEL=voyage-3` — Voyage embedding model (1024-dim; also `voyage-3-large`)
-- `MEMORY_TEXT_PROVIDER=auto|ollama|claude` — fact-extraction text provider
+- `MEMORY_TEXT_PROVIDER=auto|ollama|claude` — fact-extraction text provider. `auto` resolves to Ollama unless `LOCAL_LLM_MODE=disabled` or the memory-Ollama client is not constructed, in which case it falls back to Claude.
 - `MEMORY_EXTRACT_MODEL=qwen2.5:7b` — Ollama extractor model
 - `MEMORY_EXTRACT_MODEL_CLAUDE=claude-haiku-4-5-20251001` — Claude extractor model
+- `MEMORY_ALLOW_REMOTE_PII=1` — required acknowledgement when memory uses Voyage and/or Claude; raw chat content plus extracted facts (including any PII like emails, phone numbers, addresses) leave the machine unanonymized, since the memory pipeline does not route through the PII proxy. Startup refuses remote-memory configs without this.
 - `MEMORY_MAX_CONTEXT_TOKENS=2000` — budget for auto-retrieval prefix
 - `CHAT_CONTEXT_BUDGET_CHARS=60000` — messages[] char budget for LLM calls
 
@@ -521,13 +522,14 @@ OLLAMA_TIMEOUT_MS=15000
 OLLAMA_ALLOW_REMOTE=               # =1 to permit non-loopback OLLAMA_URL (otherwise startup refuses — Ollama path bypasses PII anonymization)
 # Memory system (Phase 2 — Memory)
 MEMORY_ENABLED=true                # kill switch; false skips sqlite-vec load
-EMBEDDING_PROVIDER=auto            # auto | ollama | voyage (auto = ollama if reachable, else voyage)
-MEMORY_TEXT_PROVIDER=auto          # auto | ollama | claude (auto = ollama if reachable and LOCAL_LLM_MODE!=disabled, else claude)
+EMBEDDING_PROVIDER=auto            # auto | ollama | voyage. Env-based, no runtime ping; auto resolves to ollama when the memory-ollama client is constructed
+MEMORY_TEXT_PROVIDER=auto          # auto | ollama | claude. auto resolves to ollama unless LOCAL_LLM_MODE=disabled or the memory-ollama client is unset
 MEMORY_EMBED_MODEL=mxbai-embed-large            # Ollama embedding model (1024-dim)
 MEMORY_EXTRACT_MODEL=qwen2.5:7b                 # Ollama extractor model
 MEMORY_EXTRACT_MODEL_CLAUDE=claude-haiku-4-5-20251001  # Claude extractor model (when text provider = claude)
 VOYAGE_API_KEY=                    # required when EMBEDDING_PROVIDER=voyage
 VOYAGE_MODEL=voyage-3              # voyage-3 | voyage-3-large (both 1024-dim)
+MEMORY_ALLOW_REMOTE_PII=           # =1 required when memory uses Voyage and/or Claude (raw chat + extracted PII flow out unanonymized); startup refuses otherwise
 MEMORY_MAX_CONTEXT_TOKENS=2000     # budget for auto-retrieval prefix
 # Email watcher (Phase 4F)
 IMAP_ACCOUNTS=[]                   # JSON array of {id,host,port,user,password,tls}; empty disables the feature

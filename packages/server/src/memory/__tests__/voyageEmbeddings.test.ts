@@ -134,6 +134,87 @@ describe('VoyageEmbeddingsClient', () => {
     await expect(client.embedDocument('x')).rejects.toThrow('Voyage dimension mismatch');
   });
 
+  it('rejects response missing embedding', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    });
+    const client = createVoyageEmbeddingsClient({ apiKey: 'sk', model: 'voyage-3' });
+    await expect(client.embedDocument('x')).rejects.toThrow('Voyage response missing embedding');
+  });
+
+  it('rejects non-finite values in embedding', async () => {
+    const badVec = [NaN, ...Array.from({ length: 1023 }, () => 0)];
+    mockFetch.mockResolvedValueOnce(ok(badVec));
+    const client = createVoyageEmbeddingsClient({
+      apiKey: 'sk',
+      model: 'voyage-3',
+      retryBackoffMs: 1,
+    });
+    await expect(client.embedDocument('x')).rejects.toThrow('non-finite');
+  });
+
+  it('truncates input over EMBED_INPUT_MAX_CHARS in request body', async () => {
+    mockFetch.mockResolvedValueOnce(ok(Array.from({ length: 1024 }, () => 0)));
+    const client = createVoyageEmbeddingsClient({ apiKey: 'sk', model: 'voyage-3' });
+    const longInput = 'a'.repeat(9000);
+    await client.embedDocument(longInput);
+    const body = JSON.parse((mockFetch.mock.calls[0][1] as any).body);
+    expect(body.input[0]).toHaveLength(8000);
+  });
+
+  it('does not omit body — the un-sent 4xx body is not logged to avoid PII leak', async () => {
+    // Voyage 4xx responses often echo a fragment of the input. The memory
+    // pipeline indexes raw user content, so surfacing that body in error
+    // messages would leak PII (emails, phone numbers) to operator logs.
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      body: { cancel: () => Promise.resolve() },
+      text: async () => 'malformed input: user@example.com',
+    });
+    const client = createVoyageEmbeddingsClient({ apiKey: 'sk', model: 'voyage-3' });
+    await expect(client.embedDocument('x')).rejects.toThrow(/^Voyage error 400$/);
+  });
+
+  it('401 does not open the circuit so the next call surfaces the real error', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401, body: { cancel: () => Promise.resolve() } });
+    const client = createVoyageEmbeddingsClient({ apiKey: 'bad', model: 'voyage-3' });
+    await expect(client.embedDocument('a')).rejects.toThrow('Voyage auth failed (401)');
+    mockFetch.mockResolvedValueOnce(ok(Array.from({ length: 1024 }, () => 0)));
+    await expect(client.embedDocument('b')).resolves.toHaveLength(1024);
+  });
+
+  it('retries transient network errors instead of opening the circuit on first failure', async () => {
+    // Fetch-level errors (timeout AbortError, DNS, connection reset) escape
+    // the status-code retry paths. A single transient timeout used to trip the
+    // circuit breaker and block memory ops for CIRCUIT_OPEN_MS.
+    mockFetch.mockRejectedValueOnce(Object.assign(new Error('timeout'), { name: 'AbortError' }));
+    mockFetch.mockResolvedValueOnce(ok(Array.from({ length: 1024 }, () => 0)));
+    const client = createVoyageEmbeddingsClient({
+      apiKey: 'sk',
+      model: 'voyage-3',
+      retryBackoffMs: 1,
+    });
+    const result = await client.embedDocument('hello');
+    expect(result).toHaveLength(1024);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens circuit after exhausting retries on transient network errors', async () => {
+    mockFetch.mockRejectedValue(Object.assign(new Error('fetch failed'), { name: 'TypeError' }));
+    const client = createVoyageEmbeddingsClient({
+      apiKey: 'sk',
+      model: 'voyage-3',
+      retryBackoffMs: 1,
+    });
+    await expect(client.embedDocument('a')).rejects.toThrow('fetch failed');
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    await expect(client.embedDocument('b')).rejects.toThrow('Voyage circuit open');
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
   it('caller abort does not open circuit', async () => {
     const ac = new AbortController();
     ac.abort();

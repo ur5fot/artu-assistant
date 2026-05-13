@@ -111,4 +111,51 @@ describe('createClaudeTextProvider', () => {
 
     expect(result.text).toBe('');
   });
+
+  it('warns on stop_reason=max_tokens so operators can raise the cap', async () => {
+    const anthropic = {
+      messages: {
+        create: vi.fn().mockResolvedValue({
+          content: [{ type: 'text', text: 'truncated...' }],
+          stop_reason: 'max_tokens',
+        }),
+      },
+    } as any;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const provider = createClaudeTextProvider(anthropic);
+    await provider.chat({
+      messages: [{ role: 'user', content: 'hi' }],
+      model: 'claude-haiku-4-5-20251001',
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('max_tokens'));
+    warnSpy.mockRestore();
+  });
+
+  it('joins multiple system messages with double newline', async () => {
+    const anthropic = {
+      messages: {
+        create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] }),
+      },
+    } as any;
+
+    const provider = createClaudeTextProvider(anthropic);
+    await provider.chat({
+      messages: [
+        { role: 'system', content: 'be terse' },
+        { role: 'system', content: 'be nice' },
+        { role: 'user', content: 'hi' },
+      ],
+      model: 'claude-haiku-4-5-20251001',
+    });
+
+    expect(anthropic.messages.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'be terse\n\nbe nice',
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+      expect.anything(),
+    );
+  });
 });

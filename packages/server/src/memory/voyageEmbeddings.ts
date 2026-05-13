@@ -22,6 +22,19 @@ interface VoyageResponse {
   data?: Array<{ embedding?: number[]; index?: number }>;
 }
 
+// Marks errors that are deterministic from the response and should not retry
+// (4xx non-auth, malformed/empty body, dimension mismatch, non-finite values).
+// Without this, the catch block would retry up to MAX_RETRIES times on a
+// fundamentally broken response and waste API calls before opening the circuit.
+const PERMANENT = Symbol('voyagePermanentError');
+function permanent(err: Error): Error {
+  (err as Error & { [PERMANENT]?: boolean })[PERMANENT] = true;
+  return err;
+}
+function isPermanent(err: unknown): boolean {
+  return err instanceof Error && (err as Error & { [PERMANENT]?: boolean })[PERMANENT] === true;
+}
+
 export function createVoyageEmbeddingsClient(config: VoyageConfig): EmbeddingsClient {
   const dimension = VOYAGE_DIMENSIONS[config.model];
   if (!dimension) {
@@ -94,31 +107,28 @@ export function createVoyageEmbeddingsClient(config: VoyageConfig): EmbeddingsCl
         }
 
         if (!res.ok) {
-          // Surface body content so operators can diagnose 400-class errors
-          // (bad model name, malformed input, quota). cancel() loses the body.
-          let bodySnippet = '';
-          try {
-            const text = typeof res.text === 'function' ? await res.text() : '';
-            if (text) bodySnippet = `: ${text.slice(0, 200)}`;
-          } catch {
-            await res.body?.cancel().catch(() => {});
-          }
-          throw new Error(`Voyage error ${res.status}${bodySnippet}`);
+          // Drain body without echoing it. Voyage 4xx responses commonly
+          // reflect a fragment of the original input back in the error message;
+          // memory pipeline indexes raw, non-anonymized user content, so
+          // surfacing that body to console.warn (see service.ts safeEmbed*)
+          // would expose PII (emails, phone numbers, etc.) to operator logs.
+          await res.body?.cancel().catch(() => {});
+          throw permanent(new Error(`Voyage error ${res.status}`));
         }
 
         const data = (await res.json()) as VoyageResponse;
         const embedding = data.data?.[0]?.embedding;
         if (!Array.isArray(embedding)) {
-          throw new Error('Voyage response missing embedding');
+          throw permanent(new Error('Voyage response missing embedding'));
         }
         if (embedding.length !== dimension) {
-          throw new Error(
+          throw permanent(new Error(
             `Voyage dimension mismatch: model '${config.model}' returned ${embedding.length}, expected ${dimension}`,
-          );
+          ));
         }
         for (const n of embedding) {
           if (typeof n !== 'number' || !Number.isFinite(n)) {
-            throw new Error('Voyage response contains non-finite values');
+            throw permanent(new Error('Voyage response contains non-finite values'));
           }
         }
         return embedding;
@@ -128,12 +138,32 @@ export function createVoyageEmbeddingsClient(config: VoyageConfig): EmbeddingsCl
         // Opening the circuit on 401 hides the real cause behind a generic
         // "circuit open" message on every subsequent call.
         const isAuthError = err instanceof Error && err.message.includes('auth failed (401)');
-        if (!abortedByCaller && !isAuthError) {
-          circuitOpenedAt = Date.now();
+        if (abortedByCaller || isAuthError) {
+          throw err;
         }
+        // Permanent errors (4xx, malformed response, dimension/value validation)
+        // are deterministic — retrying wastes API calls. Open the circuit so
+        // the next caller sees a fast "circuit open" instead of repeating the
+        // same broken request.
+        if (isPermanent(err)) {
+          circuitOpenedAt = Date.now();
+          throw err;
+        }
+        // Retry transient errors that escape the status-code paths above:
+        // fetch network failures, timeouts (timeoutSignal firing throws AbortError).
+        // Without this, a single transient timeout trips the circuit breaker and
+        // blocks all memory ops for CIRCUIT_OPEN_MS even though the next call
+        // would have succeeded.
+        if (attempt < MAX_RETRIES - 1) {
+          lastErr = err instanceof Error ? err : new Error(String(err));
+          await new Promise((r) => setTimeout(r, baseBackoff * 2 ** attempt));
+          continue;
+        }
+        circuitOpenedAt = Date.now();
         throw err;
       }
     }
+    // Unreachable: every path in the loop body either returns or throws.
     throw lastErr ?? new Error('Voyage request failed');
   }
 
