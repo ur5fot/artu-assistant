@@ -12,10 +12,39 @@ describe('createOllamaTextProvider', () => {
     });
 
     expect(result.text).toBe('hello');
-    expect(ollama.chat).toHaveBeenCalledWith({
-      messages: [{ role: 'user', content: 'hi' }],
+    expect(ollama.chat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [{ role: 'user', content: 'hi' }],
+        model: 'qwen2.5:7b',
+        system: undefined,
+      }),
+    );
+  });
+
+  it('extracts system messages into the system parameter (parity with Claude provider)', async () => {
+    // OllamaClient.toOllamaMessage casts unknown roles to 'user'|'assistant';
+    // a system turn left in the messages array would silently become an
+    // assistant message and lose its instructional weight. Verify the provider
+    // routes system content through OllamaChatParams.system instead.
+    const ollama = { chat: vi.fn().mockResolvedValue({ text: 'ok' }) } as any;
+    const provider = createOllamaTextProvider(ollama);
+
+    await provider.chat({
+      messages: [
+        { role: 'system', content: 'be terse' },
+        { role: 'system', content: 'be nice' },
+        { role: 'user', content: 'hi' },
+      ],
       model: 'qwen2.5:7b',
     });
+
+    expect(ollama.chat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'be terse\n\nbe nice',
+        messages: [{ role: 'user', content: 'hi' }],
+        model: 'qwen2.5:7b',
+      }),
+    );
   });
 });
 

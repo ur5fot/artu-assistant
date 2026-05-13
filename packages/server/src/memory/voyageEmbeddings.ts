@@ -50,6 +50,30 @@ export function createVoyageEmbeddingsClient(config: VoyageConfig): EmbeddingsCl
   const baseBackoff = config.retryBackoffMs ?? DEFAULT_BACKOFF_MS;
   let circuitOpenedAt = 0;
 
+  // Sleep that resolves immediately if the caller aborts. Plain setTimeout in
+  // the retry path would stall an aborted Discord turn for the full backoff
+  // window (~3s across 1s+2s on the second retry) before the next fetch can
+  // observe the abort. We still resolve (not reject) so the loop hits its
+  // next iteration where the combined AbortSignal triggers the proper abort
+  // path inside fetch — keeps the abort-handling logic in one place.
+  function sleepUnlessAborted(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve) => {
+      if (signal?.aborted) {
+        resolve();
+        return;
+      }
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+      const onAbort = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
   async function callVoyage(
     text: string,
     inputType: 'document' | 'query',
@@ -86,7 +110,7 @@ export function createVoyageEmbeddingsClient(config: VoyageConfig): EmbeddingsCl
           await res.body?.cancel().catch(() => {});
           lastErr = new Error('Voyage rate limit (429)');
           if (attempt < MAX_RETRIES - 1) {
-            await new Promise((r) => setTimeout(r, baseBackoff * 2 ** attempt));
+            await sleepUnlessAborted(baseBackoff * 2 ** attempt, signal);
             continue;
           }
           throw lastErr;
@@ -100,7 +124,7 @@ export function createVoyageEmbeddingsClient(config: VoyageConfig): EmbeddingsCl
           await res.body?.cancel().catch(() => {});
           lastErr = new Error(`Voyage error ${res.status}`);
           if (attempt < MAX_RETRIES - 1) {
-            await new Promise((r) => setTimeout(r, baseBackoff * 2 ** attempt));
+            await sleepUnlessAborted(baseBackoff * 2 ** attempt, signal);
             continue;
           }
           throw lastErr;

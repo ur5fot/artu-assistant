@@ -29,6 +29,15 @@ describe('VoyageEmbeddingsClient', () => {
     ).toThrow('Unsupported VOYAGE_MODEL');
   });
 
+  it('rejects empty apiKey at construction', () => {
+    // Without this guard a missing VOYAGE_API_KEY surfaces only as a 401 on
+    // the first runtime call, which trips the auth-failure path and is slower
+    // to diagnose than failing at startup.
+    expect(() =>
+      createVoyageEmbeddingsClient({ apiKey: '', model: 'voyage-3' }),
+    ).toThrow('VOYAGE_API_KEY required');
+  });
+
   it('embedDocument calls /v1/embeddings with input_type=document', async () => {
     const vec = Array.from({ length: 1024 }, () => 0.1);
     mockFetch.mockResolvedValueOnce(ok(vec));

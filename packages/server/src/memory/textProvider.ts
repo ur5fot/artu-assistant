@@ -14,8 +14,22 @@ export interface TextProvider {
 export function createOllamaTextProvider(ollama: OllamaClient): TextProvider {
   return {
     async chat(params) {
+      // Route 'system' role messages through OllamaChatParams.system instead
+      // of passing them through as chat turns. ollama.ts:toOllamaMessage casts
+      // unknown roles to 'user'|'assistant', so a system turn left in the
+      // messages array would silently become an assistant message and lose
+      // its instructional weight. The Claude provider does the same extraction
+      // — keeping the two halves of TextProvider symmetric.
+      const systemContent = params.messages
+        .filter((m) => m.role === 'system')
+        .map((m) => m.content)
+        .join('\n\n');
+      const nonSystem: MessageParam[] = params.messages
+        .filter((m) => m.role !== 'system')
+        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
       return ollama.chat({
-        messages: params.messages as MessageParam[],
+        messages: nonSystem,
+        system: systemContent || undefined,
         model: params.model,
       });
     },

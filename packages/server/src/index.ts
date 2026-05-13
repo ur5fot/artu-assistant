@@ -370,9 +370,16 @@ if (memoryEnabled) {
   // Provider factories fail loudly on explicit-mode misconfiguration (e.g.
   // EMBEDDING_PROVIDER=voyage without VOYAGE_API_KEY). Auto mode returns null
   // when no provider is available, which is handled below.
+  //
+  // Only hand the Ollama client to the half that the bootstrap predicates
+  // already resolved to Ollama. `ollamaForMemory` may have been created for
+  // the *other* half (e.g. text=ollama + embed=auto with no OLLAMA_URL), and
+  // letting the auto branch see a non-null client there would silently pick
+  // Ollama@default-localhost, bypassing the auto→Voyage / auto→Claude fallback
+  // the PII guard above already validated against.
   const embeddings: EmbeddingsClient | null = pickEmbeddingProvider({
     mode: embeddingMode,
-    ollama: ollamaForMemory,
+    ollama: embedUsesOllama ? ollamaForMemory : null,
     ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
     ollamaModel: process.env.MEMORY_EMBED_MODEL || 'mxbai-embed-large',
     voyageKey: process.env.VOYAGE_API_KEY,
@@ -385,7 +392,7 @@ if (memoryEnabled) {
   // construction throws.
   const textProvider: TextProvider = pickTextProvider({
     mode: textMode,
-    ollama: ollamaForMemory,
+    ollama: textUsesOllama ? ollamaForMemory : null,
     anthropic: client.anthropic,
     localLlmMode,
   });
