@@ -376,40 +376,31 @@ if (memoryEnabled) {
     VALID_TEXT_MODES,
   );
 
-  let embeddings: EmbeddingsClient | null = null;
-  try {
-    embeddings = pickEmbeddingProvider({
-      mode: embeddingMode,
-      ollama: ollamaForMemory,
-      ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
-      ollamaModel: process.env.MEMORY_EMBED_MODEL || 'mxbai-embed-large',
-      voyageKey: process.env.VOYAGE_API_KEY,
-      voyageModel: process.env.VOYAGE_MODEL || 'voyage-3',
-    });
-  } catch (err) {
-    console.error('[memory] embedding provider setup failed:', err instanceof Error ? err.message : err);
-  }
+  // Provider factories fail loudly on explicit-mode misconfiguration (e.g.
+  // EMBEDDING_PROVIDER=voyage without VOYAGE_API_KEY). Auto mode returns null
+  // when no provider is available, which is handled below.
+  const embeddings: EmbeddingsClient | null = pickEmbeddingProvider({
+    mode: embeddingMode,
+    ollama: ollamaForMemory,
+    ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
+    ollamaModel: process.env.MEMORY_EMBED_MODEL || 'mxbai-embed-large',
+    voyageKey: process.env.VOYAGE_API_KEY,
+    voyageModel: process.env.VOYAGE_MODEL || 'voyage-3',
+  });
 
-  // Resolve text provider before migration. A misconfigured text provider is
-  // a cheap, immediate failure — running ensureEmbedModelMatches first would
-  // spend embedding API calls (and Voyage credits) on a DB rebuild that would
-  // then be discarded when the text provider check fails.
-  let textProvider: TextProvider | null = null;
-  try {
-    textProvider = pickTextProvider({
-      mode: textMode,
-      ollama: ollamaForMemory,
-      anthropic: client.anthropic,
-      localLlmMode,
-    });
-  } catch (err) {
-    console.error('[memory] text provider setup failed:', err instanceof Error ? err.message : err);
-  }
+  // Resolve text provider before migration. Cheap, immediate check — running
+  // ensureEmbedModelMatches first would spend embedding API calls (and Voyage
+  // credits) on a DB rebuild that would then be discarded if text provider
+  // construction throws.
+  const textProvider: TextProvider = pickTextProvider({
+    mode: textMode,
+    ollama: ollamaForMemory,
+    anthropic: client.anthropic,
+    localLlmMode,
+  });
 
   if (!embeddings) {
     console.log('[memory] disabled — no embedding provider configured (set OLLAMA_URL or VOYAGE_API_KEY)');
-  } else if (!textProvider) {
-    console.log('[memory] disabled — text provider unavailable');
   } else {
     let migrationOk = false;
     try {
