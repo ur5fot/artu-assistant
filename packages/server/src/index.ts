@@ -147,23 +147,22 @@ const localLlmMode = (process.env.LOCAL_LLM_MODE || 'enabled') as 'enabled' | 'd
 const memoryEnabled = (process.env.MEMORY_ENABLED ?? 'true') !== 'false';
 
 const routerNeedsOllama = localLlmMode !== 'disabled';
-// Memory may run entirely via remote APIs (Voyage embeddings + Claude text
-// extraction). In that case it no longer needs Ollama, so the loopback-PII
-// guard below should not gate startup. Need Ollama if EITHER half of memory
-// might use it — both halves must opt out (not just one) before we can skip
-// creating the client. AND here would silently disable mixed configs like
-// `EMBEDDING_PROVIDER=ollama, MEMORY_TEXT_PROVIDER=claude`.
-//
-// Text provider in `auto` mode falls back to Claude when LOCAL_LLM_MODE=disabled
-// (see pickTextProvider), so in that case the text half can never reach Ollama
-// even with MEMORY_TEXT_PROVIDER unset. Honor that here so an operator who
-// explicitly disabled local LLM doesn't get the PII guard fired by an
-// inherited OLLAMA_URL pointing at a stale remote host.
-const textHalfNeedsOllama =
-  (process.env.MEMORY_TEXT_PROVIDER ?? 'auto') !== 'claude' && localLlmMode !== 'disabled';
-const memoryNeedsOllama =
-  memoryEnabled &&
-  ((process.env.EMBEDDING_PROVIDER ?? 'auto') !== 'voyage' || textHalfNeedsOllama);
+// `auto` mode for both halves of memory must honor whether the operator
+// actually configured an Ollama endpoint. Without OLLAMA_URL we cannot assume
+// localhost — that would silently disable the documented auto→Voyage / auto→
+// Claude fallback for laptop / API-only deployments (see README "Running R2
+// without Ollama"). Explicit `=ollama` still creates a client and lets the
+// provider factory surface a runtime error if the endpoint is unreachable.
+const ollamaConfigured = !!process.env.OLLAMA_URL;
+const embeddingModeRaw = process.env.EMBEDDING_PROVIDER ?? 'auto';
+const textModeRaw = process.env.MEMORY_TEXT_PROVIDER ?? 'auto';
+const embedUsesOllama =
+  embeddingModeRaw === 'ollama' ||
+  (embeddingModeRaw === 'auto' && ollamaConfigured);
+const textUsesOllama =
+  textModeRaw === 'ollama' ||
+  (textModeRaw === 'auto' && ollamaConfigured && localLlmMode !== 'disabled');
+const memoryNeedsOllama = memoryEnabled && (embedUsesOllama || textUsesOllama);
 
 // Router intentionally skips PII anonymization for the Ollama path on the
 // assumption that Ollama runs on the user's machine. If OLLAMA_URL points at a
@@ -204,19 +203,11 @@ if (routerNeedsOllama || memoryNeedsOllama) {
 // that PII leaves the machine — mirror the OLLAMA_ALLOW_REMOTE pattern and
 // require an explicit acknowledgement via MEMORY_ALLOW_REMOTE_PII=1.
 if (memoryEnabled) {
-  const embeddingModeRaw = process.env.EMBEDDING_PROVIDER ?? 'auto';
-  const textModeRaw = process.env.MEMORY_TEXT_PROVIDER ?? 'auto';
-  // Embedding only resolves to Voyage when explicitly set: pickEmbeddingProvider
-  // 'auto' prefers Ollama and `ollamaForMemory` is created whenever embedding
-  // mode is not 'voyage' (see memoryNeedsOllama above).
-  const embeddingHalfRemote = embeddingModeRaw === 'voyage';
-  // Text resolves to Claude when explicitly chosen or when 'auto' has nowhere
-  // to fall back to — either Ollama isn't created for memory (which happens
-  // only when memory uses Voyage embeddings and text isn't pinned to Ollama),
-  // or LOCAL_LLM_MODE is disabled.
-  const textHalfRemote =
-    textModeRaw === 'claude' ||
-    (textModeRaw === 'auto' && (!memoryNeedsOllama || localLlmMode === 'disabled'));
+  // Use the same `embed/textUsesOllama` predicates computed above so the guard
+  // tracks the actual resolved provider, including the auto→Voyage / auto→
+  // Claude fallbacks when OLLAMA_URL is unset.
+  const embeddingHalfRemote = !embedUsesOllama;
+  const textHalfRemote = !textUsesOllama;
   const memoryUsesRemoteApi = embeddingHalfRemote || textHalfRemote;
 
   if (memoryUsesRemoteApi && process.env.MEMORY_ALLOW_REMOTE_PII !== '1') {
