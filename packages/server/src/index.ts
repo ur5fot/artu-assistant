@@ -141,12 +141,42 @@ if (piiMode === 'disabled') {
   });
 }
 
+const VALID_EMBEDDING_MODES = ['auto', 'ollama', 'voyage'] as const;
+const VALID_TEXT_MODES = ['auto', 'ollama', 'claude'] as const;
+type EmbeddingProviderMode = (typeof VALID_EMBEDDING_MODES)[number];
+type TextProviderMode = (typeof VALID_TEXT_MODES)[number];
+
+function parseProviderMode<T extends string>(
+  name: string,
+  raw: string | undefined,
+  valid: readonly T[],
+): T {
+  const value = (raw ?? 'auto') as T;
+  if (!valid.includes(value)) {
+    throw new Error(
+      `Invalid ${name}=${raw}. Valid values: ${valid.join(', ')}`,
+    );
+  }
+  return value;
+}
+
 // Setup
 const client = createClaudeClient();
 const localLlmMode = (process.env.LOCAL_LLM_MODE || 'enabled') as 'enabled' | 'disabled';
 const memoryEnabled = (process.env.MEMORY_ENABLED ?? 'true') !== 'false';
 
 const routerNeedsOllama = localLlmMode !== 'disabled';
+// Validate provider modes up-front. Doing this before the loopback-PII guards
+// below ensures a typo like `EMBEDDING_PROVIDER=voygae` surfaces as a clear
+// "Invalid EMBEDDING_PROVIDER=voygae" error instead of being misclassified as
+// "not ollama, not auto → remote provider" and falsely triggering the
+// MEMORY_ALLOW_REMOTE_PII acknowledgement requirement.
+const embeddingMode = memoryEnabled
+  ? parseProviderMode('EMBEDDING_PROVIDER', process.env.EMBEDDING_PROVIDER, VALID_EMBEDDING_MODES)
+  : 'auto';
+const textMode = memoryEnabled
+  ? parseProviderMode('MEMORY_TEXT_PROVIDER', process.env.MEMORY_TEXT_PROVIDER, VALID_TEXT_MODES)
+  : 'auto';
 // `auto` mode for both halves of memory must honor whether the operator
 // actually configured an Ollama endpoint. Without OLLAMA_URL we cannot assume
 // localhost — that would silently disable the documented auto→Voyage / auto→
@@ -154,14 +184,12 @@ const routerNeedsOllama = localLlmMode !== 'disabled';
 // without Ollama"). Explicit `=ollama` still creates a client and lets the
 // provider factory surface a runtime error if the endpoint is unreachable.
 const ollamaConfigured = !!process.env.OLLAMA_URL;
-const embeddingModeRaw = process.env.EMBEDDING_PROVIDER ?? 'auto';
-const textModeRaw = process.env.MEMORY_TEXT_PROVIDER ?? 'auto';
 const embedUsesOllama =
-  embeddingModeRaw === 'ollama' ||
-  (embeddingModeRaw === 'auto' && ollamaConfigured);
+  embeddingMode === 'ollama' ||
+  (embeddingMode === 'auto' && ollamaConfigured);
 const textUsesOllama =
-  textModeRaw === 'ollama' ||
-  (textModeRaw === 'auto' && ollamaConfigured && localLlmMode !== 'disabled');
+  textMode === 'ollama' ||
+  (textMode === 'auto' && ollamaConfigured && localLlmMode !== 'disabled');
 const memoryNeedsOllama = memoryEnabled && (embedUsesOllama || textUsesOllama);
 
 // Router intentionally skips PII anonymization for the Ollama path on the
@@ -213,7 +241,7 @@ if (memoryEnabled) {
   if (memoryUsesRemoteApi && process.env.MEMORY_ALLOW_REMOTE_PII !== '1') {
     throw new Error(
       `Memory is configured to use a remote provider ` +
-        `(embedding=${embeddingModeRaw}, text=${textModeRaw}). ` +
+        `(embedding=${embeddingMode}, text=${textMode}). ` +
         `Raw chat content and extracted facts — including any PII like emails, ` +
         `phone numbers, or addresses — will be sent to Voyage and/or Anthropic ` +
         `without anonymization. Set MEMORY_ALLOW_REMOTE_PII=1 to acknowledge this, ` +
@@ -275,8 +303,6 @@ const planReviewService = createPlanReviewService({ pending: pendingPlanReviews 
 const pendingMemoryConfirms: PendingMemoryConfirms = new Map();
 const memoryConfirmService = createMemoryConfirmService({ pending: pendingMemoryConfirms });
 
-type EmbeddingProviderMode = 'auto' | 'ollama' | 'voyage';
-
 function pickEmbeddingProvider(opts: {
   mode: EmbeddingProviderMode;
   ollama: OllamaClient | null;
@@ -309,8 +335,6 @@ function pickEmbeddingProvider(opts: {
   return null;
 }
 
-type TextProviderMode = 'auto' | 'ollama' | 'claude';
-
 function pickTextProvider(opts: {
   mode: TextProviderMode;
   ollama: OllamaClient | null;
@@ -337,36 +361,8 @@ function pickTextProvider(opts: {
   return createClaudeTextProvider(anthropic);
 }
 
-const VALID_EMBEDDING_MODES = ['auto', 'ollama', 'voyage'] as const;
-const VALID_TEXT_MODES = ['auto', 'ollama', 'claude'] as const;
-
-function parseProviderMode<T extends string>(
-  name: string,
-  raw: string | undefined,
-  valid: readonly T[],
-): T {
-  const value = (raw ?? 'auto') as T;
-  if (!valid.includes(value)) {
-    throw new Error(
-      `Invalid ${name}=${raw}. Valid values: ${valid.join(', ')}`,
-    );
-  }
-  return value;
-}
-
 let memoryService: MemoryService | null = null;
 if (memoryEnabled) {
-  const embeddingMode = parseProviderMode(
-    'EMBEDDING_PROVIDER',
-    process.env.EMBEDDING_PROVIDER,
-    VALID_EMBEDDING_MODES,
-  );
-  const textMode = parseProviderMode(
-    'MEMORY_TEXT_PROVIDER',
-    process.env.MEMORY_TEXT_PROVIDER,
-    VALID_TEXT_MODES,
-  );
-
   // Provider factories fail loudly on explicit-mode misconfiguration (e.g.
   // EMBEDDING_PROVIDER=voyage without VOYAGE_API_KEY). Auto mode returns null
   // when no provider is available, which is handled below.
