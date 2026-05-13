@@ -409,8 +409,14 @@ if (memoryEnabled) {
     }
 
     if (migrationOk) {
-      const usingOllamaText =
-        textMode === 'ollama' || (textMode === 'auto' && !!ollamaForMemory && localLlmMode !== 'disabled');
+      // Use the same predicate that gated `ollamaForMemory` into pickTextProvider
+      // above. Recomputing from `!!ollamaForMemory` is unsafe: that client is
+      // also non-null when only the embeddings half is Ollama, which would
+      // mismatch the Claude provider with an Ollama model name (e.g.
+      // `EMBEDDING_PROVIDER=ollama` + `MEMORY_TEXT_PROVIDER=auto` + no
+      // OLLAMA_URL set → textProvider is Claude but extractorModel would be
+      // qwen2.5:7b, causing every fact extraction to 404).
+      const usingOllamaText = textUsesOllama;
       const extractorModel = usingOllamaText
         ? process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b'
         : process.env.MEMORY_EXTRACT_MODEL_CLAUDE || 'claude-haiku-4-5-20251001';

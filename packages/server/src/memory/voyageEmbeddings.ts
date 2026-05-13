@@ -180,7 +180,7 @@ export function createVoyageEmbeddingsClient(config: VoyageConfig): EmbeddingsCl
         // would have succeeded.
         if (attempt < MAX_RETRIES - 1) {
           lastErr = err instanceof Error ? err : new Error(String(err));
-          await new Promise((r) => setTimeout(r, baseBackoff * 2 ** attempt));
+          await sleepUnlessAborted(baseBackoff * 2 ** attempt, signal);
           continue;
         }
         circuitOpenedAt = Date.now();
