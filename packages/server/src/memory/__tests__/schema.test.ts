@@ -31,7 +31,7 @@ describe('memory schema', () => {
 
   it('loads sqlite-vec extension and allows vec0 insert', () => {
     const db = getDb();
-    const vec = new Float32Array(768);
+    const vec = new Float32Array(1024);
     vec[0] = 0.5;
     vec[1] = -0.3;
     db.prepare(

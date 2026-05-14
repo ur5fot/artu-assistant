@@ -3,12 +3,12 @@ import { extractFacts, hasImportanceKeyword, normalizeKey, IMPORTANT_BOOST_VALUE
 
 describe('extractFacts', () => {
   it('calls Ollama chat and parses JSON array', async () => {
-    const mockOllama = {
+    const mockTextProvider = {
       chat: vi.fn().mockResolvedValue({
         text: '[{"key":"user.location","value":"Одеса"},{"key":"user.phone","value":"+380"}]',
       }),
     };
-    const facts = await extractFacts(mockOllama as any, {
+    const facts = await extractFacts(mockTextProvider as any, {
       userMessage: 'я живу в Одесі',
       assistantMessage: 'зрозумів',
       model: 'qwen2.5:7b',
@@ -17,14 +17,14 @@ describe('extractFacts', () => {
       { key: 'user.location', value: 'Одеса', importance: 1 },
       { key: 'user.phone', value: '+380', importance: 1 },
     ]);
-    expect(mockOllama.chat).toHaveBeenCalledWith(
+    expect(mockTextProvider.chat).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'qwen2.5:7b' }),
     );
   });
 
   it('returns empty array when Ollama returns non-JSON', async () => {
-    const mockOllama = { chat: vi.fn().mockResolvedValue({ text: 'no facts found' }) };
-    const facts = await extractFacts(mockOllama as any, {
+    const mockTextProvider = { chat: vi.fn().mockResolvedValue({ text: 'no facts found' }) };
+    const facts = await extractFacts(mockTextProvider as any, {
       userMessage: 'привіт',
       assistantMessage: 'hi',
       model: 'qwen2.5:7b',
@@ -33,12 +33,12 @@ describe('extractFacts', () => {
   });
 
   it('filters out entries missing key or value', async () => {
-    const mockOllama = {
+    const mockTextProvider = {
       chat: vi.fn().mockResolvedValue({
         text: '[{"key":"user.name","value":"Діма"},{"key":"bad"},{"value":"orphan"}]',
       }),
     };
-    const facts = await extractFacts(mockOllama as any, {
+    const facts = await extractFacts(mockTextProvider as any, {
       userMessage: 'x',
       assistantMessage: 'y',
       model: 'qwen2.5:7b',
@@ -50,7 +50,7 @@ describe('extractFacts', () => {
     // Normalization collapses case / whitespace drift and defaults the
     // `user.` namespace so supersede detection sees one canonical key.
     // Punctuation that can't be mapped (e.g. `;`) still fails the guard.
-    const mockOllama = {
+    const mockTextProvider = {
       chat: vi.fn().mockResolvedValue({
         text: JSON.stringify([
           { key: 'User.Location', value: 'Kyiv' },
@@ -60,7 +60,7 @@ describe('extractFacts', () => {
         ]),
       }),
     };
-    const facts = await extractFacts(mockOllama as any, {
+    const facts = await extractFacts(mockTextProvider as any, {
       userMessage: 'x',
       assistantMessage: 'y',
       model: 'qwen2.5:7b',
@@ -74,7 +74,7 @@ describe('extractFacts', () => {
 
   it('strips control characters and truncates values over 500 chars', async () => {
     const bigValue = 'a'.repeat(600);
-    const mockOllama = {
+    const mockTextProvider = {
       chat: vi.fn().mockResolvedValue({
         text: JSON.stringify([
           { key: 'user.note', value: `hello\u001b[2Jworld\u0000!` },
@@ -82,7 +82,7 @@ describe('extractFacts', () => {
         ]),
       }),
     };
-    const facts = await extractFacts(mockOllama as any, {
+    const facts = await extractFacts(mockTextProvider as any, {
       userMessage: 'x',
       assistantMessage: 'y',
       model: 'qwen2.5:7b',
@@ -93,8 +93,8 @@ describe('extractFacts', () => {
   });
 
   it('returns empty array when ollama chat throws', async () => {
-    const mockOllama = { chat: vi.fn().mockRejectedValue(new Error('boom')) };
-    const facts = await extractFacts(mockOllama as any, {
+    const mockTextProvider = { chat: vi.fn().mockRejectedValue(new Error('boom')) };
+    const facts = await extractFacts(mockTextProvider as any, {
       userMessage: 'x',
       assistantMessage: 'y',
       model: 'qwen2.5:7b',
@@ -103,12 +103,12 @@ describe('extractFacts', () => {
   });
 
   it('parses JSON embedded in surrounding text', async () => {
-    const mockOllama = {
+    const mockTextProvider = {
       chat: vi.fn().mockResolvedValue({
         text: 'Ось факти: [{"key":"user.email","value":"a@b.com"}] готово.',
       }),
     };
-    const facts = await extractFacts(mockOllama as any, {
+    const facts = await extractFacts(mockTextProvider as any, {
       userMessage: 'x',
       assistantMessage: 'y',
       model: 'qwen2.5:7b',
@@ -117,12 +117,12 @@ describe('extractFacts', () => {
   });
 
   it('boosts importance to 10 when user message has an importance keyword', async () => {
-    const mockOllama = {
+    const mockTextProvider = {
       chat: vi.fn().mockResolvedValue({
         text: '[{"key":"user.name","value":"Іван"}]',
       }),
     };
-    const facts = await extractFacts(mockOllama as any, {
+    const facts = await extractFacts(mockTextProvider as any, {
       userMessage: "Запам'ятай, мене звати Іван",
       assistantMessage: 'ок',
       model: 'qwen2.5:7b',
@@ -131,10 +131,10 @@ describe('extractFacts', () => {
   });
 
   it('leaves importance=1 when no keyword is present', async () => {
-    const mockOllama = {
+    const mockTextProvider = {
       chat: vi.fn().mockResolvedValue({ text: '[{"key":"user.name","value":"Іван"}]' }),
     };
-    const facts = await extractFacts(mockOllama as any, {
+    const facts = await extractFacts(mockTextProvider as any, {
       userMessage: 'мене звати Іван',
       assistantMessage: 'ок',
       model: 'qwen2.5:7b',

@@ -1,30 +1,46 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { initDb, closeDb, getDb } from '../../db.js';
 import { createMemoryService } from '../service.js';
+import type { EmbeddingsClient } from '../embeddings.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
+type MockEmbeddings = {
+  dimension: number;
+  identity: string;
+  embedDocument: ReturnType<typeof vi.fn>;
+  embedQuery: ReturnType<typeof vi.fn>;
+};
+
+function makeHashEmbedder(): MockEmbeddings {
+  const impl = async (text: string): Promise<number[]> => {
+    // Deterministic hash-based vector so similarity ordering is reproducible.
+    const vec = new Array(1024).fill(0);
+    let h = 0;
+    for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
+    vec[0] = ((h >>> 0) % 1000) / 1000;
+    vec[1] = 1 - vec[0];
+    return vec;
+  };
+  return {
+    dimension: 1024,
+    identity: 'ollama:mxbai-embed-large',
+    embedDocument: vi.fn().mockImplementation(impl),
+    embedQuery: vi.fn().mockImplementation(impl),
+  };
+}
+
 describe('MemoryService', () => {
   let tmpDir: string;
-  let mockEmbeddings: { embed: ReturnType<typeof vi.fn> };
-  let mockOllama: { chat: ReturnType<typeof vi.fn> };
+  let mockEmbeddings: MockEmbeddings;
+  let mockTextProvider: { chat: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2-memory-svc-'));
     initDb(path.join(tmpDir, 'test.db'));
-    mockEmbeddings = {
-      embed: vi.fn().mockImplementation(async (text: string) => {
-        // Deterministic hash-based vector so similarity ordering is reproducible.
-        const vec = new Array(768).fill(0);
-        let h = 0;
-        for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
-        vec[0] = ((h >>> 0) % 1000) / 1000;
-        vec[1] = 1 - vec[0];
-        return vec;
-      }),
-    };
-    mockOllama = { chat: vi.fn().mockResolvedValue({ text: '[]' }) };
+    mockEmbeddings = makeHashEmbedder();
+    mockTextProvider = { chat: vi.fn().mockResolvedValue({ text: '[]' }) };
   });
 
   afterEach(() => {
@@ -36,7 +52,7 @@ describe('MemoryService', () => {
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
 
@@ -49,18 +65,18 @@ describe('MemoryService', () => {
 
     const count = getDb().prepare('SELECT COUNT(*) AS c FROM memory_entries').get() as { c: number };
     expect(count.c).toBe(2);
-    expect(mockEmbeddings.embed).toHaveBeenCalledTimes(2);
+    expect(mockEmbeddings.embedDocument).toHaveBeenCalledTimes(2);
   });
 
   it('indexTurn extracts and stores facts', async () => {
-    mockOllama.chat.mockResolvedValue({
+    mockTextProvider.chat.mockResolvedValue({
       text: '[{"key":"user.name","value":"Діма"}]',
     });
 
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
 
@@ -78,14 +94,14 @@ describe('MemoryService', () => {
   });
 
   it('indexTurn passes userMessageId to insertOrSupersedeFact', async () => {
-    mockOllama.chat.mockResolvedValue({
+    mockTextProvider.chat.mockResolvedValue({
       text: '[{"key":"user.x","value":"y","importance":5}]',
     });
 
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
 
@@ -106,7 +122,7 @@ describe('MemoryService', () => {
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
     await svc.saveFact({
@@ -122,11 +138,11 @@ describe('MemoryService', () => {
   });
 
   it('indexTurn does not throw when embeddings fail', async () => {
-    mockEmbeddings.embed.mockRejectedValueOnce(new Error('ollama down'));
+    mockEmbeddings.embedDocument.mockRejectedValueOnce(new Error('ollama down'));
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
     await expect(svc.indexTurn({
@@ -141,7 +157,7 @@ describe('MemoryService', () => {
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
     const result = await svc.buildContextPrefix('test');
@@ -150,13 +166,13 @@ describe('MemoryService', () => {
   });
 
   it('buildContextPrefix injects active facts and entries', async () => {
-    mockOllama.chat.mockResolvedValue({
+    mockTextProvider.chat.mockResolvedValue({
       text: '[{"key":"user.location","value":"Одеса"}]',
     });
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
 
@@ -180,7 +196,7 @@ describe('MemoryService', () => {
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
 
@@ -202,7 +218,7 @@ describe('MemoryService', () => {
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
 
@@ -227,7 +243,7 @@ describe('MemoryService', () => {
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
 
@@ -252,7 +268,7 @@ describe('MemoryService', () => {
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
     const result = await svc.forgetFact({ query: 'user.unknown' });
@@ -264,7 +280,7 @@ describe('MemoryService', () => {
     const svc = createMemoryService({
       db: getDb(),
       embeddings: mockEmbeddings as any,
-      ollama: mockOllama as any,
+      textProvider: mockTextProvider as any,
       extractorModel: 'qwen2.5:7b',
     });
     const result = await svc.forgetFact({ query: '   ' });
@@ -277,7 +293,7 @@ describe('MemoryService', () => {
       const svc = createMemoryService({
         db: getDb(),
         embeddings: mockEmbeddings as any,
-        ollama: mockOllama as any,
+        textProvider: mockTextProvider as any,
         extractorModel: 'qwen2.5:7b',
       });
 
@@ -298,7 +314,7 @@ describe('MemoryService', () => {
       const svc = createMemoryService({
         db: getDb(),
         embeddings: mockEmbeddings as any,
-        ollama: mockOllama as any,
+        textProvider: mockTextProvider as any,
         extractorModel: 'qwen2.5:7b',
       });
       const res = await svc.updateFact({ key: 'user.missing', newValue: 'x', sourceMessageId: 'M' });
@@ -309,7 +325,7 @@ describe('MemoryService', () => {
       const svc = createMemoryService({
         db: getDb(),
         embeddings: mockEmbeddings as any,
-        ollama: mockOllama as any,
+        textProvider: mockTextProvider as any,
         extractorModel: 'qwen2.5:7b',
       });
       await svc.saveFact({ key: 'user.age', value: '42', importance: 5, timestamp: 1000 });
@@ -321,7 +337,7 @@ describe('MemoryService', () => {
       const svc = createMemoryService({
         db: getDb(),
         embeddings: mockEmbeddings as any,
-        ollama: mockOllama as any,
+        textProvider: mockTextProvider as any,
         extractorModel: 'qwen2.5:7b',
       });
       await svc.saveFact({ key: 'user.age', value: '42', importance: 5, timestamp: 1000 });
@@ -333,7 +349,7 @@ describe('MemoryService', () => {
       const svc = createMemoryService({
         db: getDb(),
         embeddings: mockEmbeddings as any,
-        ollama: mockOllama as any,
+        textProvider: mockTextProvider as any,
         extractorModel: 'qwen2.5:7b',
       });
       const res = await svc.updateFact({ key: 'user.', newValue: 'x', sourceMessageId: 'M' });
@@ -346,7 +362,7 @@ describe('MemoryService', () => {
       const svc = createMemoryService({
         db: getDb(),
         embeddings: mockEmbeddings as any,
-        ollama: mockOllama as any,
+        textProvider: mockTextProvider as any,
         extractorModel: 'qwen2.5:7b',
       });
       const db = getDb();
@@ -359,7 +375,7 @@ describe('MemoryService', () => {
       ).run();
 
       // Two facts from M_prev (should be forgotten), one from M_curr (should remain).
-      mockOllama.chat.mockResolvedValue({
+      mockTextProvider.chat.mockResolvedValue({
         text: '[{"key":"user.a","value":"alpha"},{"key":"user.b","value":"beta"}]',
       });
       await svc.indexTurn({
@@ -368,7 +384,7 @@ describe('MemoryService', () => {
         assistantMessage: 'ok',
         timestamp: 1000,
       });
-      mockOllama.chat.mockResolvedValue({
+      mockTextProvider.chat.mockResolvedValue({
         text: '[{"key":"user.c","value":"gamma"}]',
       });
       await svc.indexTurn({
@@ -391,14 +407,14 @@ describe('MemoryService', () => {
       const svc = createMemoryService({
         db: getDb(),
         embeddings: mockEmbeddings as any,
-        ollama: mockOllama as any,
+        textProvider: mockTextProvider as any,
         extractorModel: 'qwen2.5:7b',
       });
       const db = getDb();
       db.prepare(
         "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('M_prev', 'user', 'x', 1000)",
       ).run();
-      mockOllama.chat.mockResolvedValue({
+      mockTextProvider.chat.mockResolvedValue({
         text: '[{"key":"user.a","value":"alpha"}]',
       });
       await svc.indexTurn({
@@ -421,7 +437,7 @@ describe('MemoryService', () => {
       const svc = createMemoryService({
         db: getDb(),
         embeddings: mockEmbeddings as any,
-        ollama: mockOllama as any,
+        textProvider: mockTextProvider as any,
         extractorModel: 'qwen2.5:7b',
       });
       const res = await svc.forgetLast({ currentMessageTimestamp: 1000 });
@@ -432,7 +448,7 @@ describe('MemoryService', () => {
       const svc = createMemoryService({
         db: getDb(),
         embeddings: mockEmbeddings as any,
-        ollama: mockOllama as any,
+        textProvider: mockTextProvider as any,
         extractorModel: 'qwen2.5:7b',
       });
       const db = getDb();
@@ -463,7 +479,7 @@ describe('MemoryService', () => {
       const svc = createMemoryService({
         db: getDb(),
         embeddings: mockEmbeddings as any,
-        ollama: mockOllama as any,
+        textProvider: mockTextProvider as any,
         extractorModel: 'qwen2.5:7b',
       });
       getDb()
