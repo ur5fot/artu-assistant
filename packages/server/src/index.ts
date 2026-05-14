@@ -30,8 +30,12 @@ import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { createRegistry, discoverTools } from './tools/registry.js';
 import { initDb, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, closeDb, getDb, saveMessage } from './db.js';
-import { createEmbeddingsClient } from './memory/embeddings.js';
+import { createOllamaEmbeddingsClient, type EmbeddingsClient } from './memory/embeddings.js';
+import { createVoyageEmbeddingsClient } from './memory/voyageEmbeddings.js';
+import { ensureEmbedModelMatches } from './memory/migration.js';
+import { createOllamaTextProvider, createClaudeTextProvider, type TextProvider } from './memory/textProvider.js';
 import { createMemoryService, type MemoryService } from './memory/service.js';
+import type Anthropic from '@anthropic-ai/sdk';
 import { errorHandler } from './errors.js';
 import { createPiiProxy, createPassthroughProxy } from './pii/proxy.js';
 import { PiiVault } from './pii/vault.js';
@@ -137,13 +141,56 @@ if (piiMode === 'disabled') {
   });
 }
 
+const VALID_EMBEDDING_MODES = ['auto', 'ollama', 'voyage'] as const;
+const VALID_TEXT_MODES = ['auto', 'ollama', 'claude'] as const;
+type EmbeddingProviderMode = (typeof VALID_EMBEDDING_MODES)[number];
+type TextProviderMode = (typeof VALID_TEXT_MODES)[number];
+
+function parseProviderMode<T extends string>(
+  name: string,
+  raw: string | undefined,
+  valid: readonly T[],
+): T {
+  const value = (raw ?? 'auto') as T;
+  if (!valid.includes(value)) {
+    throw new Error(
+      `Invalid ${name}=${raw}. Valid values: ${valid.join(', ')}`,
+    );
+  }
+  return value;
+}
+
 // Setup
 const client = createClaudeClient();
 const localLlmMode = (process.env.LOCAL_LLM_MODE || 'enabled') as 'enabled' | 'disabled';
 const memoryEnabled = (process.env.MEMORY_ENABLED ?? 'true') !== 'false';
 
 const routerNeedsOllama = localLlmMode !== 'disabled';
-const memoryNeedsOllama = memoryEnabled;
+// Validate provider modes up-front. Doing this before the loopback-PII guards
+// below ensures a typo like `EMBEDDING_PROVIDER=voygae` surfaces as a clear
+// "Invalid EMBEDDING_PROVIDER=voygae" error instead of being misclassified as
+// "not ollama, not auto → remote provider" and falsely triggering the
+// MEMORY_ALLOW_REMOTE_PII acknowledgement requirement.
+const embeddingMode = memoryEnabled
+  ? parseProviderMode('EMBEDDING_PROVIDER', process.env.EMBEDDING_PROVIDER, VALID_EMBEDDING_MODES)
+  : 'auto';
+const textMode = memoryEnabled
+  ? parseProviderMode('MEMORY_TEXT_PROVIDER', process.env.MEMORY_TEXT_PROVIDER, VALID_TEXT_MODES)
+  : 'auto';
+// `auto` mode for both halves of memory must honor whether the operator
+// actually configured an Ollama endpoint. Without OLLAMA_URL we cannot assume
+// localhost — that would silently disable the documented auto→Voyage / auto→
+// Claude fallback for laptop / API-only deployments (see README "Running R2
+// without Ollama"). Explicit `=ollama` still creates a client and lets the
+// provider factory surface a runtime error if the endpoint is unreachable.
+const ollamaConfigured = !!process.env.OLLAMA_URL;
+const embedUsesOllama =
+  embeddingMode === 'ollama' ||
+  (embeddingMode === 'auto' && ollamaConfigured);
+const textUsesOllama =
+  textMode === 'ollama' ||
+  (textMode === 'auto' && ollamaConfigured && localLlmMode !== 'disabled');
+const memoryNeedsOllama = memoryEnabled && (embedUsesOllama || textUsesOllama);
 
 // Router intentionally skips PII anonymization for the Ollama path on the
 // assumption that Ollama runs on the user's machine. If OLLAMA_URL points at a
@@ -165,7 +212,7 @@ if (routerNeedsOllama || memoryNeedsOllama) {
       throw new Error(
         `OLLAMA_URL=${rawUrl} is not loopback. The Ollama path sends unmasked PII. ` +
           `Set OLLAMA_ALLOW_REMOTE=1 to acknowledge this risk. ` +
-          `To skip Ollama entirely, set both LOCAL_LLM_MODE=disabled and MEMORY_ENABLED=false.`,
+          `To skip Ollama entirely, set LOCAL_LLM_MODE=disabled, EMBEDDING_PROVIDER=voyage, MEMORY_TEXT_PROVIDER=claude.`,
       );
     }
   } catch (err) {
@@ -173,6 +220,33 @@ if (routerNeedsOllama || memoryNeedsOllama) {
       throw new Error(`OLLAMA_URL is not a valid URL: ${rawUrl}`);
     }
     throw err;
+  }
+}
+
+// When memory uses Voyage or Claude, raw chat content and extracted facts
+// (which can include emails, phone numbers, addresses) cross the network to
+// those providers. The memory pipeline does NOT route through the PII proxy
+// the way the Claude chat path does (see tool-loop.ts), so this is a real
+// data boundary. Choosing a provider via env is not the same as accepting
+// that PII leaves the machine — mirror the OLLAMA_ALLOW_REMOTE pattern and
+// require an explicit acknowledgement via MEMORY_ALLOW_REMOTE_PII=1.
+if (memoryEnabled) {
+  // Use the same `embed/textUsesOllama` predicates computed above so the guard
+  // tracks the actual resolved provider, including the auto→Voyage / auto→
+  // Claude fallbacks when OLLAMA_URL is unset.
+  const embeddingHalfRemote = !embedUsesOllama;
+  const textHalfRemote = !textUsesOllama;
+  const memoryUsesRemoteApi = embeddingHalfRemote || textHalfRemote;
+
+  if (memoryUsesRemoteApi && process.env.MEMORY_ALLOW_REMOTE_PII !== '1') {
+    throw new Error(
+      `Memory is configured to use a remote provider ` +
+        `(embedding=${embeddingMode}, text=${textMode}). ` +
+        `Raw chat content and extracted facts — including any PII like emails, ` +
+        `phone numbers, or addresses — will be sent to Voyage and/or Anthropic ` +
+        `without anonymization. Set MEMORY_ALLOW_REMOTE_PII=1 to acknowledge this, ` +
+        `or run memory locally via Ollama (EMBEDDING_PROVIDER=ollama, MEMORY_TEXT_PROVIDER=ollama).`,
+    );
   }
 }
 
@@ -229,22 +303,136 @@ const planReviewService = createPlanReviewService({ pending: pendingPlanReviews 
 const pendingMemoryConfirms: PendingMemoryConfirms = new Map();
 const memoryConfirmService = createMemoryConfirmService({ pending: pendingMemoryConfirms });
 
+function pickEmbeddingProvider(opts: {
+  mode: EmbeddingProviderMode;
+  ollama: OllamaClient | null;
+  ollamaUrl: string;
+  ollamaModel: string;
+  voyageKey: string | undefined;
+  voyageModel: string;
+}): EmbeddingsClient | null {
+  const { mode, ollama, ollamaUrl, ollamaModel, voyageKey, voyageModel } = opts;
+
+  if (mode === 'ollama') {
+    if (!ollama) {
+      throw new Error('EMBEDDING_PROVIDER=ollama requires an Ollama client (memory must be enabled)');
+    }
+    return createOllamaEmbeddingsClient({ url: ollamaUrl, model: ollamaModel });
+  }
+
+  if (mode === 'voyage') {
+    if (!voyageKey) throw new Error('EMBEDDING_PROVIDER=voyage requires VOYAGE_API_KEY');
+    return createVoyageEmbeddingsClient({ apiKey: voyageKey, model: voyageModel });
+  }
+
+  // auto: prefer local Ollama if available, otherwise fall back to Voyage.
+  if (ollama) {
+    return createOllamaEmbeddingsClient({ url: ollamaUrl, model: ollamaModel });
+  }
+  if (voyageKey) {
+    return createVoyageEmbeddingsClient({ apiKey: voyageKey, model: voyageModel });
+  }
+  return null;
+}
+
+function pickTextProvider(opts: {
+  mode: TextProviderMode;
+  ollama: OllamaClient | null;
+  anthropic: Anthropic;
+  localLlmMode: 'enabled' | 'disabled';
+}): TextProvider {
+  const { mode, ollama, anthropic, localLlmMode } = opts;
+
+  if (mode === 'ollama') {
+    if (!ollama || localLlmMode === 'disabled') {
+      throw new Error('MEMORY_TEXT_PROVIDER=ollama requires ollama client and LOCAL_LLM_MODE!=disabled');
+    }
+    return createOllamaTextProvider(ollama);
+  }
+
+  if (mode === 'claude') {
+    return createClaudeTextProvider(anthropic);
+  }
+
+  // auto: prefer local Ollama if both available, otherwise Claude.
+  if (ollama && localLlmMode !== 'disabled') {
+    return createOllamaTextProvider(ollama);
+  }
+  return createClaudeTextProvider(anthropic);
+}
+
 let memoryService: MemoryService | null = null;
-if (memoryEnabled && ollamaForMemory) {
-  const embeddings = createEmbeddingsClient({
-    url: process.env.OLLAMA_URL || 'http://localhost:11434',
-    model: process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text',
+if (memoryEnabled) {
+  // Provider factories fail loudly on explicit-mode misconfiguration (e.g.
+  // EMBEDDING_PROVIDER=voyage without VOYAGE_API_KEY). Auto mode returns null
+  // when no provider is available, which is handled below.
+  //
+  // Only hand the Ollama client to the half that the bootstrap predicates
+  // already resolved to Ollama. `ollamaForMemory` may have been created for
+  // the *other* half (e.g. text=ollama + embed=auto with no OLLAMA_URL), and
+  // letting the auto branch see a non-null client there would silently pick
+  // Ollama@default-localhost, bypassing the auto→Voyage / auto→Claude fallback
+  // the PII guard above already validated against.
+  const embeddings: EmbeddingsClient | null = pickEmbeddingProvider({
+    mode: embeddingMode,
+    ollama: embedUsesOllama ? ollamaForMemory : null,
+    ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
+    ollamaModel: process.env.MEMORY_EMBED_MODEL || 'mxbai-embed-large',
+    voyageKey: process.env.VOYAGE_API_KEY,
+    voyageModel: process.env.VOYAGE_MODEL || 'voyage-3',
   });
-  const parsedMaxTokens = Number(process.env.MEMORY_MAX_CONTEXT_TOKENS);
-  const maxContextTokens = Number.isFinite(parsedMaxTokens) && parsedMaxTokens > 0 ? parsedMaxTokens : 2000;
-  memoryService = createMemoryService({
-    db: getDb(),
-    embeddings,
-    ollama: ollamaForMemory,
-    extractorModel: process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b',
-    maxContextTokens,
+
+  // Resolve text provider before migration. Cheap, immediate check — running
+  // ensureEmbedModelMatches first would spend embedding API calls (and Voyage
+  // credits) on a DB rebuild that would then be discarded if text provider
+  // construction throws.
+  const textProvider: TextProvider = pickTextProvider({
+    mode: textMode,
+    ollama: textUsesOllama ? ollamaForMemory : null,
+    anthropic: client.anthropic,
+    localLlmMode,
   });
-  console.log('[memory] enabled with model', process.env.MEMORY_EMBED_MODEL || 'nomic-embed-text');
+
+  if (!embeddings) {
+    console.log('[memory] disabled — no embedding provider configured (set OLLAMA_URL or VOYAGE_API_KEY)');
+  } else {
+    let migrationOk = false;
+    try {
+      await ensureEmbedModelMatches(getDb(), embeddings);
+      migrationOk = true;
+    } catch (err) {
+      console.error('[memory] migration failed, disabling memory:', err instanceof Error ? err.message : err);
+    }
+
+    if (migrationOk) {
+      // Use the same predicate that gated `ollamaForMemory` into pickTextProvider
+      // above. Recomputing from `!!ollamaForMemory` is unsafe: that client is
+      // also non-null when only the embeddings half is Ollama, which would
+      // mismatch the Claude provider with an Ollama model name (e.g.
+      // `EMBEDDING_PROVIDER=ollama` + `MEMORY_TEXT_PROVIDER=auto` + no
+      // OLLAMA_URL set → textProvider is Claude but extractorModel would be
+      // qwen2.5:7b, causing every fact extraction to 404).
+      const usingOllamaText = textUsesOllama;
+      const extractorModel = usingOllamaText
+        ? process.env.MEMORY_EXTRACT_MODEL || 'qwen2.5:7b'
+        : process.env.MEMORY_EXTRACT_MODEL_CLAUDE || 'claude-haiku-4-5-20251001';
+
+      const parsedMaxTokens = Number(process.env.MEMORY_MAX_CONTEXT_TOKENS);
+      const maxContextTokens =
+        Number.isFinite(parsedMaxTokens) && parsedMaxTokens > 0 ? parsedMaxTokens : 2000;
+
+      memoryService = createMemoryService({
+        db: getDb(),
+        embeddings,
+        textProvider,
+        extractorModel,
+        maxContextTokens,
+      });
+      console.log(
+        `[memory] enabled (embeddings=${embeddings.identity}, text=${usingOllamaText ? 'ollama' : 'claude'}, model=${extractorModel})`,
+      );
+    }
+  }
 } else {
   console.log('[memory] disabled');
 }

@@ -1,4 +1,4 @@
-import type { OllamaClient } from '../ai/ollama.js';
+import type { TextProvider } from './textProvider.js';
 
 export interface ExtractedFact {
   key: string;
@@ -94,7 +94,7 @@ function extractJsonArray(text: string): string | null {
 }
 
 export async function extractFacts(
-  ollama: OllamaClient,
+  textProvider: TextProvider,
   params: {
     userMessage: string;
     assistantMessage: string;
@@ -114,7 +114,7 @@ R2: ${assistantText}
 
   let response;
   try {
-    response = await ollama.chat({
+    response = await textProvider.chat({
       messages: [{ role: 'user', content: prompt }],
       model: params.model,
     });
