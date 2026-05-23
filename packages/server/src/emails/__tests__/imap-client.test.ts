@@ -7,7 +7,7 @@ const account: ImapAccount = {
 };
 
 function makeClientStub(options: {
-  searchReturns?: number[];
+  searchReturns?: number[] | false;
   fetchRows?: Array<{ uid: number; envelope: any; bodyParts: Map<string, Buffer>; internalDate?: Date; bodyStructure?: any }>;
   throwOn?: 'connect' | 'search' | 'fetch';
 }) {
@@ -671,6 +671,14 @@ describe('getMaxUid', () => {
   it('throws when imapflow search fails (caller handles)', async () => {
     __setImapFlowCtor(makeClientStub({ throwOn: 'search' }) as any);
     await expect(getMaxUid(account)).rejects.toThrow(/search/);
+  });
+
+  it('throws when imapflow search returns false (server NO/BAD) — must not be treated as empty inbox', async () => {
+    // imapflow types `search()` as `number[] | false`; `false` signals a failed
+    // SEARCH command. Treating it as `[]` would persist last_seen_uid=0 and
+    // make the next tick crawl `UID 1:*` — the backlog this probe must skip.
+    __setImapFlowCtor(makeClientStub({ searchReturns: false }) as any);
+    await expect(getMaxUid(account)).rejects.toThrow(/SEARCH/);
   });
 
   it('uses search({ all: true }) — not a uid-range — to enumerate all UIDs', async () => {
