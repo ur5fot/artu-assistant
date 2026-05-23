@@ -72,17 +72,17 @@ years ago.
 
 ### Task 1: Add `getMaxUid` to imap-client
 
-- [ ] add `export async function getMaxUid(account: ImapAccount): Promise<number>` in `imap-client.ts`
+- [x] add `export async function getMaxUid(account: ImapAccount): Promise<number>` in `imap-client.ts`
   - uses existing `withClient` helper
   - calls `client.search({ all: true }, { uid: true })` to get every UID
   - returns `Math.max(...uids)` if any, or `0` for an empty inbox
   - **important**: take the max BEFORE returning so any email arriving between this call and the next poll tick is guaranteed to have UID > returned value (IMAP UIDs are monotonically increasing per mailbox)
-- [ ] write tests in `imap-client.test.ts`:
+- [x] write tests in `imap-client.test.ts`:
   - empty inbox (search returns `[]`) → returns 0
   - inbox with messages → returns max UID
   - non-contiguous UIDs (e.g., `[1, 5, 22532, 1000]`) → returns the actual max, not array length
   - imapflow error during search → throws (caller responsible for catching)
-- [ ] run server tests — must pass before Task 2
+- [x] run server tests — must pass before Task 2
 
 ### Task 2: First-tick skip in `runPollTick`
 
