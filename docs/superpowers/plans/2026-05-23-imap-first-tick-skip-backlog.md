@@ -102,13 +102,13 @@ years ago.
 
 ### Task 3: Wire and verify
 
-- [ ] confirm `index.ts` call site passes `maxUidProbe: getMaxUid` — `npx tsc --noEmit -p packages/server/tsconfig.json` must pass
-- [ ] verify acceptance criteria from Overview:
-  - new account with `sinceUid=0` and 9000+ message inbox → first tick takes < 5s, sets `last_seen_uid` to current max, no rows inserted
-  - subsequent ticks behave identically to before (only new arrivals processed)
-  - error paths preserved (account marked errored on probe failure, not silent)
-- [ ] run full test suite from repo root: `npm test` — all tests must pass
-- [ ] verify no orphan `[ ]` items left in the plan
+- [x] confirm `index.ts` call site passes `maxUidProbe: getMaxUid` — `npx tsc --noEmit -p packages/server/tsconfig.json` must pass
+- [x] verify acceptance criteria from Overview:
+  - new account with `sinceUid=0` and 9000+ message inbox → first tick takes < 5s, sets `last_seen_uid` to current max, no rows inserted (covered by `multi-account-poller.test.ts` first-tick cases)
+  - subsequent ticks behave identically to before (only new arrivals processed) (covered by non-first-tick case)
+  - error paths preserved (account marked errored on probe failure, not silent) (covered by probe-throws case)
+- [x] run full test suite from repo root: `npm test` — all tests must pass (180 files, 2076 tests passed)
+- [x] verify no orphan `[ ]` items left in the plan (Task 4 remains as next iteration; Task 3 has no orphans)
 
 ### Task 4: [Final] Update documentation
 
