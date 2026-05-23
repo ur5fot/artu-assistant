@@ -1,6 +1,6 @@
 import { ImapFlow } from 'imapflow';
 import type { ImapAccount, NewMessage, FullMessage } from './types.js';
-import { decodeHeader, decodeBodyPart } from './mime-decode.js';
+import { decodeHeader, decodeBodyPart, pickTextPart } from './mime-decode.js';
 
 type ImapFlowCtor = new (opts: any) => any;
 let Ctor: ImapFlowCtor = ImapFlow as unknown as ImapFlowCtor;
@@ -36,12 +36,33 @@ function formatFrom(envelope: any): string {
   return from.address || name || 'unknown';
 }
 
-// Until Task 3 wires bodyStructure-aware encoding, default to quoted-printable
-// (matches the original quick-patch behavior — no-op on plain ASCII, correctly
-// unfolds QP soft breaks). Task 3 replaces this default with the actual
-// per-part encoding/charset reported by IMAP bodyStructure.
-function firstBodyPart(bodyParts: any): string {
+function getBodyPart(bodyParts: any, partId: string): unknown {
+  if (!bodyParts) return undefined;
+  if (typeof bodyParts.get === 'function') return bodyParts.get(partId);
+  if (typeof bodyParts === 'object') return (bodyParts as Record<string, unknown>)[partId];
+  return undefined;
+}
+
+// When IMAP bodyStructure is available, dispatch by the reported encoding/charset
+// of the picked text leaf (prefers text/plain over text/html). For image-only
+// messages pickTextPart returns null and the snippet/body becomes empty —
+// surfacing raw base64 of a JPEG to the LLM scorer is worse than empty.
+//
+// Legacy fallback (no bodyStructure on the row): decode part '1' with QP/utf-8
+// defaults so existing tests and any code path that hasn't been wired to request
+// bodyStructure keeps working.
+function firstBodyPart(row: any): string {
+  const bodyParts = row?.bodyParts;
   if (!bodyParts) return '';
+  if (row?.bodyStructure) {
+    const picked = pickTextPart(row.bodyStructure);
+    if (!picked) return '';
+    const buf = getBodyPart(bodyParts, picked.partId);
+    if (buf == null) return '';
+    return decodeBodyPart(buf, picked.encoding, picked.charset);
+  }
+  const buf = getBodyPart(bodyParts, '1');
+  if (buf != null) return decodeBodyPart(buf, 'quoted-printable', 'utf-8');
   const values =
     typeof bodyParts.values === 'function'
       ? Array.from(bodyParts.values() as Iterable<unknown>)
@@ -52,8 +73,8 @@ function firstBodyPart(bodyParts: any): string {
 
 // Snippet is used for LLM scoring — a single line of collapsed whitespace is
 // fine (keeps prompt compact, scorer doesn't care about formatting).
-function extractSnippet(bodyParts: any, limit: number): string {
-  const text = firstBodyPart(bodyParts);
+function extractSnippet(row: any, limit: number): string {
+  const text = firstBodyPart(row);
   if (!text) return '';
   return text.replace(/\s+/g, ' ').trim().slice(0, limit);
 }
@@ -61,8 +82,8 @@ function extractSnippet(bodyParts: any, limit: number): string {
 // Body is returned to the user via emails_get — preserve newlines so signatures
 // and quoted replies stay readable. Normalize CRLF, drop NULs, and mark any
 // hard truncation so the caller sees it was cut.
-function extractBody(bodyParts: any, limit: number): string {
-  const text = firstBodyPart(bodyParts);
+function extractBody(row: any, limit: number): string {
+  const text = firstBodyPart(row);
   if (!text) return '';
   const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\0/g, '').trim();
   if (normalized.length <= limit) return normalized;
@@ -102,12 +123,18 @@ export async function fetchNewMessages(
     // the cap, and the poller's maxUid advancement would then silently skip
     // them forever on the next tick (first-boot + big-backlog data loss).
     const cap = uids.slice(0, limit);
+    // bodyStructure rides on the same fetchAll — no extra round-trip. Request
+    // the common text partIds upfront ('1' single-part, '1.1' nested-in-related,
+    // '2' second leg of multipart/alternative) so the decoder always has the
+    // buffer for whichever leaf pickTextPart selects. Costs a little bandwidth
+    // on multipart messages, saves a per-message follow-up fetch.
     const rows = await client.fetchAll(
       cap,
       {
         envelope: true,
         internalDate: true,
-        bodyParts: ['1'],
+        bodyStructure: true,
+        bodyParts: ['1', '1.1', '2'],
       },
       { uid: true },
     );
@@ -119,7 +146,7 @@ export async function fetchNewMessages(
         uid: row.uid,
         from: formatFrom(row.envelope),
         subject: decodeHeader(row.envelope?.subject),
-        snippet: extractSnippet(row.bodyParts, SNIPPET_LEN),
+        snippet: extractSnippet(row, SNIPPET_LEN),
         receivedAt: pickReceivedAt(row),
       });
     }
@@ -143,7 +170,7 @@ export async function fetchFullBody(account: ImapAccount, uid: number): Promise<
       uid,
       from: formatFrom(row.envelope),
       subject: decodeHeader(row.envelope?.subject),
-      bodyText: extractBody(row.bodyParts, FULL_BODY_LEN),
+      bodyText: extractBody(row, FULL_BODY_LEN),
       receivedAt: pickReceivedAt(row),
     };
   });

@@ -104,19 +104,19 @@ missing tests, type shim, parameter ceiling).
 
 ### Task 3: Wire bodyStructure into fetchNewMessages
 
-- [ ] add `bodyStructure: true` to `client.fetchAll` query in `fetchNewMessages`
-- [ ] on each row: call `pickTextPart(row.bodyStructure)` to find which part to fetch and how to decode
-- [ ] if `pickTextPart` returns non-null and its partId differs from `'1'`, request that part — but **stay within a single `fetchAll`**: pass all needed partIds in `bodyParts` array (e.g., `bodyParts: ['1', '1.1', '2']`) on the initial call. Avoid per-message re-fetch.
-- [ ] decode chosen part via `decodeBodyPart` with the encoding/charset from bodyStructure
-- [ ] if no text part found (image-only emails, etc.) → snippet = `''` (gracefully empty rather than raw base64 of an image)
-- [ ] remove misleading comment `"bodyStructure round-trip would be cleaner but requires an extra IMAP fetch"` — replace with note that bodyStructure rides on the same fetch
-- [ ] write `imap-client.test.ts` additions:
+- [x] add `bodyStructure: true` to `client.fetchAll` query in `fetchNewMessages`
+- [x] on each row: call `pickTextPart(row.bodyStructure)` to find which part to fetch and how to decode
+- [x] if `pickTextPart` returns non-null and its partId differs from `'1'`, request that part — but **stay within a single `fetchAll`**: pass all needed partIds in `bodyParts` array (e.g., `bodyParts: ['1', '1.1', '2']`) on the initial call. Avoid per-message re-fetch.
+- [x] decode chosen part via `decodeBodyPart` with the encoding/charset from bodyStructure
+- [x] if no text part found (image-only emails, etc.) → snippet = `''` (gracefully empty rather than raw base64 of an image)
+- [x] remove misleading comment `"bodyStructure round-trip would be cleaner but requires an extra IMAP fetch"` — replace with note that bodyStructure rides on the same fetch
+- [x] write `imap-client.test.ts` additions:
   - mock returns text/plain QP part → snippet decodes
   - mock returns text/html base64 part → snippet decodes (html tags fine, just decoded)
   - mock returns multipart/alternative with text/plain + text/html → snippet uses text/plain
   - mock returns no text part (only image) → snippet is empty string, not raw base64
   - mock returns encoded subject + encoded `from.name` → both decoded in NewMessage
-- [ ] run server tests — must pass before Task 4
+- [x] run server tests — must pass before Task 4
 
 ### Task 4: Wire bodyStructure into fetchFullBody
 
