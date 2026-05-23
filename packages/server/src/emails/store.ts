@@ -3,6 +3,7 @@ import type { EmailPendingRow } from './types.js';
 
 export interface EmailStore {
   getLastSeenUid(accountId: string): number;
+  hasAccountState(accountId: string): boolean;
   updateLastSeenUid(accountId: string, uid: number, now: number): void;
   setAccountError(accountId: string, message: string, now: number): void;
   getAccountError(accountId: string): { message: string; at: number } | null;
@@ -23,6 +24,12 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
         .prepare('SELECT last_seen_uid FROM email_account_state WHERE account_id = ?')
         .get(accountId) as { last_seen_uid: number } | undefined;
       return row?.last_seen_uid ?? 0;
+    },
+    hasAccountState(accountId) {
+      const row = db
+        .prepare('SELECT 1 FROM email_account_state WHERE account_id = ?')
+        .get(accountId);
+      return row !== undefined;
     },
     updateLastSeenUid(accountId, uid, now) {
       db.prepare(`

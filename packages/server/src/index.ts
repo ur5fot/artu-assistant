@@ -46,7 +46,7 @@ import { pulseHandler } from './cognition/handlers/pulse.js';
 import { createMorningBriefHandler } from './cognition/handlers/morningBrief.js';
 import { parseImapAccounts } from './emails/config.js';
 import { createEmailStore } from './emails/store.js';
-import { fetchNewMessages, fetchFullBody } from './emails/imap-client.js';
+import { fetchNewMessages, fetchFullBody, getMaxUid } from './emails/imap-client.js';
 import { scoreBatch } from './emails/scorer.js';
 import { startEmailPoller } from './emails/multi-account-poller.js';
 import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
@@ -499,6 +499,7 @@ if (emailEnabled) {
     accounts: imapAccounts,
     store: emailStore,
     fetcher: (acc, sinceUid, limit) => fetchNewMessages(acc, sinceUid, limit),
+    maxUidProbe: getMaxUid,
     scorer: (msgs) =>
       scoreBatch(msgs, {
         piiProxy,

@@ -85,6 +85,35 @@ async function withClient<T>(account: ImapAccount, fn: (client: any) => Promise<
   }
 }
 
+/**
+ * Returns the highest UID currently in the account's INBOX, or `0` if empty.
+ *
+ * Used by `multi-account-poller.runPollTick` on first tick (no row in
+ * `email_account_state` yet) to skip the historical backlog: the poller
+ * persists this value as `last_seen_uid` and processes zero rows that tick,
+ * so only mail arriving after the account is configured is fetched on
+ * subsequent ticks. IMAP guarantees monotonically increasing UID assignment
+ * per mailbox, so anything that arrives between this call and the next tick
+ * is safely captured by `uid: ${max+1}:*` in `fetchNewMessages`.
+ *
+ * Throws if the SEARCH command itself fails (imapflow returns `false` on
+ * server NO/BAD). Returning 0 in that case would let the poller persist
+ * last_seen_uid=0 as if the inbox were empty, and the next tick's ongoing
+ * path would crawl `UID 1:*` — the exact backlog this probe exists to skip.
+ */
+export async function getMaxUid(account: ImapAccount): Promise<number> {
+  return withClient(account, async (client) => {
+    const result = await client.search({ all: true }, { uid: true });
+    if (result === false) {
+      throw new Error('IMAP SEARCH ALL failed (server returned NO/BAD)');
+    }
+    const uids: number[] = result || [];
+    // reduce instead of Math.max(...uids): on a real backlog (the plan cites
+    // a 9416-message inbox) the spread can approach V8's argument-count limit.
+    return uids.reduce((m, x) => (x > m ? x : m), 0);
+  });
+}
+
 export async function fetchNewMessages(
   account: ImapAccount,
   sinceUid: number,

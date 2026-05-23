@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { ImapAccount } from '../types.js';
-import { fetchNewMessages, fetchFullBody, __setImapFlowCtor } from '../imap-client.js';
+import { fetchNewMessages, fetchFullBody, getMaxUid, __setImapFlowCtor } from '../imap-client.js';
 
 const account: ImapAccount = {
   id: 'a', host: 'h', port: 993, user: 'u', password: 'p', tls: true,
 };
 
 function makeClientStub(options: {
-  searchReturns?: number[];
+  searchReturns?: number[] | false;
   fetchRows?: Array<{ uid: number; envelope: any; bodyParts: Map<string, Buffer>; internalDate?: Date; bodyStructure?: any }>;
   throwOn?: 'connect' | 'search' | 'fetch';
 }) {
@@ -646,6 +646,59 @@ describe('fetchNewMessages', () => {
     const msgs = await fetchNewMessages(account, 0, 10);
     expect(fetchedCap).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     expect(msgs.map((m) => m.uid)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  });
+});
+
+describe('getMaxUid', () => {
+  it('returns 0 for an empty inbox (search returns [])', async () => {
+    __setImapFlowCtor(makeClientStub({ searchReturns: [] }) as any);
+    const max = await getMaxUid(account);
+    expect(max).toBe(0);
+  });
+
+  it('returns the max UID for a populated inbox', async () => {
+    __setImapFlowCtor(makeClientStub({ searchReturns: [1, 2, 3, 100, 99] }) as any);
+    const max = await getMaxUid(account);
+    expect(max).toBe(100);
+  });
+
+  it('returns the actual max for non-contiguous UIDs (not the array length)', async () => {
+    __setImapFlowCtor(makeClientStub({ searchReturns: [1, 5, 22532, 1000] }) as any);
+    const max = await getMaxUid(account);
+    expect(max).toBe(22532);
+  });
+
+  it('throws when imapflow search fails (caller handles)', async () => {
+    __setImapFlowCtor(makeClientStub({ throwOn: 'search' }) as any);
+    await expect(getMaxUid(account)).rejects.toThrow(/search/);
+  });
+
+  it('throws when imapflow search returns false (server NO/BAD) — must not be treated as empty inbox', async () => {
+    // imapflow types `search()` as `number[] | false`; `false` signals a failed
+    // SEARCH command. Treating it as `[]` would persist last_seen_uid=0 and
+    // make the next tick crawl `UID 1:*` — the backlog this probe must skip.
+    __setImapFlowCtor(makeClientStub({ searchReturns: false }) as any);
+    await expect(getMaxUid(account)).rejects.toThrow(/SEARCH/);
+  });
+
+  it('uses search({ all: true }) — not a uid-range — to enumerate all UIDs', async () => {
+    const calls: any[] = [];
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn(async (criteria: any, opts: any) => {
+        calls.push({ criteria, opts });
+        return [42];
+      });
+      fetchAll = vi.fn();
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    await getMaxUid(account);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].criteria).toEqual({ all: true });
+    expect(calls[0].opts).toEqual({ uid: true });
   });
 });
 
