@@ -100,8 +100,9 @@ export async function getMaxUid(account: ImapAccount): Promise<number> {
   return withClient(account, async (client) => {
     const uids: number[] =
       (await client.search({ all: true }, { uid: true })) || [];
-    if (!uids || uids.length === 0) return 0;
-    return Math.max(...uids);
+    // reduce instead of Math.max(...uids): on a real backlog (the plan cites
+    // a 9416-message inbox) the spread can approach V8's argument-count limit.
+    return uids.reduce((m, x) => (x > m ? x : m), 0);
   });
 }
 

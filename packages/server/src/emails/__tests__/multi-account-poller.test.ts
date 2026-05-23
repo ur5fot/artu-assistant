@@ -4,7 +4,10 @@ import { createEmailStore } from '../store.js';
 import { runPollTick } from '../multi-account-poller.js';
 import type { ImapAccount, NewMessage } from '../types.js';
 
-beforeEach(() => initDb(':memory:'));
+beforeEach(() => {
+  initDb(':memory:');
+  noProbe.mockClear();
+});
 
 const accA: ImapAccount = { id: 'a', host: 'h', port: 993, user: 'u', password: 'p', tls: true };
 const accB: ImapAccount = { id: 'b', host: 'h2', port: 993, user: 'u', password: 'p', tls: true };
