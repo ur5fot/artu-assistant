@@ -85,12 +85,17 @@ async function withClient<T>(account: ImapAccount, fn: (client: any) => Promise<
   }
 }
 
-// Used by the poller on first tick (when `last_seen_uid === 0`) to skip the
-// historical backlog: the probe returns the current max UID, the poller
-// persists it as `last_seen_uid`, and only mail arriving after that point
-// is fetched on subsequent ticks. IMAP guarantees monotonically increasing
-// UID assignment per mailbox, so anything that arrives between this call
-// and the next tick is safely captured by `uid: ${max+1}:*`.
+/**
+ * Returns the highest UID currently in the account's INBOX, or `0` if empty.
+ *
+ * Used by `multi-account-poller.runPollTick` on first tick (when
+ * `last_seen_uid === 0`) to skip the historical backlog: the poller persists
+ * this value as `last_seen_uid` and processes zero rows that tick, so only
+ * mail arriving after the account is configured is fetched on subsequent
+ * ticks. IMAP guarantees monotonically increasing UID assignment per mailbox,
+ * so anything that arrives between this call and the next tick is safely
+ * captured by `uid: ${max+1}:*` in `fetchNewMessages`.
+ */
 export async function getMaxUid(account: ImapAccount): Promise<number> {
   return withClient(account, async (client) => {
     const uids: number[] =

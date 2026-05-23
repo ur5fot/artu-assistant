@@ -112,9 +112,9 @@ years ago.
 
 ### Task 4: [Final] Update documentation
 
-- [ ] add a short note in [README.md](../../README.md) under the "Emails" section:
+- [x] add a short note in [README.md](../../README.md) under the "Emails" section:
   > New IMAP accounts skip historical backlog on first connect — only emails arriving **after** the account is configured are processed. Existing accounts are unaffected.
-- [ ] add JSDoc to `getMaxUid` explaining why this exists (link to first-tick semantics in poller)
+- [x] add JSDoc to `getMaxUid` explaining why this exists (link to first-tick semantics in poller)
 
 ## Technical Details
 
