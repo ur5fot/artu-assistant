@@ -104,6 +104,18 @@ describe('decodeBodyPart (string)', () => {
   it('returns plain ASCII string unchanged', () => {
     expect(decodeBodyPart('Hello world', 'quoted-printable', 'utf-8')).toBe('Hello world');
   });
+
+  it('does not QP-decode innocent ASCII strings containing =XX (URL params)', () => {
+    // Regression: an old version of the heuristic ran libqp.decode on any
+    // string containing /=[0-9A-F]{2}/, which corrupted plain-text bodies
+    // and snippets carrying tracking URLs (?u=A1B2, &utm=AB, hex colors).
+    // Now we require the bodyStructure encoding to be explicitly
+    // quoted-printable AS WELL AS the markers being present.
+    const url = 'Click https://track.example/c?u=A1B2&utm=ab to confirm';
+    expect(decodeBodyPart(url, '7bit', 'utf-8')).toBe(url);
+    expect(decodeBodyPart(url, '8bit', 'utf-8')).toBe(url);
+    expect(decodeBodyPart(url, null, 'utf-8')).toBe(url);
+  });
 });
 
 describe('decodeBodyPart (other)', () => {
@@ -269,5 +281,45 @@ describe('pickTextPart', () => {
       part: '1',
     };
     expect(pickTextPart(bs)?.charset).toBe('utf-8');
+  });
+
+  it('skips text/* leaves marked as Content-Disposition: attachment', () => {
+    // Forwarded mail with an HTML body + attached .txt log: the attachment
+    // is text/plain. Without the disposition filter, pickTextPart would
+    // prefer it (text/plain > text/html) and surface the log file as the
+    // body. Skip attachments so the HTML body wins.
+    const bs = {
+      type: 'multipart/mixed',
+      childNodes: [
+        { type: 'text/html', encoding: 'base64', parameters: { charset: 'utf-8' }, part: '1' },
+        {
+          type: 'text/plain',
+          encoding: '7bit',
+          parameters: { charset: 'utf-8' },
+          part: '2',
+          disposition: 'attachment',
+        },
+      ],
+    };
+    const picked = pickTextPart(bs);
+    expect(picked?.type).toBe('text/html');
+    expect(picked?.partId).toBe('1');
+  });
+
+  it('returns null when the only text leaf is an attachment', () => {
+    const bs = {
+      type: 'multipart/mixed',
+      childNodes: [
+        { type: 'image/jpeg', encoding: 'base64', parameters: {}, part: '1' },
+        {
+          type: 'text/plain',
+          encoding: '7bit',
+          parameters: { charset: 'utf-8' },
+          part: '2',
+          disposition: 'attachment',
+        },
+      ],
+    };
+    expect(pickTextPart(bs)).toBeNull();
   });
 });

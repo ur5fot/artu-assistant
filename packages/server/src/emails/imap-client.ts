@@ -125,19 +125,26 @@ export async function fetchNewMessages(
     const cap = uids.slice(0, limit);
     // bodyStructure rides on the same fetchAll — no extra round-trip. Request
     // the common text partIds upfront so the decoder always has the buffer for
-    // whichever leaf pickTextPart selects: '1' single-part, '1.1'/'1.2' children
-    // of a top-level multipart/alternative-or-related, '2' second leg of
-    // top-level multipart/alternative, '2.1'/'2.2' children of a nested
-    // multipart in the second position (common in mixed-with-attachment-first).
-    // Costs a little bandwidth on multipart messages, saves a per-message
-    // follow-up fetch.
+    // whichever leaf pickTextPart selects. Covers up to 3 nesting levels:
+    // '1' single-part; '1.1'/'1.2' children of a top-level multipart;
+    // '2'/'2.1'/'2.2' second leg of multipart/alternative (or a nested
+    // multipart in mixed-with-attachment-first); '3' third top-level child
+    // (calendar invites, multi-attachment forwards); '1.1.1'/'1.2.1'/'2.1.1'/
+    // '2.2.1' three-deep leaves found in multipart/signed (S/MIME, PGP) and
+    // multipart/mixed → multipart/related → multipart/alternative shapes.
+    // Missing parts simply don't appear in row.bodyParts — no error, no cost.
+    const bodyPartIds = [
+      '1', '1.1', '1.2', '1.1.1', '1.2.1',
+      '2', '2.1', '2.2', '2.1.1', '2.2.1',
+      '3',
+    ];
     const rows = await client.fetchAll(
       cap,
       {
         envelope: true,
         internalDate: true,
         bodyStructure: true,
-        bodyParts: ['1', '1.1', '1.2', '2', '2.1', '2.2'],
+        bodyParts: bodyPartIds,
       },
       { uid: true },
     );
@@ -161,17 +168,23 @@ export async function fetchFullBody(account: ImapAccount, uid: number): Promise<
   return withClient(account, async (client) => {
     // Same shape as fetchNewMessages: bodyStructure rides on the same fetch,
     // and we request the common text partIds upfront so pickTextPart's leaf
-    // (text/plain or text/html, single-part or multipart/alternative/related)
-    // is always covered without a second round-trip. extractBody preserves
-    // newlines (vs. snippet's whitespace collapse) so signatures + quoted
-    // replies stay readable in emails_get.
+    // is always covered without a second round-trip. Same 3-level coverage
+    // (single-part / multipart/alternative / multipart/signed) — see the
+    // comment in fetchNewMessages for the partId enumeration rationale.
+    // extractBody preserves newlines so signatures + quoted replies stay
+    // readable in emails_get.
+    const bodyPartIds = [
+      '1', '1.1', '1.2', '1.1.1', '1.2.1',
+      '2', '2.1', '2.2', '2.1.1', '2.2.1',
+      '3',
+    ];
     const row = await client.fetchOne(
       uid,
       {
         envelope: true,
         internalDate: true,
         bodyStructure: true,
-        bodyParts: ['1', '1.1', '1.2', '2', '2.1', '2.2'],
+        bodyParts: bodyPartIds,
       },
       { uid: true },
     );

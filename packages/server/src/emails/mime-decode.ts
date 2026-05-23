@@ -34,10 +34,12 @@ export function decodeHeader(s: string | null | undefined): string {
 }
 
 // quoted-printable encoded bytes look like "=D0=9F" — a literal '=' followed
-// by two hex digits. We use this to tell whether a string value that landed
-// on us has already been decoded by imapflow (in which case it would contain
-// raw unicode codepoints) or is still raw QP. Without the check we'd corrupt
-// already-decoded strings by feeding them back into libqp.
+// by two hex digits. Used in the string branch of decodeBodyPart together
+// with the bodyStructure-reported encoding: we only invoke libqp.decode when
+// the encoding is explicitly 'quoted-printable' AND markers are present, so
+// that (a) plain unicode strings declared as QP aren't fed through latin1
+// round-trip and corrupted, and (b) innocent strings containing '=XX' (URL
+// params like '?utm=A1B2', hex color codes) aren't mis-decoded.
 const QP_HEURISTIC = /=[0-9A-F]{2}/i;
 
 function decodeBytes(buf: Buffer, encoding: string | null): Buffer {
@@ -72,10 +74,14 @@ export function decodeBodyPart(
     return toUtf8(bytes, charset);
   }
   if (typeof value === 'string') {
-    // imapflow sometimes returns already-decoded unicode strings for plain
-    // ASCII / 7bit parts. Only re-decode when we see actual QP markers,
-    // otherwise we round-trip unicode through latin1 and corrupt it.
-    if (QP_HEURISTIC.test(value)) {
+    // Only re-decode when the part is declared quoted-printable AND the
+    // string still has QP markers. Either condition alone is wrong: encoding
+    // alone would mangle already-decoded unicode (latin1 round-trip), markers
+    // alone would corrupt innocent strings containing '=XX' substrings.
+    if (
+      (encoding || '').toLowerCase() === 'quoted-printable' &&
+      QP_HEURISTIC.test(value)
+    ) {
       return toUtf8(libqp.decode(value), charset);
     }
     return value;
@@ -88,6 +94,7 @@ type BodyStructureNode = {
   encoding?: string;
   parameters?: Record<string, string | undefined> | null;
   part?: string;
+  disposition?: string;
   childNodes?: BodyStructureNode[] | null;
 };
 
@@ -109,7 +116,11 @@ export function pickTextPart(bodyStructure: unknown): PickedPart | null {
       return;
     }
     const type = (node.type || '').toLowerCase();
-    if (type.startsWith('text/')) {
+    // Skip text/* leaves marked as attachments — e.g. a forwarded .txt log
+    // file. Picking it as the body would surface the attachment's contents
+    // instead of the message; treat it like a non-text leaf.
+    const disposition = (node.disposition || '').toLowerCase();
+    if (type.startsWith('text/') && disposition !== 'attachment') {
       leaves.push({
         partId: node.part || '1',
         encoding: (node.encoding || '').toLowerCase(),

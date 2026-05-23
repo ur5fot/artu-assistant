@@ -165,6 +165,91 @@ describe('fetchNewMessages', () => {
     expect(msgs[0].snippet).not.toContain('html');
   });
 
+  it('decodes deep-nested partId 1.1.1 from multipart/signed → multipart/alternative', async () => {
+    // PGP/S-MIME signed mail nests the body two levels under multipart/signed,
+    // so the text leaf lives at 1.1.1. Without the 3-level prefetch the
+    // snippet would silently come back empty.
+    const text = 'Signed message body';
+    __setImapFlowCtor(
+      makeClientStub({
+        searchReturns: [220],
+        fetchRows: [
+          {
+            uid: 220,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyParts: new Map([['1.1.1', Buffer.from(text, 'latin1')]]),
+            bodyStructure: {
+              type: 'multipart/signed',
+              childNodes: [
+                {
+                  type: 'multipart/alternative',
+                  childNodes: [
+                    {
+                      type: 'text/plain',
+                      encoding: '7bit',
+                      parameters: { charset: 'utf-8' },
+                      part: '1.1.1',
+                    },
+                  ],
+                },
+              ],
+            },
+            internalDate: new Date(0),
+          },
+        ],
+      }) as any,
+    );
+    const msgs = await fetchNewMessages(account, 200, 50);
+    expect(msgs[0].snippet).toBe(text);
+  });
+
+  it('skips text/plain leaves marked as Content-Disposition: attachment', async () => {
+    // Forwarded mail with HTML body + attached .txt log. The attachment leaf
+    // is text/plain, so without the disposition filter pickTextPart would
+    // pick it over the HTML body and emails_get would surface the log file
+    // instead of the message.
+    const html = '<p>Forwarded body</p>';
+    const b64 = Buffer.from(Buffer.from(html, 'utf-8').toString('base64'), 'latin1');
+    const logText = Buffer.from('2026-05-01 ERROR: db down', 'latin1');
+    __setImapFlowCtor(
+      makeClientStub({
+        searchReturns: [221],
+        fetchRows: [
+          {
+            uid: 221,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyParts: new Map([
+              ['1', b64],
+              ['2', logText],
+            ]),
+            bodyStructure: {
+              type: 'multipart/mixed',
+              childNodes: [
+                {
+                  type: 'text/html',
+                  encoding: 'base64',
+                  parameters: { charset: 'utf-8' },
+                  part: '1',
+                },
+                {
+                  type: 'text/plain',
+                  encoding: '7bit',
+                  parameters: { charset: 'utf-8' },
+                  part: '2',
+                  disposition: 'attachment',
+                },
+              ],
+            },
+            internalDate: new Date(0),
+          },
+        ],
+      }) as any,
+    );
+    const msgs = await fetchNewMessages(account, 200, 50);
+    expect(msgs[0].snippet).toContain('Forwarded body');
+    expect(msgs[0].snippet).not.toContain('ERROR');
+  });
+
   it('decodes nested partId 1.2 from multipart/mixed → multipart/alternative', async () => {
     // Common shape for marketing emails (Upwork/Djinni): top-level
     // multipart/mixed wraps a multipart/alternative whose html-only leaf lives
@@ -310,7 +395,11 @@ describe('fetchNewMessages', () => {
     __setImapFlowCtor(Ctor as any);
     await fetchNewMessages(account, 0, 10);
     expect(capturedQuery.bodyStructure).toBe(true);
-    expect(capturedQuery.bodyParts).toEqual(['1', '1.1', '1.2', '2', '2.1', '2.2']);
+    expect(capturedQuery.bodyParts).toEqual([
+      '1', '1.1', '1.2', '1.1.1', '1.2.1',
+      '2', '2.1', '2.2', '2.1.1', '2.2.1',
+      '3',
+    ]);
   });
 
   it('decodes RFC2047-encoded subject and from.name', async () => {
@@ -514,6 +603,10 @@ describe('fetchFullBody', () => {
     __setImapFlowCtor(Ctor as any);
     await fetchFullBody(account, 9);
     expect(capturedQuery.bodyStructure).toBe(true);
-    expect(capturedQuery.bodyParts).toEqual(['1', '1.1', '1.2', '2', '2.1', '2.2']);
+    expect(capturedQuery.bodyParts).toEqual([
+      '1', '1.1', '1.2', '1.1.1', '1.2.1',
+      '2', '2.1', '2.2', '2.1.1', '2.2.1',
+      '3',
+    ]);
   });
 });
