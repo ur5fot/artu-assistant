@@ -1,10 +1,29 @@
-// MIME decode helpers shared by imap-client (snippet + full body paths).
-//
-// We dispatch by the bodyStructure-reported Content-Transfer-Encoding rather
-// than blindly running quoted-printable over every value: HTML payloads from
-// Upwork / Djinni / marketing tools are base64, and running libqp on them
-// produced gibberish. Once bytes are decoded we still need a charset pass —
-// non-UTF-8 mail (KOI8-R, ISO-8859-1) was being mis-rendered as mojibake.
+/**
+ * MIME decode helpers shared by `imap-client` (snippet + full body paths).
+ *
+ * Exported helpers:
+ * - {@link decodeHeader}  — RFC 2047 `=?utf-8?Q?…?=` / `=?utf-8?B?…?=` words
+ *   in Subject / From / To headers, with a try/catch fallback to the raw
+ *   string so a malformed header never throws.
+ * - {@link decodeBodyPart} — dispatches a fetched body part by its
+ *   Content-Transfer-Encoding (base64 / quoted-printable / 7bit / 8bit /
+ *   unknown), then converts the resulting bytes to a UTF-8 string using the
+ *   part's declared charset (via `iconv-lite`).
+ * - {@link pickTextPart} — walks the `bodyStructure` tree of a message and
+ *   returns the partId + encoding + charset of the text leaf to fetch,
+ *   preferring `text/plain` over `text/html`. Returns `null` for
+ *   attachment-only messages so the caller can surface an empty snippet
+ *   instead of base64-encoded image bytes.
+ *
+ * Why dispatch on `bodyStructure` rather than blanket-QP-decode every value:
+ * HTML payloads from Upwork / Djinni / marketing tools arrive as base64, and
+ * running `libqp.decode` over them produced gibberish (`PHN0eWxlPi4uLg==`
+ * snippets in digests). Once the bytes are decoded we still need a charset
+ * pass — non-UTF-8 mail (KOI8-R, ISO-8859-1) was being mis-rendered as
+ * mojibake. The encoding/charset are reported per-part by the IMAP server in
+ * the same `fetchAll` call that returns envelope+internalDate, so this
+ * dispatch costs no extra round-trips.
+ */
 import libqp from 'libqp';
 import libmime from 'libmime';
 import iconv from 'iconv-lite';

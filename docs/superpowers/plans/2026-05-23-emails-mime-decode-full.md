@@ -160,8 +160,8 @@ missing tests, type shim, parameter ceiling).
 
 ### Task 8: [Final] Update documentation
 
-- [ ] add a short note in [README.md](../../README.md) under "Emails" section: "Bodies and headers are MIME-decoded (quoted-printable, base64, charset). Stale rows from before this fix may still display raw encoding — they're already marked delivered."
-- [ ] add JSDoc block at top of `mime-decode.ts` explaining what each helper does and why bodyStructure dispatch was chosen over blanket QP decode
+- [x] add a short note in [README.md](../../README.md) under "Emails" section: "Bodies and headers are MIME-decoded (quoted-printable, base64, charset). Stale rows from before this fix may still display raw encoding — they're already marked delivered."
+- [x] add JSDoc block at top of `mime-decode.ts` explaining what each helper does and why bodyStructure dispatch was chosen over blanket QP decode
 
 ## Technical Details
 
