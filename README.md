@@ -67,6 +67,16 @@ one turn and the model answers once. Tune via `DISCORD_COALESCE_MS` in
 
 See `AGENTS.md` for detailed setup instructions.
 
+### Emails
+
+Incoming IMAP messages have their bodies and headers MIME-decoded
+(quoted-printable, base64, charset via `bodyStructure` dispatch — see
+`packages/server/src/emails/mime-decode.ts`). Stale rows from before this
+fix may still display raw encoding in the DB — they're already marked
+`delivered_at` so they're skipped by the daily digest, but `emails_list`
+filters by `received_at` only and will still surface them (with their
+raw-encoded snippet) until they age out of the requested time window.
+
 ### Running R2 without Ollama (API-only mode)
 
 By default R2 uses local Ollama for memory embeddings (`mxbai-embed-large`) and fact extraction (`qwen2.5:7b`). To run fully without Ollama (e.g. on a laptop with no GPU), use Voyage AI for embeddings and Claude for fact extraction:
