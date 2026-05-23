@@ -86,19 +86,19 @@ years ago.
 
 ### Task 2: First-tick skip in `runPollTick`
 
-- [ ] in `multi-account-poller.ts`, add a new param to `TickParams` and `StartParams`: `maxUidProbe: MaxUidProbe` where `type MaxUidProbe = (account: ImapAccount) => Promise<number>`
-- [ ] in `runPollTick`, after reading `sinceUid`, branch:
+- [x] in `multi-account-poller.ts`, add a new param to `TickParams` and `StartParams`: `maxUidProbe: MaxUidProbe` where `type MaxUidProbe = (account: ImapAccount) => Promise<number>`
+- [x] in `runPollTick`, after reading `sinceUid`, branch:
   - if `sinceUid === 0`: call `maxUidProbe(acc)`, call `store.updateLastSeenUid(acc.id, maxUid, now)`, log `[emails] first tick for ${acc.id}: skipping backlog, last_seen_uid set to ${maxUid}`, continue to next account (no fetcher call, no scoring, no inserts)
   - else: existing path unchanged
-- [ ] wrap the probe in the existing try/catch — on failure call `setAccountError` and skip the account (matches current error handling for fetcher failures). Next tick will retry the probe.
-- [ ] update [packages/server/src/index.ts](../../packages/server/src/index.ts) where `startEmailPoller` is called: pass `maxUidProbe: getMaxUid` (imported from `./emails/imap-client.js`)
-- [ ] write tests in `multi-account-poller.test.ts`:
+- [x] wrap the probe in the existing try/catch — on failure call `setAccountError` and skip the account (matches current error handling for fetcher failures). Next tick will retry the probe.
+- [x] update [packages/server/src/index.ts](../../packages/server/src/index.ts) where `startEmailPoller` is called: pass `maxUidProbe: getMaxUid` (imported from `./emails/imap-client.js`)
+- [x] write tests in `multi-account-poller.test.ts`:
   - first tick with `sinceUid=0` and non-empty inbox → `updateLastSeenUid(acc, maxUid, now)` called with returned max, `insertPending` NOT called, fetcher NOT called
   - first tick with `sinceUid=0` and empty inbox (probe returns 0) → `updateLastSeenUid(acc, 0, now)` called; next tick will retry the same probe (no infinite loop concern because `0` stays `0` until real messages arrive)
   - non-first tick (`sinceUid=2266`) → probe NOT called, fetcher called as before
   - probe throws → `setAccountError` called with probe's error message, no `updateLastSeenUid`, no fetcher call
   - multiple accounts mixed: account A `sinceUid=0` (probes), account B `sinceUid=100` (fetches) — both handled independently in one tick
-- [ ] run server tests — must pass before Task 3
+- [x] run server tests — must pass before Task 3
 
 ### Task 3: Wire and verify
 

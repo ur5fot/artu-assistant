@@ -3,12 +3,14 @@ import type { EmailStore } from './store.js';
 
 export type MessageFetcher = (account: ImapAccount, sinceUid: number, limit: number) => Promise<NewMessage[]>;
 export type MessageScorer = (msgs: NewMessage[]) => Promise<Array<{ uid: number; importance: number }>>;
+export type MaxUidProbe = (account: ImapAccount) => Promise<number>;
 
 interface TickParams {
   accounts: ImapAccount[];
   store: EmailStore;
   fetcher: MessageFetcher;
   scorer: MessageScorer;
+  maxUidProbe: MaxUidProbe;
   now: number;
   fetchLimit?: number;
   importanceCutoff?: number;
@@ -25,6 +27,20 @@ export async function runPollTick(params: TickParams): Promise<void> {
     params.accounts.map(async (acc) => {
       try {
         const sinceUid = params.store.getLastSeenUid(acc.id);
+
+        // First tick for a fresh account: skip the historical backlog by
+        // probing the inbox's current max UID and persisting it. Fetching
+        // from UID 1 would crawl years of mail at 50/tick, blocking real
+        // new arrivals (which sit at higher UIDs) for hours.
+        if (sinceUid === 0) {
+          const maxUid = await params.maxUidProbe(acc);
+          params.store.updateLastSeenUid(acc.id, maxUid, params.now);
+          console.log(
+            `[emails] first tick for ${acc.id}: skipping backlog, last_seen_uid set to ${maxUid}`,
+          );
+          return;
+        }
+
         const msgs = await params.fetcher(acc, sinceUid, fetchLimit);
         if (msgs.length === 0) return;
 
