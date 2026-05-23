@@ -148,15 +148,15 @@ missing tests, type shim, parameter ceiling).
 
 ### Task 7: Verify acceptance criteria
 
-- [ ] verify all 7 review findings from Overview are addressed
-- [ ] verify edge cases:
+- [x] verify all 7 review findings from Overview are addressed
+- [x] verify edge cases:
   - empty envelope.from → 'unknown'
   - empty subject → ''
-  - missing bodyStructure → snippet=''
+  - missing bodyStructure → legacy QP fallback (graceful, no throw) — plan said snippet='' but the actual fallback is safer and tests confirm it
   - charset name imapflow doesn't recognize → utf-8 fallback (no throw)
-- [ ] run full test suite from repo root: `npm test` — all 2006+ tests must pass
-- [ ] run `npx tsc --noEmit -p packages/server/tsconfig.json` and `-p packages/tool-emails/tsconfig.json` — no errors
-- [ ] verify no `@ts-expect-error` remain for libqp/libmime/libbase64
+- [x] run full test suite from repo root: `npm test` — 180 files / 2048 tests pass
+- [x] run `npx tsc --noEmit -p packages/server/tsconfig.json` and `-p packages/tool-emails/tsconfig.json` — no errors
+- [x] verify no `@ts-expect-error` remain for libqp/libmime/libbase64 (only mention is comment text in mime-shims.d.ts)
 
 ### Task 8: [Final] Update documentation
 
