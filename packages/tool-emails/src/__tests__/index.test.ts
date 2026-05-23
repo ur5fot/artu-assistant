@@ -65,19 +65,19 @@ describe('emails_list tool', () => {
     const list = tools.find((t) => t.name === 'emails_list')!;
 
     await list.handler({});
-    expect(store.fetchInWindow).toHaveBeenLastCalledWith(72, 10, expect.any(Number));
+    expect(store.fetchInWindow).toHaveBeenLastCalledWith(720, 10, expect.any(Number));
 
     await list.handler({ limit: 500 });
-    expect(store.fetchInWindow).toHaveBeenLastCalledWith(72, 50, expect.any(Number));
+    expect(store.fetchInWindow).toHaveBeenLastCalledWith(720, 50, expect.any(Number));
   });
 
-  it('clamps since_hours to [1, 720] and uses 72 as default', async () => {
+  it('clamps since_hours to [1, 720] and uses 720 as default', async () => {
     const store = mkStore([]);
     const tools = createTool({ emailStore: store, imapClient: mkImap() });
     const list = tools.find((t) => t.name === 'emails_list')!;
 
     await list.handler({});
-    expect(store.fetchInWindow).toHaveBeenLastCalledWith(72, 10, expect.any(Number));
+    expect(store.fetchInWindow).toHaveBeenLastCalledWith(720, 10, expect.any(Number));
 
     await list.handler({ since_hours: 0 });
     expect(store.fetchInWindow).toHaveBeenLastCalledWith(1, 10, expect.any(Number));
@@ -86,7 +86,7 @@ describe('emails_list tool', () => {
     expect(store.fetchInWindow).toHaveBeenLastCalledWith(720, 10, expect.any(Number));
 
     await list.handler({ since_hours: 'abc' });
-    expect(store.fetchInWindow).toHaveBeenLastCalledWith(72, 10, expect.any(Number));
+    expect(store.fetchInWindow).toHaveBeenLastCalledWith(720, 10, expect.any(Number));
   });
 
   it('returns error when emailStore is null', async () => {

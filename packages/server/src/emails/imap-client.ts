@@ -1,4 +1,8 @@
 import { ImapFlow } from 'imapflow';
+// @ts-expect-error -- libqp/libmime ship without types (transitive via imapflow)
+import libqp from 'libqp';
+// @ts-expect-error
+import libmime from 'libmime';
 import type { ImapAccount, NewMessage, FullMessage } from './types.js';
 
 type ImapFlowCtor = new (opts: any) => any;
@@ -27,13 +31,25 @@ function pickReceivedAt(row: any): number {
   return Date.now();
 }
 
+function decodeHeader(s: string | null | undefined): string {
+  if (!s) return '';
+  try { return libmime.decodeWords(s); } catch { return s; }
+}
+
 function formatFrom(envelope: any): string {
   const from = envelope?.from?.[0];
   if (!from) return 'unknown';
-  if (from.name && from.address) return `${from.name} <${from.address}>`;
-  return from.address || from.name || 'unknown';
+  const name = decodeHeader(from.name);
+  if (name && from.address) return `${name} <${from.address}>`;
+  return from.address || name || 'unknown';
 }
 
+// Gmail / iCloud encode UTF-8 body parts as quoted-printable (Content-Transfer-
+// Encoding: quoted-printable). imapflow returns the raw bytes — without
+// decoding we'd surface "=D0=9F=D0=BE..." (raw QP) and "emai=\nl a" (soft
+// breaks) to the user. libqp.decode is a no-op on plain ASCII so we can run
+// it unconditionally; bodyStructure round-trip would be cleaner but requires
+// an extra IMAP fetch and isn't worth it for this one field.
 function firstBodyPart(bodyParts: any): string {
   if (!bodyParts) return '';
   const values =
@@ -43,8 +59,8 @@ function firstBodyPart(bodyParts: any): string {
   if (values.length === 0) return '';
   const value = values[0];
   if (value == null) return '';
-  if (Buffer.isBuffer(value)) return value.toString('utf-8');
-  if (typeof value === 'string') return value;
+  if (Buffer.isBuffer(value)) return libqp.decode(value.toString('binary')).toString('utf-8');
+  if (typeof value === 'string') return libqp.decode(value).toString('utf-8');
   return '';
 }
 
@@ -116,7 +132,7 @@ export async function fetchNewMessages(
       out.push({
         uid: row.uid,
         from: formatFrom(row.envelope),
-        subject: row.envelope?.subject ?? '',
+        subject: decodeHeader(row.envelope?.subject),
         snippet: extractSnippet(row.bodyParts, SNIPPET_LEN),
         receivedAt: pickReceivedAt(row),
       });
@@ -140,7 +156,7 @@ export async function fetchFullBody(account: ImapAccount, uid: number): Promise<
     return {
       uid,
       from: formatFrom(row.envelope),
-      subject: row.envelope?.subject ?? '',
+      subject: decodeHeader(row.envelope?.subject),
       bodyText: extractBody(row.bodyParts, FULL_BODY_LEN),
       receivedAt: pickReceivedAt(row),
     };
