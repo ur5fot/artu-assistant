@@ -73,7 +73,9 @@ Incoming IMAP messages have their bodies and headers MIME-decoded
 (quoted-printable, base64, charset via `bodyStructure` dispatch — see
 `packages/server/src/emails/mime-decode.ts`). Stale rows from before this
 fix may still display raw encoding in the DB — they're already marked
-`delivered_at`, so they don't surface in digests or `emails_list`.
+`delivered_at` so they're skipped by the daily digest, but `emails_list`
+filters by `received_at` only and will still surface them (with their
+raw-encoded snippet) until they age out of the requested time window.
 
 ### Running R2 without Ollama (API-only mode)
 
