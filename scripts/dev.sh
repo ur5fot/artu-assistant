@@ -8,7 +8,27 @@ MODE="${1:-plain}"
 
 ./scripts/ensure-docker.sh
 docker compose up -d
-./scripts/ensure-ollama.sh
+
+# Skip Ollama bootstrap when nothing in the stack needs it. Reads .env directly
+# (the server validates these the same way at startup). Avoids loading ~5GB of
+# qwen2.5:7b into RAM on machines that route everything through Claude/Voyage.
+needs_ollama=1
+if [ -f .env ]; then
+  llm_mode=$(grep -E "^LOCAL_LLM_MODE=" .env | tail -1 | cut -d= -f2 | awk '{print $1}')
+  embed=$(grep -E "^EMBEDDING_PROVIDER=" .env | tail -1 | cut -d= -f2 | awk '{print $1}')
+  text=$(grep -E "^MEMORY_TEXT_PROVIDER=" .env | tail -1 | cut -d= -f2 | awk '{print $1}')
+  # auto modes prefer Ollama if reachable, so they still count as "needs"
+  if [ "$llm_mode" = "disabled" ] \
+     && [ "$embed" != "ollama" ] && [ "$embed" != "auto" ] && [ -n "$embed" ] \
+     && [ "$text" != "ollama" ] && [ "$text" != "auto" ] && [ -n "$text" ]; then
+    needs_ollama=0
+  fi
+fi
+if [ "$needs_ollama" = "1" ]; then
+  ./scripts/ensure-ollama.sh
+else
+  echo "Skipping Ollama (LOCAL_LLM_MODE=disabled, memory uses ${embed}/${text})"
+fi
 
 cleanup() {
   echo ""
