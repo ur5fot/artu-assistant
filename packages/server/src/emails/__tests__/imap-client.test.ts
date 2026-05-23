@@ -341,4 +341,88 @@ describe('fetchFullBody', () => {
     __setImapFlowCtor(makeClientStub({ fetchRows: [] }) as any);
     await expect(fetchFullBody(account, 999)).rejects.toThrow(/not found/i);
   });
+
+  it('decodes quoted-printable body when bodyStructure reports QP', async () => {
+    // "Привет, мир\nLine 2" QP-encoded as utf-8
+    const qpBody = Buffer.from(
+      '=D0=9F=D1=80=D0=B8=D0=B2=D0=B5=D1=82, =D0=BC=D0=B8=D1=80\r\nLine 2',
+      'latin1',
+    );
+    __setImapFlowCtor(
+      makeClientStub({
+        fetchRows: [
+          {
+            uid: 7,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyParts: new Map([['1', qpBody]]),
+            bodyStructure: {
+              type: 'text/plain',
+              encoding: 'quoted-printable',
+              parameters: { charset: 'utf-8' },
+              part: '1',
+            },
+            internalDate: new Date(0),
+          },
+        ],
+      }) as any,
+    );
+    const full = await fetchFullBody(account, 7);
+    expect(full.bodyText).toBe('Привет, мир\nLine 2');
+  });
+
+  it('decodes base64 body when bodyStructure reports base64', async () => {
+    const html = '<p>Hello, world</p>\n<p>Second line</p>';
+    const b64Body = Buffer.from(Buffer.from(html, 'utf-8').toString('base64'), 'latin1');
+    __setImapFlowCtor(
+      makeClientStub({
+        fetchRows: [
+          {
+            uid: 8,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyParts: new Map([['1', b64Body]]),
+            bodyStructure: {
+              type: 'text/html',
+              encoding: 'base64',
+              parameters: { charset: 'utf-8' },
+              part: '1',
+            },
+            internalDate: new Date(0),
+          },
+        ],
+      }) as any,
+    );
+    const full = await fetchFullBody(account, 8);
+    expect(full.bodyText).toContain('<p>Hello, world</p>');
+    expect(full.bodyText).toContain('<p>Second line</p>');
+  });
+
+  it('requests bodyStructure and common text partIds in fetchOne', async () => {
+    let capturedQuery: any = null;
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn(async () => []);
+      fetchAll = vi.fn(async () => []);
+      fetchOne = vi.fn(async (_uid: number, query: any) => {
+        capturedQuery = query;
+        return {
+          uid: 9,
+          envelope: { from: [{ address: 'x@y' }], subject: 's' },
+          bodyParts: new Map([['1', Buffer.from('hi', 'latin1')]]),
+          bodyStructure: {
+            type: 'text/plain',
+            encoding: '7bit',
+            parameters: { charset: 'utf-8' },
+            part: '1',
+          },
+          internalDate: new Date(0),
+        };
+      });
+    };
+    __setImapFlowCtor(Ctor as any);
+    await fetchFullBody(account, 9);
+    expect(capturedQuery.bodyStructure).toBe(true);
+    expect(capturedQuery.bodyParts).toEqual(['1', '1.1', '2']);
+  });
 });

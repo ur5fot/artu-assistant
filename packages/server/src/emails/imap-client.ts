@@ -156,12 +156,19 @@ export async function fetchNewMessages(
 
 export async function fetchFullBody(account: ImapAccount, uid: number): Promise<FullMessage> {
   return withClient(account, async (client) => {
+    // Same shape as fetchNewMessages: bodyStructure rides on the same fetch,
+    // and we request the common text partIds upfront so pickTextPart's leaf
+    // (text/plain or text/html, single-part or multipart/alternative) is
+    // always covered without a second round-trip. extractBody preserves
+    // newlines (vs. snippet's whitespace collapse) so signatures + quoted
+    // replies stay readable in emails_get.
     const row = await client.fetchOne(
       uid,
       {
         envelope: true,
         internalDate: true,
-        bodyParts: ['1'],
+        bodyStructure: true,
+        bodyParts: ['1', '1.1', '2'],
       },
       { uid: true },
     );

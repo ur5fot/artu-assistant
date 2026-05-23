@@ -120,15 +120,15 @@ missing tests, type shim, parameter ceiling).
 
 ### Task 4: Wire bodyStructure into fetchFullBody
 
-- [ ] mirror Task 3 changes in `fetchFullBody`: add `bodyStructure: true`, pick text part, decode via `decodeBodyPart`
-- [ ] preserve newlines for full body (existing `extractBody` semantics): `decodeBodyPart` returns the decoded UTF-8 string; `extractBody` then normalizes CRLF and applies length cap
-- [ ] for HTML-only emails, the body returned by `emails_get` will be the decoded HTML. That's correct — user can read it. Optional: strip HTML tags via simple regex when picked part is text/html. Decide YAGNI: skip stripping unless tests show user complaint. Default = decode and return as-is.
-- [ ] write `imap-client.test.ts` additions:
+- [x] mirror Task 3 changes in `fetchFullBody`: add `bodyStructure: true`, pick text part, decode via `decodeBodyPart`
+- [x] preserve newlines for full body (existing `extractBody` semantics): `decodeBodyPart` returns the decoded UTF-8 string; `extractBody` then normalizes CRLF and applies length cap
+- [x] for HTML-only emails, the body returned by `emails_get` will be the decoded HTML. That's correct — user can read it. Optional: strip HTML tags via simple regex when picked part is text/html. Decide YAGNI: skip stripping unless tests show user complaint. Default = decode and return as-is.
+- [x] write `imap-client.test.ts` additions:
   - `fetchFullBody` with QP body → decoded
   - `fetchFullBody` with base64 body → decoded
   - `fetchFullBody` preserves newlines
   - `fetchFullBody` truncates with marker when over `FULL_BODY_LEN`
-- [ ] run server tests — must pass before Task 5
+- [x] run server tests — must pass before Task 5
 
 ### Task 5: Fix `since_hours` ceiling in tool-emails
 
