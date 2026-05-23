@@ -44,10 +44,11 @@ function decodeBytes(buf: Buffer, encoding: string | null): Buffer {
   const enc = (encoding || '').toLowerCase();
   if (enc === 'base64') return Buffer.from(buf.toString('latin1'), 'base64');
   if (enc === 'quoted-printable') return libqp.decode(buf.toString('latin1'));
-  if (enc === '7bit' || enc === '8bit' || enc === 'binary' || enc === '') return buf;
-  // Unknown encoding — log path is the caller's; here we fall through to QP
-  // (the most common offender in practice) rather than dropping the body.
-  return libqp.decode(buf.toString('latin1'));
+  // 7bit / 8bit / binary / empty / unknown — pass the buffer through unchanged
+  // and let toUtf8 handle charset. Blanket-QP fallback on unknown encodings is
+  // exactly the bug this rewrite is meant to fix (legitimate 8bit text gets
+  // garbled when fed through libqp).
+  return buf;
 }
 
 function toUtf8(buf: Buffer, charset: string | null): string {

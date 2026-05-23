@@ -30,9 +30,8 @@ describe('decodeHeader', () => {
   });
 
   it('falls back to raw input on malformed encoded-word', () => {
-    // not strictly malformed but ensures the try/catch path doesn't throw
     const broken = '=?utf-8?Q?not_terminated';
-    expect(() => decodeHeader(broken)).not.toThrow();
+    expect(decodeHeader(broken)).toBe(broken);
   });
 });
 
@@ -63,12 +62,20 @@ describe('decodeBodyPart (Buffer)', () => {
     expect(decodeBodyPart(buf, '8bit', 'koi8-r')).toBe('Привет');
   });
 
-  it('falls back to QP for unknown encodings', () => {
-    // unknown encoding "x-totally-made-up" — helper should not throw and
-    // should still produce a string. With plain ASCII input, the QP fallback
-    // is a no-op.
+  it('passes raw bytes through for unknown encodings', () => {
+    // Unknown CTE — decoder treats it as 8bit and lets toUtf8 handle charset.
+    // Crucially does NOT re-run libqp.decode (that was the blanket-QP bug the
+    // bodyStructure dispatch is meant to fix).
     const buf = Buffer.from('plain bytes');
     expect(decodeBodyPart(buf, 'x-made-up', null)).toBe('plain bytes');
+  });
+
+  it('does not corrupt 8bit binary-ish bytes under an unknown encoding', () => {
+    // ISO-8859-1 "café" (0xe9 in the last byte). Under the old QP fallback for
+    // unknown encodings, libqp would have re-interpreted these bytes; the new
+    // pass-through preserves them so iconv can decode with the declared charset.
+    const buf = Buffer.from([0x63, 0x61, 0x66, 0xe9]);
+    expect(decodeBodyPart(buf, 'x-weird', 'iso-8859-1')).toBe('café');
   });
 
   it('returns empty string for empty Buffer', () => {

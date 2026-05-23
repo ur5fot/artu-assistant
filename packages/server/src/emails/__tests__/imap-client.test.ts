@@ -8,7 +8,7 @@ const account: ImapAccount = {
 
 function makeClientStub(options: {
   searchReturns?: number[];
-  fetchRows?: Array<{ uid: number; envelope: any; bodyParts: Map<string, Buffer>; internalDate: Date; bodyStructure?: any }>;
+  fetchRows?: Array<{ uid: number; envelope: any; bodyParts: Map<string, Buffer>; internalDate?: Date; bodyStructure?: any }>;
   throwOn?: 'connect' | 'search' | 'fetch';
 }) {
   const { searchReturns = [], fetchRows = [], throwOn } = options;
@@ -165,6 +165,97 @@ describe('fetchNewMessages', () => {
     expect(msgs[0].snippet).not.toContain('html');
   });
 
+  it('decodes nested partId 1.2 from multipart/mixed → multipart/alternative', async () => {
+    // Common shape for marketing emails (Upwork/Djinni): top-level
+    // multipart/mixed wraps a multipart/alternative whose html-only leaf lives
+    // at partId 1.2. The prefetch list must cover this so the snippet doesn't
+    // silently come back empty.
+    const html = '<p>Marketing body</p>';
+    const b64 = Buffer.from(Buffer.from(html, 'utf-8').toString('base64'), 'latin1');
+    __setImapFlowCtor(
+      makeClientStub({
+        searchReturns: [206],
+        fetchRows: [
+          {
+            uid: 206,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyParts: new Map([['1.2', b64]]),
+            bodyStructure: {
+              type: 'multipart/mixed',
+              childNodes: [
+                {
+                  type: 'multipart/alternative',
+                  childNodes: [
+                    {
+                      type: 'text/html',
+                      encoding: 'base64',
+                      parameters: { charset: 'utf-8' },
+                      part: '1.2',
+                    },
+                  ],
+                },
+              ],
+            },
+            internalDate: new Date(0),
+          },
+        ],
+      }) as any,
+    );
+    const msgs = await fetchNewMessages(account, 200, 50);
+    expect(msgs[0].snippet).toContain('Marketing body');
+  });
+
+  it('falls back to envelope.date when internalDate is missing', async () => {
+    const envDate = new Date('2026-04-20T12:00:00Z');
+    __setImapFlowCtor(
+      makeClientStub({
+        searchReturns: [207],
+        fetchRows: [
+          {
+            uid: 207,
+            envelope: { from: [{ address: 'x@y' }], subject: 's', date: envDate },
+            bodyParts: new Map([['1', Buffer.from('hi', 'latin1')]]),
+            bodyStructure: {
+              type: 'text/plain',
+              encoding: '7bit',
+              parameters: { charset: 'utf-8' },
+              part: '1',
+            },
+            // internalDate intentionally omitted to exercise envelope.date branch
+          } as any,
+        ],
+      }) as any,
+    );
+    const msgs = await fetchNewMessages(account, 200, 50);
+    expect(msgs[0].receivedAt).toBe(envDate.getTime());
+  });
+
+  it('falls back to Date.now() when both internalDate and envelope.date are missing', async () => {
+    const before = Date.now();
+    __setImapFlowCtor(
+      makeClientStub({
+        searchReturns: [208],
+        fetchRows: [
+          {
+            uid: 208,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyParts: new Map([['1', Buffer.from('hi', 'latin1')]]),
+            bodyStructure: {
+              type: 'text/plain',
+              encoding: '7bit',
+              parameters: { charset: 'utf-8' },
+              part: '1',
+            },
+          } as any,
+        ],
+      }) as any,
+    );
+    const msgs = await fetchNewMessages(account, 200, 50);
+    const after = Date.now();
+    expect(msgs[0].receivedAt).toBeGreaterThanOrEqual(before);
+    expect(msgs[0].receivedAt).toBeLessThanOrEqual(after);
+  });
+
   it('emits empty snippet for image-only message (no text part)', async () => {
     // Only an image attachment, no text leaves at all.
     __setImapFlowCtor(
@@ -219,7 +310,7 @@ describe('fetchNewMessages', () => {
     __setImapFlowCtor(Ctor as any);
     await fetchNewMessages(account, 0, 10);
     expect(capturedQuery.bodyStructure).toBe(true);
-    expect(capturedQuery.bodyParts).toEqual(['1', '1.1', '2']);
+    expect(capturedQuery.bodyParts).toEqual(['1', '1.1', '1.2', '2', '2.1', '2.2']);
   });
 
   it('decodes RFC2047-encoded subject and from.name', async () => {
@@ -423,6 +514,6 @@ describe('fetchFullBody', () => {
     __setImapFlowCtor(Ctor as any);
     await fetchFullBody(account, 9);
     expect(capturedQuery.bodyStructure).toBe(true);
-    expect(capturedQuery.bodyParts).toEqual(['1', '1.1', '2']);
+    expect(capturedQuery.bodyParts).toEqual(['1', '1.1', '1.2', '2', '2.1', '2.2']);
   });
 });

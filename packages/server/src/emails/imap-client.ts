@@ -124,17 +124,20 @@ export async function fetchNewMessages(
     // them forever on the next tick (first-boot + big-backlog data loss).
     const cap = uids.slice(0, limit);
     // bodyStructure rides on the same fetchAll — no extra round-trip. Request
-    // the common text partIds upfront ('1' single-part, '1.1' nested-in-related,
-    // '2' second leg of multipart/alternative) so the decoder always has the
-    // buffer for whichever leaf pickTextPart selects. Costs a little bandwidth
-    // on multipart messages, saves a per-message follow-up fetch.
+    // the common text partIds upfront so the decoder always has the buffer for
+    // whichever leaf pickTextPart selects: '1' single-part, '1.1'/'1.2' children
+    // of a top-level multipart/alternative-or-related, '2' second leg of
+    // top-level multipart/alternative, '2.1'/'2.2' children of a nested
+    // multipart in the second position (common in mixed-with-attachment-first).
+    // Costs a little bandwidth on multipart messages, saves a per-message
+    // follow-up fetch.
     const rows = await client.fetchAll(
       cap,
       {
         envelope: true,
         internalDate: true,
         bodyStructure: true,
-        bodyParts: ['1', '1.1', '2'],
+        bodyParts: ['1', '1.1', '1.2', '2', '2.1', '2.2'],
       },
       { uid: true },
     );
@@ -158,8 +161,8 @@ export async function fetchFullBody(account: ImapAccount, uid: number): Promise<
   return withClient(account, async (client) => {
     // Same shape as fetchNewMessages: bodyStructure rides on the same fetch,
     // and we request the common text partIds upfront so pickTextPart's leaf
-    // (text/plain or text/html, single-part or multipart/alternative) is
-    // always covered without a second round-trip. extractBody preserves
+    // (text/plain or text/html, single-part or multipart/alternative/related)
+    // is always covered without a second round-trip. extractBody preserves
     // newlines (vs. snippet's whitespace collapse) so signatures + quoted
     // replies stay readable in emails_get.
     const row = await client.fetchOne(
@@ -168,7 +171,7 @@ export async function fetchFullBody(account: ImapAccount, uid: number): Promise<
         envelope: true,
         internalDate: true,
         bodyStructure: true,
-        bodyParts: ['1', '1.1', '2'],
+        bodyParts: ['1', '1.1', '1.2', '2', '2.1', '2.2'],
       },
       { uid: true },
     );
