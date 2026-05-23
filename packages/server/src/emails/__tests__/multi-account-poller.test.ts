@@ -176,7 +176,7 @@ describe('runPollTick', () => {
     expect(store.getLastSeenUid('a')).toBe(2267);
   });
 
-  it('first-tick probe throws: setAccountError called, no last_seen_uid update, no fetch', async () => {
+  it('first-tick probe throws: no state row written, no fetch — next tick retries first-tick', async () => {
     const store = createEmailStore({ db: getDb() });
     const fetcher = vi.fn(async () => []);
     const scorer = vi.fn(async () => []);
@@ -193,8 +193,43 @@ describe('runPollTick', () => {
 
     expect(probe).toHaveBeenCalledTimes(1);
     expect(fetcher).not.toHaveBeenCalled();
-    expect(store.getAccountError('a')?.message).toContain('probe-down');
+    // No row → next tick re-enters first-tick branch and retries the probe.
+    // If we had written a state row here, the next tick would take the
+    // ongoing path and crawl UID 1:* — defeating the backlog skip.
+    expect(store.hasAccountState('a')).toBe(false);
+    expect(store.getAccountError('a')).toBeNull();
+  });
+
+  it('empty-inbox first tick then email arrives: first arrival is captured (no silent loss)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const fetcher = vi.fn(async (_acc: ImapAccount, since: number) =>
+      since === 0 ? [msg(1)] : [],
+    );
+    const scorer = vi.fn(async (ms: NewMessage[]) =>
+      ms.map((m) => ({ uid: m.uid, importance: 5 })),
+    );
+    // tick 1 probe returns 0 (empty inbox); tick 2 probe would return 1, but
+    // the ongoing path should run instead — verify probe is NOT re-called.
+    const probe = vi.fn(async () => 0);
+
+    // Tick 1: empty inbox, probe returns 0, state row written with uid=0.
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, maxUidProbe: probe, now: 10000,
+    });
+    expect(probe).toHaveBeenCalledTimes(1);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(store.hasAccountState('a')).toBe(true);
     expect(store.getLastSeenUid('a')).toBe(0);
+
+    // Tick 2: row exists, so ongoing path runs. Fetcher receives sinceUid=0
+    // and returns the freshly-arrived UID=1 — which must NOT be dropped.
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, maxUidProbe: probe, now: 11000,
+    });
+    expect(probe).toHaveBeenCalledTimes(1); // probe NOT called again
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(store.countPendingUndelivered()).toBe(1);
+    expect(store.getLastSeenUid('a')).toBe(1);
   });
 
   it('mixed accounts: one first-tick (probes), one ongoing (fetches) — both handled in one tick', async () => {

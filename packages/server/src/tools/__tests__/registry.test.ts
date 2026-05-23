@@ -119,6 +119,7 @@ describe('discoverTools', () => {
         fetchInWindow: () => [],
         findByPendingId: () => null,
         getLastSeenUid: () => 0,
+        hasAccountState: () => false,
         updateLastSeenUid: () => {},
         setAccountError: () => {},
         getAccountError: () => null,
