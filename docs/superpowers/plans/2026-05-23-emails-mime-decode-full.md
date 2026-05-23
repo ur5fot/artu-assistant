@@ -86,21 +86,21 @@ missing tests, type shim, parameter ceiling).
 
 ### Task 2: Extract decoder helpers into module + fix string-path regression
 
-- [ ] create `packages/server/src/emails/mime-decode.ts` with three exported functions:
+- [x] create `packages/server/src/emails/mime-decode.ts` with three exported functions:
   - `decodeHeader(s: string | null | undefined): string` — RFC2047 + try/catch fallback, moved from `imap-client.ts`
   - `decodeBodyPart(value: unknown, encoding: string | null, charset: string | null): string` — dispatches by encoding (base64 / quoted-printable / 7bit / 8bit / unknown), then decodes charset to UTF-8 string
   - `pickTextPart(bodyStructure: any): { partId: string; encoding: string; charset: string; type: string } | null` — walks bodyStructure tree, prefers `text/plain` over `text/html`, returns first match or null
-- [ ] `decodeBodyPart` rules:
+- [x] `decodeBodyPart` rules:
   - if `value` is `Buffer`: use `libqp.decode(buf.toString('latin1'))` for QP, `Buffer.from(buf.toString('latin1'), 'base64')` for base64, raw Buffer for 7bit/8bit, falls through to `libqp.decode` for unknown
   - if `value` is `string`: only QP-decode if `/=[0-9A-F]{2}/i.test(value)` heuristic matches; otherwise return as-is (preserves already-decoded unicode strings — fixes prior regression)
-  - charset decode via `libmime.charset.decode(buf, charset || 'utf-8')`; on failure fall back to `buf.toString('utf-8')`
-- [ ] update `imap-client.ts` to import from `mime-decode.ts`, remove inline `decodeHeader` and `firstBodyPart`
-- [ ] write `mime-decode.test.ts` with table-driven cases:
+  - charset decode via `iconv-lite` (libmime in this version exposes no charset helper); on failure fall back to `buf.toString('utf-8')`
+- [x] update `imap-client.ts` to import from `mime-decode.ts`, remove inline `decodeHeader` and `firstBodyPart`
+- [x] write `mime-decode.test.ts` with table-driven cases:
   - decodeHeader: plain ASCII, `=?utf-8?Q?...?=`, `=?utf-8?B?...?=`, null/undefined, malformed input → fallback
   - decodeBodyPart Buffer: QP UTF-8, base64 UTF-8, 7bit ASCII, 8bit Latin-1 (`charset=ISO-8859-1`), unknown encoding falls back to QP, empty Buffer
   - decodeBodyPart string: plain unicode (`'Привет'`) returns unchanged, ASCII QP-like (`=D0=9F`) gets decoded
   - pickTextPart: text/plain preferred over text/html, finds nested in multipart/alternative, returns null when no text part
-- [ ] run server tests — must pass before Task 3
+- [x] run server tests — must pass before Task 3
 
 ### Task 3: Wire bodyStructure into fetchNewMessages
 

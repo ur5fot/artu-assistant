@@ -1,7 +1,6 @@
 import { ImapFlow } from 'imapflow';
-import libqp from 'libqp';
-import libmime from 'libmime';
 import type { ImapAccount, NewMessage, FullMessage } from './types.js';
+import { decodeHeader, decodeBodyPart } from './mime-decode.js';
 
 type ImapFlowCtor = new (opts: any) => any;
 let Ctor: ImapFlowCtor = ImapFlow as unknown as ImapFlowCtor;
@@ -29,11 +28,6 @@ function pickReceivedAt(row: any): number {
   return Date.now();
 }
 
-function decodeHeader(s: string | null | undefined): string {
-  if (!s) return '';
-  try { return libmime.decodeWords(s); } catch { return s; }
-}
-
 function formatFrom(envelope: any): string {
   const from = envelope?.from?.[0];
   if (!from) return 'unknown';
@@ -42,12 +36,10 @@ function formatFrom(envelope: any): string {
   return from.address || name || 'unknown';
 }
 
-// Gmail / iCloud encode UTF-8 body parts as quoted-printable (Content-Transfer-
-// Encoding: quoted-printable). imapflow returns the raw bytes — without
-// decoding we'd surface "=D0=9F=D0=BE..." (raw QP) and "emai=\nl a" (soft
-// breaks) to the user. libqp.decode is a no-op on plain ASCII so we can run
-// it unconditionally; bodyStructure round-trip would be cleaner but requires
-// an extra IMAP fetch and isn't worth it for this one field.
+// Until Task 3 wires bodyStructure-aware encoding, default to quoted-printable
+// (matches the original quick-patch behavior — no-op on plain ASCII, correctly
+// unfolds QP soft breaks). Task 3 replaces this default with the actual
+// per-part encoding/charset reported by IMAP bodyStructure.
 function firstBodyPart(bodyParts: any): string {
   if (!bodyParts) return '';
   const values =
@@ -55,11 +47,7 @@ function firstBodyPart(bodyParts: any): string {
       ? Array.from(bodyParts.values() as Iterable<unknown>)
       : Object.values(bodyParts);
   if (values.length === 0) return '';
-  const value = values[0];
-  if (value == null) return '';
-  if (Buffer.isBuffer(value)) return libqp.decode(value.toString('binary')).toString('utf-8');
-  if (typeof value === 'string') return libqp.decode(value).toString('utf-8');
-  return '';
+  return decodeBodyPart(values[0], 'quoted-printable', 'utf-8');
 }
 
 // Snippet is used for LLM scoring — a single line of collapsed whitespace is
