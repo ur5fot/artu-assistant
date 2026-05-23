@@ -18,6 +18,14 @@ describe('createEmailStore', () => {
     expect(store.getLastSeenUid('acc1')).toBe(99);
   });
 
+  it('hasAccountState distinguishes "no row" from "row with uid=0"', () => {
+    const store = createEmailStore({ db: getDb() });
+    expect(store.hasAccountState('acc1')).toBe(false);
+    store.updateLastSeenUid('acc1', 0, 1000); // probe returned 0 (empty inbox)
+    expect(store.hasAccountState('acc1')).toBe(true);
+    expect(store.getLastSeenUid('acc1')).toBe(0);
+  });
+
   it('insertPending + countPendingUndelivered respects delivered_at', () => {
     const store = createEmailStore({ db: getDb() });
     store.insertPending({
