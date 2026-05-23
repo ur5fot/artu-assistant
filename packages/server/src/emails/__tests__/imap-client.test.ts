@@ -50,6 +50,12 @@ describe('fetchNewMessages', () => {
               subject: 'hi',
             },
             bodyParts: new Map([['1', body]]),
+            bodyStructure: {
+              type: 'text/plain',
+              encoding: '7bit',
+              parameters: { charset: 'utf-8' },
+              part: '1',
+            },
             internalDate: new Date('2026-04-24T10:00:00Z'),
           },
         ],
@@ -366,15 +372,18 @@ describe('fetchNewMessages', () => {
     expect(msgs[0].snippet).toBe('');
   });
 
-  it('requests bodyStructure and common text partIds in fetchAll', async () => {
-    let capturedQuery: any = null;
+  it('uses two-phase fetch: metadata-only first, then picked partId only', async () => {
+    // Phase 1 must NOT request bodyParts (would download attachments at part
+    // '2' on multipart/mixed). Phase 2 fetches only the leaf chosen by
+    // pickTextPart.
+    const calls: Array<{ uids: any; query: any }> = [];
     const Ctor = class {
       async connect() {}
       async logout() {}
       mailboxOpen = vi.fn(async () => {});
       search = vi.fn(async () => [300]);
-      fetchAll = vi.fn(async (_uids: number[], query: any) => {
-        capturedQuery = query;
+      fetchAll = vi.fn(async (uids: any, query: any) => {
+        calls.push({ uids, query });
         return [
           {
             uid: 300,
@@ -394,12 +403,191 @@ describe('fetchNewMessages', () => {
     };
     __setImapFlowCtor(Ctor as any);
     await fetchNewMessages(account, 0, 10);
-    expect(capturedQuery.bodyStructure).toBe(true);
-    expect(capturedQuery.bodyParts).toEqual([
-      '1', '1.1', '1.2', '1.1.1', '1.2.1',
-      '2', '2.1', '2.2', '2.1.1', '2.2.1',
-      '3',
-    ]);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].query).toEqual({
+      envelope: true,
+      internalDate: true,
+      bodyStructure: true,
+    });
+    expect(calls[0].query.bodyParts).toBeUndefined();
+    expect(calls[1].query).toEqual({ bodyParts: ['1'] });
+    expect(calls[1].uids).toEqual([300]);
+  });
+
+  it('phase 2 batches UIDs sharing the same partId into one fetch', async () => {
+    // Two messages, both text/plain at part '1' — should produce a single
+    // phase-2 fetchAll over [uid1, uid2], not one per message.
+    const calls: Array<{ uids: any; query: any }> = [];
+    const meta = (uid: number) => ({
+      uid,
+      envelope: { from: [{ address: 'x@y' }], subject: 's' },
+      bodyParts: new Map([['1', Buffer.from(`body-${uid}`, 'latin1')]]),
+      bodyStructure: {
+        type: 'text/plain',
+        encoding: '7bit',
+        parameters: { charset: 'utf-8' },
+        part: '1',
+      },
+      internalDate: new Date(0),
+    });
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn(async () => [301, 302]);
+      fetchAll = vi.fn(async (uids: any, query: any) => {
+        calls.push({ uids, query });
+        return [meta(301), meta(302)];
+      });
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    await fetchNewMessages(account, 0, 10);
+    expect(calls).toHaveLength(2);
+    expect(calls[1].query).toEqual({ bodyParts: ['1'] });
+    expect(calls[1].uids).toEqual([301, 302]);
+  });
+
+  it('phase 2 issues separate fetches for different partIds', async () => {
+    // One message body at '1', another at '1.1' — needs two phase-2 fetches,
+    // each scoped to the UIDs whose pickTextPart selected that partId.
+    const calls: Array<{ uids: any; query: any }> = [];
+    const rowA = {
+      uid: 401,
+      envelope: { from: [{ address: 'x@y' }], subject: 's' },
+      bodyParts: new Map([['1', Buffer.from('body-1', 'latin1')]]),
+      bodyStructure: {
+        type: 'text/plain',
+        encoding: '7bit',
+        parameters: { charset: 'utf-8' },
+        part: '1',
+      },
+      internalDate: new Date(0),
+    };
+    const rowB = {
+      uid: 402,
+      envelope: { from: [{ address: 'x@y' }], subject: 's' },
+      bodyParts: new Map([['1.1', Buffer.from('body-1.1', 'latin1')]]),
+      bodyStructure: {
+        type: 'multipart/alternative',
+        childNodes: [
+          {
+            type: 'text/plain',
+            encoding: '7bit',
+            parameters: { charset: 'utf-8' },
+            part: '1.1',
+          },
+        ],
+      },
+      internalDate: new Date(0),
+    };
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn(async () => [401, 402]);
+      fetchAll = vi.fn(async (uids: any, query: any) => {
+        calls.push({ uids, query });
+        if (!query.bodyParts) return [rowA, rowB];
+        if (query.bodyParts[0] === '1') return [rowA];
+        if (query.bodyParts[0] === '1.1') return [rowB];
+        return [];
+      });
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    const msgs = await fetchNewMessages(account, 0, 10);
+    expect(calls).toHaveLength(3);
+    const phase2 = calls.slice(1);
+    const byPart = new Map(phase2.map((c) => [c.query.bodyParts[0], c.uids]));
+    expect(byPart.get('1')).toEqual([401]);
+    expect(byPart.get('1.1')).toEqual([402]);
+    expect(msgs.find((m) => m.uid === 401)?.snippet).toBe('body-1');
+    expect(msgs.find((m) => m.uid === 402)?.snippet).toBe('body-1.1');
+  });
+
+  it('skips phase 2 entirely when no message has a text part (image-only batch)', async () => {
+    const calls: Array<{ uids: any; query: any }> = [];
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn(async () => [500]);
+      fetchAll = vi.fn(async (uids: any, query: any) => {
+        calls.push({ uids, query });
+        return [
+          {
+            uid: 500,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyStructure: {
+              type: 'image/jpeg',
+              encoding: 'base64',
+              parameters: { name: 'photo.jpg' },
+              part: '1',
+            },
+            internalDate: new Date(0),
+          },
+        ];
+      });
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    const msgs = await fetchNewMessages(account, 0, 10);
+    expect(calls).toHaveLength(1);
+    expect(msgs[0].snippet).toBe('');
+  });
+
+  it('skips text/plain hidden inside a message/rfc822 attachment subtree', async () => {
+    // multipart/mixed with the real body at text/html and a forwarded
+    // message/rfc822 attachment whose own text/plain would otherwise win
+    // (pickTextPart prefers text/plain). The ancestor disposition must
+    // disqualify the entire forwarded subtree so the outer text/html body
+    // becomes the snippet.
+    const html = '<p>Outer html body</p>';
+    const b64 = Buffer.from(Buffer.from(html, 'utf-8').toString('base64'), 'latin1');
+    __setImapFlowCtor(
+      makeClientStub({
+        searchReturns: [222],
+        fetchRows: [
+          {
+            uid: 222,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyParts: new Map([
+              ['1', b64],
+              ['2.1', Buffer.from('inner plain text', 'latin1')],
+            ]),
+            bodyStructure: {
+              type: 'multipart/mixed',
+              childNodes: [
+                {
+                  type: 'text/html',
+                  encoding: 'base64',
+                  parameters: { charset: 'utf-8' },
+                  part: '1',
+                },
+                {
+                  type: 'message/rfc822',
+                  disposition: 'attachment',
+                  part: '2',
+                  childNodes: [
+                    {
+                      type: 'text/plain',
+                      encoding: '7bit',
+                      parameters: { charset: 'utf-8' },
+                      part: '2.1',
+                    },
+                  ],
+                },
+              ],
+            },
+            internalDate: new Date(0),
+          },
+        ],
+      }) as any,
+    );
+    const msgs = await fetchNewMessages(account, 200, 50);
+    expect(msgs[0].snippet).toContain('Outer html body');
+    expect(msgs[0].snippet).not.toContain('inner plain text');
   });
 
   it('decodes RFC2047-encoded subject and from.name', async () => {
@@ -462,6 +650,13 @@ describe('fetchNewMessages', () => {
 });
 
 describe('fetchFullBody', () => {
+  const textPlainStructure = {
+    type: 'text/plain',
+    encoding: '7bit',
+    parameters: { charset: 'utf-8' },
+    part: '1',
+  };
+
   it('returns body text for a uid', async () => {
     const body = Buffer.from('Full body text here');
     __setImapFlowCtor(
@@ -471,6 +666,7 @@ describe('fetchFullBody', () => {
             uid: 5,
             envelope: { from: [{ address: 'x@y' }], subject: 's' },
             bodyParts: new Map([['1', body]]),
+            bodyStructure: textPlainStructure,
             internalDate: new Date(0),
           },
         ],
@@ -489,6 +685,7 @@ describe('fetchFullBody', () => {
             uid: 5,
             envelope: { from: [{ address: 'x@y' }], subject: 's' },
             bodyParts: new Map([['1', body]]),
+            bodyStructure: textPlainStructure,
             internalDate: new Date(0),
           },
         ],
@@ -507,6 +704,7 @@ describe('fetchFullBody', () => {
             uid: 5,
             envelope: { from: [{ address: 'x@y' }], subject: 's' },
             bodyParts: new Map([['1', big]]),
+            bodyStructure: textPlainStructure,
             internalDate: new Date(0),
           },
         ],
@@ -576,8 +774,8 @@ describe('fetchFullBody', () => {
     expect(full.bodyText).toContain('<p>Second line</p>');
   });
 
-  it('requests bodyStructure and common text partIds in fetchOne', async () => {
-    let capturedQuery: any = null;
+  it('uses two-phase fetchOne: metadata first, then picked partId only', async () => {
+    const queries: any[] = [];
     const Ctor = class {
       async connect() {}
       async logout() {}
@@ -585,7 +783,7 @@ describe('fetchFullBody', () => {
       search = vi.fn(async () => []);
       fetchAll = vi.fn(async () => []);
       fetchOne = vi.fn(async (_uid: number, query: any) => {
-        capturedQuery = query;
+        queries.push(query);
         return {
           uid: 9,
           envelope: { from: [{ address: 'x@y' }], subject: 's' },
@@ -602,11 +800,43 @@ describe('fetchFullBody', () => {
     };
     __setImapFlowCtor(Ctor as any);
     await fetchFullBody(account, 9);
-    expect(capturedQuery.bodyStructure).toBe(true);
-    expect(capturedQuery.bodyParts).toEqual([
-      '1', '1.1', '1.2', '1.1.1', '1.2.1',
-      '2', '2.1', '2.2', '2.1.1', '2.2.1',
-      '3',
-    ]);
+    expect(queries).toHaveLength(2);
+    expect(queries[0]).toEqual({
+      envelope: true,
+      internalDate: true,
+      bodyStructure: true,
+    });
+    expect(queries[0].bodyParts).toBeUndefined();
+    expect(queries[1]).toEqual({ bodyParts: ['1'] });
+  });
+
+  it('fetchFullBody skips phase 2 when message has no text part', async () => {
+    // Image-only message — body must be '' and no second fetchOne call.
+    const queries: any[] = [];
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn(async () => []);
+      fetchAll = vi.fn(async () => []);
+      fetchOne = vi.fn(async (_uid: number, query: any) => {
+        queries.push(query);
+        return {
+          uid: 10,
+          envelope: { from: [{ address: 'x@y' }], subject: 's' },
+          bodyStructure: {
+            type: 'image/jpeg',
+            encoding: 'base64',
+            parameters: { name: 'photo.jpg' },
+            part: '1',
+          },
+          internalDate: new Date(0),
+        };
+      });
+    };
+    __setImapFlowCtor(Ctor as any);
+    const full = await fetchFullBody(account, 10);
+    expect(queries).toHaveLength(1);
+    expect(full.bodyText).toBe('');
   });
 });

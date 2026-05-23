@@ -1,6 +1,6 @@
 import { ImapFlow } from 'imapflow';
 import type { ImapAccount, NewMessage, FullMessage } from './types.js';
-import { decodeHeader, decodeBodyPart, pickTextPart } from './mime-decode.js';
+import { decodeHeader, decodeBodyPart, pickTextPart, type PickedPart } from './mime-decode.js';
 
 type ImapFlowCtor = new (opts: any) => any;
 let Ctor: ImapFlowCtor = ImapFlow as unknown as ImapFlowCtor;
@@ -17,22 +17,6 @@ const SOCKET_TIMEOUT_MS = 60_000;
 const SNIPPET_LEN = 500;
 const FULL_BODY_LEN = 50_000;
 const TRUNCATION_MARKER = '\n…[truncated]';
-
-// bodyStructure rides on the same fetch as envelope+internalDate — no extra
-// round-trip. Request the common text partIds upfront so the decoder always
-// has the buffer for whichever leaf pickTextPart selects. Covers up to 3
-// nesting levels: '1' single-part; '1.1'/'1.2' children of a top-level
-// multipart; '2'/'2.1'/'2.2' second leg of multipart/alternative (or a nested
-// multipart in mixed-with-attachment-first); '3' third top-level child
-// (calendar invites, multi-attachment forwards); '1.1.1'/'1.2.1'/'2.1.1'/
-// '2.2.1' three-deep leaves found in multipart/signed (S/MIME, PGP) and
-// multipart/mixed → multipart/related → multipart/alternative shapes.
-// Missing parts simply don't appear in row.bodyParts — no error, no cost.
-const BODY_PART_IDS = [
-  '1', '1.1', '1.2', '1.1.1', '1.2.1',
-  '2', '2.1', '2.2', '2.1.1', '2.2.1',
-  '3',
-];
 
 // Falling back to 0 when internalDate/envelope.date are missing would push the
 // row outside `fetchInWindow` (WHERE received_at >= now - H*3600000) forever —
@@ -59,38 +43,16 @@ function getBodyPart(bodyParts: any, partId: string): unknown {
   return undefined;
 }
 
-// When IMAP bodyStructure is available, dispatch by the reported encoding/charset
-// of the picked text leaf (prefers text/plain over text/html). For image-only
-// messages pickTextPart returns null and the snippet/body becomes empty —
-// surfacing raw base64 of a JPEG to the LLM scorer is worse than empty.
-//
-// Legacy fallback (no bodyStructure on the row): decode part '1' with QP/utf-8
-// defaults so existing tests and any code path that hasn't been wired to request
-// bodyStructure keeps working.
-function firstBodyPart(row: any): string {
-  const bodyParts = row?.bodyParts;
-  if (!bodyParts) return '';
-  if (row?.bodyStructure) {
-    const picked = pickTextPart(row.bodyStructure);
-    if (!picked) return '';
-    const buf = getBodyPart(bodyParts, picked.partId);
-    if (buf == null) return '';
-    return decodeBodyPart(buf, picked.encoding, picked.charset);
-  }
-  const buf = getBodyPart(bodyParts, '1');
-  if (buf != null) return decodeBodyPart(buf, 'quoted-printable', 'utf-8');
-  const values =
-    typeof bodyParts.values === 'function'
-      ? Array.from(bodyParts.values() as Iterable<unknown>)
-      : Object.values(bodyParts);
-  if (values.length === 0) return '';
-  return decodeBodyPart(values[0], 'quoted-printable', 'utf-8');
+// Decode the buffer of a picked text leaf. Returns '' when the message has
+// no text part (image-only) or the part wasn't returned by the server.
+function decodePickedText(buf: unknown, picked: PickedPart | null): string {
+  if (!picked || buf == null) return '';
+  return decodeBodyPart(buf, picked.encoding, picked.charset);
 }
 
 // Snippet is used for LLM scoring — a single line of collapsed whitespace is
 // fine (keeps prompt compact, scorer doesn't care about formatting).
-function extractSnippet(row: any, limit: number): string {
-  const text = firstBodyPart(row);
+function toSnippet(text: string, limit: number): string {
   if (!text) return '';
   return text.replace(/\s+/g, ' ').trim().slice(0, limit);
 }
@@ -98,8 +60,7 @@ function extractSnippet(row: any, limit: number): string {
 // Body is returned to the user via emails_get — preserve newlines so signatures
 // and quoted replies stay readable. Normalize CRLF, drop NULs, and mark any
 // hard truncation so the caller sees it was cut.
-function extractBody(row: any, limit: number): string {
-  const text = firstBodyPart(row);
+function toBody(text: string, limit: number): string {
   if (!text) return '';
   const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\0/g, '').trim();
   if (normalized.length <= limit) return normalized;
@@ -139,25 +100,62 @@ export async function fetchNewMessages(
     // the cap, and the poller's maxUid advancement would then silently skip
     // them forever on the next tick (first-boot + big-backlog data loss).
     const cap = uids.slice(0, limit);
-    const rows = await client.fetchAll(
+
+    // Phase 1: metadata + bodyStructure only — no bodyParts. Eagerly
+    // requesting body parts here would download whatever lives at part '2' /
+    // '3' in multipart/mixed messages (commonly large PDF/video
+    // attachments). For 50 messages × multi-MB attachments that easily
+    // saturates the 60s socket timeout and starves the poller.
+    const metaRows = await client.fetchAll(
       cap,
-      {
-        envelope: true,
-        internalDate: true,
-        bodyStructure: true,
-        bodyParts: BODY_PART_IDS,
-      },
+      { envelope: true, internalDate: true, bodyStructure: true },
       { uid: true },
     );
+
+    const uidsOrdered: number[] = [];
+    const metaByUid = new Map<number, any>();
+    const pickedByUid = new Map<number, PickedPart | null>();
+    const uidsByPartId = new Map<string, number[]>();
+    for (const row of metaRows) {
+      if (!row || typeof row.uid !== 'number' || row.uid <= sinceUid) continue;
+      uidsOrdered.push(row.uid);
+      metaByUid.set(row.uid, row);
+      const picked = pickTextPart(row.bodyStructure);
+      pickedByUid.set(row.uid, picked);
+      if (picked) {
+        const list = uidsByPartId.get(picked.partId) || [];
+        list.push(row.uid);
+        uidsByPartId.set(picked.partId, list);
+      }
+    }
+
+    // Phase 2: fetch only the picked text leaves, grouped by partId so each
+    // unique partId across the batch costs one round-trip. Common case (all
+    // messages have body at '1') is a single follow-up fetch; nothing fires
+    // for image-only / attachment-only messages where pickTextPart is null.
+    const bufByUid = new Map<number, unknown>();
+    for (const [partId, partUids] of uidsByPartId) {
+      const bodyRows = await client.fetchAll(
+        partUids,
+        { bodyParts: [partId] },
+        { uid: true },
+      );
+      for (const row of bodyRows) {
+        if (!row || typeof row.uid !== 'number') continue;
+        const buf = getBodyPart(row.bodyParts, partId);
+        if (buf != null) bufByUid.set(row.uid, buf);
+      }
+    }
+
     const out: NewMessage[] = [];
-    for (const row of rows) {
-      if (!row || typeof row.uid !== 'number') continue;
-      if (row.uid <= sinceUid) continue;
+    for (const uid of uidsOrdered) {
+      const row = metaByUid.get(uid);
+      const text = decodePickedText(bufByUid.get(uid), pickedByUid.get(uid) ?? null);
       out.push({
-        uid: row.uid,
+        uid,
         from: formatFrom(row.envelope),
         subject: decodeHeader(row.envelope?.subject),
-        snippet: extractSnippet(row, SNIPPET_LEN),
+        snippet: toSnippet(text, SNIPPET_LEN),
         receivedAt: pickReceivedAt(row),
       });
     }
@@ -167,25 +165,34 @@ export async function fetchNewMessages(
 
 export async function fetchFullBody(account: ImapAccount, uid: number): Promise<FullMessage> {
   return withClient(account, async (client) => {
-    // Same shape as fetchNewMessages — see BODY_PART_IDS rationale. extractBody
-    // preserves newlines so signatures + quoted replies stay readable.
-    const row = await client.fetchOne(
+    // Same two-phase shape as fetchNewMessages — see comments there. Avoids
+    // downloading attachments at part '2'+ when the user just asked for the
+    // body of a single message.
+    const meta = await client.fetchOne(
       uid,
-      {
-        envelope: true,
-        internalDate: true,
-        bodyStructure: true,
-        bodyParts: BODY_PART_IDS,
-      },
+      { envelope: true, internalDate: true, bodyStructure: true },
       { uid: true },
     );
-    if (!row) throw new Error(`Message uid=${uid} not found in INBOX`);
+    if (!meta) throw new Error(`Message uid=${uid} not found in INBOX`);
+
+    const picked = pickTextPart(meta.bodyStructure);
+    let buf: unknown = undefined;
+    if (picked) {
+      const bodyRow = await client.fetchOne(
+        uid,
+        { bodyParts: [picked.partId] },
+        { uid: true },
+      );
+      if (bodyRow) buf = getBodyPart(bodyRow.bodyParts, picked.partId);
+    }
+
+    const text = decodePickedText(buf, picked);
     return {
       uid,
-      from: formatFrom(row.envelope),
-      subject: decodeHeader(row.envelope?.subject),
-      bodyText: extractBody(row, FULL_BODY_LEN),
-      receivedAt: pickReceivedAt(row),
+      from: formatFrom(meta.envelope),
+      subject: decodeHeader(meta.envelope?.subject),
+      bodyText: toBody(text, FULL_BODY_LEN),
+      receivedAt: pickReceivedAt(meta),
     };
   });
 }

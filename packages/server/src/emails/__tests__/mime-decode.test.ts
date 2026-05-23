@@ -322,4 +322,71 @@ describe('pickTextPart', () => {
     };
     expect(pickTextPart(bs)).toBeNull();
   });
+
+  it('skips text leaves whose ancestor is disposition=attachment', () => {
+    // message/rfc822 wrapped as an attachment — a forwarded email. Its inner
+    // text/plain leaf should NOT win over the outer text/html body, because
+    // the user wants to see the message they were sent, not the attachment.
+    const bs = {
+      type: 'multipart/mixed',
+      childNodes: [
+        { type: 'text/html', encoding: 'base64', parameters: { charset: 'utf-8' }, part: '1' },
+        {
+          type: 'message/rfc822',
+          part: '2',
+          disposition: 'attachment',
+          childNodes: [
+            {
+              type: 'text/plain',
+              encoding: '7bit',
+              parameters: { charset: 'utf-8' },
+              part: '2.1',
+            },
+          ],
+        },
+      ],
+    };
+    const picked = pickTextPart(bs);
+    expect(picked?.type).toBe('text/html');
+    expect(picked?.partId).toBe('1');
+  });
+
+  it('skips text leaves arbitrarily deep inside an attachment subtree', () => {
+    // multipart/mixed attachment with nested multipart/alternative inside —
+    // the disposition=attachment on the container must propagate all the way
+    // down so nothing inside it is ever picked as the body.
+    const bs = {
+      type: 'multipart/mixed',
+      childNodes: [
+        { type: 'text/html', encoding: 'base64', parameters: { charset: 'utf-8' }, part: '1' },
+        {
+          type: 'multipart/mixed',
+          part: '2',
+          disposition: 'attachment',
+          childNodes: [
+            {
+              type: 'multipart/alternative',
+              childNodes: [
+                {
+                  type: 'text/plain',
+                  encoding: '7bit',
+                  parameters: { charset: 'utf-8' },
+                  part: '2.1.1',
+                },
+                {
+                  type: 'text/html',
+                  encoding: 'base64',
+                  parameters: { charset: 'utf-8' },
+                  part: '2.1.2',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const picked = pickTextPart(bs);
+    expect(picked?.type).toBe('text/html');
+    expect(picked?.partId).toBe('1');
+  });
 });

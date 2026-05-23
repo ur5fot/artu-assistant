@@ -98,7 +98,7 @@ type BodyStructureNode = {
   childNodes?: BodyStructureNode[] | null;
 };
 
-type PickedPart = { partId: string; encoding: string; charset: string; type: string };
+export type PickedPart = { partId: string; encoding: string; charset: string; type: string };
 
 // Walk the bodyStructure tree (multipart/alternative, multipart/mixed, ...).
 // Prefer text/plain over text/html so the snippet is closer to what the
@@ -106,21 +106,25 @@ type PickedPart = { partId: string; encoding: string; charset: string; type: str
 // first if no plain-text part exists. Returns null when there's no text leaf
 // at all (image-only / attachment-only messages — caller surfaces empty body
 // rather than raw base64 of a JPEG).
+//
+// The `inAttachment` flag is carried down into recursion so a multipart
+// container marked Content-Disposition: attachment (e.g. message/rfc822
+// forwards, multipart/mixed bundled as an attachment) skips its entire
+// subtree. Otherwise a text/plain inside the forwarded message would be
+// preferred over the real outer text/html body.
 export function pickTextPart(bodyStructure: unknown): PickedPart | null {
   if (!bodyStructure || typeof bodyStructure !== 'object') return null;
   const leaves: PickedPart[] = [];
-  const walk = (node: BodyStructureNode): void => {
+  const walk = (node: BodyStructureNode, inAttachment: boolean): void => {
     if (!node || typeof node !== 'object') return;
+    const disposition = (node.disposition || '').toLowerCase();
+    const isAttachment = inAttachment || disposition === 'attachment';
     if (Array.isArray(node.childNodes) && node.childNodes.length > 0) {
-      for (const child of node.childNodes) walk(child);
+      for (const child of node.childNodes) walk(child, isAttachment);
       return;
     }
     const type = (node.type || '').toLowerCase();
-    // Skip text/* leaves marked as attachments — e.g. a forwarded .txt log
-    // file. Picking it as the body would surface the attachment's contents
-    // instead of the message; treat it like a non-text leaf.
-    const disposition = (node.disposition || '').toLowerCase();
-    if (type.startsWith('text/') && disposition !== 'attachment') {
+    if (type.startsWith('text/') && !isAttachment) {
       leaves.push({
         partId: node.part || '1',
         encoding: (node.encoding || '').toLowerCase(),
@@ -129,7 +133,7 @@ export function pickTextPart(bodyStructure: unknown): PickedPart | null {
       });
     }
   };
-  walk(bodyStructure as BodyStructureNode);
+  walk(bodyStructure as BodyStructureNode, false);
   if (leaves.length === 0) return null;
   const plain = leaves.find((l) => l.type === 'text/plain');
   return plain || leaves[0];
