@@ -38,7 +38,7 @@ function createEmailsListTool(deps: Deps): ToolDefinition {
       type: 'object',
       properties: {
         limit: { type: 'number', description: 'Максимум писем (default 10, max 50)' },
-        since_hours: { type: 'number', description: 'За сколько часов назад смотреть (default 720 = 30 дней, max 720)' },
+        since_hours: { type: 'number', description: 'За сколько часов назад смотреть (default 720 = 30 дней, max 8760 = 1 год)' },
       },
     },
     command: {
@@ -51,7 +51,7 @@ function createEmailsListTool(deps: Deps): ToolDefinition {
         return { success: false, error: 'Email integration is not enabled on this server' };
       }
       const limit = clampInt(params.limit, 10, 1, 50);
-      const sinceHours = clampInt(params.since_hours, 720, 1, 720);
+      const sinceHours = clampInt(params.since_hours, 720, 1, 8760);
       const rows = deps.emailStore.fetchInWindow(sinceHours, limit, Date.now());
       return { success: true, data: rows.map(toListItem) };
     },

@@ -132,12 +132,12 @@ missing tests, type shim, parameter ceiling).
 
 ### Task 5: Fix `since_hours` ceiling in tool-emails
 
-- [ ] raise `since_hours` clamp max from 720 → 8760 (1 year) in `tool-emails/src/index.ts` `clampInt` call
-- [ ] keep default at 720 (30 days) — sensible window for "show me recent important mail"
-- [ ] update parameter description to reflect new ceiling: `'За сколько часов назад смотреть (default 720 = 30 дней, max 8760 = 1 год)'`
-- [ ] update existing `__tests__/index.test.ts` "clamps since_hours" test: `since_hours: 99_999` should now clamp to 8760, not 720
-- [ ] add test case for `since_hours: 8760` (boundary) — should pass through unchanged
-- [ ] run tool-emails tests — must pass before Task 6
+- [x] raise `since_hours` clamp max from 720 → 8760 (1 year) in `tool-emails/src/index.ts` `clampInt` call
+- [x] keep default at 720 (30 days) — sensible window for "show me recent important mail"
+- [x] update parameter description to reflect new ceiling: `'За сколько часов назад смотреть (default 720 = 30 дней, max 8760 = 1 год)'`
+- [x] update existing `__tests__/index.test.ts` "clamps since_hours" test: `since_hours: 99_999` should now clamp to 8760, not 720
+- [x] add test case for `since_hours: 8760` (boundary) — should pass through unchanged
+- [x] run tool-emails tests — must pass before Task 6
 
 ### Task 6: Replace deprecated `'binary'` encoding alias
 
