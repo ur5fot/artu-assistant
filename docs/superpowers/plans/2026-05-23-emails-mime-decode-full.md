@@ -78,11 +78,11 @@ missing tests, type shim, parameter ceiling).
 
 ### Task 1: Add type shim for libqp / libmime / libbase64
 
-- [ ] create `packages/server/src/emails/mime-shims.d.ts` with `declare module 'libqp'; declare module 'libmime'; declare module 'libbase64';` (libbase64 needed in Task 3)
-- [ ] remove `// @ts-expect-error` lines on libqp/libmime imports in `imap-client.ts:2-5`
-- [ ] verify `npx tsc --noEmit -p packages/server/tsconfig.json` passes
-- [ ] write test `mime-shims.test.ts` that imports all three modules and asserts they expose expected functions (`libqp.decode`, `libmime.decodeWords`, `libbase64.decode`) — guards against missing transitive deps after package-lock churn
-- [ ] run server tests — must pass before Task 2
+- [x] create `packages/server/src/emails/mime-shims.d.ts` with `declare module 'libqp'; declare module 'libmime'; declare module 'libbase64';` (libbase64 needed in Task 3)
+- [x] remove `// @ts-expect-error` lines on libqp/libmime imports in `imap-client.ts:2-5`
+- [x] verify `npx tsc --noEmit -p packages/server/tsconfig.json` passes
+- [x] write test `mime-shims.test.ts` that imports all three modules and asserts they expose expected functions (`libqp.decode`, `libmime.decodeWords`, `libbase64.decode`) — guards against missing transitive deps after package-lock churn
+- [x] run server tests — must pass before Task 2
 
 ### Task 2: Extract decoder helpers into module + fix string-path regression
 

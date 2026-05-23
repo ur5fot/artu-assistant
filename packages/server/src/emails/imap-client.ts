@@ -1,7 +1,5 @@
 import { ImapFlow } from 'imapflow';
-// @ts-expect-error -- libqp/libmime ship without types (transitive via imapflow)
 import libqp from 'libqp';
-// @ts-expect-error
 import libmime from 'libmime';
 import type { ImapAccount, NewMessage, FullMessage } from './types.js';
 
