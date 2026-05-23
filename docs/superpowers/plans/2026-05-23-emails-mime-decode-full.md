@@ -141,10 +141,10 @@ missing tests, type shim, parameter ceiling).
 
 ### Task 6: Replace deprecated `'binary'` encoding alias
 
-- [ ] sweep `imap-client.ts` and `mime-decode.ts` for `Buffer.toString('binary')` and `Buffer.from(s, 'binary')`
-- [ ] replace with `'latin1'` (functionally identical, not deprecated)
-- [ ] write test asserting equivalence is preserved (one case round-tripping a Buffer through both encodings produces equal bytes)
-- [ ] run server tests — must pass before Task 7
+- [x] sweep `imap-client.ts` and `mime-decode.ts` for `Buffer.toString('binary')` and `Buffer.from(s, 'binary')`
+- [x] replace with `'latin1'` (functionally identical, not deprecated)
+- [x] write test asserting equivalence is preserved (one case round-tripping a Buffer through both encodings produces equal bytes)
+- [x] run server tests — must pass before Task 7
 
 ### Task 7: Verify acceptance criteria
 

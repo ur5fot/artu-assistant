@@ -107,6 +107,33 @@ describe('decodeBodyPart (other)', () => {
   });
 });
 
+describe("Buffer encoding: 'latin1' vs deprecated 'binary'", () => {
+  // The mime-decode pipeline uses 'latin1' to bridge Buffer ↔ string before
+  // QP/base64 decoding. 'binary' is a deprecated Node.js alias for the same
+  // codec; we keep this test so a future contributor who re-introduces
+  // 'binary' (out of habit or lint auto-fix) sees the equivalence is what
+  // the code relies on, not anything 'binary'-specific.
+  it('round-trips arbitrary bytes identically under both encodings', () => {
+    const bytes = Buffer.alloc(256);
+    for (let i = 0; i < 256; i++) bytes[i] = i;
+    const viaLatin1 = Buffer.from(bytes.toString('latin1'), 'latin1');
+    const viaBinary = Buffer.from(bytes.toString('binary'), 'binary');
+    expect(viaLatin1.equals(bytes)).toBe(true);
+    expect(viaBinary.equals(viaLatin1)).toBe(true);
+  });
+
+  it('produces matching QP decode through latin1 vs binary bridge', () => {
+    const qp = Buffer.from('=D0=9F=D1=80=D0=B8=D0=B2=D0=B5=D1=82', 'latin1');
+    // The real code path: latin1 string -> libqp -> utf-8 string.
+    const viaLatin1 = decodeBodyPart(qp, 'quoted-printable', 'utf-8');
+    // Same payload reconstructed via the deprecated alias — must match.
+    const sameBytes = Buffer.from(qp.toString('binary'), 'binary');
+    const viaBinary = decodeBodyPart(sameBytes, 'quoted-printable', 'utf-8');
+    expect(viaLatin1).toBe('Привет');
+    expect(viaBinary).toBe(viaLatin1);
+  });
+});
+
 describe('pickTextPart', () => {
   it('returns null for null / non-object input', () => {
     expect(pickTextPart(null)).toBeNull();
