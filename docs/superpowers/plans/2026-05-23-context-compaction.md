@@ -235,21 +235,21 @@ remain recoverable through 4A vector recall.
 
 ### Task 6: Acceptance + end-to-end integration
 
-- [ ] write `packages/server/src/topics/__tests__/integration.test.ts` covering the full path:
+- [x] write `packages/server/src/topics/__tests__/integration.test.ts` covering the full path:
   - seed `chat_messages` with 50 messages across two time-separated bursts (gap > 2h)
   - bootstrap topic detector → 2 topics created
   - close first topic (simulating gap) → status='closed'
   - run finalizer tick with mocked Haiku → 1 topic finalized, summary in memory_vec
   - call buildCompactedPrompt with budget such that summary fits → output contains summaryPrefix with finalized topic label
   - call buildContextPrefix from memory service — verify topic_summary embedding is searchable
-- [ ] verify acceptance criteria from spec:
+- [x] verify acceptance criteria from spec:
   - "old turns produce summaries, not silent drops" — covered by integration test
   - "finalizer 5-failure giveup" — covered in Task 4 tests
   - "tool_calls don't poison summaries" — covered in Task 4 tests
   - "stale open topic on restart" — covered in Task 3 tests
-- [ ] run full repo test suite: `npm test` — all tests must pass
-- [ ] run `npx tsc --noEmit -p packages/server/tsconfig.json` — clean
-- [ ] manual smoke: start server, send 3 Discord messages with > 2h between #2 and #3 (use sql to backdate timestamps if testing locally), wait 10 min for finalizer tick, verify topic finalized in DB, verify next chat sees summaryPrefix in logs
+- [x] run full repo test suite: `npm test` — all tests must pass
+- [x] run `npx tsc --noEmit -p packages/server/tsconfig.json` — clean
+- [x] manual smoke: start server, send 3 Discord messages with > 2h between #2 and #3 (use sql to backdate timestamps if testing locally), wait 10 min for finalizer tick, verify topic finalized in DB, verify next chat sees summaryPrefix in logs (skipped — not automatable, deferred to post-deploy verification per Post-Completion section)
 
 ### Task 7: [Final] Update documentation
 
