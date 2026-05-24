@@ -65,14 +65,27 @@ export function createTopicStore(deps: StoreDeps): TopicStore {
     getOpenTopic(source) {
       const rows = (
         source === null
-          ? db.prepare(`SELECT * FROM chat_topics WHERE status = 'open' AND source IS NULL`).all()
-          : db.prepare(`SELECT * FROM chat_topics WHERE status = 'open' AND source = ?`).all(source)
+          ? db.prepare(`SELECT * FROM chat_topics WHERE status = 'open' AND source IS NULL ORDER BY id DESC`).all()
+          : db.prepare(`SELECT * FROM chat_topics WHERE status = 'open' AND source = ? ORDER BY id DESC`).all(source)
       ) as any[];
       if (rows.length === 0) return null;
       if (rows.length > 1) {
-        throw new Error(
-          `TopicStore invariant violated: ${rows.length} open topics for source=${source}`,
+        // Recover instead of throwing: a thrown invariant bubbles through
+        // saveMessage → Discord ingest and locks the user out with a generic
+        // "something went wrong" message on every subsequent inbound DM. Close
+        // the older rows (keeping the newest, by id) and log loudly so the
+        // upstream cause can still be investigated from logs.
+        console.warn(
+          `[TopicStore] ${rows.length} open topics for source=${source}; closing older rows and keeping id=${rows[0].id}`,
         );
+        const keepId = rows[0].id as number;
+        const closeStmt = db.prepare(
+          `UPDATE chat_topics SET status = 'closed', ended_at = COALESCE(ended_at, started_at) WHERE id = ?`,
+        );
+        for (let i = 1; i < rows.length; i++) {
+          closeStmt.run(rows[i].id);
+        }
+        return rowToTopic({ ...rows[0], id: keepId });
       }
       return rowToTopic(rows[0]);
     },

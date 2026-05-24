@@ -96,11 +96,20 @@ describe('TopicStore', () => {
     expect(store.getOpenTopic('discord')?.id).toBe(discordTopic.id);
   });
 
-  it('getOpenTopic throws on invariant violation (multiple open for same source)', () => {
+  it('getOpenTopic recovers from invariant violation by closing older rows', () => {
+    // Throwing here would bubble through saveMessage → Discord ingest and lock
+    // the user out of all future messages until the DB is hand-edited. Instead
+    // we close the older duplicates and return the newest, so the chat keeps
+    // working (a loud warn line lets ops investigate the upstream cause).
     const store = createTopicStore({ db });
-    store.createOpen(fakeNow, 'discord');
-    store.createOpen(fakeNow + 1, 'discord');
-    expect(() => store.getOpenTopic('discord')).toThrow(/invariant/);
+    const older = store.createOpen(fakeNow, 'discord');
+    const newer = store.createOpen(fakeNow + 1, 'discord');
+    const open = store.getOpenTopic('discord');
+    expect(open?.id).toBe(newer.id);
+    const olderRow = db.prepare('SELECT status FROM chat_topics WHERE id = ?').get(older.id) as { status: string };
+    expect(olderRow.status).toBe('closed');
+    // Second call now sees a single open topic — no recovery needed.
+    expect(store.getOpenTopic('discord')?.id).toBe(newer.id);
   });
 
   it('closeOpen transitions to closed and sets ended_at', () => {

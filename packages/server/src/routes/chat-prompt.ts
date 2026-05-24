@@ -27,6 +27,18 @@ function formatTopicTimestamp(ts: number): string {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
 
+// Neutralize the label/summary that Haiku produced for a topic before they go
+// into the prompt block. A user could have pasted text containing our header
+// or footer sentinels in an earlier topic; Haiku's faithful summary can echo
+// that verbatim, prematurely closing the block and smuggling text into the
+// user-message position. Mirrors `sanitizeForMemoryBlock` in memory/service.ts.
+function sanitizeTopicText(text: string): string {
+  return text
+    .replace(/=+\s*Recent\s+topics[^\n]*/gi, '[topic-header]')
+    .replace(/=+\s*End\s+topics\s*=+/gi, '[topic-footer]')
+    .replace(/[\r\n\u2028\u2029\u0085]+/g, ' ');
+}
+
 function buildSummaryPrefix(topics: TopicRow[], budget: number): string | null {
   if (topics.length === 0 || budget <= 0) return null;
 
@@ -49,7 +61,9 @@ function buildSummaryPrefix(topics: TopicRow[], budget: number): string | null {
   for (const topic of ranked) {
     if (!topic.summary || !topic.label) continue;
     const ts = topic.finalized_at ?? topic.ended_at ?? topic.started_at;
-    const line = `[${formatTopicTimestamp(ts)}] ${topic.label}: ${topic.summary}`;
+    const safeLabel = sanitizeTopicText(topic.label);
+    const safeSummary = sanitizeTopicText(topic.summary);
+    const line = `[${formatTopicTimestamp(ts)}] ${safeLabel}: ${safeSummary}`;
     const projected = total + line.length + 1;
     if (projected > budget && lines.length > 0) break;
     lines.push(line);
