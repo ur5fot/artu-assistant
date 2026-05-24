@@ -32,6 +32,7 @@ import { createRegistry, discoverTools } from './tools/registry.js';
 import { initDb, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, closeDb, getDb, saveMessage, setTopicDetector } from './db.js';
 import { createTopicStore } from './topics/store.js';
 import { createTopicDetector, TOPIC_GAP_MS } from './topics/detector.js';
+import { autocloseStaleOpenTopics } from './topics/startup.js';
 import { createOllamaEmbeddingsClient, type EmbeddingsClient } from './memory/embeddings.js';
 import { createVoyageEmbeddingsClient } from './memory/voyageEmbeddings.js';
 import { ensureEmbedModelMatches } from './memory/migration.js';
@@ -99,6 +100,12 @@ cleanupAuditLog();
 const topicStore = createTopicStore({ db: getDb() });
 const topicDetector = createTopicDetector({ store: topicStore, gapMs: TOPIC_GAP_MS });
 setTopicDetector(topicDetector);
+{
+  const autoclosed = autocloseStaleOpenTopics(topicStore, TOPIC_GAP_MS, Date.now());
+  if (autoclosed > 0) {
+    console.log(`[topics] autoclosed ${autoclosed} stale open topics`);
+  }
+}
 
 // Initialize PII proxy
 const piiMode = (process.env.PII_MODE || 'optional') as 'required' | 'optional' | 'disabled';

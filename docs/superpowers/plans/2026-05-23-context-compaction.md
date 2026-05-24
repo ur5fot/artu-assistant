@@ -138,16 +138,16 @@ remain recoverable through 4A vector recall.
 
 ### Task 3: Server startup autoclose for stale open topics
 
-- [ ] add `autocloseStaleOpenTopics(store, gapMs, now)` in `packages/server/src/topics/startup.ts`:
+- [x] add `autocloseStaleOpenTopics(store, gapMs, now)` in `packages/server/src/topics/startup.ts`:
   - calls `store.findStaleOpen(now - gapMs)`
   - for each: `store.closeOpen(topic.id, now - gapMs)` (set ended_at to the cutoff so finalizer treats it as having ended at the threshold, not at restart time)
   - returns count for logging
-- [ ] call `autocloseStaleOpenTopics(topicStore, TOPIC_GAP_MS, Date.now())` in [packages/server/src/index.ts](../../packages/server/src/index.ts) during bootstrap, log `[topics] autoclosed N stale open topics`
-- [ ] write `packages/server/src/topics/__tests__/startup.test.ts`:
+- [x] call `autocloseStaleOpenTopics(topicStore, TOPIC_GAP_MS, Date.now())` in [packages/server/src/index.ts](../../packages/server/src/index.ts) during bootstrap, log `[topics] autoclosed N stale open topics`
+- [x] write `packages/server/src/topics/__tests__/startup.test.ts`:
   - autoclose returns count, closes the topic, sets ended_at to cutoff
   - topic with no messages still closes (defensive)
   - topic with a fresh message (within gap) is NOT closed
-- [ ] run server tests — must pass before Task 4
+- [x] run server tests — must pass before Task 4
 
 ### Task 4: Finalizer (Haiku + facts + embedding)
 
