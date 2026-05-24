@@ -274,6 +274,35 @@ describe('createTopicFinalizerHandler.run', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it('caps prompt size by dropping oldest messages first', async () => {
+    const store = mkStore();
+    store.listClosedReadyForFinalize.mockReturnValue([topic({ id: 99 })]);
+    // 5 messages of ~20K chars each = 100K total, well above the 60K cap.
+    const big = 'x'.repeat(20_000);
+    store.getTopicMessages.mockReturnValue([
+      msg({ message_id: 'm1', role: 'user', content: `oldest ${big}`, timestamp: 1 }),
+      msg({ message_id: 'm2', role: 'assistant', content: big, timestamp: 2 }),
+      msg({ message_id: 'm3', role: 'user', content: big, timestamp: 3 }),
+      msg({ message_id: 'm4', role: 'assistant', content: big, timestamp: 4 }),
+      msg({ message_id: 'm5', role: 'user', content: `newest decisive answer`, timestamp: 5 }),
+    ]);
+    const { anthropic, create } = mkAnthropic(
+      JSON.stringify({ label: 'x', summary: 'y', importance: 5 }),
+    );
+    const h = createTopicFinalizerHandler({
+      store,
+      memoryService: mkMemoryService(),
+      anthropic,
+      ...DEFAULT_DEPS,
+    });
+    await h.run(mkCtx(9_000_000));
+    const prompt: string = create.mock.calls[0][0].messages[0].content;
+    expect(prompt.length).toBeLessThan(80_000);
+    expect(prompt).toContain('newest decisive answer');
+    expect(prompt).not.toContain('oldest ');
+    expect(prompt).toContain('earlier message(s) truncated');
+  });
+
   it('importance clamped into [1, 10]', async () => {
     const store = mkStore();
     store.listClosedReadyForFinalize.mockReturnValue([topic({ id: 5 })]);

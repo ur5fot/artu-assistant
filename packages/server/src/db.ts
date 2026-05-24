@@ -489,5 +489,11 @@ export function cleanupOldChatMessages(): number {
   const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
   const d = getDb();
   const info = d.prepare('DELETE FROM chat_messages WHERE timestamp < ?').run(cutoffMs);
+  // chat_topic_messages.message_id is TEXT with no FK to chat_messages, so
+  // retention sweeps would orphan link rows and leave finalized topics with
+  // truncated transcripts on re-fetch. Drop orphans in the same pass.
+  d.prepare(
+    'DELETE FROM chat_topic_messages WHERE message_id NOT IN (SELECT message_id FROM chat_messages)',
+  ).run();
   return Number(info.changes ?? 0);
 }

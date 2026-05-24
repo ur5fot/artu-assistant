@@ -30,6 +30,11 @@ const HAIKU_MAX_TOKENS = 600;
 // runs on a cognition tick — cap at 30s so a wedged Haiku call does not block
 // the next handler in the queue for the full SDK window.
 const HAIKU_TIMEOUT_MS = 30_000;
+// A single 2-hour topic can accumulate tens of thousands of tokens (file
+// pastes, tool output, web search results). Cap the transcript fed to Haiku
+// so cost stays bounded; if the transcript exceeds the cap, drop oldest
+// messages first (newest carry the decisions/outcomes the summary needs).
+const PROMPT_BODY_MAX_CHARS = 60_000;
 
 const PROMPT_HEADER = `You will receive a transcript of a conversation between a user and an AI assistant. Produce a concise summary capturing decisions, outcomes, and key facts. Skip pleasantries and verbose tool output.
 
@@ -69,7 +74,17 @@ function formatMessage(m: ChatMessageRow): string {
 }
 
 function buildPrompt(messages: ChatMessageRow[]): string {
-  return `${PROMPT_HEADER}\n${messages.map(formatMessage).join('\n')}`;
+  const formatted = messages.map(formatMessage);
+  let total = formatted.reduce((sum, line) => sum + line.length + 1, 0);
+  let dropped = 0;
+  while (total > PROMPT_BODY_MAX_CHARS && formatted.length > 1) {
+    const removed = formatted.shift()!;
+    total -= removed.length + 1;
+    dropped++;
+  }
+  const body = formatted.join('\n');
+  const prefix = dropped > 0 ? `[...${dropped} earlier message(s) truncated]\n` : '';
+  return `${PROMPT_HEADER}\n${prefix}${body}`;
 }
 
 function extractJsonObject(text: string): string | null {

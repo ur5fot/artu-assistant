@@ -172,6 +172,37 @@ describe('TopicDetector', () => {
     expect(open2!.id).not.toBe(existing.id);
   });
 
+  it('does not rewind lastTimestamp when an out-of-order message arrives', () => {
+    // Out-of-order timestamps (replay, clock skew) within gapMs must link to
+    // the current topic but must NOT move the cursor backwards — otherwise
+    // the next real-time message can falsely split.
+    insertMessage(db, 'm1', t0);
+    insertMessage(db, 'm2', t0 + 60_000);
+    insertMessage(db, 'm-old', t0 - 30_000);
+    insertMessage(db, 'm3', t0 + TOPIC_GAP_MS - 60_000);
+    const detector = createTopicDetector({ store, gapMs: TOPIC_GAP_MS });
+
+    detector.assign({ messageId: 'm1', timestamp: t0, source: 'discord' });
+    detector.assign({ messageId: 'm2', timestamp: t0 + 60_000, source: 'discord' });
+    // Backdated replay — still belongs to current topic (no rewind).
+    detector.assign({ messageId: 'm-old', timestamp: t0 - 30_000, source: 'discord' });
+    // m3 is within gapMs of m2 (the latest real cursor). It must link to the
+    // same topic, not split, even though gap from m-old would exceed gapMs.
+    detector.assign({
+      messageId: 'm3',
+      timestamp: t0 + TOPIC_GAP_MS - 60_000,
+      source: 'discord',
+    });
+
+    const topics = db
+      .prepare(`SELECT id, status FROM chat_topics WHERE source = ? ORDER BY id ASC`)
+      .all('discord') as Array<{ id: number; status: string }>;
+    expect(topics.length).toBe(1);
+    expect(topics[0].status).toBe('open');
+    const msgs = store.getTopicMessages(topics[0].id).map((m) => m.message_id);
+    expect(msgs.sort()).toEqual(['m-old', 'm1', 'm2', 'm3']);
+  });
+
   it('handles null source independently from named sources', () => {
     insertMessage(db, 'm1', t0, null);
     insertMessage(db, 'm2', t0, 'discord');

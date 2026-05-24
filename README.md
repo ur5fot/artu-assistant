@@ -137,3 +137,21 @@ label so the queue keeps moving. On server restart, any open topic whose
 last message is older than the 2h gap is auto-closed at the cutoff
 timestamp, so a crash mid-conversation does not leave a topic open
 forever.
+
+**PII boundary.** The finalizer sends raw topic transcripts to Anthropic
+Haiku, which sits outside the PII anonymization proxy. When memory is
+configured local-only (`MEMORY_TEXT_PROVIDER=ollama`) the finalizer is
+skipped unless `MEMORY_ALLOW_REMOTE_PII=1` is set — topics will still be
+detected and closed, but never summarized. Set `MEMORY_ALLOW_REMOTE_PII=1`
+to opt in.
+
+**Tuning** (defaults are sensible — only touch if you measure a problem):
+
+- `TOPIC_FINALIZER_BUFFER_MS` — debounce before a closed topic becomes
+  eligible for summarization (default `600000`, i.e. 10 min). Gives
+  streaming tool-loops time to fully settle before Haiku reads the
+  transcript.
+- `TOPIC_FINALIZER_BATCH` — max topics summarized per cognition tick
+  (default `5`, range 1–50).
+- `TOPIC_FINALIZER_MAX_FAILURES` — give-up threshold after which a topic
+  is finalized with a placeholder label (default `5`, range 1–100).

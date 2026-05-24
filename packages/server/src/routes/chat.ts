@@ -400,7 +400,6 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
     let assistantText = '';
     const assistantToolCalls: ToolCall[] = [];
     let assistantPiiEntities: Array<{ type: string; original: string }> | undefined;
-    let assistantSource: 'ollama' | 'claude' | undefined;
     const assistantId = crypto.randomUUID();
 
     const budgetRaw = Number(process.env.CHAT_CONTEXT_BUDGET_CHARS);
@@ -469,13 +468,15 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
             }
           } else if (event.type === 'pii_masked') {
             assistantPiiEntities = event.entities;
-          } else if (event.type === 'assistant_source') {
-            // Router claims the turn; escalation will overwrite ollama with claude
-            assistantSource = event.source;
           } else if (event.type === 'done') {
             // Save assistant message on completion
             if (assistantText || assistantToolCalls.length > 0) {
               try {
+                // No `source` — HTTP user save above also leaves it unset, and
+                // the topic detector keys per-source: a mismatch here would
+                // fracture each turn pair into two separate one-message
+                // topics. `assistantSource` is a provider tag (claude/ollama),
+                // not a channel, so it does not belong in this column.
                 saveMessage({
                   messageId: assistantId,
                   role: 'assistant',
@@ -483,7 +484,6 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
                   toolCalls: assistantToolCalls.length > 0 ? assistantToolCalls : undefined,
                   piiEntities: assistantPiiEntities,
                   timestamp: Date.now(),
-                  source: assistantSource,
                 });
               } catch (err) {
                 console.error('Failed to save assistant message:', err instanceof Error ? err.message : err);
@@ -529,7 +529,6 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
             toolCalls: assistantToolCalls.length > 0 ? assistantToolCalls : undefined,
             piiEntities: assistantPiiEntities,
             timestamp: Date.now(),
-            source: assistantSource,
           });
         } catch (err) {
           console.error('Failed to save partial assistant message:', err instanceof Error ? err.message : err);

@@ -347,6 +347,31 @@ describe('Database Module', () => {
         expect(remaining).toHaveLength(1);
         expect(remaining[0].content).toBe('new1');
       });
+
+      it('also deletes orphaned chat_topic_messages link rows', () => {
+        const db = getDb();
+        const now = Date.now();
+        const oneDay = 24 * 60 * 60 * 1000;
+        saveMessage({ messageId: 'old-1', role: 'user', content: 'old', timestamp: now - 60 * oneDay });
+        saveMessage({ messageId: 'new-1', role: 'user', content: 'new', timestamp: now - 5 * oneDay });
+        db.prepare(
+          "INSERT INTO chat_topics (started_at, status) VALUES (?, 'open')",
+        ).run(now - 60 * oneDay);
+        const topicId = Number(
+          (db.prepare('SELECT last_insert_rowid() AS id').get() as { id: number }).id,
+        );
+        db.prepare(
+          'INSERT INTO chat_topic_messages (topic_id, message_id) VALUES (?, ?), (?, ?)',
+        ).run(topicId, 'old-1', topicId, 'new-1');
+
+        process.env.CHAT_HISTORY_RETENTION_DAYS = '30';
+        cleanupOldChatMessages();
+
+        const links = db
+          .prepare('SELECT message_id FROM chat_topic_messages ORDER BY message_id')
+          .all() as Array<{ message_id: string }>;
+        expect(links.map((r) => r.message_id)).toEqual(['new-1']);
+      });
     });
   });
 

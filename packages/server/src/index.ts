@@ -454,31 +454,46 @@ if (memoryEnabled) {
       // it summaries would have nowhere to go. The Haiku model is always the
       // *Claude* extractor: an Ollama text provider would not return reliable
       // structured JSON at the size and quality the summary spec needs.
-      const haikuModel = process.env.MEMORY_EXTRACT_MODEL_CLAUDE || 'claude-haiku-4-5-20251001';
-      const finalizerBufferMs = envInt(
-        process.env.TOPIC_FINALIZER_BUFFER_MS,
-        10 * 60_000,
-        0,
-      );
-      const finalizerBatch = envInt(process.env.TOPIC_FINALIZER_BATCH, 5, 1, 50);
-      const finalizerMaxFailures = envInt(
-        process.env.TOPIC_FINALIZER_MAX_FAILURES,
-        5,
-        1,
-        100,
-      );
-      cognitionService.register(
-        createTopicFinalizerHandler({
-          store: topicStore,
-          memoryService,
-          anthropic: client.anthropic,
-          extractorModel: haikuModel,
-          bufferMs: finalizerBufferMs,
-          finalizeBatch: finalizerBatch,
-          maxFailures: finalizerMaxFailures,
-        }),
-      );
-      console.log('[topicFinalizer] registered');
+      //
+      // The finalizer sends raw topic transcripts to Anthropic. When memory is
+      // configured local-only (Ollama), the upstream MEMORY_ALLOW_REMOTE_PII
+      // gate has NOT been required of the operator, so registering Claude here
+      // would leak PII the operator explicitly opted out of. Gate registration
+      // on the same acknowledgement.
+      if (usingOllamaText && process.env.MEMORY_ALLOW_REMOTE_PII !== '1') {
+        console.warn(
+          '[topicFinalizer] skipped: memory text provider is Ollama (local-only) ' +
+            'and MEMORY_ALLOW_REMOTE_PII is not set. Topic summarization requires ' +
+            'sending raw chat content to Anthropic Haiku. Set MEMORY_ALLOW_REMOTE_PII=1 ' +
+            'to opt in, or topics will accumulate but never be summarized.',
+        );
+      } else {
+        const haikuModel = process.env.MEMORY_EXTRACT_MODEL_CLAUDE || 'claude-haiku-4-5-20251001';
+        const finalizerBufferMs = envInt(
+          process.env.TOPIC_FINALIZER_BUFFER_MS,
+          10 * 60_000,
+          0,
+        );
+        const finalizerBatch = envInt(process.env.TOPIC_FINALIZER_BATCH, 5, 1, 50);
+        const finalizerMaxFailures = envInt(
+          process.env.TOPIC_FINALIZER_MAX_FAILURES,
+          5,
+          1,
+          100,
+        );
+        cognitionService.register(
+          createTopicFinalizerHandler({
+            store: topicStore,
+            memoryService,
+            anthropic: client.anthropic,
+            extractorModel: haikuModel,
+            bufferMs: finalizerBufferMs,
+            finalizeBatch: finalizerBatch,
+            maxFailures: finalizerMaxFailures,
+          }),
+        );
+        console.log('[topicFinalizer] registered');
+      }
     }
   }
 } else {
@@ -593,6 +608,7 @@ if (discordToken) {
       historyLimit: getChatHistoryLimit(),
       saveMessage,
       memoryService,
+      topicStore,
       reminderBus,
       cognitionService,
       reminderService,

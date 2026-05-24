@@ -79,7 +79,13 @@ export function createTopicDetector(deps: DetectorDeps): TopicDetector {
       }
 
       store.linkMessage(current.topicId, messageId);
-      state.set(k, { topicId: current.topicId, lastTimestamp: timestamp });
+      // Out-of-order timestamps (replay, clock skew) must not rewind the
+      // per-source cursor — otherwise a later real-time message could falsely
+      // trigger a split because the gap is measured from a backdated value.
+      state.set(k, {
+        topicId: current.topicId,
+        lastTimestamp: Math.max(current.lastTimestamp, timestamp),
+      });
     },
   };
 }
