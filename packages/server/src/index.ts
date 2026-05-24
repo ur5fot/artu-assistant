@@ -29,7 +29,9 @@ import { createClaudeClient } from './ai/claude.js';
 import { createOllamaClient, type OllamaClient } from './ai/ollama.js';
 import { runToolLoop } from './ai/tool-loop.js';
 import { createRegistry, discoverTools } from './tools/registry.js';
-import { initDb, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, closeDb, getDb, saveMessage } from './db.js';
+import { initDb, cleanupAuditLog, cleanupOldChatMessages, getChatHistoryLimit, closeDb, getDb, saveMessage, setTopicDetector } from './db.js';
+import { createTopicStore } from './topics/store.js';
+import { createTopicDetector, TOPIC_GAP_MS } from './topics/detector.js';
 import { createOllamaEmbeddingsClient, type EmbeddingsClient } from './memory/embeddings.js';
 import { createVoyageEmbeddingsClient } from './memory/voyageEmbeddings.js';
 import { ensureEmbedModelMatches } from './memory/migration.js';
@@ -91,6 +93,12 @@ cleanupAuditLog();
     console.log(`[db] cleanupOldChatMessages: deleted ${deleted} rows older than CHAT_HISTORY_RETENTION_DAYS`);
   }
 }
+
+// Topic store + detector: wired into saveMessage so every chat turn is
+// linked to its conversation topic for later compaction/summarization.
+const topicStore = createTopicStore({ db: getDb() });
+const topicDetector = createTopicDetector({ store: topicStore, gapMs: TOPIC_GAP_MS });
+setTopicDetector(topicDetector);
 
 // Initialize PII proxy
 const piiMode = (process.env.PII_MODE || 'optional') as 'required' | 'optional' | 'disabled';

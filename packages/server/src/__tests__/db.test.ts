@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { initDb, closeDb, getDb } from '../db.js';
+import { initDb, closeDb, getDb, saveMessage, setTopicDetector } from '../db.js';
+import type { TopicDetector, IncomingMessage } from '../topics/detector.js';
 
 beforeEach(() => initDb(':memory:'));
-afterEach(() => closeDb());
+afterEach(() => {
+  setTopicDetector(null);
+  closeDb();
+});
 
 describe('email tables', () => {
   it('creates email_account_state with expected columns', () => {
@@ -33,5 +37,84 @@ describe('email tables', () => {
     `);
     stmt.run('acc1', 123, 'a@b.com', 's', 'snip', 4, 1000, 1000);
     expect(() => stmt.run('acc1', 123, 'a@b.com', 's', 'snip', 4, 1000, 1000)).toThrow();
+  });
+});
+
+describe('saveMessage topic-detector hook', () => {
+  it('invokes the detector with messageId, timestamp, source when set', () => {
+    const calls: IncomingMessage[] = [];
+    const detector: TopicDetector = {
+      assign: (msg) => {
+        calls.push(msg);
+      },
+    };
+    setTopicDetector(detector);
+
+    saveMessage({
+      messageId: 'm1',
+      role: 'user',
+      content: 'hi',
+      timestamp: 1_700_000_000_000,
+      source: 'discord',
+    });
+
+    expect(calls).toEqual([
+      { messageId: 'm1', timestamp: 1_700_000_000_000, source: 'discord' },
+    ]);
+  });
+
+  it('passes source as null when omitted', () => {
+    const calls: IncomingMessage[] = [];
+    setTopicDetector({ assign: (msg) => calls.push(msg) });
+
+    saveMessage({
+      messageId: 'm2',
+      role: 'user',
+      content: 'hi',
+      timestamp: 1_700_000_001_000,
+    });
+
+    expect(calls).toEqual([
+      { messageId: 'm2', timestamp: 1_700_000_001_000, source: null },
+    ]);
+  });
+
+  it('is a no-op when no detector is registered', () => {
+    expect(() =>
+      saveMessage({
+        messageId: 'm3',
+        role: 'user',
+        content: 'hi',
+        timestamp: 1_700_000_002_000,
+        source: 'discord',
+      }),
+    ).not.toThrow();
+
+    const row = getDb()
+      .prepare('SELECT message_id FROM chat_messages WHERE message_id = ?')
+      .get('m3') as { message_id: string } | undefined;
+    expect(row?.message_id).toBe('m3');
+  });
+
+  it('does not call detector for duplicate (already-inserted) messages', () => {
+    const calls: IncomingMessage[] = [];
+    setTopicDetector({ assign: (msg) => calls.push(msg) });
+
+    saveMessage({
+      messageId: 'dup',
+      role: 'user',
+      content: 'hi',
+      timestamp: 1_700_000_003_000,
+      source: 'discord',
+    });
+    saveMessage({
+      messageId: 'dup',
+      role: 'user',
+      content: 'hi',
+      timestamp: 1_700_000_003_000,
+      source: 'discord',
+    });
+
+    expect(calls.length).toBe(1);
   });
 });

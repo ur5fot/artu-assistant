@@ -4,8 +4,14 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { ToolCall } from '@r2/shared';
+import type { TopicDetector } from './topics/detector.js';
 
 let db: Database.Database | null = null;
+let topicDetector: TopicDetector | null = null;
+
+export function setTopicDetector(detector: TopicDetector | null): void {
+  topicDetector = detector;
+}
 
 export function initDb(dbPath?: string): void {
   if (db) {
@@ -351,7 +357,7 @@ interface SaveMessageParams {
 
 export function saveMessage(params: SaveMessageParams): void {
   const d = getDb();
-  d.prepare(
+  const info = d.prepare(
     `INSERT OR IGNORE INTO chat_messages (message_id, role, content, tool_calls, pii_entities, timestamp, source)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(
@@ -363,6 +369,18 @@ export function saveMessage(params: SaveMessageParams): void {
     params.timestamp,
     params.source ?? null,
   );
+
+  // Skip topic assignment for duplicates (INSERT OR IGNORE no-op): a re-saved
+  // message_id must not be linked to a fresh topic, and re-running detector
+  // logic on a no-op insert would spuriously update the per-source
+  // lastTimestamp.
+  if (info.changes > 0 && topicDetector) {
+    topicDetector.assign({
+      messageId: params.messageId,
+      timestamp: params.timestamp,
+      source: params.source ?? null,
+    });
+  }
 }
 
 export function getChatHistoryLimit(): number {

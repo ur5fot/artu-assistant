@@ -117,24 +117,24 @@ remain recoverable through 4A vector recall.
 
 ### Task 2: Topic detector + saveMessage hook
 
-- [ ] create `packages/server/src/topics/detector.ts` with `createTopicDetector({ store, gapMs })`:
+- [x] create `packages/server/src/topics/detector.ts` with `createTopicDetector({ store, gapMs })`:
   - exposes `assign(message: { messageId, timestamp, source }): void`
   - rule: if no open topic for source OR `message.timestamp - lastTimestamp > gapMs` → close current (if any), create new
   - tracks `lastTimestamp` per source in a private Map (cheaper than re-querying store on every message)
   - on startup, populates the Map from `store.getOpenTopic` for each known source
   - `gapMs` constant: `const TOPIC_GAP_MS = 2 * 60 * 60 * 1000` (2 hours per spec)
-- [ ] wire detector into [packages/server/src/db.ts](../../packages/server/src/db.ts) `saveMessage`:
+- [x] wire detector into [packages/server/src/db.ts](../../packages/server/src/db.ts) `saveMessage`:
   - after INSERT INTO chat_messages, call `topicDetector.assign({ messageId, timestamp, source })`
   - detector is dependency-injected through a module-level setter `setTopicDetector(d: TopicDetector | null)` so DB layer stays testable without topic dependency
-- [ ] in [packages/server/src/index.ts](../../packages/server/src/index.ts) construct topic store + detector and call `setTopicDetector(detector)` before any chat traffic. Order: after `getDb()` is initialized, before Discord bot start.
-- [ ] write `packages/server/src/topics/__tests__/detector.test.ts`:
+- [x] in [packages/server/src/index.ts](../../packages/server/src/index.ts) construct topic store + detector and call `setTopicDetector(detector)` before any chat traffic. Order: after `getDb()` is initialized, before Discord bot start.
+- [x] write `packages/server/src/topics/__tests__/detector.test.ts`:
   - first message with no open topic → creates new topic, links message
   - second message within gap → links to same topic
   - message after gap → closes old, creates new, links to new
   - multiple sources → independent topics
   - constructor populates lastTimestamp from getOpenTopic on init (no false-new-topic on restart)
-- [ ] update existing [packages/server/src/__tests__/db.test.ts](../../packages/server/src/__tests__/db.test.ts) if it asserts saveMessage signature; add coverage that detector hook fires when set, no-op when null
-- [ ] run server tests — must pass before Task 3
+- [x] update existing [packages/server/src/__tests__/db.test.ts](../../packages/server/src/__tests__/db.test.ts) if it asserts saveMessage signature; add coverage that detector hook fires when set, no-op when null
+- [x] run server tests — must pass before Task 3
 
 ### Task 3: Server startup autoclose for stale open topics
 
