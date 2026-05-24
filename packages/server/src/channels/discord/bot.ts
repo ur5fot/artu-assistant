@@ -18,7 +18,8 @@ import type { PlanReviewService } from '../../services/plan-review-service.js';
 import type { MemoryConfirmService } from '../../services/memory-confirm-service.js';
 import type { CommandService } from '../../services/command-service.js';
 import type { CognitionService } from '../../cognition/service.js';
-import { truncateMessages } from '../../routes/chat.js';
+import { buildCompactedPrompt } from '../../routes/chat-prompt.js';
+import type { TopicStore } from '../../topics/store.js';
 import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
 import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from './tool-embeds.js';
 import { routeInteraction } from './interactions.js';
@@ -33,6 +34,7 @@ export interface DiscordBotDeps {
     signal?: AbortSignal;
     currentUserMessageId?: string;
     currentUserMessageTimestamp?: number;
+    topicSummaryPrefix?: string;
   }) => Promise<void>;
   db: Database.Database;
   historyLimit: number;
@@ -44,6 +46,9 @@ export interface DiscordBotDeps {
     source: string;
   }) => void;
   memoryService: MemoryService | null;
+  /** Topic store — when provided, finalized topic summaries are injected
+   *  into the prompt instead of just tail-truncating raw messages. */
+  topicStore?: TopicStore | null;
   /** Request timeout in ms (default 120_000). Prevents hangs when
    *  confirm/plan-review tools fire with no UI to resolve them. */
   requestTimeoutMs?: number;
@@ -425,7 +430,13 @@ export async function startDiscordBot(
 
       const budgetRaw = deps.contextBudgetChars ?? Number(process.env.CHAT_CONTEXT_BUDGET_CHARS);
       const contextBudget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? budgetRaw : 60000;
-      const messages: MessageParam[] = truncateMessages(built, contextBudget);
+      const { messages: compacted, summaryPrefix } = buildCompactedPrompt({
+        messages: built,
+        budget: contextBudget,
+        store: deps.topicStore ?? null,
+        now: Date.now(),
+      });
+      const messages: MessageParam[] = compacted as MessageParam[];
 
       const userMessageId = opts.alreadySaved && opts.userMessageId
         ? opts.userMessageId
@@ -488,6 +499,7 @@ export async function startDiscordBot(
             signal: ac.signal,
             currentUserMessageId: userMessageId,
             currentUserMessageTimestamp: userMessageTimestamp,
+            topicSummaryPrefix: summaryPrefix ?? undefined,
             onEvent: (event: SSEEvent) => {
               sendChain = sendChain.then(async () => {
                 if (event.type === 'text_delta') {

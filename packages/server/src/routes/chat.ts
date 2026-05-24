@@ -10,8 +10,10 @@ import type { PiiProxy } from '../pii/proxy.js';
 import type { OllamaClient } from '../ai/ollama.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { MemoryService } from '../memory/service.js';
+import type { TopicStore } from '../topics/store.js';
 import { runChatRequest } from '../ai/router.js';
 import { saveMessage } from '../db.js';
+import { buildCompactedPrompt } from './chat-prompt.js';
 import crypto from 'node:crypto';
 
 function formatTimestamp(ts: number): string {
@@ -232,9 +234,10 @@ interface ChatRouterDeps {
   ollama: OllamaClient | null;
   registry: ToolRegistry;
   memoryService: MemoryService | null;
+  topicStore?: TopicStore | null;
 }
 
-export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, pendingMemoryConfirms, piiProxy, ollama, registry, memoryService }: ChatRouterDeps): Router {
+export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, pendingMemoryConfirms, piiProxy, ollama, registry, memoryService, topicStore }: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -397,16 +400,20 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
     let assistantText = '';
     const assistantToolCalls: ToolCall[] = [];
     let assistantPiiEntities: Array<{ type: string; original: string }> | undefined;
-    let assistantSource: 'ollama' | 'claude' | undefined;
     const assistantId = crypto.randomUUID();
 
     const budgetRaw = Number(process.env.CHAT_CONTEXT_BUDGET_CHARS);
     const contextBudget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? budgetRaw : 60000;
-    const truncated = truncateMessages(messages, contextBudget);
+    const { messages: compacted, summaryPrefix } = buildCompactedPrompt({
+      messages,
+      budget: contextBudget,
+      store: topicStore ?? null,
+      now: Date.now(),
+    });
 
     try {
       await runChatRequest({
-        messages: addTimestamps(truncated),
+        messages: addTimestamps(compacted),
         signal: abortController.signal,
         pendingConfirms,
         pendingPlanReviews,
@@ -419,6 +426,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         currentUserMessageId: userMessageId ?? undefined,
         currentUserMessageTimestamp: userMessageTimestamp ?? undefined,
         forceProvider,
+        topicSummaryPrefix: summaryPrefix ?? undefined,
         runLoop,
         onEvent: (event: SSEEvent) => {
           // Accumulate assistant data for persistence
@@ -460,13 +468,15 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
             }
           } else if (event.type === 'pii_masked') {
             assistantPiiEntities = event.entities;
-          } else if (event.type === 'assistant_source') {
-            // Router claims the turn; escalation will overwrite ollama with claude
-            assistantSource = event.source;
           } else if (event.type === 'done') {
             // Save assistant message on completion
             if (assistantText || assistantToolCalls.length > 0) {
               try {
+                // No `source` — HTTP user save above also leaves it unset, and
+                // the topic detector keys per-source: a mismatch here would
+                // fracture each turn pair into two separate one-message
+                // topics. `assistantSource` is a provider tag (claude/ollama),
+                // not a channel, so it does not belong in this column.
                 saveMessage({
                   messageId: assistantId,
                   role: 'assistant',
@@ -474,7 +484,6 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
                   toolCalls: assistantToolCalls.length > 0 ? assistantToolCalls : undefined,
                   piiEntities: assistantPiiEntities,
                   timestamp: Date.now(),
-                  source: assistantSource,
                 });
               } catch (err) {
                 console.error('Failed to save assistant message:', err instanceof Error ? err.message : err);
@@ -520,7 +529,6 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
             toolCalls: assistantToolCalls.length > 0 ? assistantToolCalls : undefined,
             piiEntities: assistantPiiEntities,
             timestamp: Date.now(),
-            source: assistantSource,
           });
         } catch (err) {
           console.error('Failed to save partial assistant message:', err instanceof Error ? err.message : err);

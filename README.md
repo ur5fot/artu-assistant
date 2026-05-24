@@ -109,3 +109,49 @@ On first start under a new provider, R2 wipes and re-embeds existing memory fact
 To switch back to local Ollama later, unset the env vars (or `EMBEDDING_PROVIDER=ollama`, `MEMORY_TEXT_PROVIDER=ollama`). The migration runs again automatically — re-embeds everything under Ollama.
 
 **Embedding standard:** all R2 memory uses 1024-dim embeddings. Supported models: `mxbai-embed-large` (Ollama), `voyage-3` / `voyage-3-large` (Voyage). Custom models with different dimensions are rejected at boot.
+
+### Context compaction
+
+R2 keeps the chat prompt under budget by clustering messages into **topics**
+instead of truncating the tail. A topic is a run of messages on the same
+source (Discord / web) with no idle gap longer than **2 hours**; the gap
+heuristic runs on every `saveMessage` and is cheap enough to stay on the hot
+path (no LLM classifier — see `packages/server/src/topics/detector.ts`).
+
+When a topic has been closed for at least 10 minutes (so streaming
+tool-loops can settle), a background finalizer asks Claude Haiku for a
+`{label, summary, importance}` JSON object, stores it on the
+`chat_topics` row, and embeds the summary into the same `memory_vec`
+table 4A uses — so older topics stay reachable through vector recall even
+after they fall out of the verbatim window.
+
+The prompt builder then serves: recent verbatim turns up to ~50% of the
+character budget, plus the highest-importance finalized topic summaries
+up to ~40%, leaving headroom for the 4A memory recall prefix. Topics that
+don't fit are silently dropped from the prefix but remain searchable via
+embeddings.
+
+If Haiku fails to return parseable JSON 5 times in a row for the same
+topic, the finalizer gives up and marks it finalized with a placeholder
+label so the queue keeps moving. On server restart, any open topic whose
+last message is older than the 2h gap is auto-closed at the cutoff
+timestamp, so a crash mid-conversation does not leave a topic open
+forever.
+
+**PII boundary.** The finalizer sends raw topic transcripts to Anthropic
+Haiku, which sits outside the PII anonymization proxy. When memory is
+configured local-only (`MEMORY_TEXT_PROVIDER=ollama`) the finalizer is
+skipped unless `MEMORY_ALLOW_REMOTE_PII=1` is set — topics will still be
+detected and closed, but never summarized. Set `MEMORY_ALLOW_REMOTE_PII=1`
+to opt in.
+
+**Tuning** (defaults are sensible — only touch if you measure a problem):
+
+- `TOPIC_FINALIZER_BUFFER_MS` — debounce before a closed topic becomes
+  eligible for summarization (default `600000`, i.e. 10 min). Gives
+  streaming tool-loops time to fully settle before Haiku reads the
+  transcript.
+- `TOPIC_FINALIZER_BATCH` — max topics summarized per cognition tick
+  (default `5`, range 1–50).
+- `TOPIC_FINALIZER_MAX_FAILURES` — give-up threshold after which a topic
+  is finalized with a placeholder label (default `5`, range 1–100).

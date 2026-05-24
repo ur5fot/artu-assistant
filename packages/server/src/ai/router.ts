@@ -39,6 +39,13 @@ export interface RunChatRequestParams {
   currentUserMessageId?: string;
   currentUserMessageTimestamp?: number;
   forceProvider?: 'claude';
+  /**
+   * Topic-clustered summary block produced by `buildCompactedPrompt`. When
+   * present it is injected as additional context (system suffix for Ollama,
+   * prepended to the last user turn for Claude) so older, dropped turns are
+   * still represented to the model. Not a chat turn — preserves alternation.
+   */
+  topicSummaryPrefix?: string;
   runLoop: (params: {
     messages: MessageParam[];
     onEvent: (event: SSEEvent) => void;
@@ -57,7 +64,7 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
     params.onEvent({ type: 'assistant_source', source: 'claude' });
   }
   let messagesForClaude = params.messages;
-  if (params.memoryService && params.messages.length > 0) {
+  if ((params.memoryService || params.topicSummaryPrefix) && params.messages.length > 0) {
     const lastUserIdx = [...params.messages].reverse().findIndex((m) => m.role === 'user');
     if (lastUserIdx !== -1) {
       const idx = params.messages.length - 1 - lastUserIdx;
@@ -65,20 +72,25 @@ async function callClaudeFallback(params: RunChatRequestParams): Promise<void> {
       const rawText = typeof msg.content === 'string' ? msg.content : '';
       const strippedText = stripTimestampPrefix(rawText);
       const userText = params.memoryQuery ?? strippedText;
-      if (userText) {
+      let memoryPrefix: string | null = null;
+      if (params.memoryService && userText) {
         try {
           const { prefix, recalledFacts } = await params.memoryService.buildContextPrefix(userText, params.signal);
-          if (prefix) {
-            const rewritten = [...params.messages];
-            rewritten[idx] = { ...msg, content: `${prefix}\n\n${rawText}` };
-            messagesForClaude = rewritten;
-          }
+          memoryPrefix = prefix || null;
           if (recalledFacts.length > 0 && !params.signal?.aborted) {
             params.onEvent({ type: 'memory_recalled', facts: recalledFacts });
           }
         } catch (err) {
           console.warn('[router] memory context failed for claude:', err instanceof Error ? err.message : err);
         }
+      }
+      const prefixParts: string[] = [];
+      if (memoryPrefix) prefixParts.push(memoryPrefix);
+      if (params.topicSummaryPrefix) prefixParts.push(params.topicSummaryPrefix);
+      if (prefixParts.length > 0) {
+        const rewritten = [...params.messages];
+        rewritten[idx] = { ...msg, content: `${prefixParts.join('\n\n')}\n\n${rawText}` };
+        messagesForClaude = rewritten;
       }
     }
   }
@@ -217,6 +229,9 @@ export async function runChatRequest(params: RunChatRequestParams): Promise<void
           console.warn('[router] memory context failed:', err instanceof Error ? err.message : err);
         }
       }
+    }
+    if (params.topicSummaryPrefix) {
+      systemPrompt = systemPrompt + '\n\n' + params.topicSummaryPrefix;
     }
 
     const result = await params.ollama.chat({

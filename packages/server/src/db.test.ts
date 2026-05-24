@@ -267,6 +267,71 @@ describe('Database Module', () => {
       expect(messages).toHaveLength(0);
     });
 
+    it('clearMessages also drops chat_topics and topic_summary memory entries', () => {
+      const db = getDb();
+      saveMessage({ messageId: 'msg-1', role: 'user', content: 'hi', timestamp: 1700000000000 });
+      db.prepare(
+        "INSERT INTO chat_topics (started_at, status, source) VALUES (?, 'finalized', ?)",
+      ).run(1700000000000, 'discord');
+      const topicId = Number(
+        (db.prepare('SELECT last_insert_rowid() AS id').get() as { id: number }).id,
+      );
+      db.prepare(
+        'INSERT INTO chat_topic_messages (topic_id, message_id) VALUES (?, ?)',
+      ).run(topicId, 'msg-1');
+      // Insert a topic_summary memory entry tied to this topic.
+      db.prepare(
+        `INSERT INTO memory_entries (kind, source_id, content, created_at)
+         VALUES ('topic_summary', ?, ?, ?)`,
+      ).run(String(topicId), 'label\nsummary', 1700000000000);
+      const entryId = Number(
+        (db.prepare('SELECT last_insert_rowid() AS id').get() as { id: number }).id,
+      );
+
+      clearMessages();
+
+      const topics = db.prepare('SELECT COUNT(*) AS c FROM chat_topics').get() as { c: number };
+      expect(topics.c).toBe(0);
+      const links = db.prepare('SELECT COUNT(*) AS c FROM chat_topic_messages').get() as { c: number };
+      expect(links.c).toBe(0);
+      const entries = db
+        .prepare("SELECT COUNT(*) AS c FROM memory_entries WHERE id = ?")
+        .get(entryId) as { c: number };
+      expect(entries.c).toBe(0);
+    });
+
+    it('clearMessages with source only drops topics matching that source', () => {
+      const db = getDb();
+      saveMessage({ messageId: 'msg-d', role: 'user', content: 'hi', timestamp: 1700000000000, source: 'discord' });
+      saveMessage({ messageId: 'msg-w', role: 'user', content: 'hi', timestamp: 1700000001000, source: 'web' });
+      db.prepare(
+        "INSERT INTO chat_topics (started_at, status, source) VALUES (?, 'finalized', 'discord')",
+      ).run(1700000000000);
+      const discordTopicId = Number(
+        (db.prepare('SELECT last_insert_rowid() AS id').get() as { id: number }).id,
+      );
+      db.prepare(
+        "INSERT INTO chat_topics (started_at, status, source) VALUES (?, 'finalized', 'web')",
+      ).run(1700000001000);
+      const webTopicId = Number(
+        (db.prepare('SELECT last_insert_rowid() AS id').get() as { id: number }).id,
+      );
+      db.prepare(
+        `INSERT INTO memory_entries (kind, source_id, content, created_at) VALUES
+          ('topic_summary', ?, 'discord-summary', ?),
+          ('topic_summary', ?, 'web-summary', ?)`,
+      ).run(String(discordTopicId), 1700000000000, String(webTopicId), 1700000001000);
+
+      clearMessages('discord');
+
+      const remainingTopics = db.prepare('SELECT source FROM chat_topics').all() as Array<{ source: string }>;
+      expect(remainingTopics.map((r) => r.source)).toEqual(['web']);
+      const remainingEntries = db
+        .prepare("SELECT content FROM memory_entries WHERE kind = 'topic_summary'")
+        .all() as Array<{ content: string }>;
+      expect(remainingEntries.map((r) => r.content)).toEqual(['web-summary']);
+    });
+
     it('unified history: getMessages() includes both web and discord rows', () => {
       saveMessage({ messageId: 'web-u', role: 'user', content: 'web msg', timestamp: 1700000000000 });
       saveMessage({ messageId: 'web-a', role: 'assistant', content: 'web reply', timestamp: 1700000001000, source: 'claude' });
@@ -346,6 +411,31 @@ describe('Database Module', () => {
         const remaining = getMessages();
         expect(remaining).toHaveLength(1);
         expect(remaining[0].content).toBe('new1');
+      });
+
+      it('also deletes orphaned chat_topic_messages link rows', () => {
+        const db = getDb();
+        const now = Date.now();
+        const oneDay = 24 * 60 * 60 * 1000;
+        saveMessage({ messageId: 'old-1', role: 'user', content: 'old', timestamp: now - 60 * oneDay });
+        saveMessage({ messageId: 'new-1', role: 'user', content: 'new', timestamp: now - 5 * oneDay });
+        db.prepare(
+          "INSERT INTO chat_topics (started_at, status) VALUES (?, 'open')",
+        ).run(now - 60 * oneDay);
+        const topicId = Number(
+          (db.prepare('SELECT last_insert_rowid() AS id').get() as { id: number }).id,
+        );
+        db.prepare(
+          'INSERT INTO chat_topic_messages (topic_id, message_id) VALUES (?, ?), (?, ?)',
+        ).run(topicId, 'old-1', topicId, 'new-1');
+
+        process.env.CHAT_HISTORY_RETENTION_DAYS = '30';
+        cleanupOldChatMessages();
+
+        const links = db
+          .prepare('SELECT message_id FROM chat_topic_messages ORDER BY message_id')
+          .all() as Array<{ message_id: string }>;
+        expect(links.map((r) => r.message_id)).toEqual(['new-1']);
       });
     });
   });
