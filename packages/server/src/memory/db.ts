@@ -1,7 +1,9 @@
 import type Database from 'better-sqlite3';
 
+export type EntryKind = 'user_msg' | 'assistant_msg' | 'topic_summary';
+
 export interface InsertEntryParams {
-  kind: 'user_msg' | 'assistant_msg';
+  kind: EntryKind;
   sourceId: string | null;
   content: string;
   createdAt: number;
@@ -28,7 +30,7 @@ export interface EntryHit {
   entityType: 'entry' | 'fact';
   score: number;
   content: string;
-  kind: 'user_msg' | 'assistant_msg' | 'fact';
+  kind: EntryKind | 'fact';
   createdAt: number;
 }
 
@@ -205,7 +207,7 @@ export function vectorSearch(db: Database.Database, params: VectorSearchParams):
           entityType: 'entry',
           score: 1 - r.distance,
           content: row.content,
-          kind: row.kind as 'user_msg' | 'assistant_msg',
+          kind: row.kind as EntryKind,
           createdAt: row.created_at,
         });
       }

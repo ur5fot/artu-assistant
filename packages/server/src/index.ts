@@ -54,6 +54,7 @@ import { scoreBatch } from './emails/scorer.js';
 import { startEmailPoller } from './emails/multi-account-poller.js';
 import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
 import { MORNING_FALLBACK_HOUR } from './cognition/handlers/emailDigest.helpers.js';
+import { createTopicFinalizerHandler } from './topics/finalizer.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
@@ -446,6 +447,38 @@ if (memoryEnabled) {
       console.log(
         `[memory] enabled (embeddings=${embeddings.identity}, text=${usingOllamaText ? 'ollama' : 'claude'}, model=${extractorModel})`,
       );
+
+      // Topic finalizer needs memoryService (for embedding + facts) and the
+      // Claude Haiku model for summarization. Register inside the memory block
+      // so the handler is only wired when memory is actually available — without
+      // it summaries would have nowhere to go. The Haiku model is always the
+      // *Claude* extractor: an Ollama text provider would not return reliable
+      // structured JSON at the size and quality the summary spec needs.
+      const haikuModel = process.env.MEMORY_EXTRACT_MODEL_CLAUDE || 'claude-haiku-4-5-20251001';
+      const finalizerBufferMs = envInt(
+        process.env.TOPIC_FINALIZER_BUFFER_MS,
+        10 * 60_000,
+        0,
+      );
+      const finalizerBatch = envInt(process.env.TOPIC_FINALIZER_BATCH, 5, 1, 50);
+      const finalizerMaxFailures = envInt(
+        process.env.TOPIC_FINALIZER_MAX_FAILURES,
+        5,
+        1,
+        100,
+      );
+      cognitionService.register(
+        createTopicFinalizerHandler({
+          store: topicStore,
+          memoryService,
+          anthropic: client.anthropic,
+          extractorModel: haikuModel,
+          bufferMs: finalizerBufferMs,
+          finalizeBatch: finalizerBatch,
+          maxFailures: finalizerMaxFailures,
+        }),
+      );
+      console.log('[topicFinalizer] registered');
     }
   }
 } else {

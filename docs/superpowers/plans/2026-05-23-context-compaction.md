@@ -151,7 +151,7 @@ remain recoverable through 4A vector recall.
 
 ### Task 4: Finalizer (Haiku + facts + embedding)
 
-- [ ] create `packages/server/src/topics/finalizer.ts` exporting `createTopicFinalizerHandler(deps)`:
+- [x] create `packages/server/src/topics/finalizer.ts` exporting `createTopicFinalizerHandler(deps)`:
   ```ts
   interface Deps {
     store: TopicStore;
@@ -176,10 +176,10 @@ remain recoverable through 4A vector recall.
     8. on success: `store.finalize(...)`, then `memoryService.safeEmbedDocument(summary)` → store via `memoryService.indexTopicSummary({ topicId, label, summary, embedding, importance, finalizedAt })` (new method, see below)
     9. also call `memoryService.extractFactsFromConversation(messages)` (new wrapper around existing `extractFacts`) to feed 4A
   - returns `{ publish: false }` or `{ skip: false }` — finalizer is silent, no Discord publish
-- [ ] extend `MemoryService` in [packages/server/src/memory/service.ts](../../packages/server/src/memory/service.ts):
+- [x] extend `MemoryService` in [packages/server/src/memory/service.ts](../../packages/server/src/memory/service.ts):
   - new method `indexTopicSummary(params: { topicId, label, summary, embedding, importance, finalizedAt }): Promise<void>` — inserts into `memory_vec` with `kind='topic_summary'`, content=`label + '\n' + summary`, foreign reference = topicId via existing `entityId` column if present (or new column if not)
   - new method `extractFactsFromConversation(messages: ChatMessage[]): Promise<void>` — concatenates user/assistant turns, calls existing `extractFacts`, inserts into `memory_facts`. Reuse existing `runIndexTurn` extraction logic; factor out shared code.
-- [ ] write `packages/server/src/topics/__tests__/finalizer.test.ts`:
+- [x] write `packages/server/src/topics/__tests__/finalizer.test.ts`:
   - trigger returns true when ready topics exist, false when none
   - run finalizes one topic: Haiku returns valid JSON → store.finalize called with parsed values, indexTopicSummary called, extractFactsFromConversation called
   - run finalizes multiple topics in one tick (up to finalizeBatch)
@@ -187,11 +187,11 @@ remain recoverable through 4A vector recall.
   - Haiku throws → same failure path
   - 5th consecutive failure → markFinalizationGiveUp, status='finalized' with placeholder label
   - tool_calls in messages are replaced with placeholders before Haiku prompt
-- [ ] write `packages/server/src/memory/__tests__/service-topic.test.ts`:
+- [x] write `packages/server/src/memory/__tests__/service-topic.test.ts`:
   - indexTopicSummary inserts into memory_vec with kind='topic_summary'
   - extractFactsFromConversation calls extractFacts with concatenated turns, inserts facts
-- [ ] register handler in [packages/server/src/index.ts](../../packages/server/src/index.ts) next to `morningBrief` and `emailDigest`: `cognitionService.register(createTopicFinalizerHandler({...}))`
-- [ ] run server tests — must pass before Task 5
+- [x] register handler in [packages/server/src/index.ts](../../packages/server/src/index.ts) next to `morningBrief` and `emailDigest`: `cognitionService.register(createTopicFinalizerHandler({...}))`
+- [x] run server tests — must pass before Task 5
 
 ### Task 5: Prompt builder (replaces truncateMessages)
 
