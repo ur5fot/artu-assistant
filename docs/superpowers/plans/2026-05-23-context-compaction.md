@@ -66,7 +66,7 @@ remain recoverable through 4A vector recall.
 
 ### Task 1: DB schema + topic store
 
-- [ ] add `chat_topics` and `chat_topic_messages` tables in [packages/server/src/db.ts](../../packages/server/src/db.ts) following the existing `CREATE TABLE IF NOT EXISTS` pattern. Include indexes from spec §4:
+- [x] add `chat_topics` and `chat_topic_messages` tables in [packages/server/src/db.ts](../../packages/server/src/db.ts) following the existing `CREATE TABLE IF NOT EXISTS` pattern. Include indexes from spec §4:
   ```sql
   CREATE TABLE IF NOT EXISTS chat_topics (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,7 +90,7 @@ remain recoverable through 4A vector recall.
   CREATE INDEX IF NOT EXISTS idx_chat_topic_messages_msg ON chat_topic_messages(message_id);
   ```
   - `failure_count` added beyond spec §4 to support the 5-retry rule in spec §"Finalizer failure"; tracked explicitly so it survives restarts.
-- [ ] create `packages/server/src/topics/store.ts` with `TopicStore` interface:
+- [x] create `packages/server/src/topics/store.ts` with `TopicStore` interface:
   - `getOpenTopic(source: string | null): TopicRow | null`
   - `createOpen(now: number, source: string | null): TopicRow`
   - `closeOpen(topicId: number, endedAt: number): void`
@@ -102,7 +102,7 @@ remain recoverable through 4A vector recall.
   - `findStaleOpen(cutoff: number): TopicRow[]` — for startup autoclose
   - `getTopicMessages(topicId: number): ChatMessageRow[]` — joins chat_topic_messages → chat_messages
   - `listFinalized(limit: number): TopicRow[]` — for prompt builder
-- [ ] write `packages/server/src/topics/__tests__/store.test.ts` table-driven:
+- [x] write `packages/server/src/topics/__tests__/store.test.ts` table-driven:
   - createOpen sets status='open', started_at, source
   - getOpenTopic returns the open topic when one exists, null when none, errors on multiple (invariant)
   - closeOpen transitions to status='closed', sets ended_at
@@ -113,7 +113,7 @@ remain recoverable through 4A vector recall.
   - markFinalizationGiveUp transitions correctly
   - findStaleOpen returns open topics whose last message is older than cutoff (joins chat_topic_messages)
   - getTopicMessages returns messages in timestamp order
-- [ ] run server tests — must pass before Task 2
+- [x] run server tests — must pass before Task 2
 
 ### Task 2: Topic detector + saveMessage hook
 

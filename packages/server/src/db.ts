@@ -240,6 +240,32 @@ export function initDb(dbPath?: string): void {
   // column in the WHERE clause.
   db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON chat_messages(timestamp)`);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chat_topics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      label TEXT,
+      summary TEXT,
+      importance INTEGER,
+      started_at INTEGER NOT NULL,
+      ended_at INTEGER,
+      status TEXT NOT NULL CHECK (status IN ('open','closed','finalized')),
+      source TEXT,
+      finalized_at INTEGER,
+      failure_count INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_topics_status ON chat_topics(status, ended_at)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_topics_finalized ON chat_topics(finalized_at)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chat_topic_messages (
+      topic_id INTEGER NOT NULL REFERENCES chat_topics(id) ON DELETE CASCADE,
+      message_id TEXT NOT NULL,
+      PRIMARY KEY (topic_id, message_id)
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_topic_messages_msg ON chat_topic_messages(message_id)`);
+
   // Migration: add importance / forgotten columns to memory_facts if missing.
   // SQLite can't do IF NOT EXISTS for columns, so we gate on PRAGMA table_info.
   const factCols = db.prepare('PRAGMA table_info(memory_facts)').all() as Array<{ name: string }>;
