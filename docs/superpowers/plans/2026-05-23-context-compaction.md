@@ -253,9 +253,9 @@ remain recoverable through 4A vector recall.
 
 ### Task 7: [Final] Update documentation
 
-- [ ] add a short "Context compaction" section to [README.md](../../README.md) explaining the topic-clustering model and the 2h gap rule
-- [ ] add JSDoc block at top of `topics/detector.ts` explaining gap rule + why heuristic not LLM
-- [ ] add JSDoc to `topics/finalizer.ts` explaining the failure-count semantics and that summaries flow into existing 4A memory_vec
+- [x] add a short "Context compaction" section to [README.md](../../README.md) explaining the topic-clustering model and the 2h gap rule
+- [x] add JSDoc block at top of `topics/detector.ts` explaining gap rule + why heuristic not LLM
+- [x] add JSDoc to `topics/finalizer.ts` explaining the failure-count semantics and that summaries flow into existing 4A memory_vec
 
 ## Technical Details
 

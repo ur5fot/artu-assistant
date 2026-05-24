@@ -1,5 +1,20 @@
 import type { TopicStore } from './store.js';
 
+/**
+ * Splits the incoming chat stream into topics by idle-gap heuristic.
+ *
+ * Rule: if the elapsed time since the last message on a given source is
+ * greater than `gapMs`, close the current open topic and start a new one;
+ * otherwise link the message to the open topic. State is kept per-source
+ * (Discord vs. web vs. null) so independent channels do not collide.
+ *
+ * Why a heuristic and not an LLM classifier: topic boundaries get re-decided
+ * on every saveMessage call (hot path, sub-ms budget) and the cost of a
+ * wrong split is small — the finalizer summarizes each side independently
+ * and 4A vector recall still surfaces older context. An LLM call here would
+ * add latency and spend tokens on a decision that, empirically, idle-gap
+ * already gets right for personal-assistant traffic.
+ */
 export const TOPIC_GAP_MS = 2 * 60 * 60 * 1000;
 
 export interface IncomingMessage {
