@@ -35,6 +35,13 @@ const HAIKU_TIMEOUT_MS = 30_000;
 // so cost stays bounded; if the transcript exceeds the cap, drop oldest
 // messages first (newest carry the decisions/outcomes the summary needs).
 const PROMPT_BODY_MAX_CHARS = 60_000;
+// Heuristic: matches "/cmd" or "/команда" optionally followed by args.
+// chat.ts deliberately skips indexTurn for slash-command turns (the literal
+// "/cmd …" text is a dispatcher, not user content; assistant replies carry
+// tool results that bypass PII masking). The finalizer must mirror that skip
+// so the Haiku summary and extracted facts don't reintroduce the same
+// content via the topic_summary prefix and memory_facts table.
+const SLASH_COMMAND_RE = /^\/[\p{L}\p{N}_-]+(?:\s|$)/u;
 
 const PROMPT_HEADER = `You will receive a transcript of a conversation between a user and an AI assistant. Produce a concise summary capturing decisions, outcomes, and key facts. Skip pleasantries and verbose tool output.
 
@@ -73,6 +80,24 @@ function formatMessage(m: ChatMessageRow): string {
   return `${role}: ${m.content ?? ''}`;
 }
 
+function filterDispatcherTurns(messages: ChatMessageRow[]): ChatMessageRow[] {
+  // Drop user messages that are slash-command dispatchers, and the assistant
+  // turn that immediately answers them (tool result + commentary). Mixed
+  // topics keep their normal conversational turns intact.
+  const result: ChatMessageRow[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (m.role === 'user' && SLASH_COMMAND_RE.test(m.content.trim())) {
+      if (i + 1 < messages.length && messages[i + 1].role === 'assistant') {
+        i++;
+      }
+      continue;
+    }
+    result.push(m);
+  }
+  return result;
+}
+
 function buildPrompt(messages: ChatMessageRow[]): string {
   const formatted = messages.map(formatMessage);
   let total = formatted.reduce((sum, line) => sum + line.length + 1, 0);
@@ -81,6 +106,15 @@ function buildPrompt(messages: ChatMessageRow[]): string {
     const removed = formatted.shift()!;
     total -= removed.length + 1;
     dropped++;
+  }
+  // Single remaining message can still exceed the cap on its own (e.g. one
+  // multi-megabyte web paste). Truncate it so the Haiku call stays bounded.
+  if (formatted.length === 1 && formatted[0].length > PROMPT_BODY_MAX_CHARS) {
+    const marker = '\n[...message truncated]';
+    const room = PROMPT_BODY_MAX_CHARS - marker.length;
+    formatted[0] = room > 0
+      ? formatted[0].slice(0, room) + marker
+      : formatted[0].slice(0, PROMPT_BODY_MAX_CHARS);
   }
   const body = formatted.join('\n');
   const prefix = dropped > 0 ? `[...${dropped} earlier message(s) truncated]\n` : '';
@@ -150,12 +184,22 @@ export function createTopicFinalizerHandler(deps: Deps): Handler {
       let failed = 0;
       for (const topic of ready) {
         if (ctx.signal.aborted) break;
-        const messages = store.getTopicMessages(topic.id);
-        if (messages.length === 0) {
+        const rawMessages = store.getTopicMessages(topic.id);
+        if (rawMessages.length === 0) {
           // Defensive: a closed topic with zero linked messages is a bug
           // upstream, but giving up immediately keeps the queue moving.
           store.markFinalizationGiveUp(topic.id, now);
           failed++;
+          continue;
+        }
+
+        const messages = filterDispatcherTurns(rawMessages);
+        if (messages.length === 0) {
+          // Pure slash-command topic: every turn was a dispatcher we must not
+          // summarize or extract facts from. Mark finalized with the same
+          // placeholder used for irrecoverable failures so the topic is no
+          // longer eligible for re-processing.
+          store.markFinalizationGiveUp(topic.id, now);
           continue;
         }
 

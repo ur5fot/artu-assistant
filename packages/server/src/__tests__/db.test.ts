@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { initDb, closeDb, getDb, saveMessage, setTopicDetector } from '../db.js';
+import { initDb, closeDb, getDb, saveMessage, setTopicDetector, clearMessages } from '../db.js';
+import { createTopicStore } from '../topics/store.js';
+import { createTopicDetector, TOPIC_GAP_MS } from '../topics/detector.js';
 import type { TopicDetector, IncomingMessage } from '../topics/detector.js';
 
 beforeEach(() => initDb(':memory:'));
@@ -47,6 +49,7 @@ describe('saveMessage topic-detector hook', () => {
       assign: (msg) => {
         calls.push(msg);
       },
+      reset: () => {},
     };
     setTopicDetector(detector);
 
@@ -65,7 +68,7 @@ describe('saveMessage topic-detector hook', () => {
 
   it('passes source as null when omitted', () => {
     const calls: IncomingMessage[] = [];
-    setTopicDetector({ assign: (msg) => calls.push(msg) });
+    setTopicDetector({ assign: (msg) => calls.push(msg), reset: () => {} });
 
     saveMessage({
       messageId: 'm2',
@@ -96,9 +99,36 @@ describe('saveMessage topic-detector hook', () => {
     expect(row?.message_id).toBe('m3');
   });
 
+  it('resets detector cache on clearMessages so a follow-up save does not FK-fault', () => {
+    // Real detector (not a stub): without reset its in-memory state keeps the
+    // pre-wipe topicId, and the next saveMessage within gapMs would try to
+    // linkMessage to a deleted row → FOREIGN KEY constraint failed.
+    const store = createTopicStore({ db: getDb() });
+    const detector = createTopicDetector({ store, gapMs: TOPIC_GAP_MS });
+    setTopicDetector(detector);
+    const t0 = 1_700_000_010_000;
+
+    saveMessage({ messageId: 'pre-wipe', role: 'user', content: 'hi', timestamp: t0, source: 'discord' });
+
+    clearMessages();
+
+    expect(() =>
+      saveMessage({
+        messageId: 'post-wipe',
+        role: 'user',
+        content: 'still here',
+        timestamp: t0 + 60_000,
+        source: 'discord',
+      }),
+    ).not.toThrow();
+    const open = store.getOpenTopic('discord');
+    expect(open).not.toBeNull();
+    expect(store.getTopicMessages(open!.id).map((m) => m.message_id)).toEqual(['post-wipe']);
+  });
+
   it('does not call detector for duplicate (already-inserted) messages', () => {
     const calls: IncomingMessage[] = [];
-    setTopicDetector({ assign: (msg) => calls.push(msg) });
+    setTopicDetector({ assign: (msg) => calls.push(msg), reset: () => {} });
 
     saveMessage({
       messageId: 'dup',

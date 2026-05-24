@@ -303,6 +303,72 @@ describe('createTopicFinalizerHandler.run', () => {
     expect(prompt).toContain('earlier message(s) truncated');
   });
 
+  it('filters slash-command dispatcher turns before Haiku + facts', async () => {
+    const store = mkStore();
+    store.listClosedReadyForFinalize.mockReturnValue([topic({ id: 50 })]);
+    store.getTopicMessages.mockReturnValue([
+      msg({ message_id: 'u1', role: 'user', content: '/читати foo.txt', timestamp: 1 }),
+      msg({ message_id: 'a1', role: 'assistant', content: 'file content here', timestamp: 2 }),
+      msg({ message_id: 'u2', role: 'user', content: 'thanks, lets plan the rewrite', timestamp: 3 }),
+      msg({ message_id: 'a2', role: 'assistant', content: 'sure, here is the plan', timestamp: 4 }),
+    ]);
+    const memoryService = mkMemoryService();
+    const { anthropic, create } = mkAnthropic(
+      JSON.stringify({ label: 'rewrite plan', summary: 'planned the rewrite', importance: 6 }),
+    );
+    const h = createTopicFinalizerHandler({ store, memoryService, anthropic, ...DEFAULT_DEPS });
+    await h.run(mkCtx(9_000_000));
+    const prompt: string = create.mock.calls[0][0].messages[0].content;
+    expect(prompt).not.toContain('/читати');
+    expect(prompt).not.toContain('file content here');
+    expect(prompt).toContain('lets plan the rewrite');
+    const factsArg = memoryService.extractFactsFromConversation.mock.calls[0][0];
+    expect(factsArg.messages.map((m: any) => m.messageId)).toEqual(['u2', 'a2']);
+  });
+
+  it('pure slash-command topic is given up without calling Haiku', async () => {
+    const store = mkStore();
+    store.listClosedReadyForFinalize.mockReturnValue([topic({ id: 51 })]);
+    store.getTopicMessages.mockReturnValue([
+      msg({ message_id: 'u1', role: 'user', content: '/help', timestamp: 1 }),
+      msg({ message_id: 'a1', role: 'assistant', content: 'help text', timestamp: 2 }),
+      msg({ message_id: 'u2', role: 'user', content: '/перемістити old new', timestamp: 3 }),
+      msg({ message_id: 'a2', role: 'assistant', content: 'done', timestamp: 4 }),
+    ]);
+    const memoryService = mkMemoryService();
+    const { anthropic, create } = mkAnthropic('{}');
+    const h = createTopicFinalizerHandler({ store, memoryService, anthropic, ...DEFAULT_DEPS });
+    const now = 9_000_000;
+    await h.run(mkCtx(now));
+    expect(create).not.toHaveBeenCalled();
+    expect(store.markFinalizationGiveUp).toHaveBeenCalledWith(51, now);
+    expect(memoryService.extractFactsFromConversation).not.toHaveBeenCalled();
+  });
+
+  it('truncates a single oversized message rather than sending it whole', async () => {
+    const store = mkStore();
+    store.listClosedReadyForFinalize.mockReturnValue([topic({ id: 77 })]);
+    // One ~100K user message — well above the 60K body cap.
+    const huge = 'a'.repeat(100_000);
+    store.getTopicMessages.mockReturnValue([
+      msg({ message_id: 'lone', role: 'user', content: huge, timestamp: 1 }),
+    ]);
+    const { anthropic, create } = mkAnthropic(
+      JSON.stringify({ label: 'x', summary: 'y', importance: 5 }),
+    );
+    const h = createTopicFinalizerHandler({
+      store,
+      memoryService: mkMemoryService(),
+      anthropic,
+      ...DEFAULT_DEPS,
+    });
+    await h.run(mkCtx(9_000_000));
+    const prompt: string = create.mock.calls[0][0].messages[0].content;
+    // Header (~470 chars) + capped body (~60K) should still be well below 70K.
+    expect(prompt.length).toBeLessThan(70_000);
+    expect(prompt).toContain('[...message truncated]');
+  });
+
   it('importance clamped into [1, 10]', async () => {
     const store = mkStore();
     store.listClosedReadyForFinalize.mockReturnValue([topic({ id: 5 })]);

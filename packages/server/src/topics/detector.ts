@@ -25,6 +25,7 @@ export interface IncomingMessage {
 
 export interface TopicDetector {
   assign(message: IncomingMessage): void;
+  reset(source?: string): void;
 }
 
 interface DetectorDeps {
@@ -86,6 +87,19 @@ export function createTopicDetector(deps: DetectorDeps): TopicDetector {
         topicId: current.topicId,
         lastTimestamp: Math.max(current.lastTimestamp, timestamp),
       });
+    },
+    reset(source) {
+      // clearMessages() deletes chat_topics rows. Without dropping the cached
+      // {topicId,lastTimestamp} the next saveMessage within gapMs would try to
+      // linkMessage to a vanished topic_id and trip the FK constraint.
+      if (source === undefined) {
+        state.clear();
+        hydrated.clear();
+        return;
+      }
+      const k = keyOf(source);
+      state.delete(k);
+      hydrated.delete(k);
     },
   };
 }

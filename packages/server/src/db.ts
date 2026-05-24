@@ -431,10 +431,48 @@ export function getMessages(source?: string): Array<{
 
 export function clearMessages(source?: string): void {
   const d = getDb();
+  // Topic state and finalized summaries are derived from chat_messages — wipe
+  // them in the same call so a cleared history can't leak old context back via
+  // the topic-summary prefix that chat-prompt.ts injects on the next request.
+  // chat_topic_messages cascades via FK ON DELETE CASCADE on topic_id.
+  const topicRows = (source === undefined
+    ? d.prepare('SELECT id FROM chat_topics').all()
+    : d.prepare('SELECT id FROM chat_topics WHERE source = ?').all(source)) as Array<{ id: number }>;
+  if (topicRows.length > 0) {
+    const sourceIds = topicRows.map((r) => String(r.id));
+    const placeholders = sourceIds.map(() => '?').join(',');
+    const entryRows = d
+      .prepare(
+        `SELECT id FROM memory_entries WHERE kind = 'topic_summary' AND source_id IN (${placeholders})`,
+      )
+      .all(...sourceIds) as Array<{ id: number }>;
+    for (const row of entryRows) {
+      // Best-effort delete from the vec0 virtual table — if memory was disabled
+      // at boot the table won't exist. Wrap in try/catch so a missing vec
+      // table doesn't block the rest of the cleanup.
+      try {
+        d.prepare('DELETE FROM memory_vec_entries WHERE entity_id = ?').run(BigInt(row.id));
+      } catch {
+        // memory_vec_entries absent — vec0 extension not loaded.
+      }
+      d.prepare('DELETE FROM memory_entries WHERE id = ?').run(row.id);
+    }
+    if (source === undefined) {
+      d.prepare('DELETE FROM chat_topics').run();
+    } else {
+      d.prepare('DELETE FROM chat_topics WHERE source = ?').run(source);
+    }
+  }
   if (source === undefined) {
     d.prepare('DELETE FROM chat_messages').run();
   } else {
     d.prepare('DELETE FROM chat_messages WHERE source = ?').run(source);
+  }
+  // Detector keeps a per-source cache of {topicId,lastTimestamp}. Without
+  // dropping it, a saveMessage that lands inside gapMs after a wipe would
+  // link to a deleted topic_id and trip the chat_topic_messages FK.
+  if (topicDetector) {
+    topicDetector.reset(source);
   }
 }
 

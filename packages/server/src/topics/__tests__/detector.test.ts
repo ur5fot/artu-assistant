@@ -203,6 +203,55 @@ describe('TopicDetector', () => {
     expect(msgs.sort()).toEqual(['m-old', 'm1', 'm2', 'm3']);
   });
 
+  it('reset drops cached state so a wipe + new message creates a fresh topic', () => {
+    // Simulates DELETE /api/messages: chat_topics rows are gone, but the
+    // detector cached {topicId,lastTimestamp}. Without reset the next message
+    // inside gapMs would linkMessage to a deleted topic_id and trip the FK.
+    insertMessage(db, 'm1', t0);
+    const detector = createTopicDetector({ store, gapMs: TOPIC_GAP_MS });
+    detector.assign({ messageId: 'm1', timestamp: t0, source: 'discord' });
+    const oldTopicId = store.getOpenTopic('discord')!.id;
+
+    // Wipe topics + messages, mirroring clearMessages.
+    db.prepare('DELETE FROM chat_topics').run();
+    db.prepare('DELETE FROM chat_messages').run();
+    detector.reset();
+
+    // Now a new message inside gapMs must NOT link to the deleted topic.
+    insertMessage(db, 'm2', t0 + 60_000);
+    expect(() =>
+      detector.assign({ messageId: 'm2', timestamp: t0 + 60_000, source: 'discord' }),
+    ).not.toThrow();
+
+    const open = store.getOpenTopic('discord');
+    expect(open).not.toBeNull();
+    expect(open!.id).not.toBe(oldTopicId);
+    expect(store.getTopicMessages(open!.id).map((m) => m.message_id)).toEqual(['m2']);
+  });
+
+  it('reset with a source only drops that source state', () => {
+    insertMessage(db, 'm-d', t0, 'discord');
+    insertMessage(db, 'm-w', t0, 'web');
+    const detector = createTopicDetector({ store, gapMs: TOPIC_GAP_MS });
+    detector.assign({ messageId: 'm-d', timestamp: t0, source: 'discord' });
+    detector.assign({ messageId: 'm-w', timestamp: t0, source: 'web' });
+    const webTopicId = store.getOpenTopic('web')!.id;
+
+    db.prepare('DELETE FROM chat_topics WHERE source = ?').run('discord');
+    db.prepare('DELETE FROM chat_messages WHERE source = ?').run('discord');
+    detector.reset('discord');
+
+    // Web state is intact: a follow-up message inside gap links to the same topic.
+    insertMessage(db, 'm-w2', t0 + 60_000, 'web');
+    detector.assign({ messageId: 'm-w2', timestamp: t0 + 60_000, source: 'web' });
+    expect(store.getOpenTopic('web')!.id).toBe(webTopicId);
+
+    // Discord state was cleared: next message creates a fresh topic.
+    insertMessage(db, 'm-d2', t0 + 60_000, 'discord');
+    detector.assign({ messageId: 'm-d2', timestamp: t0 + 60_000, source: 'discord' });
+    expect(store.getOpenTopic('discord')).not.toBeNull();
+  });
+
   it('handles null source independently from named sources', () => {
     insertMessage(db, 'm1', t0, null);
     insertMessage(db, 'm2', t0, 'discord');
