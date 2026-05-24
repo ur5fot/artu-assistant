@@ -11,6 +11,7 @@ import {
   findActiveFactByKey,
   findFactsBySourceMessageId,
   findLastUserMessageBefore,
+  type EntryKind,
 } from './db.js';
 import { extractFacts, normalizeKey } from './extractor.js';
 
@@ -25,7 +26,7 @@ const FACT_VALUE_MAX = 500;
 
 export interface MemoryHit {
   text: string;
-  kind: 'fact' | 'user_msg' | 'assistant_msg';
+  kind: 'fact' | EntryKind;
   score: number;
   timestamp: number;
 }
@@ -89,6 +90,26 @@ export interface MemoryService {
   }): Promise<ForgetLastResult>;
 
   buildContextPrefix(userMessage: string, signal?: AbortSignal): Promise<ContextPrefixResult>;
+
+  // Topic-clustering finalizer pipeline (4C). The Haiku summary is written to
+  // chat_topics by the caller; we embed (label + '\n' + summary) and persist
+  // it as a topic_summary entry so 4A vector recall can resurface old topics
+  // by similarity. Embedding failures are swallowed — the topic is already
+  // finalized in chat_topics, only the vector recall side is best-effort.
+  indexTopicSummary(params: {
+    topicId: number;
+    label: string;
+    summary: string;
+    finalizedAt: number;
+  }): Promise<void>;
+
+  // Concatenates user/assistant turns and runs the same fact extractor used in
+  // indexTurn. Sources the extracted facts to the last user message in the
+  // conversation, mirroring the burst-coalescing anchor in runIndexTurn so
+  // memory_forget_last semantics stay consistent.
+  extractFactsFromConversation(params: {
+    messages: Array<{ role: 'user' | 'assistant'; content: string; messageId: string; timestamp: number }>;
+  }): Promise<void>;
 }
 
 export type UpdateFactResult =
@@ -177,6 +198,50 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
     }
   }
 
+  async function extractAndPersistFacts(params: {
+    userMessage: string;
+    assistantMessage: string;
+    timestamp: number;
+    sourceMessageId: string;
+  }): Promise<void> {
+    let facts: Array<{ key: string; value: string; importance: number }> = [];
+    try {
+      facts = await extractFacts(textProvider, {
+        userMessage: params.userMessage,
+        assistantMessage: params.assistantMessage,
+        model: deps.extractorModel,
+      });
+    } catch (err) {
+      console.warn('[memory] extractFacts failed:', err instanceof Error ? err.message : err);
+    }
+
+    for (const fact of facts) {
+      const normalizedValue = fact.value.trim().replace(/\s+/g, ' ');
+      if (!normalizedValue) continue;
+      const factText = `${fact.key}: ${normalizedValue}`;
+      const vec = await safeEmbedDocument(factText);
+      if (!vec) continue;
+      try {
+        // With Discord burst coalescing, `sourceMessageId` is the id of the
+        // LAST user message in the burst. Facts extracted from the whole burst's
+        // combined text are all tagged with this anchor — which matches
+        // `findLastUserMessageBefore` semantics in `forgetLast`, so
+        // "забудь що я тільки що сказав" in the next turn correctly targets
+        // facts derived from the preceding burst.
+        insertOrSupersedeFact(db, {
+          key: fact.key,
+          value: normalizedValue,
+          createdAt: params.timestamp,
+          embedding: vec,
+          importance: fact.importance,
+          sourceMessageId: params.sourceMessageId,
+        });
+      } catch (err) {
+        console.warn('[memory] insertFact failed:', err instanceof Error ? err.message : err);
+      }
+    }
+  }
+
   async function runIndexTurn(params: {
     userMessage: string;
     userMessageId: string;
@@ -195,42 +260,12 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       if (assistantMessage.trim()) tasks.push(indexOne('assistant_msg', assistantMessage, timestamp));
       await Promise.all(tasks);
 
-      let facts: Array<{ key: string; value: string; importance: number }> = [];
-      try {
-        facts = await extractFacts(textProvider, {
-          userMessage,
-          assistantMessage,
-          model: deps.extractorModel,
-        });
-      } catch (err) {
-        console.warn('[memory] extractFacts failed:', err instanceof Error ? err.message : err);
-      }
-
-      for (const fact of facts) {
-        const normalizedValue = fact.value.trim().replace(/\s+/g, ' ');
-        if (!normalizedValue) continue;
-        const factText = `${fact.key}: ${normalizedValue}`;
-        const vec = await safeEmbedDocument(factText);
-        if (!vec) continue;
-        try {
-          // With Discord burst coalescing, `userMessageId` is the id of the
-          // LAST message in the burst. Facts extracted from the whole burst's
-          // combined text are all tagged with this anchor — which matches
-          // `findLastUserMessageBefore` semantics in `forgetLast`, so
-          // "забудь що я тільки що сказав" in the next turn correctly targets
-          // facts derived from the preceding burst.
-          insertOrSupersedeFact(db, {
-            key: fact.key,
-            value: normalizedValue,
-            createdAt: timestamp,
-            embedding: vec,
-            importance: fact.importance,
-            sourceMessageId: userMessageId,
-          });
-        } catch (err) {
-          console.warn('[memory] insertFact failed:', err instanceof Error ? err.message : err);
-        }
-      }
+      await extractAndPersistFacts({
+        userMessage,
+        assistantMessage,
+        timestamp,
+        sourceMessageId: userMessageId,
+      });
   }
 
   return {
@@ -468,7 +503,10 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
           const preview = safeContent.length > ENTRY_PREVIEW_MAX_CHARS
             ? safeContent.slice(0, ENTRY_PREVIEW_MAX_CHARS) + '...'
             : safeContent;
-          const label = h.kind === 'user_msg' ? 'Юзер' : 'R2';
+          const label =
+            h.kind === 'user_msg' ? 'Юзер'
+            : h.kind === 'topic_summary' ? 'Тема'
+            : 'R2';
           bodyLines.push(`[${date}] ${label}: ${preview}`);
         }
       }
@@ -519,6 +557,55 @@ export function createMemoryService(deps: MemoryServiceDeps): MemoryService {
       }));
 
       return { prefix, recalledFacts };
+    },
+
+    async indexTopicSummary(params) {
+      const { topicId, label, summary, finalizedAt } = params;
+      const content = `${label}\n${summary}`;
+      const vec = await safeEmbedDocument(content);
+      if (!vec) return;
+      try {
+        insertEntry(db, {
+          kind: 'topic_summary',
+          // Anchor back to the originating topic so 4A vector recall can join
+          // hits to chat_topics metadata if a later prompt builder wants to
+          // expand them (importance ranking lives there, not here).
+          sourceId: String(topicId),
+          content,
+          createdAt: finalizedAt,
+          embedding: vec,
+        });
+      } catch (err) {
+        console.warn(
+          '[memory] indexTopicSummary failed:',
+          err instanceof Error ? err.message : err,
+        );
+      }
+    },
+
+    async extractFactsFromConversation(params) {
+      const { messages } = params;
+      if (messages.length === 0) return;
+      // Mirror the burst-coalescing pattern in runIndexTurn: anchor all facts
+      // from the topic to the LAST user message in the topic, so a later
+      // memory_forget_last call from the user can target them.
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+      if (!lastUser) return;
+      const userText = messages
+        .filter((m) => m.role === 'user' && m.content.trim())
+        .map((m) => m.content)
+        .join('\n');
+      const assistantText = messages
+        .filter((m) => m.role === 'assistant' && m.content.trim())
+        .map((m) => m.content)
+        .join('\n');
+      if (!userText && !assistantText) return;
+      await extractAndPersistFacts({
+        userMessage: userText,
+        assistantMessage: assistantText,
+        timestamp: lastUser.timestamp,
+        sourceMessageId: lastUser.messageId,
+      });
     },
   };
 }

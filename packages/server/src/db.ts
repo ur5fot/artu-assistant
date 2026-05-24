@@ -4,8 +4,14 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { ToolCall } from '@r2/shared';
+import type { TopicDetector } from './topics/detector.js';
 
 let db: Database.Database | null = null;
+let topicDetector: TopicDetector | null = null;
+
+export function setTopicDetector(detector: TopicDetector | null): void {
+  topicDetector = detector;
+}
 
 export function initDb(dbPath?: string): void {
   if (db) {
@@ -240,6 +246,32 @@ export function initDb(dbPath?: string): void {
   // column in the WHERE clause.
   db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON chat_messages(timestamp)`);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chat_topics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      label TEXT,
+      summary TEXT,
+      importance INTEGER,
+      started_at INTEGER NOT NULL,
+      ended_at INTEGER,
+      status TEXT NOT NULL CHECK (status IN ('open','closed','finalized')),
+      source TEXT,
+      finalized_at INTEGER,
+      failure_count INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_topics_status ON chat_topics(status, ended_at)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_topics_finalized ON chat_topics(finalized_at)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chat_topic_messages (
+      topic_id INTEGER NOT NULL REFERENCES chat_topics(id) ON DELETE CASCADE,
+      message_id TEXT NOT NULL,
+      PRIMARY KEY (topic_id, message_id)
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_topic_messages_msg ON chat_topic_messages(message_id)`);
+
   // Migration: add importance / forgotten columns to memory_facts if missing.
   // SQLite can't do IF NOT EXISTS for columns, so we gate on PRAGMA table_info.
   const factCols = db.prepare('PRAGMA table_info(memory_facts)').all() as Array<{ name: string }>;
@@ -325,7 +357,7 @@ interface SaveMessageParams {
 
 export function saveMessage(params: SaveMessageParams): void {
   const d = getDb();
-  d.prepare(
+  const info = d.prepare(
     `INSERT OR IGNORE INTO chat_messages (message_id, role, content, tool_calls, pii_entities, timestamp, source)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(
@@ -337,6 +369,18 @@ export function saveMessage(params: SaveMessageParams): void {
     params.timestamp,
     params.source ?? null,
   );
+
+  // Skip topic assignment for duplicates (INSERT OR IGNORE no-op): a re-saved
+  // message_id must not be linked to a fresh topic, and re-running detector
+  // logic on a no-op insert would spuriously update the per-source
+  // lastTimestamp.
+  if (info.changes > 0 && topicDetector) {
+    topicDetector.assign({
+      messageId: params.messageId,
+      timestamp: params.timestamp,
+      source: params.source ?? null,
+    });
+  }
 }
 
 export function getChatHistoryLimit(): number {
@@ -387,10 +431,48 @@ export function getMessages(source?: string): Array<{
 
 export function clearMessages(source?: string): void {
   const d = getDb();
+  // Topic state and finalized summaries are derived from chat_messages — wipe
+  // them in the same call so a cleared history can't leak old context back via
+  // the topic-summary prefix that chat-prompt.ts injects on the next request.
+  // chat_topic_messages cascades via FK ON DELETE CASCADE on topic_id.
+  const topicRows = (source === undefined
+    ? d.prepare('SELECT id FROM chat_topics').all()
+    : d.prepare('SELECT id FROM chat_topics WHERE source = ?').all(source)) as Array<{ id: number }>;
+  if (topicRows.length > 0) {
+    const sourceIds = topicRows.map((r) => String(r.id));
+    const placeholders = sourceIds.map(() => '?').join(',');
+    const entryRows = d
+      .prepare(
+        `SELECT id FROM memory_entries WHERE kind = 'topic_summary' AND source_id IN (${placeholders})`,
+      )
+      .all(...sourceIds) as Array<{ id: number }>;
+    for (const row of entryRows) {
+      // Best-effort delete from the vec0 virtual table — if memory was disabled
+      // at boot the table won't exist. Wrap in try/catch so a missing vec
+      // table doesn't block the rest of the cleanup.
+      try {
+        d.prepare('DELETE FROM memory_vec_entries WHERE entity_id = ?').run(BigInt(row.id));
+      } catch {
+        // memory_vec_entries absent — vec0 extension not loaded.
+      }
+      d.prepare('DELETE FROM memory_entries WHERE id = ?').run(row.id);
+    }
+    if (source === undefined) {
+      d.prepare('DELETE FROM chat_topics').run();
+    } else {
+      d.prepare('DELETE FROM chat_topics WHERE source = ?').run(source);
+    }
+  }
   if (source === undefined) {
     d.prepare('DELETE FROM chat_messages').run();
   } else {
     d.prepare('DELETE FROM chat_messages WHERE source = ?').run(source);
+  }
+  // Detector keeps a per-source cache of {topicId,lastTimestamp}. Without
+  // dropping it, a saveMessage that lands inside gapMs after a wipe would
+  // link to a deleted topic_id and trip the chat_topic_messages FK.
+  if (topicDetector) {
+    topicDetector.reset(source);
   }
 }
 
@@ -445,5 +527,11 @@ export function cleanupOldChatMessages(): number {
   const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
   const d = getDb();
   const info = d.prepare('DELETE FROM chat_messages WHERE timestamp < ?').run(cutoffMs);
+  // chat_topic_messages.message_id is TEXT with no FK to chat_messages, so
+  // retention sweeps would orphan link rows and leave finalized topics with
+  // truncated transcripts on re-fetch. Drop orphans in the same pass.
+  d.prepare(
+    'DELETE FROM chat_topic_messages WHERE message_id NOT IN (SELECT message_id FROM chat_messages)',
+  ).run();
   return Number(info.changes ?? 0);
 }
