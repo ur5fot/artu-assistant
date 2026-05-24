@@ -654,6 +654,7 @@ const chatRouter = createChatRouter({
   ollama: ollamaForRouter,
   registry,
   memoryService,
+  topicStore,
 });
 
 app.use('/api', chatRouter);

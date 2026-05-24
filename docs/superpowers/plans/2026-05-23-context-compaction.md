@@ -195,7 +195,7 @@ remain recoverable through 4A vector recall.
 
 ### Task 5: Prompt builder (replaces truncateMessages)
 
-- [ ] create `packages/server/src/routes/chat-prompt.ts` with `buildCompactedPrompt(params)`:
+- [x] create `packages/server/src/routes/chat-prompt.ts` with `buildCompactedPrompt(params)`:
   ```ts
   interface BuildParams {
     messages: Array<{ role: string; content: string; timestamp?: number; topicId?: number }>;
@@ -220,9 +220,9 @@ remain recoverable through 4A vector recall.
     [2026-05-22 17:00] Memory provider switch: <summary>
     === End topics ===
     ```
-- [ ] update [packages/server/src/routes/chat.ts:403-410](../../packages/server/src/routes/chat.ts#L403-L410) to call `buildCompactedPrompt` instead of `truncateMessages`; inject `summaryPrefix` as a synthetic system suffix that gets appended to the system prompt (NOT as a chat turn — keeps user/assistant alternation clean)
-- [ ] keep `truncateMessages` exported for now (fallback path if topicStore is null in tests) but route uses `buildCompactedPrompt`
-- [ ] write `packages/server/src/routes/__tests__/chat-prompt.test.ts`:
+- [x] update [packages/server/src/routes/chat.ts:403-410](../../packages/server/src/routes/chat.ts#L403-L410) to call `buildCompactedPrompt` instead of `truncateMessages`; inject `summaryPrefix` as a synthetic system suffix that gets appended to the system prompt (NOT as a chat turn — keeps user/assistant alternation clean)
+- [x] keep `truncateMessages` exported for now (fallback path if topicStore is null in tests) but route uses `buildCompactedPrompt`
+- [x] write `packages/server/src/routes/__tests__/chat-prompt.test.ts`:
   - empty history → empty messages, null summaryPrefix
   - history fits in budget → all messages kept, no summaries pulled
   - history exceeds recent share → oldest messages dropped, summaries fill
@@ -230,8 +230,8 @@ remain recoverable through 4A vector recall.
   - oversized last message → truncated with marker (existing behavior preserved)
   - leading orphan-assistant after trim → stripped
   - summaryPrefix format matches expected template exactly (lock the format)
-- [ ] update [packages/server/src/routes/__tests__/chat.test.ts](../../packages/server/src/routes/__tests__/chat.test.ts) (existing tests for truncate behavior) — should still pass because oversized + orphan behavior identical
-- [ ] run server tests — must pass before Task 6
+- [x] update [packages/server/src/routes/__tests__/chat.test.ts](../../packages/server/src/routes/__tests__/chat.test.ts) (existing tests for truncate behavior) — should still pass because oversized + orphan behavior identical
+- [x] run server tests — must pass before Task 6
 
 ### Task 6: Acceptance + end-to-end integration
 

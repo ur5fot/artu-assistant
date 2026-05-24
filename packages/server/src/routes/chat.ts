@@ -10,8 +10,10 @@ import type { PiiProxy } from '../pii/proxy.js';
 import type { OllamaClient } from '../ai/ollama.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { MemoryService } from '../memory/service.js';
+import type { TopicStore } from '../topics/store.js';
 import { runChatRequest } from '../ai/router.js';
 import { saveMessage } from '../db.js';
+import { buildCompactedPrompt } from './chat-prompt.js';
 import crypto from 'node:crypto';
 
 function formatTimestamp(ts: number): string {
@@ -232,9 +234,10 @@ interface ChatRouterDeps {
   ollama: OllamaClient | null;
   registry: ToolRegistry;
   memoryService: MemoryService | null;
+  topicStore?: TopicStore | null;
 }
 
-export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, pendingMemoryConfirms, piiProxy, ollama, registry, memoryService }: ChatRouterDeps): Router {
+export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews, pendingMemoryConfirms, piiProxy, ollama, registry, memoryService, topicStore }: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -402,11 +405,16 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
 
     const budgetRaw = Number(process.env.CHAT_CONTEXT_BUDGET_CHARS);
     const contextBudget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? budgetRaw : 60000;
-    const truncated = truncateMessages(messages, contextBudget);
+    const { messages: compacted, summaryPrefix } = buildCompactedPrompt({
+      messages,
+      budget: contextBudget,
+      store: topicStore ?? null,
+      now: Date.now(),
+    });
 
     try {
       await runChatRequest({
-        messages: addTimestamps(truncated),
+        messages: addTimestamps(compacted),
         signal: abortController.signal,
         pendingConfirms,
         pendingPlanReviews,
@@ -419,6 +427,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         currentUserMessageId: userMessageId ?? undefined,
         currentUserMessageTimestamp: userMessageTimestamp ?? undefined,
         forceProvider,
+        topicSummaryPrefix: summaryPrefix ?? undefined,
         runLoop,
         onEvent: (event: SSEEvent) => {
           // Accumulate assistant data for persistence
