@@ -98,6 +98,8 @@ Closing the gap between Claude Code (the harness) and R2:
     `web_search` injected for real weather lookup), publishes to Discord.
     Gap-return mode greets you back after multi-day absences with a recap.
   - `emailDigest` — registered when email watcher is enabled.
+  - `emailUrgent` — immediate Discord ping for `importance=5` emails, gated on
+    `EMAIL_URGENT_ENABLED=true` and suppressed during quiet hours.
   - `pulseHandler` — demo / placeholder.
 - **Discord channel** — DM-only, whitelist-gated. The only active channel today.
   Interactive embeds: reminder ring (dismiss / snooze 10m), permission requests
@@ -290,6 +292,9 @@ and either delivered as a digest in Discord or surfaced on demand via
 New accounts skip historical backlog on first connect — only emails arriving
 **after** the account is configured are processed. Bodies and headers are
 MIME-decoded (quoted-printable, base64, charset via `bodyStructure` dispatch).
+
+Urgent emails (`importance=5`) ping immediately when `EMAIL_URGENT_ENABLED=true`
+(suppressed during quiet hours; one ping per cognition tick).
 
 ---
 

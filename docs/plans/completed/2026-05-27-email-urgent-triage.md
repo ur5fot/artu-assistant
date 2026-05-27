@@ -85,29 +85,29 @@ Patterns to copy:
 
 ### Task 1: DB migration — add `urgent_pinged_at` to `email_pending`
 
-- [ ] in `packages/server/src/db.ts`, after the existing `CREATE TABLE IF
+- [x] in `packages/server/src/db.ts`, after the existing `CREATE TABLE IF
   NOT EXISTS email_pending`, query `PRAGMA table_info(email_pending)` and
   add `urgent_pinged_at INTEGER` only if absent (avoids try/catch on
   duplicate column)
-- [ ] add `CREATE INDEX IF NOT EXISTS idx_email_pending_urgent_unpinged
+- [x] add `CREATE INDEX IF NOT EXISTS idx_email_pending_urgent_unpinged
   ON email_pending(importance, urgent_pinged_at) WHERE urgent_pinged_at IS NULL`
-- [ ] write tests in `packages/server/src/__tests__/db.test.ts`:
+- [x] write tests in `packages/server/src/__tests__/db.test.ts`:
   - column `urgent_pinged_at` exists after `initDb` (via `PRAGMA table_info`)
   - running `initDb` twice on same file is idempotent (no error)
   - index `idx_email_pending_urgent_unpinged` exists (via `sqlite_master`)
-- [ ] run `npm -w @r2/server test -- db.test` — must pass before task 2
+- [x] run `npm -w @r2/server test -- db.test` — must pass before task 2
 
 ### Task 2: Store methods — `findUnpingedUrgent`, `markUrgentPinged`
 
-- [ ] in `packages/server/src/emails/store.ts`, extend the `EmailStore`
+- [x] in `packages/server/src/emails/store.ts`, extend the `EmailStore`
   interface with two new methods:
   - `findUnpingedUrgent(): EmailPendingRow | null` — returns the oldest
     row with `importance=5 AND urgent_pinged_at IS NULL`, ordered by
     `received_at ASC`
   - `markUrgentPinged(id: number, now: number): void` — sets
     `urgent_pinged_at = ?` for the row
-- [ ] implement both in the `createEmailStore` factory
-- [ ] write tests in `packages/server/src/emails/__tests__/store.test.ts`:
+- [x] implement both in the `createEmailStore` factory
+- [x] write tests in `packages/server/src/emails/__tests__/store.test.ts`:
   - `findUnpingedUrgent` returns `null` when no rows match
   - returns the oldest matching row when multiple exist (verify ordering)
   - skips rows with `importance < 5`
@@ -115,28 +115,28 @@ Patterns to copy:
   - `markUrgentPinged` sets the timestamp correctly
   - `markUrgentPinged` on missing id is a silent no-op (or throws clearly
     — pick one, document in code)
-- [ ] run `npm -w @r2/server test -- store.test` — must pass before task 3
+- [x] run `npm -w @r2/server test -- store.test` — must pass before task 3
 
 ### Task 3: New cognition handler — `emailUrgent`
 
-- [ ] create `packages/server/src/cognition/handlers/emailUrgent.ts`
+- [x] create `packages/server/src/cognition/handlers/emailUrgent.ts`
   exporting `createEmailUrgentHandler({ store, tz, quietStart })` → `Handler`
-- [ ] `name: 'emailUrgent'`
-- [ ] `trigger(state, ctx)`:
+- [x] `name: 'emailUrgent'`
+- [x] `trigger(state, ctx)`:
   - return `false` if `inQuietHours(new Date(ctx.firedAt), tz, quietStart)`
   - return `store.findUnpingedUrgent() !== null`
-- [ ] `run(ctx)`:
+- [x] `run(ctx)`:
   - fetch row via `store.findUnpingedUrgent()` — if null, return
     `{ skip: true, reason: 'no unpinged urgent row' }` (handles tiny race
     where row got marked between trigger and run — defensive but cheap)
   - format `content` as a single line: `"🚨 ${from}\n${subject}\n${snippet}"`
     (truncate snippet to 200 chars)
   - return `{ publish: true, content, onPublished: () => store.markUrgentPinged(row.id, Date.now()) }`
-- [ ] add observability comment block at top of file with three SQL
+- [x] add observability comment block at top of file with three SQL
   queries to be run manually during observation period (count of pinged
   rows, false-positive candidate emails ranked by importance + open
   timestamp gap, urgent-rate per day)
-- [ ] write tests in
+- [x] write tests in
   `packages/server/src/cognition/__tests__/handlers/emailUrgent.test.ts`:
   - `trigger` returns false when no unpinged urgent rows exist
   - `trigger` returns true when one exists outside quiet hours
@@ -147,11 +147,11 @@ Patterns to copy:
   - `run` truncates snippet > 200 chars with ellipsis
   - `run.onPublished` calls `markUrgentPinged` with the row id
   - second `run` after `onPublished` returns `skip` (row is now pinged)
-- [ ] run `npm -w @r2/server test -- emailUrgent.test` — must pass before task 4
+- [x] run `npm -w @r2/server test -- emailUrgent.test` — must pass before task 4
 
 ### Task 4: Wire handler into `index.ts` with feature flag
 
-- [ ] in `packages/server/src/index.ts`, near the existing `emailDigest`
+- [x] in `packages/server/src/index.ts`, near the existing `emailDigest`
   registration (~line 642), register `emailUrgent` only when:
   - `emailEnabled` is true
   - `process.env.EMAIL_URGENT_ENABLED === 'true'`
@@ -159,31 +159,31 @@ Patterns to copy:
     `DISCORD_BOT_TOKEN` presence — required because without Discord,
     `onPublished` never fires and the handler would retry the same row
     forever)
-- [ ] log `[emails] urgent handler registered` on register, log
+- [x] log `[emails] urgent handler registered` on register, log
   `[emails] urgent handler disabled (flag=$FLAG, discord=$D)` on skip,
   for clarity on boot
-- [ ] in `.env.example`, add commented entry:
+- [x] in `.env.example`, add commented entry:
   `# EMAIL_URGENT_ENABLED=true  # immediate Discord ping for importance=5 emails`
-- [ ] write integration test in
+- [x] write integration test in
   `packages/server/src/__tests__/cognition-wiring.test.ts` (new file):
   - boot a minimal cognition service with the urgent handler registered
   - seed DB with one row at `importance=5, urgent_pinged_at=NULL`
   - fire one cognition tick (synchronous via `dispatcher.tick()` or similar)
   - verify a `cognition_publish` event was emitted on the bus
   - verify the row's `urgent_pinged_at` is now set
-- [ ] run `npm -w @r2/server test -- cognition-wiring` — must pass before task 5
+- [x] run `npm -w @r2/server test -- cognition-wiring` — must pass before task 5
 
 ### Task 5: Acceptance + docs
 
-- [ ] run full server test suite (`npm -w @r2/server test`) — all green
-- [ ] run TypeScript build (`npm -w @r2/server run build`) — no errors
-- [ ] verify backward compatibility: existing `emailDigest` tests still
+- [x] run full server test suite (`npm -w @r2/server test`) — all green
+- [x] run TypeScript build (`npm -w @r2/server run build`) — no errors
+- [x] verify backward compatibility: existing `emailDigest` tests still
   pass; existing `email_pending` rows without `urgent_pinged_at` still
   work (default NULL, handler treats them as eligible if importance=5 —
   this is intentional, see "Backfill semantics" below)
-- [ ] update `AGENTS.md` cognition layer section with a one-line entry on
+- [x] update `AGENTS.md` cognition layer section with a one-line entry on
   `emailUrgent` (mirroring the `emailDigest` description style)
-- [ ] update `README.md` "Email watcher" section with a one-line note:
+- [x] update `README.md` "Email watcher" section with a one-line note:
   "Urgent emails (importance=5) ping immediately when `EMAIL_URGENT_ENABLED=true`"
 
 ## Technical Details

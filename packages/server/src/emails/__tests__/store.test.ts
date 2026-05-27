@@ -101,4 +101,140 @@ describe('createEmailStore', () => {
     expect(store.findByPendingId(id)?.message_uid).toBe(5);
     expect(store.findByPendingId(9999)).toBeNull();
   });
+
+  it('findUnpingedUrgent returns null when no rows match', () => {
+    const store = createEmailStore({ db: getDb() });
+    expect(store.findUnpingedUrgent()).toBeNull();
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 4, received_at: 1000, added_at: 1000,
+    });
+    expect(store.findUnpingedUrgent()).toBeNull();
+  });
+
+  it('findUnpingedUrgent returns the oldest matching row when multiple exist', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 'newer',
+      snippet: 'x', importance: 5, received_at: 3000, added_at: 3000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: 'x', subject: 'oldest',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 3, from_addr: 'x', subject: 'mid',
+      snippet: 'x', importance: 5, received_at: 2000, added_at: 2000,
+    });
+    const row = store.findUnpingedUrgent();
+    expect(row?.subject).toBe('oldest');
+    expect(row?.message_uid).toBe(2);
+  });
+
+  it('findUnpingedUrgent skips rows with importance < 5', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 'four',
+      snippet: 'x', importance: 4, received_at: 1000, added_at: 1000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: 'x', subject: 'five',
+      snippet: 'x', importance: 5, received_at: 2000, added_at: 2000,
+    });
+    expect(store.findUnpingedUrgent()?.message_uid).toBe(2);
+  });
+
+  it('findUnpingedUrgent skips rows already pinged', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 'pinged',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: 'x', subject: 'fresh',
+      snippet: 'x', importance: 5, received_at: 2000, added_at: 2000,
+    });
+    const first = store.findUnpingedUrgent();
+    expect(first?.message_uid).toBe(1);
+    store.markUrgentPinged(first!.id, 5000);
+    const next = store.findUnpingedUrgent();
+    expect(next?.message_uid).toBe(2);
+    store.markUrgentPinged(next!.id, 6000);
+    expect(store.findUnpingedUrgent()).toBeNull();
+  });
+
+  it('markUrgentPinged sets the timestamp', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    const row = store.findUnpingedUrgent();
+    expect(row?.urgent_pinged_at).toBeNull();
+    store.markUrgentPinged(row!.id, 12345);
+    const after = store.findByPendingId(row!.id);
+    expect(after?.urgent_pinged_at).toBe(12345);
+  });
+
+  it('markUrgentPinged on missing id is a silent no-op and does not touch other rows', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    const seeded = store.findUnpingedUrgent();
+    expect(seeded?.urgent_pinged_at).toBeNull();
+    expect(() => store.markUrgentPinged(9999, 1000)).not.toThrow();
+    // Guards against a regression that broadens the WHERE clause and stamps
+    // unrelated rows when the id is missing.
+    const after = store.findByPendingId(seeded!.id);
+    expect(after?.urgent_pinged_at).toBeNull();
+  });
+
+  it('countPendingUndelivered excludes rows already surfaced via urgent ping', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 4, received_at: 2000, added_at: 2000,
+    });
+    expect(store.countPendingUndelivered()).toBe(2);
+    const urgent = store.findUnpingedUrgent();
+    store.markUrgentPinged(urgent!.id, 3000);
+    // Urgent-pinged row was surfaced to the user already, so it must not
+    // keep inflating the digest count.
+    expect(store.countPendingUndelivered()).toBe(1);
+  });
+
+  it('fetchPendingUndelivered excludes rows already surfaced via urgent ping', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 'urgent',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: 'x', subject: 'normal',
+      snippet: 'x', importance: 4, received_at: 2000, added_at: 2000,
+    });
+    const urgent = store.findUnpingedUrgent();
+    store.markUrgentPinged(urgent!.id, 3000);
+    const rows = store.fetchPendingUndelivered(50);
+    expect(rows.map((r) => r.message_uid)).toEqual([2]);
+  });
+
+  it('findUnpingedUrgent excludes rows already delivered via digest', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    const row = store.fetchPendingUndelivered(50)[0];
+    store.markDelivered([row.id], 2000);
+    // Email was already surfaced to the user via the digest path; urgent
+    // handler must not re-surface it as a separate ping.
+    expect(store.findUnpingedUrgent()).toBeNull();
+  });
 });
