@@ -99,15 +99,15 @@ Patterns to copy:
 
 ### Task 2: Store methods — `findUnpingedUrgent`, `markUrgentPinged`
 
-- [ ] in `packages/server/src/emails/store.ts`, extend the `EmailStore`
+- [x] in `packages/server/src/emails/store.ts`, extend the `EmailStore`
   interface with two new methods:
   - `findUnpingedUrgent(): EmailPendingRow | null` — returns the oldest
     row with `importance=5 AND urgent_pinged_at IS NULL`, ordered by
     `received_at ASC`
   - `markUrgentPinged(id: number, now: number): void` — sets
     `urgent_pinged_at = ?` for the row
-- [ ] implement both in the `createEmailStore` factory
-- [ ] write tests in `packages/server/src/emails/__tests__/store.test.ts`:
+- [x] implement both in the `createEmailStore` factory
+- [x] write tests in `packages/server/src/emails/__tests__/store.test.ts`:
   - `findUnpingedUrgent` returns `null` when no rows match
   - returns the oldest matching row when multiple exist (verify ordering)
   - skips rows with `importance < 5`
@@ -115,7 +115,7 @@ Patterns to copy:
   - `markUrgentPinged` sets the timestamp correctly
   - `markUrgentPinged` on missing id is a silent no-op (or throws clearly
     — pick one, document in code)
-- [ ] run `npm -w @r2/server test -- store.test` — must pass before task 3
+- [x] run `npm -w @r2/server test -- store.test` — must pass before task 3
 
 ### Task 3: New cognition handler — `emailUrgent`
 

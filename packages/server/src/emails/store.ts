@@ -8,12 +8,14 @@ export interface EmailStore {
   setAccountError(accountId: string, message: string, now: number): void;
   getAccountError(accountId: string): { message: string; at: number } | null;
 
-  insertPending(row: Omit<EmailPendingRow, 'id' | 'delivered_at'>): void;
+  insertPending(row: Omit<EmailPendingRow, 'id' | 'delivered_at' | 'urgent_pinged_at'>): void;
   countPendingUndelivered(): number;
   fetchPendingUndelivered(limit: number): EmailPendingRow[];
   fetchInWindow(sinceHours: number, limit: number, now: number): EmailPendingRow[];
   markDelivered(ids: number[], now: number): void;
   findByPendingId(id: number): EmailPendingRow | null;
+  findUnpingedUrgent(): EmailPendingRow | null;
+  markUrgentPinged(id: number, now: number): void;
 }
 
 export function createEmailStore(deps: { db: Database.Database }): EmailStore {
@@ -101,6 +103,21 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
     findByPendingId(id) {
       const row = db.prepare('SELECT * FROM email_pending WHERE id = ?').get(id) as EmailPendingRow | undefined;
       return row ?? null;
+    },
+    findUnpingedUrgent() {
+      const row = db.prepare(`
+        SELECT * FROM email_pending
+        WHERE importance = 5 AND urgent_pinged_at IS NULL
+        ORDER BY received_at ASC
+        LIMIT 1
+      `).get() as EmailPendingRow | undefined;
+      return row ?? null;
+    },
+    // Silent no-op on missing id: the emailUrgent handler races with itself
+    // across ticks (trigger sees row, run re-fetches, another tick already
+    // marked it), and bumping an absent id is harmless. No throw.
+    markUrgentPinged(id, now) {
+      db.prepare('UPDATE email_pending SET urgent_pinged_at = ? WHERE id = ?').run(now, id);
     },
   };
 }
