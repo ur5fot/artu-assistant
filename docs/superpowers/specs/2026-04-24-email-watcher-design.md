@@ -85,7 +85,7 @@ ENV variable `IMAP_ACCOUNTS` — JSON array:
 
 ```json
 [
-  {"id":"gmail-main","host":"imap.gmail.com","port":993,"user":"ur5fot@gmail.com","password":"APP_PASS","tls":true},
+  {"id":"gmail-main","host":"imap.gmail.com","port":993,"user":"you@gmail.com","password":"APP_PASS","tls":true},
   {"id":"gmail-work","host":"imap.gmail.com","port":993,"user":"work@gmail.com","password":"APP_PASS2","tls":true},
   {"id":"icloud","host":"imap.mail.me.com","port":993,"user":"user@icloud.com","password":"APP_PASS3","tls":true}
 ]
