@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { initDb, getDb } from '../../../db.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { initDb, closeDb, getDb } from '../../../db.js';
 import { createEmailStore } from '../../../emails/store.js';
 import { createEmailUrgentHandler } from '../../handlers/emailUrgent.js';
 
 beforeEach(() => initDb(':memory:'));
+afterEach(() => closeDb());
 
 function mkCtx(firedAt: number) {
   return { db: getDb(), firedAt, signal: new AbortController().signal };
@@ -105,8 +106,63 @@ describe('createEmailUrgentHandler.run', () => {
     if ('publish' in res && res.publish) {
       const lines = res.content.split('\n');
       const snippetLine = lines[2];
-      expect(snippetLine.length).toBeLessThanOrEqual(200);
+      expect(snippetLine.length).toBe(200);
       expect(snippetLine.endsWith('…')).toBe(true);
+    }
+  });
+
+  it('passes a snippet of exactly 200 chars through verbatim (no ellipsis)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, tz: TZ, quietStart: 22 });
+    const exactlyMax = 'a'.repeat(200);
+    mkPending({
+      uid: 1, importance: 5, received_at: 1000,
+      from: 'x@y.com', subject: 's', snippet: exactlyMax,
+    });
+    const res = await h.run(mkCtx(Date.now()));
+    expect('publish' in res && res.publish).toBe(true);
+    if ('publish' in res && res.publish) {
+      const snippetLine = res.content.split('\n')[2];
+      expect(snippetLine).toBe(exactlyMax);
+      expect(snippetLine.endsWith('…')).toBe(false);
+    }
+  });
+
+  it('truncates a 201-char snippet to exactly 200 chars (199 + ellipsis)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, tz: TZ, quietStart: 22 });
+    const overMax = 'a'.repeat(201);
+    mkPending({
+      uid: 1, importance: 5, received_at: 1000,
+      from: 'x@y.com', subject: 's', snippet: overMax,
+    });
+    const res = await h.run(mkCtx(Date.now()));
+    expect('publish' in res && res.publish).toBe(true);
+    if ('publish' in res && res.publish) {
+      const snippetLine = res.content.split('\n')[2];
+      expect(snippetLine.length).toBe(200);
+      expect(snippetLine).toBe('a'.repeat(199) + '…');
+    }
+  });
+
+  it('normalizes whitespace in subject and snippet (collapses newlines/tabs)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, tz: TZ, quietStart: 22 });
+    mkPending({
+      uid: 1, importance: 5, received_at: 1000,
+      from: 'x@y.com',
+      subject: 'line1\nline2\t  end',
+      snippet: '  one\n\ntwo\rthree  ',
+    });
+    const res = await h.run(mkCtx(Date.now()));
+    expect('publish' in res && res.publish).toBe(true);
+    if ('publish' in res && res.publish) {
+      // Three-line layout must remain intact even when source fields contain
+      // raw control whitespace.
+      const lines = res.content.split('\n');
+      expect(lines.length).toBe(3);
+      expect(lines[1]).toBe('line1 line2 end');
+      expect(lines[2]).toBe('one two three');
     }
   });
 

@@ -43,10 +43,14 @@ export function createEmailUrgentHandler(deps: Deps): Handler {
       // the trigger check and now.
       const row = deps.store.findUnpingedUrgent();
       if (row === null) return { skip: true, reason: 'no unpinged urgent row' };
-      const snippet = row.snippet ?? '';
+      // Collapse internal whitespace and trim — IMAP-decoded subjects and
+      // snippets can contain raw \n / \r / \t that would break the expected
+      // 3-line Discord layout.
+      const subject = (row.subject ?? '').replace(/\s+/g, ' ').trim();
+      const snippet = (row.snippet ?? '').replace(/\s+/g, ' ').trim();
       const truncated =
         snippet.length > SNIPPET_MAX ? snippet.slice(0, SNIPPET_MAX - 1) + '…' : snippet;
-      const content = `🚨 ${row.from_addr}\n${row.subject}\n${truncated}`;
+      const content = `🚨 ${row.from_addr}\n${subject}\n${truncated}`;
       return {
         publish: true,
         content,

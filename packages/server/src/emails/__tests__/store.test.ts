@@ -176,8 +176,18 @@ describe('createEmailStore', () => {
     expect(after?.urgent_pinged_at).toBe(12345);
   });
 
-  it('markUrgentPinged on missing id is a silent no-op', () => {
+  it('markUrgentPinged on missing id is a silent no-op and does not touch other rows', () => {
     const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    const seeded = store.findUnpingedUrgent();
+    expect(seeded?.urgent_pinged_at).toBeNull();
     expect(() => store.markUrgentPinged(9999, 1000)).not.toThrow();
+    // Guards against a regression that broadens the WHERE clause and stamps
+    // unrelated rows when the id is missing.
+    const after = store.findByPendingId(seeded!.id);
+    expect(after?.urgent_pinged_at).toBeNull();
   });
 });

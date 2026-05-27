@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { initDb, getDb } from '../db.js';
+import { initDb, closeDb, getDb } from '../db.js';
 import { createCognitionStore } from '../cognition/store.js';
 import { createHandlerRegistry } from '../cognition/registry.js';
 import { createJobQueue } from '../cognition/queue.js';
@@ -9,6 +9,7 @@ import { createEmailStore } from '../emails/store.js';
 import { createEmailUrgentHandler } from '../cognition/handlers/emailUrgent.js';
 
 beforeEach(() => initDb(':memory:'));
+afterEach(() => closeDb());
 
 const TZ = 'Europe/Kyiv';
 // 12:00 Kyiv (UTC+3) — outside the default 22:00 quiet window.
@@ -24,7 +25,7 @@ describe('emailUrgent cognition wiring', () => {
     const store = createCognitionStore({ db });
     const registry = createHandlerRegistry();
     const bus = new EventEmitter();
-    const events: any[] = [];
+    const events: Array<{ type: string; runId?: number; handler?: string; content?: string }> = [];
     bus.on('push', (e) => events.push(e));
     const queue = createJobQueue({ registry, store, bus });
     const dispatcher = createDispatcher({ registry, queue, store, db });
@@ -44,8 +45,9 @@ describe('emailUrgent cognition wiring', () => {
     await dispatcher.runTick(NOON_KYIV);
     await flush();
 
-    const ev = events.find((e) => e.type === 'cognition_publish');
-    expect(ev).toBeDefined();
+    const publishes = events.filter((e) => e.type === 'cognition_publish');
+    expect(publishes.length).toBe(1);
+    const ev = publishes[0];
     expect(ev.handler).toBe('emailUrgent');
     expect(typeof ev.runId).toBe('number');
     expect(ev.content).toContain('boss@acme.com');
@@ -58,7 +60,7 @@ describe('emailUrgent cognition wiring', () => {
       .get() as { urgent_pinged_at: number | null };
     expect(before.urgent_pinged_at).toBeNull();
 
-    queue.firePublished(ev.runId);
+    queue.firePublished(ev.runId!);
     await flush();
 
     const after = db
@@ -75,7 +77,7 @@ describe('emailUrgent cognition wiring', () => {
     const store = createCognitionStore({ db });
     const registry = createHandlerRegistry();
     const bus = new EventEmitter();
-    const events: any[] = [];
+    const events: Array<{ type: string; runId?: number; handler?: string; content?: string }> = [];
     bus.on('push', (e) => events.push(e));
     const queue = createJobQueue({ registry, store, bus });
     const dispatcher = createDispatcher({ registry, queue, store, db });

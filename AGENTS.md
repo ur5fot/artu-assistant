@@ -538,6 +538,7 @@ EMAIL_POLL_INTERVAL_MS=300000      # IMAP poll interval per account, ms (min 1 s
 EMAIL_DIGEST_THRESHOLD=3           # pending undelivered count required to fire digest
 EMAIL_DIGEST_COOLDOWN_MS=7200000   # min gap between digest publishes (applies only after a successful publish)
 EMAIL_QUIET_HOUR_START=22          # local hour when evening quiet starts (0-23); morning release is tied to morning-brief publish, 09:00 fallback after 7d silence
+EMAIL_URGENT_ENABLED=false         # opt-in: immediate Discord ping for importance=5 emails (also requires Discord bot live; suppressed during quiet hours)
 ```
 
 ## Discord Bot (DM channel)
