@@ -151,7 +151,7 @@ Patterns to copy:
 
 ### Task 4: Wire handler into `index.ts` with feature flag
 
-- [ ] in `packages/server/src/index.ts`, near the existing `emailDigest`
+- [x] in `packages/server/src/index.ts`, near the existing `emailDigest`
   registration (~line 642), register `emailUrgent` only when:
   - `emailEnabled` is true
   - `process.env.EMAIL_URGENT_ENABLED === 'true'`
@@ -159,19 +159,19 @@ Patterns to copy:
     `DISCORD_BOT_TOKEN` presence — required because without Discord,
     `onPublished` never fires and the handler would retry the same row
     forever)
-- [ ] log `[emails] urgent handler registered` on register, log
+- [x] log `[emails] urgent handler registered` on register, log
   `[emails] urgent handler disabled (flag=$FLAG, discord=$D)` on skip,
   for clarity on boot
-- [ ] in `.env.example`, add commented entry:
+- [x] in `.env.example`, add commented entry:
   `# EMAIL_URGENT_ENABLED=true  # immediate Discord ping for importance=5 emails`
-- [ ] write integration test in
+- [x] write integration test in
   `packages/server/src/__tests__/cognition-wiring.test.ts` (new file):
   - boot a minimal cognition service with the urgent handler registered
   - seed DB with one row at `importance=5, urgent_pinged_at=NULL`
   - fire one cognition tick (synchronous via `dispatcher.tick()` or similar)
   - verify a `cognition_publish` event was emitted on the bus
   - verify the row's `urgent_pinged_at` is now set
-- [ ] run `npm -w @r2/server test -- cognition-wiring` — must pass before task 5
+- [x] run `npm -w @r2/server test -- cognition-wiring` — must pass before task 5
 
 ### Task 5: Acceptance + docs
 
