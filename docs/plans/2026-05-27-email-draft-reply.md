@@ -117,8 +117,8 @@ Dependencies:
 
 ### Task 1: SMTP client module (`smtp-client.ts`)
 
-- [ ] add `nodemailer` + `@types/nodemailer` to `packages/server/package.json`
-- [ ] create `packages/server/src/emails/smtp-client.ts` exporting
+- [x] add `nodemailer` + `@types/nodemailer` to `packages/server/package.json`
+- [x] create `packages/server/src/emails/smtp-client.ts` exporting
   `sendReply(params)` where params: `{account: ImapAccount, to: string,
   subject: string, body: string, inReplyTo: string | null, references:
   string[]}`. Uses `nodemailer.createTransport({host, port: 465, secure:
@@ -126,9 +126,9 @@ Dependencies:
   uses same app password). Sends with `From: account.user`, proper
   `Subject` (auto-prepend "Re: " if not present), `In-Reply-To` and
   `References` headers (CRLF-separated, max ~10 last refs per RFC 5322).
-- [ ] inject `transport` factory for testability (default
+- [x] inject `transport` factory for testability (default
   `nodemailer.createTransport`, can be swapped in tests).
-- [ ] write tests in `packages/server/src/emails/__tests__/smtp-client.test.ts`:
+- [x] write tests in `packages/server/src/emails/__tests__/smtp-client.test.ts`:
   - sendMail called with expected `from`, `to`, `subject` (Re: prepend
     when absent, kept when present)
   - `In-Reply-To` header set when provided; absent when null
@@ -136,7 +136,7 @@ Dependencies:
   - returns delivery info on success
   - throws (and bubbles) on `sendMail` rejection (don't swallow — caller
     handles)
-- [ ] run `npm -w @r2/server test -- smtp-client.test` — must pass before task 2
+- [x] run `npm -w @r2/server test -- smtp-client.test` — must pass before task 2
 
 ### Task 2: IMAP thread fetcher (`thread-fetcher.ts`)
 
