@@ -61,6 +61,28 @@ describe('createEmailUrgentHandler.trigger', () => {
     const fire = await h.trigger({ now, lastFiredAt: null, lastResult: null }, { db: getDb() });
     expect(fire).toBe(false);
   });
+
+  it('returns false at 03:00 local — overnight quiet runs until morning release', async () => {
+    // Without an explicit morning gate the handler would fire at 02:00/03:00
+    // and ping the user mid-sleep. Plan promised "suppressed during quiet
+    // hours" and "night catch-up", so the overnight window has to hold
+    // through MORNING_FALLBACK_HOUR.
+    const store = createEmailStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, tz: TZ, quietStart: 22 });
+    mkPending({ uid: 1, importance: 5, received_at: 1000 });
+    const now = Date.UTC(2026, 3, 24, 3 - 3); // 03:00 Kyiv
+    const fire = await h.trigger({ now, lastFiredAt: null, lastResult: null }, { db: getDb() });
+    expect(fire).toBe(false);
+  });
+
+  it('returns true at 09:00 local — morning release, catch-up begins', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, tz: TZ, quietStart: 22 });
+    mkPending({ uid: 1, importance: 5, received_at: 1000 });
+    const now = Date.UTC(2026, 3, 24, 9 - 3); // 09:00 Kyiv
+    const fire = await h.trigger({ now, lastFiredAt: null, lastResult: null }, { db: getDb() });
+    expect(fire).toBe(true);
+  });
 });
 
 describe('createEmailUrgentHandler.run', () => {

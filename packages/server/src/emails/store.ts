@@ -70,15 +70,20 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
       );
     },
     countPendingUndelivered() {
+      // Exclude urgent-pinged rows: they were already surfaced to the user
+      // via the urgent channel, so they shouldn't keep inflating the digest
+      // threshold or get re-shown in the next batch.
       const row = db
-        .prepare('SELECT COUNT(*) AS c FROM email_pending WHERE delivered_at IS NULL')
+        .prepare(
+          'SELECT COUNT(*) AS c FROM email_pending WHERE delivered_at IS NULL AND urgent_pinged_at IS NULL',
+        )
         .get() as { c: number };
       return row.c;
     },
     fetchPendingUndelivered(limit) {
       return db.prepare(`
         SELECT * FROM email_pending
-        WHERE delivered_at IS NULL
+        WHERE delivered_at IS NULL AND urgent_pinged_at IS NULL
         ORDER BY importance DESC, received_at DESC
         LIMIT ?
       `).all(limit) as EmailPendingRow[];
@@ -105,9 +110,12 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
       return row ?? null;
     },
     findUnpingedUrgent() {
+      // Also exclude rows already delivered via the digest. Otherwise a
+      // backlog importance=5 email that was first surfaced in the digest
+      // would get re-surfaced as a separate urgent ping on the next tick.
       const row = db.prepare(`
         SELECT * FROM email_pending
-        WHERE importance = 5 AND urgent_pinged_at IS NULL
+        WHERE importance = 5 AND urgent_pinged_at IS NULL AND delivered_at IS NULL
         ORDER BY received_at ASC
         LIMIT 1
       `).get() as EmailPendingRow | undefined;

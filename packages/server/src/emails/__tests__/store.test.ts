@@ -190,4 +190,51 @@ describe('createEmailStore', () => {
     const after = store.findByPendingId(seeded!.id);
     expect(after?.urgent_pinged_at).toBeNull();
   });
+
+  it('countPendingUndelivered excludes rows already surfaced via urgent ping', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 4, received_at: 2000, added_at: 2000,
+    });
+    expect(store.countPendingUndelivered()).toBe(2);
+    const urgent = store.findUnpingedUrgent();
+    store.markUrgentPinged(urgent!.id, 3000);
+    // Urgent-pinged row was surfaced to the user already, so it must not
+    // keep inflating the digest count.
+    expect(store.countPendingUndelivered()).toBe(1);
+  });
+
+  it('fetchPendingUndelivered excludes rows already surfaced via urgent ping', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 'urgent',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: 'x', subject: 'normal',
+      snippet: 'x', importance: 4, received_at: 2000, added_at: 2000,
+    });
+    const urgent = store.findUnpingedUrgent();
+    store.markUrgentPinged(urgent!.id, 3000);
+    const rows = store.fetchPendingUndelivered(50);
+    expect(rows.map((r) => r.message_uid)).toEqual([2]);
+  });
+
+  it('findUnpingedUrgent excludes rows already delivered via digest', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    const row = store.fetchPendingUndelivered(50)[0];
+    store.markDelivered([row.id], 2000);
+    // Email was already surfaced to the user via the digest path; urgent
+    // handler must not re-surface it as a separate ping.
+    expect(store.findUnpingedUrgent()).toBeNull();
+  });
 });

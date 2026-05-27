@@ -43,6 +43,25 @@ describe('inQuietHours', () => {
     const now = epochAtKyiv(2026, 4, 24, 22);
     expect(inQuietHours(now, 22, TZ)).toBe(true);
   });
+
+  it('with morningEnd: returns true between midnight and morningEnd', () => {
+    // Used by emailUrgent — it has no morning-brief gate, so it has to treat
+    // 00:00..morningEnd as quiet on its own.
+    const at3 = epochAtKyiv(2026, 4, 24, 3);
+    expect(inQuietHours(at3, 22, TZ, 9)).toBe(true);
+    const at8 = epochAtKyiv(2026, 4, 24, 8);
+    expect(inQuietHours(at8, 22, TZ, 9)).toBe(true);
+  });
+
+  it('with morningEnd: returns false at morningEnd exactly (release)', () => {
+    const at9 = epochAtKyiv(2026, 4, 24, 9);
+    expect(inQuietHours(at9, 22, TZ, 9)).toBe(false);
+  });
+
+  it('with morningEnd: still returns true in the evening window', () => {
+    const at23 = epochAtKyiv(2026, 4, 24, 23);
+    expect(inQuietHours(at23, 22, TZ, 9)).toBe(true);
+  });
 });
 
 describe('morningBriefPublishedToday', () => {

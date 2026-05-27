@@ -1,6 +1,6 @@
 import type { Handler } from '../types.js';
 import type { EmailStore } from '../../emails/store.js';
-import { inQuietHours } from './emailDigest.helpers.js';
+import { inQuietHours, MORNING_FALLBACK_HOUR } from './emailDigest.helpers.js';
 
 // Observability — manual review queries (run via sqlite3 on r2.db):
 //
@@ -34,7 +34,10 @@ export function createEmailUrgentHandler(deps: Deps): Handler {
   return {
     name: 'emailUrgent',
     async trigger(state) {
-      if (inQuietHours(state.now, deps.quietStart, deps.tz)) return false;
+      // Pass MORNING_FALLBACK_HOUR so the overnight window holds through
+      // morning release. Without this the handler would ping at 02:00 —
+      // inQuietHours alone only suppresses quietStart..23:59.
+      if (inQuietHours(state.now, deps.quietStart, deps.tz, MORNING_FALLBACK_HOUR)) return false;
       return deps.store.findUnpingedUrgent() !== null;
     },
     async run() {

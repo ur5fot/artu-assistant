@@ -34,12 +34,22 @@ function sameLocalDay(a: number, b: number, tz: string): boolean {
   return pa.year === pb.year && pa.month === pb.month && pa.day === pb.day;
 }
 
-export function inQuietHours(now: number, quietStart: number, tz: string): boolean {
-  // Only the evening quiet-window is enforced here. The morning "hold" is
-  // handled by morningBriefPublishedToday — once the brief goes out, the
-  // digest is free to fire.
+export function inQuietHours(
+  now: number,
+  quietStart: number,
+  tz: string,
+  morningEnd?: number,
+): boolean {
+  // Without morningEnd: evening-only quiet window (emailDigest case — the
+  // morning hold is handled by morningBriefPublishedToday once the brief
+  // goes out).
+  // With morningEnd: also treat 00:00..morningEnd as quiet. emailUrgent has
+  // no morning-brief gate, so it has to hold through the overnight window
+  // itself or it would ping at 02:00.
   const { hour } = localParts(now, tz);
-  return hour >= quietStart;
+  if (hour >= quietStart) return true;
+  if (morningEnd !== undefined && hour < morningEnd) return true;
+  return false;
 }
 
 export function morningBriefPublishedToday(db: Database.Database, now: number, tz: string): boolean {
