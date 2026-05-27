@@ -119,24 +119,24 @@ Patterns to copy:
 
 ### Task 3: New cognition handler — `emailUrgent`
 
-- [ ] create `packages/server/src/cognition/handlers/emailUrgent.ts`
+- [x] create `packages/server/src/cognition/handlers/emailUrgent.ts`
   exporting `createEmailUrgentHandler({ store, tz, quietStart })` → `Handler`
-- [ ] `name: 'emailUrgent'`
-- [ ] `trigger(state, ctx)`:
+- [x] `name: 'emailUrgent'`
+- [x] `trigger(state, ctx)`:
   - return `false` if `inQuietHours(new Date(ctx.firedAt), tz, quietStart)`
   - return `store.findUnpingedUrgent() !== null`
-- [ ] `run(ctx)`:
+- [x] `run(ctx)`:
   - fetch row via `store.findUnpingedUrgent()` — if null, return
     `{ skip: true, reason: 'no unpinged urgent row' }` (handles tiny race
     where row got marked between trigger and run — defensive but cheap)
   - format `content` as a single line: `"🚨 ${from}\n${subject}\n${snippet}"`
     (truncate snippet to 200 chars)
   - return `{ publish: true, content, onPublished: () => store.markUrgentPinged(row.id, Date.now()) }`
-- [ ] add observability comment block at top of file with three SQL
+- [x] add observability comment block at top of file with three SQL
   queries to be run manually during observation period (count of pinged
   rows, false-positive candidate emails ranked by importance + open
   timestamp gap, urgent-rate per day)
-- [ ] write tests in
+- [x] write tests in
   `packages/server/src/cognition/__tests__/handlers/emailUrgent.test.ts`:
   - `trigger` returns false when no unpinged urgent rows exist
   - `trigger` returns true when one exists outside quiet hours
@@ -147,7 +147,7 @@ Patterns to copy:
   - `run` truncates snippet > 200 chars with ellipsis
   - `run.onPublished` calls `markUrgentPinged` with the row id
   - second `run` after `onPublished` returns `skip` (row is now pinged)
-- [ ] run `npm -w @r2/server test -- emailUrgent.test` — must pass before task 4
+- [x] run `npm -w @r2/server test -- emailUrgent.test` — must pass before task 4
 
 ### Task 4: Wire handler into `index.ts` with feature flag
 
