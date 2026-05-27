@@ -1,12 +1,49 @@
 import type Database from 'better-sqlite3';
 
+// Plain-data shapes for rich messages — kept free of discord.js so handlers
+// in the cognition layer can describe embeds/buttons without coupling to the
+// channel implementation. bot.ts converts these to ActionRowBuilder /
+// EmbedBuilder at the boundary.
+export type ButtonStyle = 'primary' | 'secondary' | 'success' | 'danger';
+
+export interface ButtonData {
+  customId: string;
+  label: string;
+  style: ButtonStyle;
+  emoji?: string;
+}
+
+export interface ComponentData {
+  type: 'row';
+  buttons: ButtonData[];
+}
+
+export interface EmbedFieldData {
+  name: string;
+  value: string;
+  inline?: boolean;
+}
+
+export interface EmbedData {
+  title?: string;
+  description?: string;
+  fields?: EmbedFieldData[];
+  footer?: string;
+}
+
 // `onPublished` fires after the publish channel (Discord DM today) confirms a
 // successful send — use it for state transitions that must not happen when the
 // push fails silently (e.g., marking email_pending rows delivered only after
 // the user actually received the digest, so a Discord outage does not drop
 // those rows from the next digest run).
 export type HandlerResult =
-  | { publish: true; content: string; onPublished?: () => void | Promise<void> }
+  | {
+      publish: true;
+      content: string;
+      embed?: EmbedData;
+      components?: ComponentData[];
+      onPublished?: () => void | Promise<void>;
+    }
   | { skip: true; reason: string }
   | { error: true; message: string };
 

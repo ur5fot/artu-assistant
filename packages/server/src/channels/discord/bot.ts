@@ -1,11 +1,16 @@
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   Client,
+  EmbedBuilder,
   GatewayIntentBits,
   Partials,
   ChannelType,
   type Message,
   type DMChannel,
 } from 'discord.js';
+import type { ComponentData, EmbedData } from '../../cognition/types.js';
 import crypto from 'node:crypto';
 import type { SSEEvent, ServerPushEvent } from '@r2/shared';
 import type { EventEmitter } from 'node:events';
@@ -117,6 +122,43 @@ function summarizeArgs(input: Record<string, unknown>): string {
     total += line.length + 1;
   }
   return pairs.join('\n');
+}
+
+const BUTTON_STYLE_MAP = {
+  primary: ButtonStyle.Primary,
+  secondary: ButtonStyle.Secondary,
+  success: ButtonStyle.Success,
+  danger: ButtonStyle.Danger,
+} as const;
+
+function buildEmbedFromData(data: EmbedData): EmbedBuilder {
+  const eb = new EmbedBuilder();
+  if (data.title) eb.setTitle(data.title);
+  if (data.description) eb.setDescription(data.description);
+  if (data.fields && data.fields.length > 0) {
+    eb.addFields(
+      data.fields.map((f) => ({ name: f.name, value: f.value, inline: f.inline ?? false })),
+    );
+  }
+  if (data.footer) eb.setFooter({ text: data.footer });
+  return eb;
+}
+
+function buildComponentsFromData(
+  data: ComponentData[],
+): ActionRowBuilder<ButtonBuilder>[] {
+  return data.map((row) => {
+    const builder = new ActionRowBuilder<ButtonBuilder>();
+    for (const b of row.buttons) {
+      const btn = new ButtonBuilder()
+        .setCustomId(b.customId)
+        .setLabel(b.label)
+        .setStyle(BUTTON_STYLE_MAP[b.style]);
+      if (b.emoji) btn.setEmoji(b.emoji);
+      builder.addComponents(btn);
+    }
+    return builder;
+  });
 }
 
 export async function sendReply(channel: DMChannel, text: string): Promise<void> {
@@ -1030,11 +1072,25 @@ export async function startDiscordBot(
       // published_at N times and could falsely mark a run as published even
       // when earlier recipients' sends failed.
       let marked = false;
+      const hasEmbed = event.embed && typeof event.embed === 'object';
       const body = `💭 _from ${event.handler}_\n${event.content}`;
       for (const userId of deps.whitelist) {
         client.users.fetch(userId)
           .then((u) => u.createDM())
-          .then((dm) => sendReply(dm as unknown as DMChannel, body))
+          .then(async (dm) => {
+            if (hasEmbed) {
+              const embed = buildEmbedFromData(event.embed as EmbedData);
+              const components = event.components
+                ? buildComponentsFromData(event.components as ComponentData[])
+                : [];
+              await (dm as unknown as DMChannel).send({
+                embeds: [embed],
+                components,
+              });
+              return;
+            }
+            await sendReply(dm as unknown as DMChannel, body);
+          })
           .then(() => {
             if (marked) return;
             // Attempt DB write first; only set `marked` if it actually

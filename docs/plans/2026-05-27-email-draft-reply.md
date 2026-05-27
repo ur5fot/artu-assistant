@@ -169,28 +169,28 @@ Dependencies:
 
 ### Task 3: HandlerResult extension + emailUrgent returns embed + bot dispatches
 
-- [ ] in `packages/server/src/cognition/types.ts`, extend the
+- [x] in `packages/server/src/cognition/types.ts`, extend the
   `publish: true` branch of `HandlerResult` with optional fields:
   `embed?: EmbedData` (plain object shape, not the builder, to keep
   cognition layer free of discord.js — bot.ts builds the actual
   `EmbedBuilder` from this data), `components?: ComponentData[]` where
   `ComponentData = {type: 'row', buttons: ButtonData[]}`. ButtonData =
   `{customId: string, label: string, style: 'primary'|'secondary'|'danger'|'success', emoji?: string}`.
-- [ ] in `packages/server/src/channels/discord/embeds.ts`, add
+- [x] in `packages/server/src/channels/discord/embeds.ts`, add
   `buildUrgentEmailEmbed(row: EmailPendingRow)` returning `{embed,
   components}` (plain data) — title `🚨 Urgent email`, fields with from /
   subject / snippet, one component row with single button `Draft reply`
   (style: primary, customId: `email_draft:start:${row.id}`).
-- [ ] update `packages/server/src/cognition/handlers/emailUrgent.ts` to
+- [x] update `packages/server/src/cognition/handlers/emailUrgent.ts` to
   return `{publish: true, content: '', embed, components, onPublished}`
   using `buildUrgentEmailEmbed(row)`. Keep `content: ''` for the
   fallback path; bot.ts prefers embed when present.
-- [ ] update `packages/server/src/channels/discord/bot.ts:1025`
+- [x] update `packages/server/src/channels/discord/bot.ts:1025`
   `cognition_publish` listener: if event has `embed` field, build an
   `EmbedBuilder` from data and `ActionRowBuilder<ButtonBuilder>` from
   `components`, send via `dm.send({embeds:[built], components:[row]})`.
   Otherwise fall back to existing plain-text send.
-- [ ] write tests:
+- [x] write tests:
   - `buildUrgentEmailEmbed` shape: correct title, fields, button
     customId encoding (`emailUrgent.embed.test.ts`)
   - emailUrgent handler returns expected `embed` + `components` shape
@@ -198,7 +198,7 @@ Dependencies:
   - bot.ts cognition_publish: text-only fallback still works (regression
     test); embed branch sends with embeds/components fields when present
     (new test or extend existing `cognition_publish` test if it exists)
-- [ ] run `npm -w @r2/server test -- emailUrgent cognition bot` — must pass before task 4
+- [x] run `npm -w @r2/server test -- emailUrgent cognition bot` — must pass before task 4
 
 ### Task 4: Draft reply flow — button click → ephemeral with draft
 

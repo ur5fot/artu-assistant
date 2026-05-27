@@ -1296,6 +1296,75 @@ describe('cognition_publish handling', () => {
     expect(markPublished).toHaveBeenCalledWith(42, expect.any(Number));
     await stop();
   });
+
+  it('cognition_publish with embed → DM sent as embeds/components, not plain text', async () => {
+    const client = makeFakeClient();
+    const bus = new EventEmitter();
+    const dmSend = vi.fn().mockResolvedValue(undefined);
+    const fetchUser = vi.fn().mockResolvedValue({ createDM: vi.fn().mockResolvedValue({ send: dmSend }) });
+    (client as any).users = { fetch: fetchUser };
+    const markPublished = vi.fn();
+
+    const { stop } = await startDiscordBot({
+      token: 'test', whitelist: new Set(['123']),
+      runChatRequest: vi.fn(),
+      db: makeFakeDb() as any, historyLimit: 10, saveMessage: vi.fn(),
+      memoryService: null, _client: client,
+      reminderBus: bus,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      permissionService: { hasPending: vi.fn(), resolveConfirm: vi.fn() } as any,
+      planReviewService: { hasPending: vi.fn(), resolveReview: vi.fn() } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]), revokePermissionRule: vi.fn(),
+      } as any,
+      cognitionService: {
+        register: vi.fn(), start: vi.fn(), stop: vi.fn(),
+        pause: vi.fn(), resume: vi.fn(),
+        status: vi.fn(), markPublished,
+      } as any,
+    });
+
+    bus.emit('push', {
+      type: 'cognition_publish',
+      runId: 99,
+      handler: 'emailUrgent',
+      content: '🚨 fallback text',
+      embed: {
+        title: '🚨 Urgent email',
+        fields: [
+          { name: 'From', value: 'boss@acme.com' },
+          { name: 'Subject', value: 'Server down' },
+          { name: 'Snippet', value: 'Prod is on fire' },
+        ],
+      },
+      components: [
+        {
+          type: 'row',
+          buttons: [
+            { customId: 'email_draft:start:42', label: 'Draft reply', style: 'primary' },
+          ],
+        },
+      ],
+    });
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+
+    expect(dmSend).toHaveBeenCalledTimes(1);
+    const arg = dmSend.mock.calls[0]![0];
+    expect(typeof arg).toBe('object');
+    expect(arg.embeds).toBeDefined();
+    expect(arg.embeds).toHaveLength(1);
+    expect(arg.embeds[0].toJSON().title).toBe('🚨 Urgent email');
+    expect(arg.components).toBeDefined();
+    expect(arg.components).toHaveLength(1);
+    const buttonJson = arg.components[0].toJSON().components[0];
+    expect(buttonJson.custom_id).toBe('email_draft:start:42');
+    expect(buttonJson.label).toBe('Draft reply');
+    expect(markPublished).toHaveBeenCalledWith(99, expect.any(Number));
+    await stop();
+  });
 });
 
 describe('multi-turn coalescing', () => {

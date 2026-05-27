@@ -1,5 +1,6 @@
 import type { Handler } from '../types.js';
 import type { EmailStore } from '../../emails/store.js';
+import { buildUrgentEmailEmbed } from '../../channels/discord/embeds.js';
 import { inQuietHours, MORNING_FALLBACK_HOUR } from './emailDigest.helpers.js';
 
 // Observability — manual review queries (run via sqlite3 on r2.db):
@@ -55,9 +56,12 @@ export function createEmailUrgentHandler(deps: Deps): Handler {
       const truncated =
         snippet.length > SNIPPET_MAX ? snippet.slice(0, SNIPPET_MAX - 1) + '…' : snippet;
       const content = `🚨 ${from}\n${subject}\n${truncated}`;
+      const { embed, components } = buildUrgentEmailEmbed(row);
       return {
         publish: true,
         content,
+        embed,
+        components,
         onPublished: () => deps.store.markUrgentPinged(row.id, Date.now()),
       };
     },
