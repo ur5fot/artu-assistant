@@ -140,13 +140,13 @@ Dependencies:
 
 ### Task 2: IMAP thread fetcher (`thread-fetcher.ts`)
 
-- [ ] in `packages/server/src/emails/imap-client.ts`, add
+- [x] in `packages/server/src/emails/imap-client.ts`, add
   `fetchHeaders(account, uid): Promise<{messageId: string | null, inReplyTo: string | null, references: string[]}>` using imapflow's
   `headers: true` fetch option; parse the three headers (case-insensitive,
   values may be wrapped). References can be space- or newline-separated;
   preserve order, dedupe.
-- [ ] also expose `fetchByMessageId(account, messageId): Promise<NewMessage | null>` — IMAP search by `HEADER Message-ID <id>`.
-- [ ] create `packages/server/src/emails/thread-fetcher.ts` exporting
+- [x] also expose `fetchByMessageId(account, messageId): Promise<NewMessage | null>` — IMAP search by `HEADER Message-ID <id>`.
+- [x] create `packages/server/src/emails/thread-fetcher.ts` exporting
   `fetchThread(account, uid): Promise<NewMessage[]>` which:
   1. fetches current message headers (`fetchHeaders(uid)`)
   2. for each id in `References` (in order, ascending), calls
@@ -156,16 +156,16 @@ Dependencies:
      (refs may point to messages outside INBOX, e.g. in Sent)
   5. hard cap: max 20 messages in thread (defensive — most threads
      are < 10; protects against pathological cases)
-- [ ] write tests in
+- [x] write tests in
   `packages/server/src/emails/__tests__/thread-fetcher.test.ts`:
   - single message (no References) → array of 1
   - 3-message thread → array of 3 in order
   - missing reference (search returns null) → silently skipped, no throw
   - cap at 20 (synthetic test with 30 refs → returns 20)
   - dedupe (same id appearing in References and current) → no duplicates
-- [ ] write tests for `fetchHeaders` parsing (mocked imapflow returning
+- [x] write tests for `fetchHeaders` parsing (mocked imapflow returning
   raw header strings) — success + missing fields + wrapped values
-- [ ] run `npm -w @r2/server test -- thread-fetcher.test imap-client.test` — must pass before task 3
+- [x] run `npm -w @r2/server test -- thread-fetcher.test imap-client.test` — must pass before task 3
 
 ### Task 3: HandlerResult extension + emailUrgent returns embed + bot dispatches
 
