@@ -175,15 +175,15 @@ Patterns to copy:
 
 ### Task 5: Acceptance + docs
 
-- [ ] run full server test suite (`npm -w @r2/server test`) — all green
-- [ ] run TypeScript build (`npm -w @r2/server run build`) — no errors
-- [ ] verify backward compatibility: existing `emailDigest` tests still
+- [x] run full server test suite (`npm -w @r2/server test`) — all green
+- [x] run TypeScript build (`npm -w @r2/server run build`) — no errors
+- [x] verify backward compatibility: existing `emailDigest` tests still
   pass; existing `email_pending` rows without `urgent_pinged_at` still
   work (default NULL, handler treats them as eligible if importance=5 —
   this is intentional, see "Backfill semantics" below)
-- [ ] update `AGENTS.md` cognition layer section with a one-line entry on
+- [x] update `AGENTS.md` cognition layer section with a one-line entry on
   `emailUrgent` (mirroring the `emailDigest` description style)
-- [ ] update `README.md` "Email watcher" section with a one-line note:
+- [x] update `README.md` "Email watcher" section with a one-line note:
   "Urgent emails (importance=5) ping immediately when `EMAIL_URGENT_ENABLED=true`"
 
 ## Technical Details
