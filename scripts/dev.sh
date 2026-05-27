@@ -47,7 +47,8 @@ trap cleanup EXIT INT TERM
 
 case "$MODE" in
   plain)
-    npx concurrently "npm run dev:server" "VITE_SUPERVISOR_WS_URL= npm run dev:client"
+    # Web client is frozen (Discord-only since 2026-04-17); server only.
+    npm run dev:server
     ;;
   tailnet)
     if [ ! -d .tailnet-cert ] || [ -z "$(ls -A .tailnet-cert 2>/dev/null)" ]; then

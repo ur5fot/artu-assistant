@@ -14,11 +14,14 @@ const GIT_POLL_INTERVAL = parseInt(process.env.R2_GIT_POLL_INTERVAL || '60000', 
 const GIT_WATCH_BRANCH = process.env.R2_GIT_WATCH_BRANCH || 'master';
 const GIT_REPO_PATH = process.env.R2_GIT_REPO_PATH || path.resolve(__dirname, '..', '..', '..');
 
-// Resolve worker entry point
-const workerPath = path.resolve(__dirname, '..', '..', 'server', 'dist', 'index.js');
+// Worker entry is .ts because @r2/tool-* packages export src/*.ts directly
+// (no build step), so the server entry resolves to .ts at runtime — tsx is
+// required to strip types on import.
+const workerPath = path.resolve(__dirname, '..', '..', 'server', 'src', 'index.ts');
 
 const manager = new WorkerManager({
   workerPath,
+  useTsx: true,
   shutdownTimeoutMs: SHUTDOWN_TIMEOUT,
 });
 
