@@ -145,12 +145,12 @@ describe('createEmailUrgentHandler.run', () => {
     }
   });
 
-  it('normalizes whitespace in subject and snippet (collapses newlines/tabs)', async () => {
+  it('normalizes whitespace in from/subject/snippet (collapses newlines/tabs)', async () => {
     const store = createEmailStore({ db: getDb() });
     const h = createEmailUrgentHandler({ store, tz: TZ, quietStart: 22 });
     mkPending({
       uid: 1, importance: 5, received_at: 1000,
-      from: 'x@y.com',
+      from: 'Boss\nBoss\t<boss@acme.com>',
       subject: 'line1\nline2\t  end',
       snippet: '  one\n\ntwo\rthree  ',
     });
@@ -158,9 +158,11 @@ describe('createEmailUrgentHandler.run', () => {
     expect('publish' in res && res.publish).toBe(true);
     if ('publish' in res && res.publish) {
       // Three-line layout must remain intact even when source fields contain
-      // raw control whitespace.
+      // raw control whitespace. from_addr can carry \r\n / \t from
+      // decodeHeader() on malformed From: headers.
       const lines = res.content.split('\n');
       expect(lines.length).toBe(3);
+      expect(lines[0]).toBe('🚨 Boss Boss <boss@acme.com>');
       expect(lines[1]).toBe('line1 line2 end');
       expect(lines[2]).toBe('one two three');
     }
