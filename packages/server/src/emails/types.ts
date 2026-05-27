@@ -34,4 +34,5 @@ export interface EmailPendingRow {
   received_at: number;
   added_at: number;
   delivered_at: number | null;
+  urgent_pinged_at: number | null;
 }

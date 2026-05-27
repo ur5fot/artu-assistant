@@ -234,6 +234,21 @@ export function initDb(dbPath?: string): void {
       ON email_pending(delivered_at, importance DESC, received_at DESC)
   `);
 
+  // Migration: add `urgent_pinged_at` column if missing. Tracks when an
+  // importance=5 row was published as an urgent Discord ping so the
+  // emailUrgent handler can find the next un-pinged row.
+  const emailPendingCols = db
+    .prepare("PRAGMA table_info(email_pending)")
+    .all() as Array<{ name: string }>;
+  if (!emailPendingCols.some((c) => c.name === 'urgent_pinged_at')) {
+    db.exec(`ALTER TABLE email_pending ADD COLUMN urgent_pinged_at INTEGER`);
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_email_pending_urgent_unpinged
+      ON email_pending(importance, urgent_pinged_at)
+      WHERE urgent_pinged_at IS NULL
+  `);
+
   // Migration: add `source` column if missing
   const cols = db.prepare("PRAGMA table_info(chat_messages)").all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === 'source')) {

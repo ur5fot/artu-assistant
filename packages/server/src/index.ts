@@ -53,6 +53,7 @@ import { fetchNewMessages, fetchFullBody, getMaxUid } from './emails/imap-client
 import { scoreBatch } from './emails/scorer.js';
 import { startEmailPoller } from './emails/multi-account-poller.js';
 import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
+import { createEmailUrgentHandler } from './cognition/handlers/emailUrgent.js';
 import { MORNING_FALLBACK_HOUR } from './cognition/handlers/emailDigest.helpers.js';
 import { createTopicFinalizerHandler } from './topics/finalizer.js';
 import crypto from 'node:crypto';
@@ -657,6 +658,27 @@ if (discordToken) {
   } catch (err) {
     console.error('[discord] bot failed to start:', err instanceof Error ? err.message : err);
     discordBot = null;
+  }
+}
+
+// emailUrgent gate. Distinct from the digest gate because the urgent handler
+// re-triggers every tick on the same row until `onPublished` flips
+// `urgent_pinged_at`; without a working Discord publisher that callback never
+// fires, so the registration is hard-gated on `discordBot` being live.
+{
+  const urgentFlag = process.env.EMAIL_URGENT_ENABLED === 'true';
+  const discordReady = discordBot !== null;
+  if (emailEnabled && urgentFlag && discordReady) {
+    cognitionService.register(
+      createEmailUrgentHandler({
+        store: emailStore,
+        tz: 'Europe/Kyiv',
+        quietStart: envInt(process.env.EMAIL_QUIET_HOUR_START, 22, MORNING_FALLBACK_HOUR + 1, 23),
+      }),
+    );
+    console.log('[emails] urgent handler registered');
+  } else if (emailEnabled) {
+    console.log(`[emails] urgent handler disabled (flag=${urgentFlag}, discord=${discordReady})`);
   }
 }
 
