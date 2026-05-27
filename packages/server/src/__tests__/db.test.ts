@@ -27,6 +27,7 @@ describe('email tables', () => {
     expect(names).toEqual([
       'account_id', 'added_at', 'delivered_at', 'from_addr',
       'id', 'importance', 'message_uid', 'received_at', 'snippet', 'subject',
+      'urgent_pinged_at',
     ].sort());
   });
 
@@ -39,6 +40,61 @@ describe('email tables', () => {
     `);
     stmt.run('acc1', 123, 'a@b.com', 's', 'snip', 4, 1000, 1000);
     expect(() => stmt.run('acc1', 123, 'a@b.com', 's', 'snip', 4, 1000, 1000)).toThrow();
+  });
+
+  it('adds urgent_pinged_at column with INTEGER affinity, nullable, defaulting to NULL', () => {
+    const cols = getDb()
+      .prepare("PRAGMA table_info('email_pending')")
+      .all() as Array<{ name: string; type: string; notnull: number; dflt_value: string | null }>;
+    const col = cols.find((c) => c.name === 'urgent_pinged_at');
+    expect(col).toBeDefined();
+    expect(col!.type.toUpperCase()).toBe('INTEGER');
+    expect(col!.notnull).toBe(0);
+    expect(col!.dflt_value).toBeNull();
+  });
+
+  it('creates partial index idx_email_pending_urgent_unpinged', () => {
+    const row = getDb()
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_email_pending_urgent_unpinged'",
+      )
+      .get() as { sql: string } | undefined;
+    expect(row).toBeDefined();
+    expect(row!.sql).toMatch(/email_pending/);
+    expect(row!.sql).toMatch(/importance/);
+    expect(row!.sql).toMatch(/urgent_pinged_at/);
+    expect(row!.sql).toMatch(/WHERE\s+urgent_pinged_at\s+IS\s+NULL/i);
+  });
+});
+
+describe('initDb idempotency for email_pending migrations', () => {
+  it('running initDb twice on the same file does not throw and column is present once', async () => {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const tmp = path.join(os.tmpdir(), `r2-db-idempotent-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`);
+    try {
+      initDb(tmp);
+      // first run: column should exist
+      let cols = getDb()
+        .prepare("PRAGMA table_info('email_pending')")
+        .all() as Array<{ name: string }>;
+      expect(cols.filter((c) => c.name === 'urgent_pinged_at').length).toBe(1);
+
+      // second initDb on the same file must not throw on duplicate column add
+      expect(() => initDb(tmp)).not.toThrow();
+      cols = getDb()
+        .prepare("PRAGMA table_info('email_pending')")
+        .all() as Array<{ name: string }>;
+      expect(cols.filter((c) => c.name === 'urgent_pinged_at').length).toBe(1);
+    } finally {
+      closeDb();
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      // walls/journals
+      for (const ext of ['-wal', '-shm']) {
+        if (fs.existsSync(tmp + ext)) fs.unlinkSync(tmp + ext);
+      }
+    }
   });
 });
 

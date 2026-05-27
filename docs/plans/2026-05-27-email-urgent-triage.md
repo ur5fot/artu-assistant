@@ -85,17 +85,17 @@ Patterns to copy:
 
 ### Task 1: DB migration — add `urgent_pinged_at` to `email_pending`
 
-- [ ] in `packages/server/src/db.ts`, after the existing `CREATE TABLE IF
+- [x] in `packages/server/src/db.ts`, after the existing `CREATE TABLE IF
   NOT EXISTS email_pending`, query `PRAGMA table_info(email_pending)` and
   add `urgent_pinged_at INTEGER` only if absent (avoids try/catch on
   duplicate column)
-- [ ] add `CREATE INDEX IF NOT EXISTS idx_email_pending_urgent_unpinged
+- [x] add `CREATE INDEX IF NOT EXISTS idx_email_pending_urgent_unpinged
   ON email_pending(importance, urgent_pinged_at) WHERE urgent_pinged_at IS NULL`
-- [ ] write tests in `packages/server/src/__tests__/db.test.ts`:
+- [x] write tests in `packages/server/src/__tests__/db.test.ts`:
   - column `urgent_pinged_at` exists after `initDb` (via `PRAGMA table_info`)
   - running `initDb` twice on same file is idempotent (no error)
   - index `idx_email_pending_urgent_unpinged` exists (via `sqlite_master`)
-- [ ] run `npm -w @r2/server test -- db.test` — must pass before task 2
+- [x] run `npm -w @r2/server test -- db.test` — must pass before task 2
 
 ### Task 2: Store methods — `findUnpingedUrgent`, `markUrgentPinged`
 
