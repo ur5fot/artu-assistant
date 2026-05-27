@@ -123,53 +123,57 @@ Closing the gap between Claude Code (the harness) and R2:
 
 ## What's planned
 
-### Long-term roadmap — the home life-operator vision
+### Approach — one pain at a time
 
-The big direction is the three observation layers above. Decomposed into
-epics:
+Strategic shift from "build infrastructure, then features" to
+**use-case-first**: pick one concrete pain, build the whole loop for it
+(observation → suggestion → action → learning → transparency) end-to-end,
+ship it, live with it for two weeks, then decide what to extract into
+reusable modules. Full reasoning, candidates, and operating principles in
+[docs/superpowers/plans/2026-05-27-toward-ideal-r2.md](docs/superpowers/plans/2026-05-27-toward-ideal-r2.md).
 
-- **EPIC 1 — Digital Observer** — active window, periodic screenshots, OCR /
-  UI parsing, clipboard, activity classification (work / chat / search /
-  debug / rest)
-- **EPIC 2 — Human Observer** — local camera with presence detection
-  (sitting / stood up / left / walking), voice + wake word, local Whisper STT
-- **EPIC 3 — Home Observer** — Home Assistant bridge for lights, motion,
-  temperature, humidity, doors, sockets, energy; appliance state
-- **EPIC 4 — Context Fusion** — single unified context model (screen + person
-  + home + time + calendar + habits), timeline of events, scenario inference
-- **EPIC 5 — Personal Routine Engine** — recurring patterns, time-of-day
-  habits (morning / evening / before-leaving / before-sleep)
-- **EPIC 6 — Suggestion Engine** — proactive nudges from fused context
-  ("light's on in an empty room", "want your tabs from yesterday?",
-  "30 minutes until your calendar event")
-- **EPIC 7 — Action Engine** — execute home actions (light scenes, vacuum,
-  climate, phone notifications) and digital actions (open windows, restore
-  context, create reminders)
-- **EPIC 8 — Safety / Privacy** — local-only video, events-not-recordings,
-  privacy modes (camera off / presence only / home only / PC only),
-  whitelisted automatic actions, full decision log
+### Active focus — Pain #1: Email triage (June 2026)
 
-### MVP slices toward the vision
+Concrete goal: by end of June, R2 catches **≥ 80%** of emails that need a
+response within 24 h *before* the user opens the inbox, with one-click
+drafts and a 30-second undo zone on send. Implicit feedback (open rate,
+reply timing, dismissals) tunes the threshold automatically — no explicit
+thumbs-up/down buttons.
 
-1. **Computer** — active window + screenshot + "what are you doing right now"
-2. **Person** — camera-based "at desk / away / been here too long"
-3. **Home** — Home Assistant integration: lights, motion, doors, sockets
-4. **Reactions** — suggest, remind, propose action, execute simple things
+Success is measured against four criteria (catch rate, false-positive
+rate, draft-usage rate, time-to-reply) at month end. Hit ≥ 2 of 4 → keep
+shipped feature. Hit ≥ 3 → extract reusable modules (implicit feedback
+aggregator, undo-zone wrapper, per-feature `/why`). Hit < 2 → diagnose
+before moving on.
 
-### Smaller items in the backlog
+### Long-term vision — the home life-operator
 
-- **Image input (vision)** — drop a photo into chat, R2 sees it ("what's on
-  this screen?", "extract text", "what's wrong with this design")
-- **Telegram channel** — mobile-first usecase, polling or webhook adapter
-- **Voice pipeline** — Whisper STT (local or API) + ElevenLabs / system TTS
+The big direction stays the three observation layers (digital / physical /
+human). The epics below frame the destination, not a sequenced backlog —
+each is pulled into focus only when it's the next most painful thing,
+following the use-case-first principle:
+
+- **EPIC 1-3** — Digital / Human / Home observers (active window + OCR /
+  camera presence / Home Assistant bridge)
+- **EPIC 4** — Context fusion (unified state across screen + person + home
+  + calendar + habits)
+- **EPIC 5-7** — Routine engine / Suggestion engine / Action engine
+  (pattern detection → proactive nudges → execute)
+- **EPIC 8** — Safety / privacy (local-only video, privacy modes, action
+  whitelists, full decision log)
+
+### Deferred (not picked up until a concrete pain demands them)
+
+- **Image input (vision)** — drop a photo into chat, R2 sees it
+- **Telegram channel** — mobile-first usecase
+- **Voice pipeline** — Whisper STT + ElevenLabs / system TTS
 - **Settings tool** — runtime env edits via slash command instead of
-  `.env` edit + restart
-- **Canvas / live UI** — interactive forms, tables, charts rendered in chat
-  (especially useful for paperwork)
-- **Dedicated home server** — Mac Mini M4 Pro (48–64 GB RAM, 1–2 TB SSD) as
-  always-on R2 host. Sweet spot: 32B Q5 local model (Qwen2.5 32B / Qwen3-32B,
-  ~23 GB) for router / memory / classification; Claude API for heavy
-  reasoning. MacBook as thin client over Thunderbolt 4 or Tailscale.
+  `.env` + restart
+- **Canvas / live UI** — interactive forms, tables, charts in chat
+- **Dedicated home server** — Mac Mini M4 Pro (48–64 GB RAM, 1–2 TB SSD)
+  as always-on host with a local 32B Q5 model for router / memory /
+  classification; Claude API for heavy reasoning. MacBook as thin client
+  over Thunderbolt 4 or Tailscale.
 
 ---
 
