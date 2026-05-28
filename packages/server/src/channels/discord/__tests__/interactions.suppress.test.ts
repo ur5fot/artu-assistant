@@ -455,6 +455,26 @@ describe('email_suppress:subject_submit (modal)', () => {
     expect(arg.content).toContain('число от 0 до 365');
   });
 
+  it('empty days input → no insertRule, error message (not silently forever)', async () => {
+    // Regression: `Number('')` is 0 (not NaN), which would otherwise pass the
+    // range check and create a permanent rule despite the field being marked
+    // required. Whitespace-only must also fail closed.
+    const deps = makeDeps();
+    const ixn = makeModalSubmit({
+      fields: {
+        getTextInputValue: vi.fn((field: string) =>
+          field === 'substring' ? 'pattern' : '   ',
+        ),
+      },
+    });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.emailSuppressionStore as any).insertRule).not.toHaveBeenCalled();
+    const arg = ixn.reply.mock.calls[0]![0];
+    expect(arg.content).toContain('число от 0 до 365');
+  });
+
   it('negative days → no insertRule, error message', async () => {
     const deps = makeDeps();
     const ixn = makeModalSubmit({

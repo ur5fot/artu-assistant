@@ -10,6 +10,7 @@ import type {
   SuppressionRule,
 } from '../emails/suppression-store.js';
 import type { EmailPendingRow } from '../emails/types.js';
+import { parseFromAddress } from '../emails/address.js';
 import { SUPPRESSED_PING_SENTINEL } from '../cognition/handlers/emailUrgent.js';
 
 export type WhyEmailUrgentResult =
@@ -162,11 +163,15 @@ export function createCommandService(deps: Deps): CommandService {
         return { kind: 'suppressed', row, matchedRule } as const;
       }
       const sinceMs = now - HISTORY_WINDOW_DAYS * 86_400_000;
+      // sent-log stores recipients as the bare address (see parseFromAddress
+      // callsite in interactions.ts:draft reply). The pending row's from_addr
+      // carries the display-name form, so canonicalize before the lookup.
+      const senderKey = parseFromAddress(row.from_addr);
       const history = {
         pendings: emailStore.countPendingFromSender(row.from_addr, sinceMs),
-        sent: emailSentLog.countBySender(row.from_addr, HISTORY_WINDOW_DAYS, 'sent', now),
-        cancelled: emailSentLog.countBySender(row.from_addr, HISTORY_WINDOW_DAYS, 'cancelled', now),
-        error: emailSentLog.countBySender(row.from_addr, HISTORY_WINDOW_DAYS, 'error', now),
+        sent: emailSentLog.countBySender(senderKey, HISTORY_WINDOW_DAYS, 'sent', now),
+        cancelled: emailSentLog.countBySender(senderKey, HISTORY_WINDOW_DAYS, 'cancelled', now),
+        error: emailSentLog.countBySender(senderKey, HISTORY_WINDOW_DAYS, 'error', now),
       };
       const activeRule = emailSuppressionStore.findActiveMatch(
         row.from_addr,

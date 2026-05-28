@@ -207,6 +207,40 @@ describe('commandService.whyEmailUrgent', () => {
     }
   });
 
+  it('canonicalizes display-name from_addr when counting sent-log priors', () => {
+    // Regression: email_pending.from_addr is stored as `"Name" <addr>` while
+    // email_sent_log.to_addr is the bare address (parseFromAddress at the
+    // draft-reply callsite). Without canonicalization in whyEmailUrgent, the
+    // exact-match `to_addr = ?` lookup misses every prior with a display name.
+    const now = Date.now();
+    const bareAddr = 'boss@example.com';
+    const displayForm = `"Big Boss" <${bareAddr}>`;
+    const urgent = insertPendingRow({
+      from_addr: displayForm,
+      received_at: now - 10_000,
+      urgent_pinged_at: now - 5_000,
+    });
+    const sentLog = createEmailSentLog({ db: getDb() });
+    sentLog.record({ action: 'sent', draftId: 's1', to: bareAddr, subject: 'r1' });
+    sentLog.record({ action: 'cancelled', draftId: 'c1', to: bareAddr, subject: 'r2' });
+
+    const svc = createCommandService({
+      db: getDb(),
+      reminderService: { list: vi.fn().mockReturnValue([]) } as any,
+      permissionService: { hasPending: vi.fn() } as any,
+      memoryService: null,
+      emailStore: createEmailStore({ db: getDb() }),
+      emailSentLog: sentLog,
+      emailSuppressionStore: createEmailSuppressionStore({ db: getDb() }),
+    });
+    const result = svc.whyEmailUrgent({ id: urgent.id, now });
+    expect(result.kind).toBe('urgent');
+    if (result.kind === 'urgent') {
+      expect(result.history.sent).toBe(1);
+      expect(result.history.cancelled).toBe(1);
+    }
+  });
+
   it('returns suppressed when row has sentinel urgent_pinged_at = -1', () => {
     const sender = 'spam@nope.com';
     const row = insertPendingRow({ from_addr: sender, urgent_pinged_at: -1 });

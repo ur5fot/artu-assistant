@@ -412,21 +412,8 @@ function clampReplyContent(content: string): string {
     : content;
 }
 
-// Parses an RFC 5322 mailbox of the form `Name <addr@host>` or a bare
-// `addr@host` into just the address part. Reply needs the bare address —
-// nodemailer accepts the wrapped form too, but `to` should be canonical so
-// the SMTP envelope and visible header agree across providers.
-// Pick the LAST angle-bracketed group: an attacker-controlled display name
-// can contain `<fake@evil.com>` (e.g. `"Bank <fake@evil.com>" <real@bank.com>`)
-// and matching the first group would route the reply to the spoof address.
-export function parseFromAddress(fromAddr: string): string {
-  const matches = fromAddr.match(/<([^>]+)>/g);
-  if (matches && matches.length > 0) {
-    const last = matches[matches.length - 1]!;
-    return last.slice(1, -1).trim();
-  }
-  return fromAddr.trim();
-}
+export { parseFromAddress } from '../../emails/address.js';
+import { parseFromAddress } from '../../emails/address.js';
 
 function buildDraftPrompt(thread: FullMessage[], currentUid: number): string {
   const parts: string[] = [];
@@ -1382,8 +1369,13 @@ async function handleSuppressSubjectSubmit(
   }
   // Reject NaN, floats, infinities, and out-of-range — match the test contract
   // exactly so the user gets one consistent error string.
-  const days = Number(daysRaw.trim());
+  // Empty / whitespace input must be rejected explicitly: `Number('')` is 0,
+  // which would otherwise pass the range check and silently create a
+  // forever-rule despite the modal field being marked required.
+  const daysTrimmed = daysRaw.trim();
+  const days = Number(daysTrimmed);
   if (
+    daysTrimmed.length === 0 ||
     !Number.isInteger(days) ||
     days < SUBJECT_TTL_DAYS_MIN ||
     days > SUBJECT_TTL_DAYS_MAX

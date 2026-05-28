@@ -136,6 +136,46 @@ describe('createEmailSuppressionStore', () => {
       expect(store.findActiveMatch('forever@x.com', 's', farFuture)).not.toBeNull();
     });
 
+    it('matches sender across display-name variance (canonicalizes both sides)', () => {
+      // Regression: email_pending.from_addr carries `"Display" <addr>` and the
+      // display name often varies across messages from the same sender. The
+      // store must key sender rules on the bare address so the rule still
+      // matches when the display name changes.
+      const store = createEmailSuppressionStore({ db: getDb() });
+      store.insertRule({
+        rule_type: 'sender',
+        pattern: '"Bob" <bob@example.com>',
+        ttl_days: 7,
+      });
+      // Same bare address, different display name → must match.
+      expect(
+        store.findActiveMatch('"Bob Smith" <bob@example.com>', 's', Date.now()),
+      ).not.toBeNull();
+      // Bare-address inbound → must match.
+      expect(
+        store.findActiveMatch('bob@example.com', 's', Date.now()),
+      ).not.toBeNull();
+      // Different bare address → must NOT match.
+      expect(
+        store.findActiveMatch('"Bob" <bob@other.com>', 's', Date.now()),
+      ).toBeNull();
+    });
+
+    it('subject rules are stored verbatim (no email parsing applied)', () => {
+      // Sender-only canonicalization: subject patterns may contain `<...>` for
+      // literal reasons (`<URGENT>` in subject lines, etc.) and must not be
+      // transformed.
+      const store = createEmailSuppressionStore({ db: getDb() });
+      store.insertRule({
+        rule_type: 'subject',
+        pattern: '<URGENT>',
+        ttl_days: 7,
+      });
+      expect(
+        store.findActiveMatch('any@x.com', 'Re: <URGENT> action needed', Date.now()),
+      ).not.toBeNull();
+    });
+
     it('prefers most recent rule when multiple match', () => {
       const store = createEmailSuppressionStore({ db: getDb() });
       const first = store.insertRule({ rule_type: 'sender', pattern: 'a@x.com', ttl_days: 7 });

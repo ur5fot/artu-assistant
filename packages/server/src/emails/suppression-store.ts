@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { parseFromAddress } from './address.js';
 
 export type SuppressionRuleType = 'sender' | 'subject';
 
@@ -39,16 +40,23 @@ export function createEmailSuppressionStore(deps: {
     insertRule({ rule_type, pattern, ttl_days }) {
       const now = Date.now();
       const expires_at = ttl_days === null ? null : now + ttl_days * DAY_MS;
+      // Sender rules are keyed by bare address so they survive display-name
+      // variance across messages (`"Bob" <b@x>` vs `"Bob Smith" <b@x>`).
+      const storedPattern =
+        rule_type === 'sender' ? parseFromAddress(pattern) : pattern;
       const info = db
         .prepare(
           `INSERT INTO email_suppression_rules
            (rule_type, pattern, created_at, expires_at)
            VALUES (?, ?, ?, ?)`,
         )
-        .run(rule_type, pattern, now, expires_at);
+        .run(rule_type, storedPattern, now, expires_at);
       return { id: Number(info.lastInsertRowid), expires_at };
     },
     findActiveMatch(sender, subject, now) {
+      // Canonicalize the inbound sender to the bare address so rules inserted
+      // before this fix (or via tests passing bare addresses) match either way.
+      const senderKey = parseFromAddress(sender);
       // `instr()` is a literal substring match — unlike `LIKE`, it does not
       // expand `%` or `_` in the user-supplied pattern into wildcards, so a
       // rule like `100% discount` matches only that exact substring.
@@ -63,7 +71,7 @@ export function createEmailSuppressionStore(deps: {
            ORDER BY id DESC
            LIMIT 1`,
         )
-        .get(now, sender, subject) as SuppressionRule | undefined;
+        .get(now, senderKey, subject) as SuppressionRule | undefined;
       return row ?? null;
     },
     listActive(now) {
