@@ -304,8 +304,11 @@ R2 walks the IMAP thread via `References`/`In-Reply-To` headers, asks Claude
 for a context-aware draft (language follows the original thread), and shows
 it ephemerally with `Send` / `Edit` / `Cancel`. Send goes out over SMTP using
 the **same app password as IMAP** — Gmail's `imap.gmail.com` maps to
-`smtp.gmail.com` automatically. **No new env vars required.** Pending drafts
-live in memory only and are lost on restart by design.
+`smtp.gmail.com` automatically. Send is held for 30s before hitting SMTP —
+ephemeral shows `"✉️ Will send at HH:MM:SS"` with a `Cancel send` button;
+configurable via `EMAIL_SEND_HOLD_SECONDS` (0 disables the hold and restores
+instant send). Pending drafts live in memory only and are lost on restart by
+design.
 
 ---
 

@@ -53,6 +53,69 @@ describe('email tables', () => {
     expect(col!.dflt_value).toBeNull();
   });
 
+  it('creates email_sent_log with expected columns', () => {
+    const cols = getDb()
+      .prepare("PRAGMA table_info('email_sent_log')")
+      .all() as Array<{ name: string }>;
+    const names = cols.map((c) => c.name).sort();
+    expect(names).toEqual([
+      'action', 'created_at', 'draft_id', 'error_message', 'id', 'subject', 'to_addr',
+    ].sort());
+  });
+
+  it('creates index idx_email_sent_log_action_at', () => {
+    const row = getDb()
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_email_sent_log_action_at'",
+      )
+      .get() as { sql: string } | undefined;
+    expect(row).toBeDefined();
+    expect(row!.sql).toMatch(/email_sent_log/);
+    expect(row!.sql).toMatch(/action/);
+    expect(row!.sql).toMatch(/created_at/);
+  });
+
+  it('email_sent_log CHECK constraint rejects invalid action', () => {
+    const db = getDb();
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO email_sent_log (action, draft_id, to_addr, subject, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run('bogus', 'd1', 'a@b', 's', Date.now()),
+    ).toThrow();
+  });
+
+  it('initDb is idempotent: email_sent_log table survives a second initDb call', async () => {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const tmp = path.join(
+      os.tmpdir(),
+      `r2-db-sent-log-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`,
+    );
+    try {
+      initDb(tmp);
+      let cols = getDb()
+        .prepare("PRAGMA table_info('email_sent_log')")
+        .all() as Array<{ name: string }>;
+      expect(cols.length).toBeGreaterThan(0);
+
+      expect(() => initDb(tmp)).not.toThrow();
+      cols = getDb()
+        .prepare("PRAGMA table_info('email_sent_log')")
+        .all() as Array<{ name: string }>;
+      expect(cols.length).toBeGreaterThan(0);
+    } finally {
+      closeDb();
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      for (const ext of ['-wal', '-shm']) {
+        if (fs.existsSync(tmp + ext)) fs.unlinkSync(tmp + ext);
+      }
+    }
+  });
+
   it('creates partial index idx_email_pending_urgent_unpinged', () => {
     const row = getDb()
       .prepare(

@@ -7,6 +7,14 @@ export interface DraftState {
   inReplyTo: string | null;
   references: string[];
   body: string;
+  holdTimer?: ReturnType<typeof setTimeout> | null;
+  holdSendAt?: number | null;
+  // True between Send click and armHold, i.e. while editReply is in flight.
+  // Distinct from holdTimer because the timer can only be armed after
+  // editReply resolves, but the draft body must be locked from the moment
+  // the user clicks Send — otherwise a stale Edit modal can mutate the body
+  // during the round-trip and the timer fires against unreviewed content.
+  holdPending?: boolean | null;
 }
 
 export interface DraftReplyService {
@@ -14,6 +22,8 @@ export interface DraftReplyService {
   get(id: string): DraftState | null;
   drop(id: string): void;
   has(id: string): boolean;
+  armHold(id: string, timer: ReturnType<typeof setTimeout>, sendAt: number): void;
+  disarmHold(id: string): void;
 }
 
 interface Deps {
@@ -24,16 +34,43 @@ export function createDraftReplyService(deps: Deps): DraftReplyService {
   const { pendingDrafts } = deps;
   return {
     put(state) {
-      pendingDrafts.set(state.pendingId, state);
+      pendingDrafts.set(state.pendingId, {
+        ...state,
+        holdTimer: state.holdTimer ?? null,
+        holdSendAt: state.holdSendAt ?? null,
+        holdPending: state.holdPending ?? null,
+      });
     },
     get(id) {
       return pendingDrafts.get(id) ?? null;
     },
     drop(id) {
+      const existing = pendingDrafts.get(id);
+      if (existing?.holdTimer) {
+        clearTimeout(existing.holdTimer);
+      }
       pendingDrafts.delete(id);
     },
     has(id) {
       return pendingDrafts.has(id);
+    },
+    armHold(id, timer, sendAt) {
+      const existing = pendingDrafts.get(id);
+      if (!existing) return;
+      if (existing.holdTimer) {
+        clearTimeout(existing.holdTimer);
+      }
+      existing.holdTimer = timer;
+      existing.holdSendAt = sendAt;
+    },
+    disarmHold(id) {
+      const existing = pendingDrafts.get(id);
+      if (!existing) return;
+      if (existing.holdTimer) {
+        clearTimeout(existing.holdTimer);
+      }
+      existing.holdTimer = null;
+      existing.holdSendAt = null;
     },
   };
 }

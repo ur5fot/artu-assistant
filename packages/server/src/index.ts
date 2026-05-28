@@ -59,17 +59,10 @@ import { createEmailUrgentHandler } from './cognition/handlers/emailUrgent.js';
 import { createDraftReplyService, type DraftState } from './services/draft-reply-service.js';
 import { MORNING_FALLBACK_HOUR } from './cognition/handlers/emailDigest.helpers.js';
 import { createTopicFinalizerHandler } from './topics/finalizer.js';
+import { createEmailSentLog } from './emails/sent-log.js';
+import { envInt } from './env-utils.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-
-function envInt(raw: string | undefined, fallback: number, min: number, max?: number): number {
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return fallback;
-  const i = Math.floor(n);
-  if (i < min) return fallback;
-  if (max !== undefined && i > max) return fallback;
-  return i;
-}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -283,6 +276,11 @@ const reminderService = createReminderService({ store: reminderStore, bus: remin
 const stopScheduler = startScheduler({ store: reminderStore, db: getDb(), bus: reminderBus });
 
 const emailStore = createEmailStore({ db: getDb() });
+const emailSentLog = createEmailSentLog({ db: getDb() });
+// Hold zone before SMTP send for outgoing draft replies. 0 = bypass (instant
+// send, restores pre-iter-3 behaviour — kill switch). Max 300s keeps under
+// Discord's 15-min ephemeral webhook window with comfortable margin.
+const emailSendHoldSeconds = envInt(process.env.EMAIL_SEND_HOLD_SECONDS, 30, 0, 300);
 const imapAccounts = (() => {
   try {
     return parseImapAccounts(process.env.IMAP_ACCOUNTS);
@@ -633,6 +631,8 @@ if (discordToken) {
       anthropic: client.anthropic,
       imapAccounts: emailEnabled ? imapAccountsById : undefined,
       smtpClient: emailEnabled ? { sendReply: sendSmtpReply } : undefined,
+      emailSendHoldSeconds,
+      emailSentLog: emailEnabled ? emailSentLog : undefined,
       // Always pass piiProxy — at runtime it's a real anonymizer or a
       // passthrough depending on PII_GATEWAY_MODE. The interactions handler
       // anonymizes the email thread before sending to Claude (plan: outbound
