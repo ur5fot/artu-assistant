@@ -149,17 +149,17 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
 
 ### Task 1: Extend `DraftState` with hold fields + service methods
 
-- [ ] in `packages/server/src/services/draft-reply-service.ts`, add to
+- [x] in `packages/server/src/services/draft-reply-service.ts`, add to
   `DraftState`: `holdTimer: NodeJS.Timeout | null` (default null on
   `put`) and `holdSendAt: number | null` (default null on `put`)
-- [ ] add `armHold(pendingId, timer, sendAt)`: stores both fields. If
+- [x] add `armHold(pendingId, timer, sendAt)`: stores both fields. If
   state row missing → silent no-op (caller is responsible). If a
   previous timer exists → `clearTimeout` on it first (defensive)
-- [ ] add `disarmHold(pendingId)`: clears timer if set, nulls both
+- [x] add `disarmHold(pendingId)`: clears timer if set, nulls both
   fields. Idempotent on missing state
-- [ ] extend `drop(pendingId)` to also `clearTimeout` on `holdTimer`
+- [x] extend `drop(pendingId)` to also `clearTimeout` on `holdTimer`
   before removing the entry (prevents zombie timer on dropped draft)
-- [ ] write tests in
+- [x] write tests in
   `packages/server/src/services/__tests__/draft-reply-service.test.ts`:
   - `armHold` sets both fields
   - `armHold` twice clears the previous timer (verify with fake timers
@@ -168,7 +168,7 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
   - `disarmHold` clears timer + nulls fields
   - `disarmHold` on entry with null timer is no-op
   - `drop` after `armHold` clears the timer (no fire after drop)
-- [ ] run `npm -w @r2/server test -- draft-reply-service.test` — must
+- [x] run `npm -w @r2/server test -- draft-reply-service.test` — must
   pass before task 2
 
 ### Task 2: `email_sent_log` table + repo
