@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
 import path from 'node:path';
 import { resolveProjectPath, getProjectRoot } from '../path-utils.js';
 
@@ -76,9 +77,10 @@ describe('getProjectRoot — sanity check on real build', () => {
     expect(path.isAbsolute(root)).toBe(true);
   });
 
-  it('lands on the repo root (basename ends in R2-D2)', () => {
+  it('lands on the monorepo root (contains packages/server/package.json)', () => {
     const root = getProjectRoot();
-    expect(path.basename(root)).toBe('R2-D2');
+    expect(fs.existsSync(path.join(root, 'packages', 'server', 'package.json'))).toBe(true);
+    expect(fs.existsSync(path.join(root, 'package.json'))).toBe(true);
   });
 });
 

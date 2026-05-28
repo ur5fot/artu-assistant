@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { loadEvals, saveEval, type Eval } from './store.js';
-import { resolveProjectPath, getProjectRoot } from '../path-utils.js';
 
 describe('eval store', () => {
   let tmpDir: string;
@@ -97,51 +96,5 @@ describe('eval store', () => {
     });
     expect(fs.existsSync(`${evalsPath}.tmp`)).toBe(false);
     expect(fs.existsSync(evalsPath)).toBe(true);
-  });
-});
-
-describe('eval store path resolution', () => {
-  afterEach(() => {
-    delete process.env.EVALS_PATH;
-  });
-
-  it('relative EVALS_PATH resolves identically regardless of injected projectRoot', () => {
-    const a = resolveProjectPath('./data/evals.json', ['data', 'evals.json'], {
-      projectRoot: '/proj',
-    });
-    const b = resolveProjectPath('./data/evals.json', ['data', 'evals.json'], {
-      projectRoot: '/proj',
-    });
-    expect(a).toBe(b);
-    expect(a).toBe(path.resolve('/proj', 'data', 'evals.json'));
-  });
-
-  it('relative EVALS_PATH is anchored at projectRoot (cwd-independent)', () => {
-    const fromRoot = resolveProjectPath('./data/evals.json', ['data', 'evals.json'], {
-      projectRoot: '/proj-a',
-    });
-    const fromSub = resolveProjectPath('./data/evals.json', ['data', 'evals.json'], {
-      projectRoot: '/proj-b/packages/server',
-    });
-    expect(fromRoot).toBe('/proj-a/data/evals.json');
-    expect(fromSub).toBe('/proj-b/packages/server/data/evals.json');
-  });
-
-  it('absolute EVALS_PATH passes through unchanged', () => {
-    const abs = path.resolve(os.tmpdir(), 'abs-evals.json');
-    const result = resolveProjectPath(abs, ['data', 'evals.json'], {
-      projectRoot: '/proj',
-    });
-    expect(result).toBe(abs);
-  });
-
-  it('unset EVALS_PATH falls back to repo-root data/evals.json', () => {
-    const result = resolveProjectPath(undefined, ['data', 'evals.json']);
-    expect(result).toBe(path.resolve(getProjectRoot(), 'data', 'evals.json'));
-  });
-
-  it('empty EVALS_PATH falls back to repo-root data/evals.json', () => {
-    const result = resolveProjectPath('', ['data', 'evals.json']);
-    expect(result).toBe(path.resolve(getProjectRoot(), 'data', 'evals.json'));
   });
 });
