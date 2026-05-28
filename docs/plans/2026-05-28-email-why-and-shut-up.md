@@ -181,7 +181,7 @@ Dependencies: no new npm packages.
 
 ### Task 2: Suppression store + match logic
 
-- [ ] create `packages/server/src/emails/suppression-store.ts` exporting
+- [x] create `packages/server/src/emails/suppression-store.ts` exporting
   `createEmailSuppressionStore({ db })` returning:
   - `insertRule({rule_type, pattern, ttl_days | null}): InsertedRule`
     where `ttl_days = null` → `expires_at = null`, else `expires_at =
@@ -195,7 +195,7 @@ Dependencies: no new npm packages.
   - `listActive(now): Rule[]` — for future `/suppressions` command and
     `/why` display.
   - `deleteRule(id): boolean` — for future explicit removal.
-- [ ] write tests in
+- [x] write tests in
   `packages/server/src/emails/__tests__/suppression-store.test.ts`:
   - `insertRule(sender)` writes row with computed `expires_at`
   - `insertRule(sender, ttl_days=null)` writes row with NULL `expires_at`
@@ -208,7 +208,7 @@ Dependencies: no new npm packages.
   - `findActiveMatch` prefers most recent rule when multiple match
   - `listActive` excludes expired
   - `deleteRule` returns true on hit, false on miss
-- [ ] run `npm -w @r2/server test -- suppression-store.test` — must
+- [x] run `npm -w @r2/server test -- suppression-store.test` — must
   pass before task 3
 
 ### Task 3: `emailUrgent` trigger gate + sentinel marking
