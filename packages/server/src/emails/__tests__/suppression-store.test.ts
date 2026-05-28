@@ -84,6 +84,20 @@ describe('createEmailSuppressionStore', () => {
         store.insertRule({ rule_type: 'subject', pattern: '   ', ttl_days: 7 }),
       ).toThrow(/non-empty/);
     });
+
+    it('rejects sender pattern that canonicalizes to empty', () => {
+      // Symmetric guard with subject: a sender pattern with no parseable
+      // address (display-name only, or empty) canonicalizes to '' and the
+      // SQL `pattern = ?` predicate would then match any row whose stored
+      // from_addr also canonicalizes to empty — silently broad rule.
+      const store = createEmailSuppressionStore({ db: getDb() });
+      expect(() =>
+        store.insertRule({ rule_type: 'sender', pattern: '', ttl_days: 7 }),
+      ).toThrow(/non-empty/);
+      expect(() =>
+        store.insertRule({ rule_type: 'sender', pattern: '   ', ttl_days: 7 }),
+      ).toThrow(/non-empty/);
+    });
   });
 
   describe('findActiveMatch', () => {

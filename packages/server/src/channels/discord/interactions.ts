@@ -1655,14 +1655,14 @@ async function routeSlashCommand(
   }
 }
 
-// Embed-friendly subject clip. Discord embed description has a 4096-char cap,
-// but the full /why payload is small; we clip subject independently so a
-// pathological 5KB subject doesn't push the rest off-screen.
+// Embed-friendly clip. Discord embed description has a 4096-char cap and
+// EmbedBuilder.setDescription throws RangeError past it — a multi-KB subject
+// or from header would break /why for the offending row. Clip each field
+// independently so the rest of the embed stays intact.
 const WHY_SUBJECT_MAX_LEN = 100;
-function clipSubjectForWhy(subject: string): string {
-  return subject.length > WHY_SUBJECT_MAX_LEN
-    ? subject.slice(0, WHY_SUBJECT_MAX_LEN - 1) + '…'
-    : subject;
+const WHY_FROM_MAX_LEN = 200;
+function clipForWhy(text: string, max: number): string {
+  return text.length > max ? text.slice(0, max - 1) + '…' : text;
 }
 
 function formatWhyTime(ms: number): string {
@@ -1731,8 +1731,8 @@ async function handleWhySlash(
       .setTitle('ℹ️ Письмо не помечено как urgent')
       .setDescription(
         [
-          `From: ${row.from_addr}`,
-          `Subject: ${clipSubjectForWhy(row.subject)}`,
+          `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
+          `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
           `Importance: ${row.importance}/5 — получено ${formatWhyTime(row.received_at)}`,
           '',
           'urgent ping не отправлялся — importance < 5 или письмо ещё в очереди.',
@@ -1756,8 +1756,8 @@ async function handleWhySlash(
       .setTitle('🙈 Suppressed by rule')
       .setDescription(
         [
-          `From: ${row.from_addr}`,
-          `Subject: ${clipSubjectForWhy(row.subject)}`,
+          `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
+          `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
           `Получено: ${formatWhyTime(row.received_at)}`,
           '',
           `Заглушено правилом: ${ruleLine}`,
@@ -1781,8 +1781,8 @@ async function handleWhySlash(
     .setTitle('🔍 Why this is urgent')
     .setDescription(
       [
-        `From: ${row.from_addr}`,
-        `Subject: ${clipSubjectForWhy(row.subject)}`,
+        `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
+        `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
         `Importance: ${row.importance}/5 — received ${formatWhyTime(row.received_at)} — pinged ${pingedAt}`,
         '',
         'Прошлые 7 дней с этого отправителя:',

@@ -44,13 +44,14 @@ export function createEmailSuppressionStore(deps: {
       // variance across messages (`"Bob" <b@x>` vs `"Bob Smith" <b@x>`).
       // Subject rules trim at the boundary so a future caller skipping the
       // modal's trim can't store `"  pattern  "` — `includes` is whitespace-
-      // sensitive and would silently miss normal subjects. An empty string
-      // is rejected outright because `''.includes('')` is true and would
-      // suppress every urgent email.
+      // sensitive and would silently miss normal subjects. An empty pattern
+      // is rejected for both types: `''.includes('')` is true and an empty
+      // bare sender address ('Foo Bar' with no `<addr>`) would match any
+      // row whose canonicalized from_addr is empty.
       const storedPattern =
         rule_type === 'sender' ? parseFromAddress(pattern) : pattern.trim();
-      if (rule_type === 'subject' && storedPattern.length === 0) {
-        throw new Error('subject pattern must be non-empty after trim');
+      if (storedPattern.length === 0) {
+        throw new Error(`${rule_type} pattern must be non-empty after canonicalization`);
       }
       const info = db
         .prepare(

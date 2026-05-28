@@ -526,4 +526,43 @@ describe('/why slash command routing', () => {
     const description = args.embeds[0].data?.description ?? args.embeds[0].description ?? '';
     expect(description).toMatch(/правило истекло|правило/);
   });
+
+  it('clips multi-KB from_addr so embed description stays under Discord cap', async () => {
+    // Discord embed description hard limit is 4096 — EmbedBuilder.setDescription
+    // throws RangeError past it. A malicious sender with a multi-KB display
+    // name would otherwise break /why for that row and leave the slash
+    // interaction unacked.
+    const longFrom =
+      '"' + 'A'.repeat(8000) + '" <attacker@evil.com>';
+    const row: EmailPendingRow = {
+      id: 31,
+      account_id: 'acc-1',
+      message_uid: 42,
+      from_addr: longFrom,
+      subject: 'short subject',
+      snippet: 'snip',
+      importance: 5,
+      received_at: 1_700_000_000_000,
+      added_at: 1_700_000_001_000,
+      delivered_at: null,
+      urgent_pinged_at: 1_700_000_005_000,
+    };
+    const ixn = makeWhySlashIxn({ id: 31 });
+    const deps = makeBaseDeps({
+      commandService: makeCommandSvc({
+        result: {
+          kind: 'urgent',
+          row,
+          history: { pendings: 0, sent: 0, cancelled: 0, error: 0 },
+          activeRule: null,
+        },
+      }),
+    });
+    await routeInteraction(ixn, deps);
+    expect(ixn.reply).toHaveBeenCalledTimes(1);
+    const description =
+      ixn.reply.mock.calls[0]![0].embeds[0].data?.description ?? '';
+    expect(description.length).toBeLessThan(4096);
+    expect(description).toContain('…');
+  });
 });
