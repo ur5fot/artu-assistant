@@ -9,6 +9,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  EmbedBuilder,
   MessageFlags,
   ModalBuilder,
   TextInputBuilder,
@@ -27,9 +28,11 @@ import type {
 } from '../../services/draft-reply-service.js';
 import type { EmailStore } from '../../emails/store.js';
 import type { EmailSentLog } from '../../emails/sent-log.js';
+import type { EmailSuppressionStore } from '../../emails/suppression-store.js';
 import type { ImapAccount, FullMessage } from '../../emails/types.js';
 import type { MessageHeaders } from '../../emails/imap-client.js';
 import type { PiiProxy } from '../../pii/proxy.js';
+import { parseFromAddress } from '../../emails/address.js';
 import {
   buildReminderEmbed,
   buildPermissionEmbed,
@@ -112,6 +115,8 @@ export interface InteractionDeps {
   emailSendHoldSeconds?: number;
   /** Mini audit table for send/cancel/error outcomes. */
   emailSentLog?: EmailSentLog;
+  /** Sender/subject suppression rules — read by the urgent trigger gate, written by Discord buttons. */
+  emailSuppressionStore?: EmailSuppressionStore;
   /** PII proxy — anonymizes the email thread before it leaves to Claude, then
    *  deanonymizes Claude's draft so the body sent over SMTP has real names. */
   piiProxy?: PiiProxy;
@@ -341,6 +346,22 @@ async function routeButton(
     return;
   }
 
+  if (domain === 'email_suppress') {
+    if (action === 'sender_start') {
+      await handleSuppressSenderStart(ixn, deps, rawId ?? '');
+      return;
+    }
+    if (action === 'sender_set_ttl') {
+      await handleSuppressSenderSetTtl(ixn, deps, rawId ?? '');
+      return;
+    }
+    if (action === 'subject_start') {
+      await handleSuppressSubjectStart(ixn, deps, rawId ?? '');
+      return;
+    }
+    return;
+  }
+
   if (domain === 'perm_rule' && action === 'revoke') {
     const toolName = rawId ?? '';
     deps.commandService.revokePermissionRule(toolName);
@@ -390,22 +411,6 @@ function clampReplyContent(content: string): string {
   return content.length > DISCORD_MESSAGE_MAX
     ? content.slice(0, DISCORD_MESSAGE_MAX - 1) + '…'
     : content;
-}
-
-// Parses an RFC 5322 mailbox of the form `Name <addr@host>` or a bare
-// `addr@host` into just the address part. Reply needs the bare address —
-// nodemailer accepts the wrapped form too, but `to` should be canonical so
-// the SMTP envelope and visible header agree across providers.
-// Pick the LAST angle-bracketed group: an attacker-controlled display name
-// can contain `<fake@evil.com>` (e.g. `"Bank <fake@evil.com>" <real@bank.com>`)
-// and matching the first group would route the reply to the spoof address.
-export function parseFromAddress(fromAddr: string): string {
-  const matches = fromAddr.match(/<([^>]+)>/g);
-  if (matches && matches.length > 0) {
-    const last = matches[matches.length - 1]!;
-    return last.slice(1, -1).trim();
-  }
-  return fromAddr.trim();
 }
 
 function buildDraftPrompt(thread: FullMessage[], currentUid: number): string {
@@ -1133,6 +1138,266 @@ async function handleEmailDraftEdit(
   await (ixn as any).showModal(modal);
 }
 
+// uk-UA locale renders 24h `DD.MM.YYYY HH:MM`, consistent with other absolute
+// times surfaced by the bot (formatHoldTime above).
+function formatExpiryLabel(ms: number): string {
+  return new Date(ms).toLocaleString('uk-UA', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function buildSenderTtlActionRow(rowId: number): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`email_suppress:sender_set_ttl:${rowId}:1`)
+      .setLabel('1d')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`email_suppress:sender_set_ttl:${rowId}:7`)
+      .setLabel('7d')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`email_suppress:sender_set_ttl:${rowId}:30`)
+      .setLabel('30d')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`email_suppress:sender_set_ttl:${rowId}:0`)
+      .setLabel('forever')
+      .setStyle(ButtonStyle.Danger),
+  );
+}
+
+async function handleSuppressSenderStart(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (!deps.emailStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Suppression is not configured.',
+    });
+    return;
+  }
+  const rowId = Number(rawId);
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Некорректная ссылка на письмо',
+    });
+    return;
+  }
+  const row = deps.emailStore.findByPendingId(rowId);
+  if (!row) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Письмо больше недоступно',
+    });
+    return;
+  }
+  await (ixn as any).reply({
+    flags: MessageFlags.Ephemeral,
+    content: `🙈 На сколько заглушить \`${row.from_addr}\`?`,
+    components: [buildSenderTtlActionRow(row.id)],
+  });
+}
+
+async function handleSuppressSenderSetTtl(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (!deps.emailStore || !deps.emailSuppressionStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Suppression is not configured.',
+    });
+    return;
+  }
+  // rawId format: `${rowId}:${ttl}`
+  const sepIdx = rawId.indexOf(':');
+  if (sepIdx < 0) {
+    await (ixn as any).update({
+      content: '⚠️ Некорректная ссылка',
+      components: [],
+    });
+    return;
+  }
+  const rowId = Number(rawId.slice(0, sepIdx));
+  const ttl = Number(rawId.slice(sepIdx + 1));
+  if (
+    !Number.isInteger(rowId) ||
+    rowId <= 0 ||
+    !Number.isInteger(ttl) ||
+    ttl < 0
+  ) {
+    await (ixn as any).update({
+      content: '⚠️ Некорректная ссылка',
+      components: [],
+    });
+    return;
+  }
+  const row = deps.emailStore.findByPendingId(rowId);
+  if (!row) {
+    await (ixn as any).update({
+      content: '⚠️ Письмо больше недоступно',
+      components: [],
+    });
+    return;
+  }
+  // ttl=0 sentinel maps to expires_at=NULL ("forever"). Any other value is the
+  // TTL in days; suppression-store converts to absolute epoch ms.
+  const ttl_days = ttl === 0 ? null : ttl;
+  const inserted = deps.emailSuppressionStore.insertRule({
+    rule_type: 'sender',
+    pattern: row.from_addr,
+    ttl_days,
+  });
+  const expiresLabel =
+    inserted.expires_at === null ? 'навсегда' : formatExpiryLabel(inserted.expires_at);
+  await (ixn as any).update({
+    content: `🙈 Заглушён \`${row.from_addr}\` до ${expiresLabel}`,
+    components: [],
+  });
+}
+
+// Discord text-input max length for the subject substring. Long enough to hold
+// most full subjects (the modal pre-fills from `row.subject`), short enough to
+// keep the LIKE '%pattern%' index-less scan cheap.
+const SUBJECT_PATTERN_MAX_LEN = 200;
+// Days bounds for the subject TTL. 0 → forever (NULL expires_at); upper bound
+// is arbitrary but generous; longer than ~a year is "forever" in practice.
+const SUBJECT_TTL_DAYS_MIN = 0;
+const SUBJECT_TTL_DAYS_MAX = 365;
+
+async function handleSuppressSubjectStart(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (!deps.emailStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Suppression is not configured.',
+    });
+    return;
+  }
+  const rowId = Number(rawId);
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Некорректная ссылка на письмо',
+    });
+    return;
+  }
+  const row = deps.emailStore.findByPendingId(rowId);
+  if (!row) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Письмо больше недоступно',
+    });
+    return;
+  }
+  // Clamp the prefill so TextInputBuilder.setValue doesn't throw when the
+  // subject exceeds the modal's per-field max; subjects from the wild can be
+  // arbitrarily long (auto-generated alerts, forwarded chains).
+  const prefill =
+    row.subject.length > SUBJECT_PATTERN_MAX_LEN
+      ? row.subject.slice(0, SUBJECT_PATTERN_MAX_LEN)
+      : row.subject;
+  const modal = new ModalBuilder()
+    .setCustomId(`email_suppress:subject_submit:${row.id}`)
+    .setTitle('🙈 Заглушить тему');
+  const substringInput = new TextInputBuilder()
+    .setCustomId('substring')
+    .setLabel('Шаблон для блокировки (substring)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(SUBJECT_PATTERN_MAX_LEN)
+    .setValue(prefill);
+  const daysInput = new TextInputBuilder()
+    .setCustomId('days')
+    .setLabel('Дней (0 = forever)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(3)
+    .setValue('7');
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(substringInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(daysInput),
+  );
+  await (ixn as any).showModal(modal);
+}
+
+async function handleSuppressSubjectSubmit(
+  ixn: ModalSubmitInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (!deps.emailSuppressionStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Suppression is not configured.',
+    });
+    return;
+  }
+  // rawId is the source row id — kept for symmetry with the sender flow and
+  // future "rule attribution" use; not strictly required to insert the rule.
+  const rowId = Number(rawId);
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Некорректная ссылка на письмо',
+    });
+    return;
+  }
+  const substringRaw = ixn.fields.getTextInputValue('substring') ?? '';
+  const daysRaw = ixn.fields.getTextInputValue('days') ?? '';
+  const substring = substringRaw.trim();
+  if (substring.length === 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Пустой шаблон не сохраняется',
+    });
+    return;
+  }
+  // Reject NaN, floats, infinities, and out-of-range — match the test contract
+  // exactly so the user gets one consistent error string.
+  // Empty / whitespace input must be rejected explicitly: `Number('')` is 0,
+  // which would otherwise pass the range check and silently create a
+  // forever-rule despite the modal field being marked required.
+  const daysTrimmed = daysRaw.trim();
+  const days = Number(daysTrimmed);
+  if (
+    daysTrimmed.length === 0 ||
+    !Number.isInteger(days) ||
+    days < SUBJECT_TTL_DAYS_MIN ||
+    days > SUBJECT_TTL_DAYS_MAX
+  ) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: `⚠️ Введите число от ${SUBJECT_TTL_DAYS_MIN} до ${SUBJECT_TTL_DAYS_MAX}`,
+    });
+    return;
+  }
+  const ttl_days = days === 0 ? null : days;
+  const inserted = deps.emailSuppressionStore.insertRule({
+    rule_type: 'subject',
+    pattern: substring,
+    ttl_days,
+  });
+  const expiresLabel =
+    inserted.expires_at === null ? 'навсегда' : formatExpiryLabel(inserted.expires_at);
+  await (ixn as any).reply({
+    flags: MessageFlags.Ephemeral,
+    content: `🙈 Заглушены письма с темой «${substring}» до ${expiresLabel}`,
+  });
+}
+
 async function handleEmailDraftModalSubmit(
   ixn: ModalSubmitInteraction,
   deps: InteractionDeps,
@@ -1188,6 +1453,14 @@ async function routeModalSubmit(
       ixn,
       deps,
       customId.slice('email_draft_modal:'.length),
+    );
+    return;
+  }
+  if (customId.startsWith('email_suppress:subject_submit:')) {
+    await handleSuppressSubjectSubmit(
+      ixn,
+      deps,
+      customId.slice('email_suppress:subject_submit:'.length),
     );
     return;
   }
@@ -1334,6 +1607,10 @@ async function routeSlashCommand(
     }
     return;
   }
+  if (name === 'why') {
+    await handleWhySlash(ixn, deps);
+    return;
+  }
   if (name === 'heartbeat') {
     const sub = (ixn as any).options.getSubcommand();
     if (sub === 'status') {
@@ -1376,4 +1653,146 @@ async function routeSlashCommand(
       content: `Unknown /heartbeat subcommand: \`${sub}\`.`,
     });
   }
+}
+
+// Embed-friendly clip. Discord embed description has a 4096-char cap and
+// EmbedBuilder.setDescription throws RangeError past it — a multi-KB subject
+// or from header would break /why for the offending row. Clip each field
+// independently so the rest of the embed stays intact.
+const WHY_SUBJECT_MAX_LEN = 100;
+const WHY_FROM_MAX_LEN = 200;
+function clipForWhy(text: string, max: number): string {
+  return text.length > max ? text.slice(0, max - 1) + '…' : text;
+}
+
+function formatWhyTime(ms: number): string {
+  // `HH:MM DD.MM` — short form matching the plan's embed mockup. Same uk-UA
+  // locale used elsewhere (24h, day-first) so dates align across surfaces.
+  const d = new Date(ms);
+  const time = d.toLocaleTimeString('uk-UA', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const date = d.toLocaleDateString('uk-UA', {
+    day: '2-digit',
+    month: '2-digit',
+  });
+  return `${time} ${date}`;
+}
+
+function formatWhyHourMinute(ms: number): string {
+  return new Date(ms).toLocaleTimeString('uk-UA', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function describeRule(rule: import('../../emails/suppression-store.js').SuppressionRule): string {
+  const expires =
+    rule.expires_at === null ? 'навсегда' : `до ${formatExpiryLabel(rule.expires_at)}`;
+  const kind = rule.rule_type === 'sender' ? 'отправитель' : 'тема';
+  return `${kind} \`${rule.pattern}\` (${expires})`;
+}
+
+async function handleWhySlash(
+  ixn: ChatInputCommandInteraction,
+  deps: InteractionDeps,
+): Promise<void> {
+  const rawId = (ixn as any).options.getInteger('id') as number | null;
+  const id = typeof rawId === 'number' ? rawId : undefined;
+  const result = deps.commandService.whyEmailUrgent({ id });
+
+  if (result.kind === 'not_configured') {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Email-наблюдение не настроено.',
+    });
+    return;
+  }
+  if (result.kind === 'not_found') {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: `Письмо с id=\`${result.id}\` не найдено.`,
+    });
+    return;
+  }
+  if (result.kind === 'no_recent_urgent') {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Недавних urgent писем нет.',
+    });
+    return;
+  }
+
+  if (result.kind === 'not_urgent') {
+    const row = result.row;
+    const ruleLine = result.activeRule ? describeRule(result.activeRule) : '—';
+    const embed = new EmbedBuilder()
+      .setTitle('ℹ️ Письмо не помечено как urgent')
+      .setDescription(
+        [
+          `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
+          `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
+          `Importance: ${row.importance}/5 — получено ${formatWhyTime(row.received_at)}`,
+          '',
+          'urgent ping не отправлялся — importance < 5 или письмо ещё в очереди.',
+          '',
+          `Активное правило заглушения: ${ruleLine}`,
+        ].join('\n'),
+      );
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      embeds: [embed],
+    });
+    return;
+  }
+
+  if (result.kind === 'suppressed') {
+    const row = result.row;
+    const ruleLine = result.matchedRule
+      ? describeRule(result.matchedRule)
+      : 'правило истекло или удалено';
+    const embed = new EmbedBuilder()
+      .setTitle('🙈 Suppressed by rule')
+      .setDescription(
+        [
+          `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
+          `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
+          `Получено: ${formatWhyTime(row.received_at)}`,
+          '',
+          `Заглушено правилом: ${ruleLine}`,
+        ].join('\n'),
+      );
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      embeds: [embed],
+    });
+    return;
+  }
+
+  // kind === 'urgent'
+  const row = result.row;
+  const pingedAt =
+    row.urgent_pinged_at != null && row.urgent_pinged_at > 0
+      ? formatWhyHourMinute(row.urgent_pinged_at)
+      : '—';
+  const ruleLine = result.activeRule ? describeRule(result.activeRule) : '—';
+  const embed = new EmbedBuilder()
+    .setTitle('🔍 Why this is urgent')
+    .setDescription(
+      [
+        `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
+        `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
+        `Importance: ${row.importance}/5 — received ${formatWhyTime(row.received_at)} — pinged ${pingedAt}`,
+        '',
+        'Прошлые 7 дней с этого отправителя:',
+        `  писем: ${result.history.pendings} — отправлено: ${result.history.sent} — отменено: ${result.history.cancelled} — ошибок: ${result.history.error}`,
+        '',
+        `Активное правило заглушения: ${ruleLine}`,
+      ].join('\n'),
+    );
+  await (ixn as any).reply({
+    flags: MessageFlags.Ephemeral,
+    embeds: [embed],
+  });
 }

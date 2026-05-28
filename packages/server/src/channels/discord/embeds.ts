@@ -253,6 +253,16 @@ export function buildUrgentEmailEmbed(row: EmailPendingRow): {
             label: 'Draft reply',
             style: 'primary',
           },
+          {
+            customId: `email_suppress:sender_start:${row.id}`,
+            label: '🙈 Sender',
+            style: 'secondary',
+          },
+          {
+            customId: `email_suppress:subject_start:${row.id}`,
+            label: '🙈 Subject',
+            style: 'secondary',
+          },
         ],
       },
     ],

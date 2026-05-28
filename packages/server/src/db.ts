@@ -265,6 +265,25 @@ export function initDb(dbPath?: string): void {
       ON email_sent_log(action, created_at DESC)
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_suppression_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rule_type TEXT NOT NULL CHECK(rule_type IN ('sender', 'subject')),
+      pattern TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER,
+      created_via TEXT NOT NULL DEFAULT 'discord_button'
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_email_suppression_rules_type_pattern
+      ON email_suppression_rules(rule_type, pattern)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_email_suppression_rules_expires
+      ON email_suppression_rules(expires_at)
+  `);
+
   // Migration: add `source` column if missing
   const cols = db.prepare("PRAGMA table_info(chat_messages)").all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === 'source')) {

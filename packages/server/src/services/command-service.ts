@@ -3,6 +3,33 @@ import type { ReminderService } from './reminder-service.js';
 import type { PermissionService } from './permission-service.js';
 import type { MemoryService } from '../memory/service.js';
 import type { ReminderRow } from '../reminders/store.js';
+import type { EmailStore } from '../emails/store.js';
+import type { EmailSentLog } from '../emails/sent-log.js';
+import type {
+  EmailSuppressionStore,
+  SuppressionRule,
+} from '../emails/suppression-store.js';
+import type { EmailPendingRow } from '../emails/types.js';
+import { parseFromAddress } from '../emails/address.js';
+import { SUPPRESSED_PING_SENTINEL } from '../cognition/handlers/emailUrgent.js';
+
+export type WhyEmailUrgentResult =
+  | { kind: 'not_configured' }
+  | { kind: 'not_found'; id: number }
+  | { kind: 'no_recent_urgent' }
+  | { kind: 'not_urgent'; row: EmailPendingRow; activeRule: SuppressionRule | null }
+  | { kind: 'suppressed'; row: EmailPendingRow; matchedRule: SuppressionRule | null }
+  | {
+      kind: 'urgent';
+      row: EmailPendingRow;
+      history: {
+        pendings: number;
+        sent: number;
+        cancelled: number;
+        error: number;
+      };
+      activeRule: SuppressionRule | null;
+    };
 
 export interface CommandService {
   clearHistory(): { deleted: number };
@@ -21,6 +48,7 @@ export interface CommandService {
   revokePermissionRule(
     toolName: string,
   ): { ok: true } | { ok: false; reason: 'not_found' };
+  whyEmailUrgent(params: { id?: number; now?: number }): WhyEmailUrgentResult;
 }
 
 interface Deps {
@@ -31,7 +59,18 @@ interface Deps {
   pendingConfirmsCount?: () => number;
   pendingPlanReviewsCount?: () => number;
   startedAt?: number;
+  /** Email pending store — read by `/why` to look up the row and prior pings
+   *  from the same sender. Optional so existing call sites without email
+   *  wiring keep working; `/why` returns `not_configured` when absent. */
+  emailStore?: EmailStore;
+  /** Sent log — read by `/why` to count sent/cancelled/error per sender. */
+  emailSentLog?: EmailSentLog;
+  /** Suppression rules — `/why` shows the matching rule for suppressed rows
+   *  and any active rule that would suppress a normal urgent row. */
+  emailSuppressionStore?: EmailSuppressionStore;
 }
+
+const HISTORY_WINDOW_DAYS = 7;
 
 export function createCommandService(deps: Deps): CommandService {
   const {
@@ -41,6 +80,9 @@ export function createCommandService(deps: Deps): CommandService {
     pendingConfirmsCount = () => 0,
     pendingPlanReviewsCount = () => 0,
     startedAt = Date.now(),
+    emailStore,
+    emailSentLog,
+    emailSuppressionStore,
   } = deps;
 
   return {
@@ -96,6 +138,63 @@ export function createCommandService(deps: Deps): CommandService {
       return result.changes > 0
         ? ({ ok: true } as const)
         : ({ ok: false, reason: 'not_found' } as const);
+    },
+    whyEmailUrgent({ id, now: nowOverride }) {
+      if (!emailStore || !emailSentLog || !emailSuppressionStore) {
+        return { kind: 'not_configured' } as const;
+      }
+      const now = nowOverride ?? Date.now();
+      const row = typeof id === 'number'
+        ? emailStore.findByPendingId(id)
+        : emailStore.findMostRecentUrgent();
+      if (!row) {
+        return typeof id === 'number'
+          ? ({ kind: 'not_found', id } as const)
+          : ({ kind: 'no_recent_urgent' } as const);
+      }
+      if (row.urgent_pinged_at === SUPPRESSED_PING_SENTINEL) {
+        // Suppressed: surface the rule that *currently* matches this row.
+        // The original suppressing rule may have expired since; we show the
+        // active one to keep the answer aligned with present-day state.
+        const matchedRule = emailSuppressionStore.findActiveMatch(
+          row.from_addr,
+          row.subject,
+          now,
+        );
+        return { kind: 'suppressed', row, matchedRule } as const;
+      }
+      if (row.urgent_pinged_at === null) {
+        // Row was never urgent-pinged — either importance < 5 or it's still
+        // queued. /why must not render "🔍 Why this is urgent" for these,
+        // since that title would lie about treatment that never happened.
+        // Caller renders a separate "not pinged" embed instead.
+        const activeRule = emailSuppressionStore.findActiveMatch(
+          row.from_addr,
+          row.subject,
+          now,
+        );
+        return { kind: 'not_urgent', row, activeRule } as const;
+      }
+      const sinceMs = now - HISTORY_WINDOW_DAYS * 86_400_000;
+      // Both history helpers expect the bare address: sent-log stores the
+      // canonical recipient (see parseFromAddress callsite in interactions.ts:
+      // draft reply), and countPendingFromSender accepts either form but is
+      // documented to take the canonical key. Pass `senderKey` to both so the
+      // call sites stay symmetric and a future refactor that drops the
+      // helper's internal canonicalization doesn't silently regress pendings.
+      const senderKey = parseFromAddress(row.from_addr);
+      const history = {
+        pendings: emailStore.countPendingFromSender(senderKey, sinceMs),
+        sent: emailSentLog.countBySender(senderKey, HISTORY_WINDOW_DAYS, 'sent', now),
+        cancelled: emailSentLog.countBySender(senderKey, HISTORY_WINDOW_DAYS, 'cancelled', now),
+        error: emailSentLog.countBySender(senderKey, HISTORY_WINDOW_DAYS, 'error', now),
+      };
+      const activeRule = emailSuppressionStore.findActiveMatch(
+        row.from_addr,
+        row.subject,
+        now,
+      );
+      return { kind: 'urgent', row, history, activeRule } as const;
     },
   };
 }

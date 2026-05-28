@@ -1,10 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
-import {
-  parseFromAddress,
-  routeInteraction,
-  type InteractionDeps,
-} from '../interactions.js';
+import { routeInteraction, type InteractionDeps } from '../interactions.js';
+import { parseFromAddress } from '../../../emails/address.js';
 import {
   createDraftReplyService,
   type DraftState,

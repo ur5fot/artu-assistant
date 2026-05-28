@@ -1,7 +1,15 @@
 import type { Handler } from '../types.js';
 import type { EmailStore } from '../../emails/store.js';
+import type { EmailSuppressionStore } from '../../emails/suppression-store.js';
+import type { EmailPendingRow } from '../../emails/types.js';
 import { buildUrgentEmailEmbed } from '../../channels/discord/embeds.js';
 import { inQuietHours, MORNING_FALLBACK_HOUR } from './emailDigest.helpers.js';
+
+// Sentinel stored in `email_pending.urgent_pinged_at` when a row was matched by
+// an active suppression rule before any urgent ping went out. Distinct from
+// NULL (never considered) and from a positive epoch ms (actually pinged) so
+// that `/why` can later distinguish the three states.
+export const SUPPRESSED_PING_SENTINEL = -1;
 
 // Observability — manual review queries (run via sqlite3 on r2.db):
 //
@@ -27,8 +35,29 @@ const SNIPPET_MAX = 200;
 
 interface Deps {
   store: EmailStore;
+  suppressionStore: EmailSuppressionStore;
   tz: string;
   quietStart: number;
+}
+
+// Drain suppressed candidates and return the first unsuppressed urgent row, or
+// null when nothing remains. Called from both `trigger` and `run` because they
+// execute at different instants — a new suppression rule (or an out-of-order
+// older urgent row) can appear between the two, and `run` must not publish a
+// row that's now suppressed. Each iteration either exhausts the candidate set,
+// finds a row no rule matches, or marks one suppressed row with the sentinel,
+// shrinking the set monotonically.
+function drainAndFindUrgent(deps: Deps, now: number): EmailPendingRow | null {
+  while (true) {
+    const row = deps.store.findUnpingedUrgent();
+    if (row === null) return null;
+    const rule = deps.suppressionStore.findActiveMatch(row.from_addr, row.subject, now);
+    if (rule === null) return row;
+    // Mark with sentinel so this row is excluded from future urgent candidate
+    // sets (findUnpingedUrgent filters `IS NULL`) and so /why can later report
+    // "suppressed by rule X" instead of "pinged".
+    deps.store.markUrgentPinged(row.id, SUPPRESSED_PING_SENTINEL);
+  }
 }
 
 export function createEmailUrgentHandler(deps: Deps): Handler {
@@ -39,13 +68,13 @@ export function createEmailUrgentHandler(deps: Deps): Handler {
       // morning release. Without this the handler would ping at 02:00 —
       // inQuietHours alone only suppresses quietStart..23:59.
       if (inQuietHours(state.now, deps.quietStart, deps.tz, MORNING_FALLBACK_HOUR)) return false;
-      return deps.store.findUnpingedUrgent() !== null;
+      return drainAndFindUrgent(deps, state.now) !== null;
     },
-    async run() {
-      // Defensive re-fetch: trigger and run execute at different instants, so
-      // another tick (or a manual UPDATE) could have marked the row between
-      // the trigger check and now.
-      const row = deps.store.findUnpingedUrgent();
+    async run(ctx) {
+      // Re-run the drain in case a suppression rule was created between
+      // trigger and run, or an out-of-order older urgent row appeared. Without
+      // this, a row matching a freshly-created rule could still be published.
+      const row = drainAndFindUrgent(deps, ctx.firedAt);
       if (row === null) return { skip: true, reason: 'no unpinged urgent row' };
       // Collapse internal whitespace and trim — IMAP-decoded headers
       // (from name, subject) and snippets can contain raw \n / \r / \t

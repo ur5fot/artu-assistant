@@ -36,6 +36,7 @@ import type {
 import type { DraftReplyService } from '../../services/draft-reply-service.js';
 import type { EmailStore } from '../../emails/store.js';
 import type { EmailSentLog } from '../../emails/sent-log.js';
+import type { EmailSuppressionStore } from '../../emails/suppression-store.js';
 import type { ImapAccount } from '../../emails/types.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { PiiProxy } from '../../pii/proxy.js';
@@ -108,6 +109,9 @@ export interface DiscordBotDeps {
   emailSendHoldSeconds?: number;
   /** Mini audit table for send/cancel/error outcomes. */
   emailSentLog?: EmailSentLog;
+  /** Sender/subject suppression rules — read by `/why` and written by the
+   *  `🙈 Sender` / `🙈 Subject` buttons attached to the urgent embed. */
+  emailSuppressionStore?: EmailSuppressionStore;
   /** PII proxy — anonymizes draft-reply prompts before they leave to Claude. */
   piiProxy?: PiiProxy;
 }
@@ -312,6 +316,7 @@ export async function startDiscordBot(
         smtpClient: deps.smtpClient,
         emailSendHoldSeconds: deps.emailSendHoldSeconds,
         emailSentLog: deps.emailSentLog,
+        emailSuppressionStore: deps.emailSuppressionStore,
         piiProxy: deps.piiProxy,
       });
     } catch (err) {
