@@ -823,6 +823,132 @@ describe('email_draft:cancel', () => {
   });
 });
 
+describe('email_draft:cancelSend', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('clears the timer — SMTP never called even after long advance', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const sendIxn = makeButton({
+      customId: 'email_draft:send:p1',
+      createdTimestamp: Date.now(),
+    });
+    await routeInteraction(sendIxn, deps);
+
+    const cancelIxn = makeButton({ customId: 'email_draft:cancelSend:p1' });
+    await routeInteraction(cancelIxn, deps);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect((deps.smtpClient as any).sendReply).not.toHaveBeenCalled();
+  });
+
+  it('records cancelled in emailSentLog with draft fields', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const sendIxn = makeButton({
+      customId: 'email_draft:send:p1',
+      createdTimestamp: Date.now(),
+    });
+    await routeInteraction(sendIxn, deps);
+
+    const cancelIxn = makeButton({ customId: 'email_draft:cancelSend:p1' });
+    await routeInteraction(cancelIxn, deps);
+
+    expect(recordLog).toHaveBeenCalledTimes(1);
+    expect(recordLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'cancelled',
+        draftId: 'p1',
+        to: 'alice@example.com',
+        subject: 'Re: Project status',
+      }),
+    );
+  });
+
+  it('edits ephemeral to "Cancelled" with no buttons + drops state', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const sendIxn = makeButton({
+      customId: 'email_draft:send:p1',
+      createdTimestamp: Date.now(),
+    });
+    await routeInteraction(sendIxn, deps);
+
+    const cancelIxn = makeButton({ customId: 'email_draft:cancelSend:p1' });
+    await routeInteraction(cancelIxn, deps);
+
+    expect(cancelIxn.deferUpdate).toHaveBeenCalled();
+    const editArg = cancelIxn.editReply.mock.calls[cancelIxn.editReply.mock.calls.length - 1][0];
+    expect(editArg.content).toContain('Cancelled');
+    expect(editArg.components).toEqual([]);
+    expect(deps.draftReplyService!.has('p1')).toBe(false);
+  });
+
+  it('Cancel after timer already fired → "Слишком поздно", no extra record call', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const sendIxn = makeButton({
+      customId: 'email_draft:send:p1',
+      createdTimestamp: Date.now(),
+    });
+    await routeInteraction(sendIxn, deps);
+    await vi.advanceTimersByTimeAsync(30_000);
+    // Timer fired: SMTP completed and one 'sent' row recorded.
+    expect(recordLog).toHaveBeenCalledTimes(1);
+    expect(recordLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'sent' }),
+    );
+
+    const cancelIxn = makeButton({ customId: 'email_draft:cancelSend:p1' });
+    await routeInteraction(cancelIxn, deps);
+
+    const editArg = cancelIxn.editReply.mock.calls[cancelIxn.editReply.mock.calls.length - 1][0];
+    expect(editArg.content).toContain('Слишком поздно');
+    expect(editArg.components).toEqual([]);
+    // No 'cancelled' record added; only the original 'sent' remains.
+    expect(recordLog).toHaveBeenCalledTimes(1);
+  });
+
+  it('Cancel with missing state → "Слишком поздно"', async () => {
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    const cancelIxn = makeButton({ customId: 'email_draft:cancelSend:nope' });
+
+    await routeInteraction(cancelIxn, deps);
+
+    expect(cancelIxn.deferUpdate).toHaveBeenCalled();
+    const editArg = cancelIxn.editReply.mock.calls[cancelIxn.editReply.mock.calls.length - 1][0];
+    expect(editArg.content).toContain('Слишком поздно');
+    expect(editArg.components).toEqual([]);
+    expect(recordLog).not.toHaveBeenCalled();
+  });
+});
+
 describe('email_draft:edit', () => {
   it('shows modal prefilled with current body', async () => {
     const deps = makeDeps();

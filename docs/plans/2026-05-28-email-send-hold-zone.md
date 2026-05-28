@@ -300,10 +300,10 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
 
 ### Task 5: New `Cancel send` button handler
 
-- [ ] in `interactions.ts`, add new action `cancelSend` under the
+- [x] in `interactions.ts`, add new action `cancelSend` under the
   `email_draft` domain (follow `start` / `send` / `edit` / `cancel`
   patterns at lines 81-292)
-- [ ] implement `handleEmailDraftCancelSend(ixn, deps, pendingId)`:
+- [x] implement `handleEmailDraftCancelSend(ixn, deps, pendingId)`:
   - `deferUpdate()`
   - look up state; if missing or `holdTimer` is null → editReply
     `"⚠️ Слишком поздно — уже отправлено."` and return
@@ -311,9 +311,9 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
   - `emailSentLog.record({action: 'cancelled', draftId: pendingId,
     to: state.to, subject: state.subject})`
   - editReply to `"🚫 Cancelled"` with no buttons
-- [ ] route the new action in the interaction dispatcher (where `send`
+- [x] route the new action in the interaction dispatcher (where `send`
   / `edit` / `cancel` get routed)
-- [ ] write tests in `interactions.draft.test.ts`:
+- [x] write tests in `interactions.draft.test.ts`:
   - Cancel clears the timer (SMTP never called even after
     `advanceTimersByTimeAsync(60_000)`)
   - Cancel records `cancelled` in `emailSentLog`
@@ -321,7 +321,7 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
   - Cancel after timer already fired shows "Слишком поздно",
     no extra `record` call
   - Cancel with missing state shows "Слишком поздно"
-- [ ] run `npm -w @r2/server test -- interactions.draft` — must pass
+- [x] run `npm -w @r2/server test -- interactions.draft` — must pass
   before task 6
 
 ### Task 6: Integration test — full round-trip

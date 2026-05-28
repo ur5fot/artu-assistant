@@ -334,6 +334,10 @@ async function routeButton(
       await handleEmailDraftCancel(ixn, deps, rawId ?? '');
       return;
     }
+    if (action === 'cancelSend') {
+      await handleEmailDraftCancelSend(ixn, deps, rawId ?? '');
+      return;
+    }
     return;
   }
 
@@ -870,6 +874,47 @@ async function handleEmailDraftCancel(
   deps.draftReplyService.drop(pendingId);
   await (ixn as any).editReply({
     content: '❌ Отменено',
+    components: [],
+  });
+}
+
+// Cancel-send is distinct from cancel-draft: it aborts a queued SMTP send while
+// the hold-zone timer is still armed. Missing state or null holdTimer means the
+// timer already fired (SMTP went through or is in flight) — we surface that to
+// the user rather than silently fabricating a "Cancelled" status.
+async function handleEmailDraftCancelSend(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  pendingId: string,
+): Promise<void> {
+  if (!deps.draftReplyService) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Draft reply is not configured.',
+    });
+    return;
+  }
+  await (ixn as any).deferUpdate();
+  const state = deps.draftReplyService.get(pendingId);
+  if (!state || !state.holdTimer) {
+    await (ixn as any).editReply({
+      content: '⚠️ Слишком поздно — уже отправлено.',
+      components: [],
+    });
+    return;
+  }
+  // Snapshot the audit fields before drop wipes state.
+  const { to, subject } = state;
+  deps.draftReplyService.disarmHold(pendingId);
+  deps.draftReplyService.drop(pendingId);
+  deps.emailSentLog?.record({
+    action: 'cancelled',
+    draftId: pendingId,
+    to,
+    subject,
+  });
+  await (ixn as any).editReply({
+    content: '🚫 Cancelled',
     components: [],
   });
 }
