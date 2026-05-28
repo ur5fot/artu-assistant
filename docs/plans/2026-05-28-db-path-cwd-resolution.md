@@ -110,13 +110,13 @@ intentional.
 
 ### Task 1: `path-utils.ts` — `resolveProjectPath` helper (DI for testability)
 
-- [ ] create `packages/server/src/path-utils.ts` exporting:
+- [x] create `packages/server/src/path-utils.ts` exporting:
   - `resolveProjectPath(envValue: string | undefined, defaultRelativeParts: string[], opts?: { projectRoot?: string }): string`
   - `getProjectRoot(): string` — module-level cached default, derived
     from `import.meta.url` walking 3 hops up (`packages/server/src/` →
     repo root). Add inline comment: `// DO NOT MOVE THIS FILE — path
     walk assumes packages/server/src/ depth.`
-- [ ] semantics (pure function — no `process.cwd` reads, no `process.env`
+- [x] semantics (pure function — no `process.cwd` reads, no `process.env`
   reads inside the helper):
   - `projectRoot = opts.projectRoot ?? getProjectRoot()`
   - `envValue === undefined || envValue === ''` →
@@ -124,7 +124,7 @@ intentional.
   - `path.isAbsolute(envValue)` → return `envValue` unchanged
   - else (relative, incl. `./`, `../`, plain names) →
     `path.resolve(projectRoot, envValue)`
-- [ ] write tests in
+- [x] write tests in
   `packages/server/src/__tests__/path-utils.test.ts` — **inject
   `projectRoot` via opts in every test**; no `process.cwd` mocking:
   - `projectRoot='/proj', envValue='./data/x.db'` → `/proj/data/x.db`
@@ -139,7 +139,7 @@ intentional.
   - `getProjectRoot()` returns an absolute path ending in `R2-D2`
     (sanity check that the 3-hop walk lands on the repo root in the
     actual build)
-- [ ] run `npm -w @r2/server test -- path-utils.test` — must pass
+- [x] run `npm -w @r2/server test -- path-utils.test` — must pass
   before task 2
 
 ### Task 2: `db.ts` — use `resolveProjectPath`
