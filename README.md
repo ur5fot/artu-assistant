@@ -310,6 +310,12 @@ configurable via `EMAIL_SEND_HOLD_SECONDS` (0 disables the hold and restores
 instant send). Pending drafts live in memory only and are lost on restart by
 design.
 
+**Transparency + shut-up.** The urgent ping also carries `🙈 Sender` / `🙈 Subject`
+buttons — pick a TTL (1d/7d/30d/forever) or edit a subject substring in a modal,
+and future matching emails skip the ping. Run `/why` (or `/why id:<n>`) to see
+why a ping fired: scorer importance, last-7-day history with the same sender
+(pings, sent, cancelled, errors), and any active suppression rule.
+
 ---
 
 ## Running without Ollama (API-only mode)

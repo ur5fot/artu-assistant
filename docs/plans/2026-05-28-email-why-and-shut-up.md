@@ -405,13 +405,13 @@ Dependencies: no new npm packages.
 
 ### Task 8: Acceptance + docs
 
-- [ ] run full server test suite (`npm -w @r2/server test`) — all green
-- [ ] run TypeScript build (`npm -w @r2/server run build`) — no errors
-- [ ] verify backward compatibility: existing `emailUrgent` /
+- [x] run full server test suite (`npm -w @r2/server test`) — all green
+- [x] run TypeScript build (`npm -w @r2/server run build`) — no errors
+- [x] verify backward compatibility: existing `emailUrgent` /
   `email_draft` / `email_sent_log` tests still pass
-- [ ] update `AGENTS.md` Discord section: document `/why` slash command
+- [x] update `AGENTS.md` Discord section: document `/why` slash command
   and `🙈 Sender` / `🙈 Subject` buttons
-- [ ] update `README.md` "Email watcher" section: add a one-line note
+- [x] update `README.md` "Email watcher" section: add a one-line note
   about transparency + suppression
 
 ## Technical Details
