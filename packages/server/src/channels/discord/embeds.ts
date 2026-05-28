@@ -4,6 +4,8 @@ import {
   ButtonStyle,
   EmbedBuilder,
 } from 'discord.js';
+import type { ComponentData, EmbedData } from '../../cognition/types.js';
+import type { EmailPendingRow } from '../../emails/types.js';
 
 export type ReminderState = 'ringing' | 'dismissed' | 'snoozed' | 'missed';
 
@@ -204,6 +206,57 @@ export function buildPlanReviewChunks(opts: {
   });
 
   return out;
+}
+
+const URGENT_FIELD_VALUE_LIMIT = 1024;
+const URGENT_SNIPPET_MAX = 200;
+
+function collapseWs(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
+// Plain-data builder — returns the shape consumed by bot.ts (which converts
+// to EmbedBuilder/ActionRowBuilder). Keeps the cognition handler free of
+// discord.js types.
+export function buildUrgentEmailEmbed(row: EmailPendingRow): {
+  embed: EmbedData;
+  components: ComponentData[];
+} {
+  const from = collapseWs(row.from_addr);
+  const subject = collapseWs(row.subject) || '(no subject)';
+  const snippetRaw = collapseWs(row.snippet);
+  const snippet = truncate(snippetRaw, URGENT_SNIPPET_MAX);
+
+  const fields = [
+    { name: 'From', value: truncate(from, URGENT_FIELD_VALUE_LIMIT) },
+    { name: 'Subject', value: truncate(subject, URGENT_FIELD_VALUE_LIMIT) },
+  ];
+  if (snippet.length > 0) {
+    fields.push({ name: 'Snippet', value: truncate(snippet, URGENT_FIELD_VALUE_LIMIT) });
+  }
+
+  return {
+    embed: {
+      title: '🚨 Urgent email',
+      fields,
+    },
+    components: [
+      {
+        type: 'row',
+        buttons: [
+          {
+            customId: `email_draft:start:${row.id}`,
+            label: 'Draft reply',
+            style: 'primary',
+          },
+        ],
+      },
+    ],
+  };
 }
 
 export interface PermissionsListReply {

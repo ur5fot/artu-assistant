@@ -1,11 +1,16 @@
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   Client,
+  EmbedBuilder,
   GatewayIntentBits,
   Partials,
   ChannelType,
   type Message,
   type DMChannel,
 } from 'discord.js';
+import type { ComponentData, EmbedData } from '../../cognition/types.js';
 import crypto from 'node:crypto';
 import type { SSEEvent, ServerPushEvent } from '@r2/shared';
 import type { EventEmitter } from 'node:events';
@@ -23,6 +28,16 @@ import type { TopicStore } from '../../topics/store.js';
 import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
 import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from './tool-embeds.js';
 import { routeInteraction } from './interactions.js';
+import type {
+  DraftImapClient,
+  DraftThreadFetcher,
+  SmtpClient,
+} from './interactions.js';
+import type { DraftReplyService } from '../../services/draft-reply-service.js';
+import type { EmailStore } from '../../emails/store.js';
+import type { ImapAccount } from '../../emails/types.js';
+import type Anthropic from '@anthropic-ai/sdk';
+import type { PiiProxy } from '../../pii/proxy.js';
 import { SLASH_COMMAND_DEFINITIONS } from './slash-commands.js';
 
 export interface DiscordBotDeps {
@@ -74,6 +89,22 @@ export interface DiscordBotDeps {
   commandService?: CommandService;
   /** Cognition service — heartbeat/handler runs; bot listens for `cognition_publish` events on the reminder bus and marks runs published after DM delivery. */
   cognitionService?: CognitionService;
+  /** Email draft reply flow — pending in-memory state keyed by nanoid. */
+  draftReplyService?: DraftReplyService;
+  /** Email store — used by the draft-reply button handler to load the urgent row. */
+  emailStore?: EmailStore;
+  /** IMAP header fetcher used by the draft-reply flow (fetchHeaders only). */
+  imapClient?: DraftImapClient;
+  /** Thread walker used by the draft-reply flow to assemble full thread context. */
+  threadFetcher?: DraftThreadFetcher;
+  /** Anthropic SDK client — draft-reply generation runs as a one-shot Claude call. */
+  anthropic?: Anthropic;
+  /** Account id → ImapAccount lookup used by draft-reply SMTP send. */
+  imapAccounts?: Map<string, ImapAccount>;
+  /** SMTP client used to send the final reply. */
+  smtpClient?: SmtpClient;
+  /** PII proxy — anonymizes draft-reply prompts before they leave to Claude. */
+  piiProxy?: PiiProxy;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -119,22 +150,62 @@ function summarizeArgs(input: Record<string, unknown>): string {
   return pairs.join('\n');
 }
 
+const BUTTON_STYLE_MAP = {
+  primary: ButtonStyle.Primary,
+  secondary: ButtonStyle.Secondary,
+  success: ButtonStyle.Success,
+  danger: ButtonStyle.Danger,
+} as const;
+
+function buildEmbedFromData(data: EmbedData): EmbedBuilder {
+  const eb = new EmbedBuilder();
+  if (data.title) eb.setTitle(data.title);
+  if (data.description) eb.setDescription(data.description);
+  if (data.fields && data.fields.length > 0) {
+    eb.addFields(
+      data.fields.map((f) => ({ name: f.name, value: f.value, inline: f.inline ?? false })),
+    );
+  }
+  if (data.footer) eb.setFooter({ text: data.footer });
+  return eb;
+}
+
+function buildComponentsFromData(
+  data: ComponentData[],
+): ActionRowBuilder<ButtonBuilder>[] {
+  return data.map((row) => {
+    const builder = new ActionRowBuilder<ButtonBuilder>();
+    for (const b of row.buttons) {
+      const btn = new ButtonBuilder()
+        .setCustomId(b.customId)
+        .setLabel(b.label)
+        .setStyle(BUTTON_STYLE_MAP[b.style]);
+      if (b.emoji) btn.setEmoji(b.emoji);
+      builder.addComponents(btn);
+    }
+    return builder;
+  });
+}
+
 export async function sendReply(channel: DMChannel, text: string): Promise<void> {
   const MAX = 2000;
+  // Block @everyone / role pings — Claude (chat + cognition) generates this
+  // text, so it could surface mentions verbatim from quoted user content.
+  const noMentions = { parse: [] as never[] };
   if (text.length <= MAX) {
-    await channel.send(text);
+    await channel.send({ content: text, allowedMentions: noMentions });
     return;
   }
 
   let remaining = text;
   while (remaining.length > 0) {
     if (remaining.length <= MAX) {
-      await channel.send(remaining);
+      await channel.send({ content: remaining, allowedMentions: noMentions });
       break;
     }
     let splitAt = remaining.lastIndexOf(' ', MAX);
     if (splitAt <= 0) splitAt = MAX;
-    await channel.send(remaining.slice(0, splitAt));
+    await channel.send({ content: remaining.slice(0, splitAt), allowedMentions: noMentions });
     remaining = remaining.slice(splitAt).trimStart();
   }
 }
@@ -227,6 +298,14 @@ export async function startDiscordBot(
         cognitionService: deps.cognitionService,
         memoryConfirmService: deps.memoryConfirmService,
         memoryConfirmInitialValues,
+        draftReplyService: deps.draftReplyService,
+        emailStore: deps.emailStore,
+        imapClient: deps.imapClient,
+        threadFetcher: deps.threadFetcher,
+        anthropic: deps.anthropic,
+        imapAccounts: deps.imapAccounts,
+        smtpClient: deps.smtpClient,
+        piiProxy: deps.piiProxy,
       });
     } catch (err) {
       console.error('[discord] interaction error:', err instanceof Error ? err.message : err);
@@ -276,7 +355,10 @@ export async function startDiscordBot(
       );
       try {
         const dmChannel = msg.channel as DMChannel;
-        await dmChannel.send('⚠️ Something went wrong. Please try again later.');
+        await dmChannel.send({
+  content: '⚠️ Something went wrong. Please try again later.',
+  allowedMentions: { parse: [] },
+});
       } catch {
         // ignore send failure
       }
@@ -704,7 +786,10 @@ export async function startDiscordBot(
                   errorSent = true;
                   console.error('[discord] chat error event:', event.message);
                   await flush();
-                  await dmChannel.send('⚠️ Something went wrong. Please try again later.');
+                  await dmChannel.send({
+  content: '⚠️ Something went wrong. Please try again later.',
+  allowedMentions: { parse: [] },
+});
                   return;
                 }
               }).catch((err) => {
@@ -778,7 +863,10 @@ export async function startDiscordBot(
       if (!sendSucceeded) {
         try {
           const dmChannel = msg.channel as DMChannel;
-          await dmChannel.send('⚠️ Something went wrong. Please try again later.');
+          await dmChannel.send({
+  content: '⚠️ Something went wrong. Please try again later.',
+  allowedMentions: { parse: [] },
+});
         } catch {
           // ignore send failure
         }
@@ -1030,11 +1118,32 @@ export async function startDiscordBot(
       // published_at N times and could falsely mark a run as published even
       // when earlier recipients' sends failed.
       let marked = false;
+      // `typeof [] === 'object'` is true, so guard against an accidental array
+      // shape from a future caller — buildEmbedFromData would silently produce
+      // an empty embed instead of throwing.
+      const hasEmbed = event.embed && typeof event.embed === 'object' && !Array.isArray(event.embed);
       const body = `💭 _from ${event.handler}_\n${event.content}`;
       for (const userId of deps.whitelist) {
         client.users.fetch(userId)
           .then((u) => u.createDM())
-          .then((dm) => sendReply(dm as unknown as DMChannel, body))
+          .then(async (dm) => {
+            if (hasEmbed) {
+              const embed = buildEmbedFromData(event.embed as EmbedData);
+              const components = event.components
+                ? buildComponentsFromData(event.components as ComponentData[])
+                : [];
+              await (dm as unknown as DMChannel).send({
+                embeds: [embed],
+                components,
+                // Cognition handlers compose `content` from LLM output (e.g.
+                // morningBrief, draft replies). Block @everyone / role pings
+                // even though the channel is a 1:1 DM — defense in depth.
+                allowedMentions: { parse: [] },
+              });
+              return;
+            }
+            await sendReply(dm as unknown as DMChannel, body);
+          })
           .then(() => {
             if (marked) return;
             // Attempt DB write first; only set `marked` if it actually
