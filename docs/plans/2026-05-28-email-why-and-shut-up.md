@@ -156,7 +156,7 @@ Dependencies: no new npm packages.
 
 ### Task 1: DB migration — `email_suppression_rules` table
 
-- [ ] in `packages/server/src/db.ts`, add idempotent CREATE TABLE inside
+- [x] in `packages/server/src/db.ts`, add idempotent CREATE TABLE inside
   `initDb`:
   ```sql
   CREATE TABLE IF NOT EXISTS email_suppression_rules (
@@ -168,16 +168,16 @@ Dependencies: no new npm packages.
     created_via TEXT NOT NULL DEFAULT 'discord_button'
   );
   ```
-- [ ] add `CREATE INDEX IF NOT EXISTS idx_email_suppression_rules_type_pattern
+- [x] add `CREATE INDEX IF NOT EXISTS idx_email_suppression_rules_type_pattern
   ON email_suppression_rules(rule_type, pattern)`
-- [ ] add `CREATE INDEX IF NOT EXISTS idx_email_suppression_rules_expires
+- [x] add `CREATE INDEX IF NOT EXISTS idx_email_suppression_rules_expires
   ON email_suppression_rules(expires_at)` (for periodic cleanup if needed
   later — out of scope for this iter, but free with the index)
-- [ ] write tests in `packages/server/src/__tests__/db.test.ts`:
+- [x] write tests in `packages/server/src/__tests__/db.test.ts`:
   - table exists after `initDb` (via `PRAGMA table_info`)
   - both indices exist (via `sqlite_master`)
   - running `initDb` twice is idempotent (no error)
-- [ ] run `npm -w @r2/server test -- db.test` — must pass before task 2
+- [x] run `npm -w @r2/server test -- db.test` — must pass before task 2
 
 ### Task 2: Suppression store + match logic
 
