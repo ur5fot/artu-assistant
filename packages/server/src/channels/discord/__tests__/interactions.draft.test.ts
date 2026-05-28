@@ -5,7 +5,10 @@ import {
   routeInteraction,
   type InteractionDeps,
 } from '../interactions.js';
-import { createDraftReplyService } from '../../../services/draft-reply-service.js';
+import {
+  createDraftReplyService,
+  type DraftState,
+} from '../../../services/draft-reply-service.js';
 import type { EmailStore } from '../../../emails/store.js';
 import type { EmailPendingRow, ImapAccount, NewMessage } from '../../../emails/types.js';
 import type { MessageHeaders } from '../../../emails/imap-client.js';
@@ -63,6 +66,7 @@ function makeDeps(overrides: Partial<InteractionDeps> = {}): InteractionDeps {
   } as any;
   const imapAccounts = new Map<string, ImapAccount>([['acc-1', SAMPLE_ACCOUNT]]);
   const draftReplyService = createDraftReplyService({ pendingDrafts: new Map() });
+  const smtpClient = { sendReply: vi.fn().mockResolvedValue({ messageId: 'smtp-1' }) };
 
   return {
     whitelist: new Set(['user-1']),
@@ -77,8 +81,38 @@ function makeDeps(overrides: Partial<InteractionDeps> = {}): InteractionDeps {
     threadFetcher,
     anthropic,
     imapAccounts,
+    smtpClient,
     ...overrides,
   };
+}
+
+function sampleDraftState(overrides: Partial<DraftState> = {}): DraftState {
+  return {
+    pendingId: 'p1',
+    originalUid: 42,
+    accountId: 'acc-1',
+    to: 'alice@example.com',
+    subject: 'Re: Project status',
+    inReplyTo: '<orig@example.com>',
+    references: ['<root@example.com>', '<orig@example.com>'],
+    body: 'Yes, shipping Friday.',
+    messageId: 'msg-1',
+    ...overrides,
+  };
+}
+
+function makeModalSubmit(overrides: Record<string, any> = {}) {
+  return {
+    isButton: () => false,
+    isModalSubmit: () => true,
+    isChatInputCommand: () => false,
+    user: { id: 'user-1' },
+    customId: 'email_draft_modal:p1',
+    fields: { getTextInputValue: vi.fn().mockReturnValue('edited body') },
+    update: vi.fn().mockResolvedValue(undefined),
+    reply: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  } as any;
 }
 
 function makeButton(overrides: Record<string, any> = {}) {
@@ -89,7 +123,8 @@ function makeButton(overrides: Record<string, any> = {}) {
     user: { id: 'user-1' },
     customId: 'email_draft:start:7',
     deferReply: vi.fn().mockResolvedValue(undefined),
-    editReply: vi.fn().mockResolvedValue(undefined),
+    deferUpdate: vi.fn().mockResolvedValue(undefined),
+    editReply: vi.fn().mockResolvedValue({ id: 'msg-99' }),
     reply: vi.fn().mockResolvedValue(undefined),
     update: vi.fn().mockResolvedValue(undefined),
     showModal: vi.fn().mockResolvedValue(undefined),
@@ -142,7 +177,9 @@ describe('email_draft:start — happy path', () => {
     const ixn = makeButton();
     await routeInteraction(ixn, deps);
 
-    expect(putSpy).toHaveBeenCalledTimes(1);
+    // put is called twice: initial state (messageId=null), then again with
+    // messageId once editReply returns the ephemeral's Message.
+    expect(putSpy).toHaveBeenCalledTimes(2);
     const state = putSpy.mock.calls[0]![0];
     expect(state.accountId).toBe('acc-1');
     expect(state.originalUid).toBe(42);
@@ -151,8 +188,13 @@ describe('email_draft:start — happy path', () => {
     expect(state.inReplyTo).toBe('<orig@example.com>');
     expect(state.references).toEqual(['<root@example.com>', '<orig@example.com>']);
     expect(state.body).toBe('Yes, shipping Friday.');
+    expect(state.messageId).toBeNull();
     expect(typeof state.pendingId).toBe('string');
     expect(state.pendingId.length).toBeGreaterThan(0);
+
+    const finalState = putSpy.mock.calls[1]![0];
+    expect(finalState.messageId).toBe('msg-99');
+    expect(finalState.pendingId).toBe(state.pendingId);
   });
 });
 
@@ -242,5 +284,232 @@ describe('email_draft:start — error paths', () => {
       expect.objectContaining({ flags: MessageFlags.Ephemeral }),
     );
     expect((deps.emailStore as any).findByPendingId).not.toHaveBeenCalled();
+  });
+});
+
+describe('email_draft:send', () => {
+  it('happy path: defers, calls SMTP with state, drops draft, confirms', async () => {
+    const deps = makeDeps();
+    deps.draftReplyService!.put(sampleDraftState());
+    const dropSpy = vi.spyOn(deps.draftReplyService!, 'drop');
+    const ixn = makeButton({ customId: 'email_draft:send:p1' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.deferUpdate).toHaveBeenCalled();
+    expect((deps.smtpClient as any).sendReply).toHaveBeenCalledTimes(1);
+    const sendArg = (deps.smtpClient as any).sendReply.mock.calls[0][0];
+    expect(sendArg.account).toEqual(SAMPLE_ACCOUNT);
+    expect(sendArg.to).toBe('alice@example.com');
+    expect(sendArg.subject).toBe('Re: Project status');
+    expect(sendArg.body).toBe('Yes, shipping Friday.');
+    expect(sendArg.inReplyTo).toBe('<orig@example.com>');
+    expect(sendArg.references).toEqual(['<root@example.com>', '<orig@example.com>']);
+
+    expect(dropSpy).toHaveBeenCalledWith('p1');
+    expect(ixn.editReply).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Отправлено'),
+        components: [],
+      }),
+    );
+  });
+
+  it('state missing → editReply "истёк", no SMTP call', async () => {
+    const deps = makeDeps();
+    const ixn = makeButton({ customId: 'email_draft:send:missing' });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.smtpClient as any).sendReply).not.toHaveBeenCalled();
+    expect(ixn.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('истёк'),
+        components: [],
+      }),
+    );
+  });
+
+  it('account missing → editReply, no SMTP call', async () => {
+    const deps = makeDeps({ imapAccounts: new Map() });
+    deps.draftReplyService!.put(sampleDraftState());
+    const ixn = makeButton({ customId: 'email_draft:send:p1' });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.smtpClient as any).sendReply).not.toHaveBeenCalled();
+    expect(ixn.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('acc-1') }),
+    );
+  });
+
+  it('SMTP rejects → editReply with error, state NOT dropped, buttons kept', async () => {
+    const deps = makeDeps({
+      smtpClient: { sendReply: vi.fn().mockRejectedValue(new Error('554 reject')) },
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const dropSpy = vi.spyOn(deps.draftReplyService!, 'drop');
+    const ixn = makeButton({ customId: 'email_draft:send:p1' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(dropSpy).not.toHaveBeenCalled();
+    expect(deps.draftReplyService!.has('p1')).toBe(true);
+    const editArg = ixn.editReply.mock.calls[ixn.editReply.mock.calls.length - 1][0];
+    expect(editArg.content).toContain('554 reject');
+    expect(editArg.components).toHaveLength(1);
+    const customIds = editArg.components[0].components.map((c: any) => c.data.custom_id);
+    expect(customIds).toEqual([
+      'email_draft:send:p1',
+      'email_draft:edit:p1',
+      'email_draft:cancel:p1',
+    ]);
+  });
+
+  it('smtpClient not configured → ephemeral reply, no defer', async () => {
+    const deps = makeDeps({ smtpClient: undefined });
+    const ixn = makeButton({ customId: 'email_draft:send:p1' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.stringContaining('not configured'),
+      }),
+    );
+    expect(ixn.deferUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('email_draft:cancel', () => {
+  it('drops state and shows "Отменено"', async () => {
+    const deps = makeDeps();
+    deps.draftReplyService!.put(sampleDraftState());
+    const dropSpy = vi.spyOn(deps.draftReplyService!, 'drop');
+    const ixn = makeButton({ customId: 'email_draft:cancel:p1' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.deferUpdate).toHaveBeenCalled();
+    expect(dropSpy).toHaveBeenCalledWith('p1');
+    expect(ixn.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Отменено'),
+        components: [],
+      }),
+    );
+  });
+
+  it('silent on unknown id', async () => {
+    const deps = makeDeps();
+    const ixn = makeButton({ customId: 'email_draft:cancel:missing' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Отменено') }),
+    );
+  });
+});
+
+describe('email_draft:edit', () => {
+  it('shows modal prefilled with current body', async () => {
+    const deps = makeDeps();
+    deps.draftReplyService!.put(sampleDraftState({ body: 'previous body' }));
+    const ixn = makeButton({ customId: 'email_draft:edit:p1' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.showModal).toHaveBeenCalledTimes(1);
+    const modal = ixn.showModal.mock.calls[0][0];
+    expect(modal.data.custom_id).toBe('email_draft_modal:p1');
+    const inputData = modal.components[0].components[0].data;
+    expect(inputData.custom_id).toBe('body');
+    expect(inputData.value).toBe('previous body');
+  });
+
+  it('state missing → ephemeral "истёк", no modal', async () => {
+    const deps = makeDeps();
+    const ixn = makeButton({ customId: 'email_draft:edit:missing' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.showModal).not.toHaveBeenCalled();
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.stringContaining('истёк'),
+      }),
+    );
+  });
+
+  it('clamps initial value to 4000 chars', async () => {
+    const longBody = 'x'.repeat(5000);
+    const deps = makeDeps();
+    deps.draftReplyService!.put(sampleDraftState({ body: longBody }));
+    const ixn = makeButton({ customId: 'email_draft:edit:p1' });
+
+    await routeInteraction(ixn, deps);
+
+    const modal = ixn.showModal.mock.calls[0][0];
+    const inputData = modal.components[0].components[0].data;
+    expect(inputData.value.length).toBe(4000);
+  });
+});
+
+describe('email_draft_modal submit', () => {
+  it('updates state body and edits original message via update()', async () => {
+    const deps = makeDeps();
+    deps.draftReplyService!.put(sampleDraftState({ body: 'old body' }));
+    const ixn = makeModalSubmit();
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.update).toHaveBeenCalledTimes(1);
+    const updateArg = ixn.update.mock.calls[0][0];
+    expect(updateArg.content).toContain('edited body');
+    expect(updateArg.components).toHaveLength(1);
+    const customIds = updateArg.components[0].components.map((c: any) => c.data.custom_id);
+    expect(customIds).toEqual([
+      'email_draft:send:p1',
+      'email_draft:edit:p1',
+      'email_draft:cancel:p1',
+    ]);
+
+    const stored = deps.draftReplyService!.get('p1');
+    expect(stored?.body).toBe('edited body');
+    // Other fields preserved.
+    expect(stored?.to).toBe('alice@example.com');
+    expect(stored?.references).toEqual(['<root@example.com>', '<orig@example.com>']);
+  });
+
+  it('state missing → ephemeral "истёк", no update', async () => {
+    const deps = makeDeps();
+    const ixn = makeModalSubmit({ customId: 'email_draft_modal:missing' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.update).not.toHaveBeenCalled();
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.stringContaining('истёк'),
+      }),
+    );
+  });
+
+  it('non-whitelisted user is rejected', async () => {
+    const deps = makeDeps();
+    deps.draftReplyService!.put(sampleDraftState());
+    const ixn = makeModalSubmit({ user: { id: 'evil' } });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.update).not.toHaveBeenCalled();
+    // The non-whitelist branch uses ixn.reply for the rejection notice.
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ flags: MessageFlags.Ephemeral }),
+    );
   });
 });

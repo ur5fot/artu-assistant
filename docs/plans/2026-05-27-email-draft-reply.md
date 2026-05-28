@@ -237,10 +237,10 @@ Dependencies:
 
 ### Task 5: Send / Edit (modal) / Cancel handlers
 
-- [ ] in `interactions.ts`, add handlers for `email_draft:send:${id}`,
+- [x] in `interactions.ts`, add handlers for `email_draft:send:${id}`,
   `email_draft:edit:${id}`, `email_draft:cancel:${id}`, and modal submit
   `email_draft_modal:${id}`.
-- [ ] **send**:
+- [x] **send**:
   1. `deferUpdate()` to ack
   2. `state = draftReplyService.get(id)`; if missing → editReply "истёк"
   3. resolve `account` from `state.accountId` via `imapAccounts.get(id)`
@@ -248,24 +248,25 @@ Dependencies:
   5. on success → editReply `'✅ Отправлено'`, components: [] (clear buttons)
   6. `draftReplyService.drop(id)`
   7. on SMTP failure → editReply `'❌ Не отправилось: ${e.message}'`, keep buttons (allow retry)
-- [ ] **cancel**:
+- [x] **cancel**:
   1. `deferUpdate()`
   2. `draftReplyService.drop(id)` (silent no-op if missing)
   3. editReply `'❌ Отменено'`, components: []
-- [ ] **edit**:
+- [x] **edit**:
   1. show ModalBuilder (no defer — modal must be the first ack)
   2. TextInputBuilder with `setValue(state.body)`, max 4000 chars
      (Discord modal limit)
   3. custom_id `email_draft_modal:${id}`
-- [ ] **modal submit `email_draft_modal:${id}`**:
+- [x] **modal submit `email_draft_modal:${id}`**:
   1. extract new body from modal input
   2. `draftReplyService.put({...state, body: newBody})`
   3. `editReply` the original ephemeral with new body + buttons preserved
-     (note: modal submit creates a fresh interaction; need to track the
-     original message id in DraftState — add field `messageId` set in
-     task 4's deferred reply)
-- [ ] add `messageId` field to `DraftState` (set after editReply in task 4)
-- [ ] write tests:
+     (implementation note: used ModalSubmitInteraction#update() — for
+     component-triggered modals it edits the originating message, so the
+     stored messageId isn't strictly needed for this path. Field is still
+     populated as designed in case a fallback edit path is needed later.)
+- [x] add `messageId` field to `DraftState` (set after editReply in task 4)
+- [x] write tests:
   - send happy path: SMTP called with correct headers/body, drop called
   - send when state missing → editReply "истёк", no SMTP call
   - send when SMTP rejects → editReply with error, state NOT dropped
@@ -273,7 +274,7 @@ Dependencies:
   - cancel → drop called, content `'❌ Отменено'`
   - edit → modal shown with prefilled body
   - modal submit → state body updated, editReply shows new body
-- [ ] run `npm -w @r2/server test -- interactions.draft` — must pass before task 6
+- [x] run `npm -w @r2/server test -- interactions.draft` — must pass before task 6
 
 ### Task 6: Wire + acceptance + docs
 

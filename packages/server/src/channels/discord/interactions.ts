@@ -71,6 +71,17 @@ export interface DraftThreadFetcher {
   fetchThread(account: ImapAccount, uid: number): Promise<NewMessage[]>;
 }
 
+export interface SmtpClient {
+  sendReply(params: {
+    account: ImapAccount;
+    to: string;
+    subject: string;
+    body: string;
+    inReplyTo: string | null;
+    references: string[];
+  }): Promise<unknown>;
+}
+
 export interface InteractionDeps {
   whitelist: Set<string>;
   reminderService: ReminderService;
@@ -94,6 +105,7 @@ export interface InteractionDeps {
   anthropic?: Anthropic;
   /** Lookup by account id used by the urgent email row's account_id. */
   imapAccounts?: Map<string, ImapAccount>;
+  smtpClient?: SmtpClient;
 }
 
 // Parses the description rendered by buildPermissionEmbed —
@@ -301,6 +313,18 @@ async function routeButton(
       await handleEmailDraftStart(ixn, deps, rawId ?? '');
       return;
     }
+    if (action === 'send') {
+      await handleEmailDraftSend(ixn, deps, rawId ?? '');
+      return;
+    }
+    if (action === 'edit') {
+      await handleEmailDraftEdit(ixn, deps, rawId ?? '');
+      return;
+    }
+    if (action === 'cancel') {
+      await handleEmailDraftCancel(ixn, deps, rawId ?? '');
+      return;
+    }
     return;
   }
 
@@ -482,6 +506,7 @@ async function handleEmailDraftStart(
     inReplyTo: headers.messageId,
     references: Array.from(refSet),
     body,
+    messageId: null,
   };
   deps.draftReplyService.put(state);
 
@@ -489,8 +514,162 @@ async function handleEmailDraftStart(
     body.length > DRAFT_BODY_MAX_DISPLAY
       ? body.slice(0, DRAFT_BODY_MAX_DISPLAY - 1) + '…'
       : body;
-  await (ixn as any).editReply({
+  // editReply returns the Message; persist its id so a modal submit (which
+  // arrives as a fresh interaction) can locate this ephemeral to edit.
+  const sent: any = await (ixn as any).editReply({
     content: DRAFT_BODY_MARKER + display,
+    components: [buildDraftActionRow(pendingId)],
+  });
+  if (sent && typeof sent.id === 'string') {
+    deps.draftReplyService.put({ ...state, messageId: sent.id });
+  }
+}
+
+function clipDraftBody(body: string): string {
+  return body.length > DRAFT_BODY_MAX_DISPLAY
+    ? body.slice(0, DRAFT_BODY_MAX_DISPLAY - 1) + '…'
+    : body;
+}
+
+async function handleEmailDraftSend(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  pendingId: string,
+): Promise<void> {
+  if (!deps.draftReplyService || !deps.imapAccounts || !deps.smtpClient) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Draft reply is not configured.',
+    });
+    return;
+  }
+  await (ixn as any).deferUpdate();
+  const state = deps.draftReplyService.get(pendingId);
+  if (!state) {
+    await (ixn as any).editReply({
+      content: '⚠️ Черновик истёк',
+      components: [],
+    });
+    return;
+  }
+  const account = deps.imapAccounts.get(state.accountId);
+  if (!account) {
+    await (ixn as any).editReply({
+      content: `⚠️ Аккаунт ${state.accountId} не настроен`,
+      components: [],
+    });
+    return;
+  }
+  try {
+    await deps.smtpClient.sendReply({
+      account,
+      to: state.to,
+      subject: state.subject,
+      body: state.body,
+      inReplyTo: state.inReplyTo,
+      references: state.references,
+    });
+  } catch (err) {
+    // Keep state + buttons so the user can retry without re-generating.
+    const msg = err instanceof Error ? err.message : String(err);
+    await (ixn as any).editReply({
+      content: `❌ Не отправилось: ${msg}`,
+      components: [buildDraftActionRow(pendingId)],
+    });
+    return;
+  }
+  deps.draftReplyService.drop(pendingId);
+  await (ixn as any).editReply({
+    content: '✅ Отправлено',
+    components: [],
+  });
+}
+
+async function handleEmailDraftCancel(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  pendingId: string,
+): Promise<void> {
+  if (!deps.draftReplyService) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Draft reply is not configured.',
+    });
+    return;
+  }
+  await (ixn as any).deferUpdate();
+  deps.draftReplyService.drop(pendingId);
+  await (ixn as any).editReply({
+    content: '❌ Отменено',
+    components: [],
+  });
+}
+
+async function handleEmailDraftEdit(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  pendingId: string,
+): Promise<void> {
+  if (!deps.draftReplyService) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Draft reply is not configured.',
+    });
+    return;
+  }
+  const state = deps.draftReplyService.get(pendingId);
+  if (!state) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Черновик истёк',
+    });
+    return;
+  }
+  // Discord modal text input is capped at 4000 chars; clamp defensively so a
+  // longer body doesn't make setValue throw and silently break the Edit flow.
+  const initial = state.body.length > 4000 ? state.body.slice(0, 4000) : state.body;
+  const modal = new ModalBuilder()
+    .setCustomId(`email_draft_modal:${pendingId}`)
+    .setTitle('Edit draft');
+  const input = new TextInputBuilder()
+    .setCustomId('body')
+    .setLabel('Body')
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(true)
+    .setValue(initial);
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(input),
+  );
+  await (ixn as any).showModal(modal);
+}
+
+async function handleEmailDraftModalSubmit(
+  ixn: ModalSubmitInteraction,
+  deps: InteractionDeps,
+  pendingId: string,
+): Promise<void> {
+  if (!deps.draftReplyService) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Draft reply is not configured.',
+    });
+    return;
+  }
+  const state = deps.draftReplyService.get(pendingId);
+  if (!state) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Черновик истёк',
+    });
+    return;
+  }
+  const newBody = ixn.fields.getTextInputValue('body');
+  deps.draftReplyService.put({ ...state, body: newBody });
+  // ModalSubmitInteraction#update edits the message the originating button
+  // was on — for us, that's the ephemeral draft reply. This avoids needing
+  // a separate webhook editMessage call against the stored messageId.
+  await (ixn as any).update({
+    content: DRAFT_BODY_MARKER + clipDraftBody(newBody),
     components: [buildDraftActionRow(pendingId)],
   });
 }
@@ -500,6 +679,14 @@ async function routeModalSubmit(
   deps: InteractionDeps,
 ): Promise<void> {
   const customId = ixn.customId;
+  if (customId.startsWith('email_draft_modal:')) {
+    await handleEmailDraftModalSubmit(
+      ixn,
+      deps,
+      customId.slice('email_draft_modal:'.length),
+    );
+    return;
+  }
   if (!customId.startsWith('memconfirm_modal:')) return;
   if (!deps.memoryConfirmService) {
     await (ixn as any).reply({
