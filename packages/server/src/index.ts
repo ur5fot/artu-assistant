@@ -519,6 +519,9 @@ const commandService = createCommandService({
   pendingConfirmsCount: () => pendingConfirms.size,
   pendingPlanReviewsCount: () => pendingPlanReviews.size,
   startedAt: serverStartedAt,
+  emailStore: emailEnabled ? emailStore : undefined,
+  emailSentLog: emailEnabled ? emailSentLog : undefined,
+  emailSuppressionStore: emailEnabled ? emailSuppressionStore : undefined,
 });
 // Bound runLoop closure — tool factories use this for recursive agent calls
 const runLoopFn = (params: {
@@ -635,6 +638,7 @@ if (discordToken) {
       smtpClient: emailEnabled ? { sendReply: sendSmtpReply } : undefined,
       emailSendHoldSeconds,
       emailSentLog: emailEnabled ? emailSentLog : undefined,
+      emailSuppressionStore: emailEnabled ? emailSuppressionStore : undefined,
       // Always pass piiProxy — at runtime it's a real anonymizer or a
       // passthrough depending on PII_GATEWAY_MODE. The interactions handler
       // anonymizes the email thread before sending to Claude (plan: outbound

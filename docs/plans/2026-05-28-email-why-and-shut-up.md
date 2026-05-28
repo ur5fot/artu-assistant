@@ -382,16 +382,16 @@ Dependencies: no new npm packages.
 
 ### Task 7: Wire into `index.ts` + bot.ts
 
-- [ ] in `packages/server/src/index.ts`, construct
+- [x] in `packages/server/src/index.ts`, construct
   `emailSuppressionStore = createEmailSuppressionStore({db})` and pass
   it into:
   - `createEmailUrgentHandler({store, suppressionStore, tz, quietStart})`
   - bot deps (so interaction handlers and slash command can use it)
-- [ ] in `bot.ts`, accept `emailSuppressionStore: EmailSuppressionStore`
+- [x] in `bot.ts`, accept `emailSuppressionStore: EmailSuppressionStore`
   in deps type, thread to interaction handlers + slash command service
-- [ ] register the new slash command on bot startup (next to existing
+- [x] register the new slash command on bot startup (next to existing
   `/clear`, `/status`, `/reminders`, etc.)
-- [ ] write integration test in
+- [x] write integration test in
   `packages/server/src/__tests__/email-suppress-flow.integration.test.ts`:
   - seed two `email_pending` rows from same sender, both importance=5,
     `urgent_pinged_at=NULL`
@@ -400,7 +400,7 @@ Dependencies: no new npm packages.
     (second row would have matched but was suppressed by rule)
   - assert second row's `urgent_pinged_at` is now -1
   - run `/why id:row2.id` → embed shows "Suppressed by rule" message
-- [ ] run `npm -w @r2/server test -- email-suppress-flow.integration` —
+- [x] run `npm -w @r2/server test -- email-suppress-flow.integration` —
   must pass before task 8
 
 ### Task 8: Acceptance + docs
