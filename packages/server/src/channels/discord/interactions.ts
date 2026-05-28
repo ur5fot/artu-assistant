@@ -1,3 +1,4 @@
+import type Anthropic from '@anthropic-ai/sdk';
 import type {
   ButtonInteraction,
   ChatInputCommandInteraction,
@@ -6,17 +7,27 @@ import type {
 } from 'discord.js';
 import {
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   MessageFlags,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
+import { randomUUID } from 'crypto';
 import type { ReminderService } from '../../services/reminder-service.js';
 import type { PermissionService } from '../../services/permission-service.js';
 import type { PlanReviewService } from '../../services/plan-review-service.js';
 import type { CommandService } from '../../services/command-service.js';
 import type { CognitionService } from '../../cognition/service.js';
 import type { MemoryConfirmService } from '../../services/memory-confirm-service.js';
+import type {
+  DraftReplyService,
+  DraftState,
+} from '../../services/draft-reply-service.js';
+import type { EmailStore } from '../../emails/store.js';
+import type { ImapAccount, NewMessage } from '../../emails/types.js';
+import type { MessageHeaders } from '../../emails/imap-client.js';
 import {
   buildReminderEmbed,
   buildPermissionEmbed,
@@ -52,6 +63,14 @@ function truncateLines(lines: string[]): string {
   return out.join('\n');
 }
 
+export interface DraftImapClient {
+  fetchHeaders(account: ImapAccount, uid: number): Promise<MessageHeaders>;
+}
+
+export interface DraftThreadFetcher {
+  fetchThread(account: ImapAccount, uid: number): Promise<NewMessage[]>;
+}
+
 export interface InteractionDeps {
   whitelist: Set<string>;
   reminderService: ReminderService;
@@ -67,6 +86,14 @@ export interface InteractionDeps {
    * (custom_id has a 32-char cap and can't carry the value itself).
    */
   memoryConfirmInitialValues?: Map<string, string>;
+  /** Email draft reply flow — pending in-memory state keyed by nanoid. */
+  draftReplyService?: DraftReplyService;
+  emailStore?: EmailStore;
+  imapClient?: DraftImapClient;
+  threadFetcher?: DraftThreadFetcher;
+  anthropic?: Anthropic;
+  /** Lookup by account id used by the urgent email row's account_id. */
+  imapAccounts?: Map<string, ImapAccount>;
 }
 
 // Parses the description rendered by buildPermissionEmbed —
@@ -269,6 +296,14 @@ async function routeButton(
     return;
   }
 
+  if (domain === 'email_draft') {
+    if (action === 'start') {
+      await handleEmailDraftStart(ixn, deps, rawId ?? '');
+      return;
+    }
+    return;
+  }
+
   if (domain === 'perm_rule' && action === 'revoke') {
     const toolName = rawId ?? '';
     deps.commandService.revokePermissionRule(toolName);
@@ -289,6 +324,175 @@ async function routeButton(
     });
     return;
   }
+}
+
+const DRAFT_MAX_TOKENS = 1024;
+const DRAFT_BODY_MARKER = '✏️ Черновик:\n\n';
+// Discord caps a message at 2000 chars; leave room for the "Черновик:" prefix
+// so a verbose Claude reply doesn't cause editReply to throw 50035.
+const DRAFT_BODY_MAX_DISPLAY = 2000 - DRAFT_BODY_MARKER.length - 4;
+// Snippet cap when serialising thread messages into the LLM prompt. Each
+// message contributes from/subject + snippet — kept compact so a long thread
+// fits well under the 200k-token Claude context.
+const THREAD_BODY_LIMIT = 1000;
+const DRAFT_SYSTEM_PROMPT =
+  "You are R2's email draft writer. Compose a concise, natural reply matching the language of the thread. Plain text only. No greeting boilerplate, no signature.";
+
+// Parses an RFC 5322 mailbox of the form `Name <addr@host>` or a bare
+// `addr@host` into just the address part. Reply needs the bare address —
+// nodemailer accepts the wrapped form too, but `to` should be canonical so
+// the SMTP envelope and visible header agree across providers.
+export function parseFromAddress(fromAddr: string): string {
+  const angle = fromAddr.match(/<([^>]+)>/);
+  if (angle) return angle[1]!.trim();
+  return fromAddr.trim();
+}
+
+function buildDraftPrompt(thread: NewMessage[], currentUid: number): string {
+  const parts: string[] = [];
+  for (const msg of thread) {
+    const marker = msg.uid === currentUid ? ' ⟵ current' : '';
+    const body = (msg.snippet ?? '').slice(0, THREAD_BODY_LIMIT);
+    parts.push(
+      `From: ${msg.from}${marker}\nSubject: ${msg.subject}\nBody: ${body}`,
+    );
+  }
+  return (
+    'Email thread (oldest first). Draft a reply to the current message.\n\n' +
+    parts.join('\n---\n')
+  );
+}
+
+function extractClaudeText(content: any[]): string {
+  if (!Array.isArray(content)) return '';
+  const block = content.find((b) => b && b.type === 'text');
+  return block && typeof block.text === 'string' ? block.text.trim() : '';
+}
+
+function buildDraftActionRow(pendingId: string): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`email_draft:send:${pendingId}`)
+      .setLabel('Send')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`email_draft:edit:${pendingId}`)
+      .setLabel('Edit')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`email_draft:cancel:${pendingId}`)
+      .setLabel('Cancel')
+      .setStyle(ButtonStyle.Danger),
+  );
+}
+
+async function handleEmailDraftStart(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (
+    !deps.draftReplyService ||
+    !deps.emailStore ||
+    !deps.imapClient ||
+    !deps.threadFetcher ||
+    !deps.anthropic ||
+    !deps.imapAccounts
+  ) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Draft reply is not configured.',
+    });
+    return;
+  }
+
+  const rowId = Number(rawId);
+  if (!Number.isInteger(rowId) || rowId <= 0) return;
+
+  // deferReply gives us 15 minutes to edit a follow-up; the IMAP+Claude path
+  // here easily exceeds Discord's 3s initial-ack window.
+  await (ixn as any).deferReply({ flags: MessageFlags.Ephemeral });
+
+  const row = deps.emailStore.findByPendingId(rowId);
+  if (!row) {
+    await (ixn as any).editReply({ content: '⚠️ Письмо пропало' });
+    return;
+  }
+
+  const account = deps.imapAccounts.get(row.account_id);
+  if (!account) {
+    await (ixn as any).editReply({
+      content: `⚠️ Аккаунт ${row.account_id} не настроен`,
+    });
+    return;
+  }
+
+  let headers: MessageHeaders;
+  let thread: NewMessage[];
+  try {
+    headers = await deps.imapClient.fetchHeaders(account, row.message_uid);
+    thread = await deps.threadFetcher.fetchThread(account, row.message_uid);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await (ixn as any).editReply({
+      content: `❌ Не удалось загрузить тред: ${msg}`,
+    });
+    return;
+  }
+
+  const prompt = buildDraftPrompt(thread, row.message_uid);
+  let body: string;
+  try {
+    const model = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
+    const msg = await deps.anthropic.messages.create({
+      model,
+      max_tokens: DRAFT_MAX_TOKENS,
+      system: DRAFT_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    body = extractClaudeText(msg.content as any[]);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await (ixn as any).editReply({
+      content: `❌ Claude не ответил: ${msg}`,
+    });
+    return;
+  }
+
+  if (!body) {
+    await (ixn as any).editReply({
+      content: '❌ Не удалось сгенерировать черновик',
+    });
+    return;
+  }
+
+  const pendingId = randomUUID();
+  // References chain: existing refs + parent Message-ID, deduped, nulls dropped.
+  // We always reply *to* the current message, so its Message-ID belongs at the
+  // tail of References (it's the most recent ancestor of the future reply).
+  const refSet = new Set<string>();
+  for (const r of headers.references) refSet.add(r);
+  if (headers.messageId) refSet.add(headers.messageId);
+  const state: DraftState = {
+    pendingId,
+    originalUid: row.message_uid,
+    accountId: row.account_id,
+    to: parseFromAddress(row.from_addr),
+    subject: row.subject ?? '',
+    inReplyTo: headers.messageId,
+    references: Array.from(refSet),
+    body,
+  };
+  deps.draftReplyService.put(state);
+
+  const display =
+    body.length > DRAFT_BODY_MAX_DISPLAY
+      ? body.slice(0, DRAFT_BODY_MAX_DISPLAY - 1) + '…'
+      : body;
+  await (ixn as any).editReply({
+    content: DRAFT_BODY_MARKER + display,
+    components: [buildDraftActionRow(pendingId)],
+  });
 }
 
 async function routeModalSubmit(

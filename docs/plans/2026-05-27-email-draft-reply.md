@@ -202,12 +202,12 @@ Dependencies:
 
 ### Task 4: Draft reply flow — button click → ephemeral with draft
 
-- [ ] create `packages/server/src/services/draft-reply-service.ts`
+- [x] create `packages/server/src/services/draft-reply-service.ts`
   exporting:
   - `DraftState = {pendingId: string, originalUid: number, accountId: string, to: string, subject: string, inReplyTo: string | null, references: string[], body: string}`
   - `createDraftReplyService({pendingDrafts: Map<string, DraftState>})`
     returning `{put(state), get(id), drop(id), has(id)}`
-- [ ] in `packages/server/src/channels/discord/interactions.ts`, add new
+- [x] in `packages/server/src/channels/discord/interactions.ts`, add new
   domain `email_draft` to `routeButton()` dispatcher. Action `start:${rowId}`:
   1. acknowledge interaction with `deferReply({ephemeral: true})` (gives 15 min to respond)
   2. load email pending row by id; if missing → reply ephemeral "пропало"
@@ -222,10 +222,10 @@ Dependencies:
      `references = [...headers.references, headers.messageId].filter(Boolean)`
   9. `draftReplyService.put(state)`
   10. edit the deferred reply: `editReply({content: '✏️ Черновик:\n\n' + body, components: [row with Send/Edit/Cancel buttons]})` where customIds are `email_draft:send:${pendingId}`, `email_draft:edit:${pendingId}`, `email_draft:cancel:${pendingId}`
-- [ ] inject deps: `interactions.ts` already has a deps record; add
+- [x] inject deps: `interactions.ts` already has a deps record; add
   `draftReplyService`, `emailStore`, `imapClient`, `threadFetcher`,
   `anthropic`, and `imapAccounts` (id → account map for SMTP send later)
-- [ ] write tests in
+- [x] write tests in
   `packages/server/src/channels/discord/__tests__/interactions.draft.test.ts`:
   - happy path: button click → row loaded → thread fetched (mocked) →
     Claude returns draft → ephemeral edit with Send/Edit/Cancel buttons
@@ -233,7 +233,7 @@ Dependencies:
   - thread fetch fails → ephemeral "не удалось загрузить тред"
   - Claude returns empty → ephemeral "не удалось сгенерировать"
   - draftReplyService.put called with expected state
-- [ ] run `npm -w @r2/server test -- interactions.draft` — must pass before task 5
+- [x] run `npm -w @r2/server test -- interactions.draft` — must pass before task 5
 
 ### Task 5: Send / Edit (modal) / Cancel handlers
 
