@@ -165,15 +165,15 @@ intentional.
 
 ### Task 3: `evals/store.ts` — use `resolveProjectPath`
 
-- [ ] in `packages/server/src/evals/store.ts`, replace line 14 with:
+- [x] in `packages/server/src/evals/store.ts`, replace line 14 with:
   ```ts
   return resolveProjectPath(process.env.EVALS_PATH, ['data', 'evals.json']);
   ```
-- [ ] write tests (or extend existing) verifying:
+- [x] write tests (or extend existing) verifying:
   - cwd-independence: same resolved path regardless of `process.cwd`
   - absolute `EVALS_PATH` passes through
   - unset `EVALS_PATH` → repo-root `data/evals.json`
-- [ ] run `npm -w @r2/server test -- evals` — must pass before task 4
+- [x] run `npm -w @r2/server test -- evals` — must pass before task 4
 
 ### Task 4: Acceptance + docs
 
