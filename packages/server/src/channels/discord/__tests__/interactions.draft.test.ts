@@ -141,6 +141,13 @@ describe('parseFromAddress', () => {
   it('trims whitespace', () => {
     expect(parseFromAddress('  bob@example.com  ')).toBe('bob@example.com');
   });
+  it('picks last angle-bracketed group when display name contains <...>', () => {
+    // Hostile From header: attacker stuffs a fake address into the display
+    // name. We must reply to the real envelope address, not the spoof.
+    expect(
+      parseFromAddress('"Bank <fake@evil.com>" <real@bank.com>'),
+    ).toBe('real@bank.com');
+  });
 });
 
 describe('email_draft:start — happy path', () => {

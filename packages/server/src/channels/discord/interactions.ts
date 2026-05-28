@@ -376,9 +376,15 @@ const DRAFT_SYSTEM_PROMPT =
 // `addr@host` into just the address part. Reply needs the bare address —
 // nodemailer accepts the wrapped form too, but `to` should be canonical so
 // the SMTP envelope and visible header agree across providers.
+// Pick the LAST angle-bracketed group: an attacker-controlled display name
+// can contain `<fake@evil.com>` (e.g. `"Bank <fake@evil.com>" <real@bank.com>`)
+// and matching the first group would route the reply to the spoof address.
 export function parseFromAddress(fromAddr: string): string {
-  const angle = fromAddr.match(/<([^>]+)>/);
-  if (angle) return angle[1]!.trim();
+  const matches = fromAddr.match(/<([^>]+)>/g);
+  if (matches && matches.length > 0) {
+    const last = matches[matches.length - 1]!;
+    return last.slice(1, -1).trim();
+  }
   return fromAddr.trim();
 }
 
