@@ -677,6 +677,7 @@ pii-service/__pycache__/
 - **`process.cwd()` ненадёжен:** В monorepo `cwd()` зависит от того откуда запущен процесс. Для определения путей относительно модуля использовать `import.meta.url` + `fileURLToPath()` + `path.dirname()`.
 - **Создание директорий:** Всегда `fs.mkdirSync(dir, { recursive: true })` перед записью файла. Не предполагать что директория существует.
 - **DB path:** SQLite файл должен resolve'иться от `import.meta.url`, не от `cwd()`. Хранить в `data/r2.db` относительно корня проекта.
+- **Relative-path env vars:** для любой новой env-переменной с относительным путём (DB, evals, файлы, etc.) использовать `resolveProjectPath` из `packages/server/src/path-utils.ts` — канонический хелпер. Сам читает absolute paths (passthrough), relative paths (resolve от project root через `import.meta.url`) и unset/empty (default от project root). Не звать `process.cwd()` для persistent state — это даёт silent drift при запуске из разных директорий.
 
 ### Тестирование
 - **Temp directories для тестов с файлами:** `fs.mkdtempSync()` в `beforeEach`, `fs.rmSync(tmpDir, { recursive: true })` в `afterEach`. Не использовать фиксированные пути.

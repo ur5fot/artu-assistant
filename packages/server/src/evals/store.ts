@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { resolveProjectPath } from '../path-utils.js';
 
 export interface Eval {
   id: string;
@@ -11,7 +12,7 @@ export interface Eval {
 }
 
 function getEvalsPath(): string {
-  return process.env.EVALS_PATH || path.resolve(process.cwd(), 'data', 'evals.json');
+  return resolveProjectPath(process.env.EVALS_PATH, ['data', 'evals.json']);
 }
 
 // Serialize all saveEval calls against concurrent overwrites
