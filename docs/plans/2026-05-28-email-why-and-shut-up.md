@@ -281,14 +281,14 @@ Dependencies: no new npm packages.
 
 ### Task 5: Subject path — modal flow
 
-- [ ] in `interactions.ts`, add handler `subject_start_modal`:
+- [x] in `interactions.ts`, add handler `subject_start_modal`:
   - read row; if missing → "недоступно" and return
   - present a Discord modal with custom id
     `email_suppress:subject_submit:${row.id}` and two text inputs:
     - `substring` (default value = current subject, max length 200,
       label "Шаблон для блокировки (substring)")
     - `days` (default `"7"`, max length 3, label "Дней (0 = forever)")
-- [ ] add handler `subject_submit` (modal submit):
+- [x] add handler `subject_submit` (modal submit):
   - parse `substring` (trim, lowercase comparison is done at match
     time; but store as the user entered it). If empty → editReply "Пустой
     шаблон не сохраняется" and return.
@@ -298,7 +298,7 @@ Dependencies: no new npm packages.
     ttl_days: days===0 ? null : days})`
   - editReply "🙈 Заглушены письма с темой `«${substring}»` до
     `${expires_label}`"
-- [ ] write tests in `interactions.suppress.test.ts`:
+- [x] write tests in `interactions.suppress.test.ts`:
   - `subject_start_modal` builds modal with correct prefill
   - `subject_submit` with valid input → rule inserted; confirmation
     ephemeral
@@ -306,7 +306,7 @@ Dependencies: no new npm packages.
   - `subject_submit` with non-numeric days → no insert; error message
   - `subject_submit` with `days=0` → `ttl_days=null`; "навсегда" in
     message
-- [ ] run `npm -w @r2/server test -- interactions.suppress.test` —
+- [x] run `npm -w @r2/server test -- interactions.suppress.test` —
   must pass before task 6
 
 ### Task 6: `/why` slash command

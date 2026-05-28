@@ -353,6 +353,10 @@ async function routeButton(
       await handleSuppressSenderSetTtl(ixn, deps, rawId ?? '');
       return;
     }
+    if (action === 'subject_start') {
+      await handleSuppressSubjectStart(ixn, deps, rawId ?? '');
+      return;
+    }
     return;
   }
 
@@ -1275,6 +1279,134 @@ async function handleSuppressSenderSetTtl(
   });
 }
 
+// Discord text-input max length for the subject substring. Long enough to hold
+// most full subjects (the modal pre-fills from `row.subject`), short enough to
+// keep the LIKE '%pattern%' index-less scan cheap.
+const SUBJECT_PATTERN_MAX_LEN = 200;
+// Days bounds for the subject TTL. 0 → forever (NULL expires_at); upper bound
+// is arbitrary but generous; longer than ~a year is "forever" in practice.
+const SUBJECT_TTL_DAYS_MIN = 0;
+const SUBJECT_TTL_DAYS_MAX = 365;
+
+async function handleSuppressSubjectStart(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (!deps.emailStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Suppression is not configured.',
+    });
+    return;
+  }
+  const rowId = Number(rawId);
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Некорректная ссылка на письмо',
+    });
+    return;
+  }
+  const row = deps.emailStore.findByPendingId(rowId);
+  if (!row) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Письмо больше недоступно',
+    });
+    return;
+  }
+  // Clamp the prefill so TextInputBuilder.setValue doesn't throw when the
+  // subject exceeds the modal's per-field max; subjects from the wild can be
+  // arbitrarily long (auto-generated alerts, forwarded chains).
+  const prefill =
+    row.subject.length > SUBJECT_PATTERN_MAX_LEN
+      ? row.subject.slice(0, SUBJECT_PATTERN_MAX_LEN)
+      : row.subject;
+  const modal = new ModalBuilder()
+    .setCustomId(`email_suppress:subject_submit:${row.id}`)
+    .setTitle('🙈 Заглушить тему');
+  const substringInput = new TextInputBuilder()
+    .setCustomId('substring')
+    .setLabel('Шаблон для блокировки (substring)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(SUBJECT_PATTERN_MAX_LEN)
+    .setValue(prefill);
+  const daysInput = new TextInputBuilder()
+    .setCustomId('days')
+    .setLabel('Дней (0 = forever)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(3)
+    .setValue('7');
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(substringInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(daysInput),
+  );
+  await (ixn as any).showModal(modal);
+}
+
+async function handleSuppressSubjectSubmit(
+  ixn: ModalSubmitInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (!deps.emailSuppressionStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Suppression is not configured.',
+    });
+    return;
+  }
+  // rawId is the source row id — kept for symmetry with the sender flow and
+  // future "rule attribution" use; not strictly required to insert the rule.
+  const rowId = Number(rawId);
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Некорректная ссылка на письмо',
+    });
+    return;
+  }
+  const substringRaw = ixn.fields.getTextInputValue('substring') ?? '';
+  const daysRaw = ixn.fields.getTextInputValue('days') ?? '';
+  const substring = substringRaw.trim();
+  if (substring.length === 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Пустой шаблон не сохраняется',
+    });
+    return;
+  }
+  // Reject NaN, floats, infinities, and out-of-range — match the test contract
+  // exactly so the user gets one consistent error string.
+  const days = Number(daysRaw.trim());
+  if (
+    !Number.isInteger(days) ||
+    days < SUBJECT_TTL_DAYS_MIN ||
+    days > SUBJECT_TTL_DAYS_MAX
+  ) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: `⚠️ Введите число от ${SUBJECT_TTL_DAYS_MIN} до ${SUBJECT_TTL_DAYS_MAX}`,
+    });
+    return;
+  }
+  const ttl_days = days === 0 ? null : days;
+  const inserted = deps.emailSuppressionStore.insertRule({
+    rule_type: 'subject',
+    pattern: substring,
+    ttl_days,
+  });
+  const expiresLabel =
+    inserted.expires_at === null ? 'навсегда' : formatExpiryLabel(inserted.expires_at);
+  await (ixn as any).reply({
+    flags: MessageFlags.Ephemeral,
+    content: `🙈 Заглушены письма с темой «${substring}» до ${expiresLabel}`,
+  });
+}
+
 async function handleEmailDraftModalSubmit(
   ixn: ModalSubmitInteraction,
   deps: InteractionDeps,
@@ -1330,6 +1462,14 @@ async function routeModalSubmit(
       ixn,
       deps,
       customId.slice('email_draft_modal:'.length),
+    );
+    return;
+  }
+  if (customId.startsWith('email_suppress:subject_submit:')) {
+    await handleSuppressSubjectSubmit(
+      ixn,
+      deps,
+      customId.slice('email_suppress:subject_submit:'.length),
     );
     return;
   }

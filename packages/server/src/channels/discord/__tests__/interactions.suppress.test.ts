@@ -61,6 +61,25 @@ function makeButton(overrides: Record<string, any> = {}) {
     reply: vi.fn().mockResolvedValue(undefined),
     update: vi.fn().mockResolvedValue(undefined),
     deferUpdate: vi.fn().mockResolvedValue(undefined),
+    showModal: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  } as any;
+}
+
+function makeModalSubmit(overrides: Record<string, any> = {}) {
+  return {
+    isButton: () => false,
+    isModalSubmit: () => true,
+    isChatInputCommand: () => false,
+    user: { id: 'user-1' },
+    customId: 'email_suppress:subject_submit:7',
+    fields: {
+      getTextInputValue: vi.fn((field: string) =>
+        field === 'substring' ? 'Order shipped' : '7',
+      ),
+    },
+    reply: vi.fn().mockResolvedValue(undefined),
+    update: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as any;
 }
@@ -241,6 +260,257 @@ describe('email_suppress:sender_set_ttl', () => {
         content: expect.stringContaining('not configured'),
       }),
     );
+  });
+});
+
+describe('email_suppress:subject_start (opens modal)', () => {
+  it('missing row → ephemeral "недоступно", no modal shown', async () => {
+    const deps = makeDeps({
+      emailStore: {
+        findByPendingId: vi.fn().mockReturnValue(null),
+      } as unknown as EmailStore,
+    });
+    const ixn = makeButton({ customId: 'email_suppress:subject_start:7' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.stringContaining('недоступно'),
+      }),
+    );
+    expect(ixn.showModal).not.toHaveBeenCalled();
+  });
+
+  it('invalid rowId → ephemeral "Некорректная", no DB read, no modal', async () => {
+    const deps = makeDeps();
+    const ixn = makeButton({ customId: 'email_suppress:subject_start:abc' });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.emailStore as any).findByPendingId).not.toHaveBeenCalled();
+    expect(ixn.showModal).not.toHaveBeenCalled();
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Некорректная'),
+      }),
+    );
+  });
+
+  it('valid row → modal with substring prefilled to current subject + days="7"', async () => {
+    const deps = makeDeps();
+    const ixn = makeButton({ customId: 'email_suppress:subject_start:7' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.showModal).toHaveBeenCalledTimes(1);
+    const modal = ixn.showModal.mock.calls[0]![0];
+    expect(modal.data.custom_id).toBe('email_suppress:subject_submit:7');
+    // Two action rows, each with one text input.
+    expect(modal.components).toHaveLength(2);
+    const inputs = modal.components.map((row: any) => row.components[0].data);
+    const byId = Object.fromEntries(inputs.map((i: any) => [i.custom_id, i]));
+    expect(byId.substring).toBeDefined();
+    expect(byId.substring.value).toBe('Large transaction notice');
+    expect(byId.days).toBeDefined();
+    expect(byId.days.value).toBe('7');
+  });
+
+  it('clamps oversize subject prefill to 200 chars', async () => {
+    const longSubject = 'A'.repeat(500);
+    const deps = makeDeps({
+      emailStore: {
+        findByPendingId: vi.fn().mockReturnValue({
+          ...SAMPLE_ROW,
+          subject: longSubject,
+        }),
+      } as unknown as EmailStore,
+    });
+    const ixn = makeButton({ customId: 'email_suppress:subject_start:7' });
+
+    await routeInteraction(ixn, deps);
+
+    const modal = ixn.showModal.mock.calls[0]![0];
+    const substringInput = modal.components[0].components[0].data;
+    expect(substringInput.value.length).toBeLessThanOrEqual(200);
+  });
+
+  it('emailStore not configured → "not configured", no modal', async () => {
+    const deps = makeDeps({ emailStore: undefined });
+    const ixn = makeButton({ customId: 'email_suppress:subject_start:7' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.showModal).not.toHaveBeenCalled();
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('not configured'),
+      }),
+    );
+  });
+});
+
+describe('email_suppress:subject_submit (modal)', () => {
+  it('valid substring + days=7 → insertRule(subject, ttl=7), ephemeral confirmation', async () => {
+    const deps = makeDeps();
+    const ixn = makeModalSubmit({
+      customId: 'email_suppress:subject_submit:7',
+      fields: {
+        getTextInputValue: vi.fn((field: string) =>
+          field === 'substring' ? 'Order shipped' : '7',
+        ),
+      },
+    });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.emailSuppressionStore as any).insertRule).toHaveBeenCalledTimes(1);
+    expect((deps.emailSuppressionStore as any).insertRule).toHaveBeenCalledWith({
+      rule_type: 'subject',
+      pattern: 'Order shipped',
+      ttl_days: 7,
+    });
+    expect(ixn.reply).toHaveBeenCalledTimes(1);
+    const arg = ixn.reply.mock.calls[0]![0];
+    expect(arg.flags).toBe(MessageFlags.Ephemeral);
+    expect(arg.content).toContain('Order shipped');
+    expect(arg.content).toContain('Заглушены');
+    expect(arg.content).not.toContain('навсегда');
+  });
+
+  it('days=0 → insertRule with ttl_days=null, message shows "навсегда"', async () => {
+    const deps = makeDeps();
+    const ixn = makeModalSubmit({
+      fields: {
+        getTextInputValue: vi.fn((field: string) =>
+          field === 'substring' ? 'Spam pattern' : '0',
+        ),
+      },
+    });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.emailSuppressionStore as any).insertRule).toHaveBeenCalledWith({
+      rule_type: 'subject',
+      pattern: 'Spam pattern',
+      ttl_days: null,
+    });
+    const arg = ixn.reply.mock.calls[0]![0];
+    expect(arg.content).toContain('навсегда');
+  });
+
+  it('empty substring → no insertRule, error message', async () => {
+    const deps = makeDeps();
+    const ixn = makeModalSubmit({
+      fields: {
+        getTextInputValue: vi.fn((field: string) =>
+          field === 'substring' ? '   ' : '7',
+        ),
+      },
+    });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.emailSuppressionStore as any).insertRule).not.toHaveBeenCalled();
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.stringContaining('Пустой шаблон'),
+      }),
+    );
+  });
+
+  it('non-numeric days → no insertRule, error message', async () => {
+    const deps = makeDeps();
+    const ixn = makeModalSubmit({
+      fields: {
+        getTextInputValue: vi.fn((field: string) =>
+          field === 'substring' ? 'pattern' : 'abc',
+        ),
+      },
+    });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.emailSuppressionStore as any).insertRule).not.toHaveBeenCalled();
+    const arg = ixn.reply.mock.calls[0]![0];
+    expect(arg.content).toContain('число от 0 до 365');
+  });
+
+  it('days out of range (>365) → no insertRule, error message', async () => {
+    const deps = makeDeps();
+    const ixn = makeModalSubmit({
+      fields: {
+        getTextInputValue: vi.fn((field: string) =>
+          field === 'substring' ? 'pattern' : '999',
+        ),
+      },
+    });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.emailSuppressionStore as any).insertRule).not.toHaveBeenCalled();
+    const arg = ixn.reply.mock.calls[0]![0];
+    expect(arg.content).toContain('число от 0 до 365');
+  });
+
+  it('negative days → no insertRule, error message', async () => {
+    const deps = makeDeps();
+    const ixn = makeModalSubmit({
+      fields: {
+        getTextInputValue: vi.fn((field: string) =>
+          field === 'substring' ? 'pattern' : '-5',
+        ),
+      },
+    });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.emailSuppressionStore as any).insertRule).not.toHaveBeenCalled();
+    const arg = ixn.reply.mock.calls[0]![0];
+    expect(arg.content).toContain('число от 0 до 365');
+  });
+
+  it('whitespace around substring is trimmed before storage', async () => {
+    const deps = makeDeps();
+    const ixn = makeModalSubmit({
+      fields: {
+        getTextInputValue: vi.fn((field: string) =>
+          field === 'substring' ? '  Order shipped  ' : '7',
+        ),
+      },
+    });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.emailSuppressionStore as any).insertRule).toHaveBeenCalledWith({
+      rule_type: 'subject',
+      pattern: 'Order shipped',
+      ttl_days: 7,
+    });
+  });
+
+  it('suppressionStore not configured → "not configured", no insert attempt', async () => {
+    const deps = makeDeps({ emailSuppressionStore: undefined });
+    const ixn = makeModalSubmit();
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('not configured'),
+      }),
+    );
+  });
+
+  it('non-whitelisted user is rejected', async () => {
+    const deps = makeDeps();
+    const ixn = makeModalSubmit({ user: { id: 'evil' } });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.emailSuppressionStore as any).insertRule).not.toHaveBeenCalled();
   });
 });
 
