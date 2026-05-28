@@ -201,18 +201,18 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
 
 ### Task 3: Env var + deps wiring
 
-- [ ] in `packages/server/src/index.ts`, near existing email env parsing
+- [x] in `packages/server/src/index.ts`, near existing email env parsing
   (~line 583), parse
   `EMAIL_SEND_HOLD_SECONDS = envInt(process.env.EMAIL_SEND_HOLD_SECONDS, 30, 0, 300)`
   — note **min 0** (bypass mode), max 300 (5 min, comfortable under
   Discord's 15-min ephemeral window)
-- [ ] construct `emailSentLog = createEmailSentLog({ db })`
-- [ ] thread both `emailSendHoldSeconds` and `emailSentLog` into bot
+- [x] construct `emailSentLog = createEmailSentLog({ db })`
+- [x] thread both `emailSendHoldSeconds` and `emailSentLog` into bot
   deps where the Discord bot is constructed
-- [ ] in `packages/server/src/channels/discord/bot.ts`, accept
+- [x] in `packages/server/src/channels/discord/bot.ts`, accept
   `emailSendHoldSeconds: number` and `emailSentLog: EmailSentLog` in
   the deps type, pass to interaction handlers
-- [ ] in `.env.example`, after `EMAIL_QUIET_HOUR_START`, add:
+- [x] in `.env.example`, after `EMAIL_QUIET_HOUR_START`, add:
   ```
   # Hold zone for outgoing email drafts in seconds (0-300, default 30).
   # 0 = bypass hold and send immediately (kill switch — restores
@@ -220,11 +220,13 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
   # under Discord's 15-min ephemeral webhook window.
   EMAIL_SEND_HOLD_SECONDS=30
   ```
-- [ ] write test in
+- [x] write test in
   `packages/server/src/__tests__/env-config.test.ts` (or extend
   existing): default 30, 0 allowed (returns 0), negative → fallback 30,
-  > 300 → fallback 30
-- [ ] run `npm -w @r2/server test -- env-config` — must pass before
+  > 300 → fallback 30. Note: `envInt` extracted from `index.ts` into
+  new `packages/server/src/env-utils.ts` so it's importable by tests
+  without booting the server.
+- [x] run `npm -w @r2/server test -- env-config` — must pass before
   task 4
 
 ### Task 4: Refactor `handleEmailDraftSend` — bypass, pre-check, arm timer

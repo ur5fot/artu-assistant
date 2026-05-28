@@ -35,6 +35,7 @@ import type {
 } from './interactions.js';
 import type { DraftReplyService } from '../../services/draft-reply-service.js';
 import type { EmailStore } from '../../emails/store.js';
+import type { EmailSentLog } from '../../emails/sent-log.js';
 import type { ImapAccount } from '../../emails/types.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { PiiProxy } from '../../pii/proxy.js';
@@ -103,6 +104,10 @@ export interface DiscordBotDeps {
   imapAccounts?: Map<string, ImapAccount>;
   /** SMTP client used to send the final reply. */
   smtpClient?: SmtpClient;
+  /** Hold-zone delay (seconds) before SMTP send. 0 = bypass (instant). */
+  emailSendHoldSeconds?: number;
+  /** Mini audit table for send/cancel/error outcomes. */
+  emailSentLog?: EmailSentLog;
   /** PII proxy — anonymizes draft-reply prompts before they leave to Claude. */
   piiProxy?: PiiProxy;
 }
@@ -305,6 +310,8 @@ export async function startDiscordBot(
         anthropic: deps.anthropic,
         imapAccounts: deps.imapAccounts,
         smtpClient: deps.smtpClient,
+        emailSendHoldSeconds: deps.emailSendHoldSeconds,
+        emailSentLog: deps.emailSentLog,
         piiProxy: deps.piiProxy,
       });
     } catch (err) {

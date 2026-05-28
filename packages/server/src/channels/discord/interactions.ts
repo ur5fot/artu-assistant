@@ -26,6 +26,7 @@ import type {
   DraftState,
 } from '../../services/draft-reply-service.js';
 import type { EmailStore } from '../../emails/store.js';
+import type { EmailSentLog } from '../../emails/sent-log.js';
 import type { ImapAccount, FullMessage } from '../../emails/types.js';
 import type { MessageHeaders } from '../../emails/imap-client.js';
 import type { PiiProxy } from '../../pii/proxy.js';
@@ -107,6 +108,10 @@ export interface InteractionDeps {
   /** Lookup by account id used by the urgent email row's account_id. */
   imapAccounts?: Map<string, ImapAccount>;
   smtpClient?: SmtpClient;
+  /** Hold-zone delay (seconds) before SMTP send for draft replies. 0 = bypass. */
+  emailSendHoldSeconds?: number;
+  /** Mini audit table for send/cancel/error outcomes. */
+  emailSentLog?: EmailSentLog;
   /** PII proxy — anonymizes the email thread before it leaves to Claude, then
    *  deanonymizes Claude's draft so the body sent over SMTP has real names. */
   piiProxy?: PiiProxy;
