@@ -278,21 +278,21 @@ Dependencies:
 
 ### Task 6: Wire + acceptance + docs
 
-- [ ] in `packages/server/src/index.ts`, instantiate `draftReplyService`
+- [x] in `packages/server/src/index.ts`, instantiate `draftReplyService`
   near other services, pass into Discord bot deps along with
   `imapAccounts` map, `threadFetcher` (or `fetchThread` function),
   `smtpClient` (factory or instance), `anthropic`, `emailStore`,
   `imapClient`
-- [ ] verify backward compat: `emailDigest` still publishes plain text
+- [x] verify backward compat: `emailDigest` still publishes plain text
   (no embed); pre-existing handlers (morningBrief, pulseHandler) still
   work via plain-text path
-- [ ] run full test suite (`npm -w @r2/server test`) — all green
-- [ ] run TypeScript build (`npm -w @r2/server run build`) — no errors
-- [ ] update `AGENTS.md`:
+- [x] run full test suite (`npm -w @r2/server test`) — all green
+- [x] run TypeScript build (`npm -w @r2/server run build`) — no errors
+- [x] update `AGENTS.md`:
   - add `email_draft` button domain to the interactions list
   - add `draftReplyService` to the services list
   - add SMTP capability to the email section (one paragraph)
-- [ ] update `README.md` "Email watcher" section: one paragraph on
+- [x] update `README.md` "Email watcher" section: one paragraph on
   draft-reply flow (button → Claude → SMTP), note that no new env vars
   are required (SMTP reuses IMAP app password)
 

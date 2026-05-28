@@ -49,11 +49,14 @@ import { pulseHandler } from './cognition/handlers/pulse.js';
 import { createMorningBriefHandler } from './cognition/handlers/morningBrief.js';
 import { parseImapAccounts } from './emails/config.js';
 import { createEmailStore } from './emails/store.js';
-import { fetchNewMessages, fetchFullBody, getMaxUid } from './emails/imap-client.js';
+import { fetchNewMessages, fetchFullBody, getMaxUid, fetchHeaders } from './emails/imap-client.js';
+import { fetchThread } from './emails/thread-fetcher.js';
+import { sendReply as sendSmtpReply } from './emails/smtp-client.js';
 import { scoreBatch } from './emails/scorer.js';
 import { startEmailPoller } from './emails/multi-account-poller.js';
 import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
 import { createEmailUrgentHandler } from './cognition/handlers/emailUrgent.js';
+import { createDraftReplyService, type DraftState } from './services/draft-reply-service.js';
 import { MORNING_FALLBACK_HOUR } from './cognition/handlers/emailDigest.helpers.js';
 import { createTopicFinalizerHandler } from './topics/finalizer.js';
 import crypto from 'node:crypto';
@@ -319,6 +322,12 @@ const pendingPlanReviews: PendingPlanReviews = new Map();
 const planReviewService = createPlanReviewService({ pending: pendingPlanReviews });
 const pendingMemoryConfirms: PendingMemoryConfirms = new Map();
 const memoryConfirmService = createMemoryConfirmService({ pending: pendingMemoryConfirms });
+
+// Email draft reply state lives in-memory only — drafts disappear on restart by
+// design (force redo rather than persist half-written replies, see plan).
+const pendingDrafts = new Map<string, DraftState>();
+const draftReplyService = createDraftReplyService({ pendingDrafts });
+const imapAccountsById = new Map(imapAccounts.map((a) => [a.id, a] as const));
 
 function pickEmbeddingProvider(opts: {
   mode: EmbeddingProviderMode;
@@ -617,6 +626,13 @@ if (discordToken) {
       planReviewService,
       memoryConfirmService,
       commandService,
+      draftReplyService,
+      emailStore: emailEnabled ? emailStore : undefined,
+      imapClient: emailEnabled ? { fetchHeaders } : undefined,
+      threadFetcher: emailEnabled ? { fetchThread } : undefined,
+      anthropic: client.anthropic,
+      imapAccounts: emailEnabled ? imapAccountsById : undefined,
+      smtpClient: emailEnabled ? { sendReply: sendSmtpReply } : undefined,
       requestTimeoutMs: (() => {
         const n = Number(process.env.DISCORD_REQUEST_TIMEOUT_MS);
         return Number.isFinite(n) && n > 0 ? n : 300_000;

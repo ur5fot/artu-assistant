@@ -28,6 +28,15 @@ import type { TopicStore } from '../../topics/store.js';
 import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
 import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from './tool-embeds.js';
 import { routeInteraction } from './interactions.js';
+import type {
+  DraftImapClient,
+  DraftThreadFetcher,
+  SmtpClient,
+} from './interactions.js';
+import type { DraftReplyService } from '../../services/draft-reply-service.js';
+import type { EmailStore } from '../../emails/store.js';
+import type { ImapAccount } from '../../emails/types.js';
+import type Anthropic from '@anthropic-ai/sdk';
 import { SLASH_COMMAND_DEFINITIONS } from './slash-commands.js';
 
 export interface DiscordBotDeps {
@@ -79,6 +88,20 @@ export interface DiscordBotDeps {
   commandService?: CommandService;
   /** Cognition service — heartbeat/handler runs; bot listens for `cognition_publish` events on the reminder bus and marks runs published after DM delivery. */
   cognitionService?: CognitionService;
+  /** Email draft reply flow — pending in-memory state keyed by nanoid. */
+  draftReplyService?: DraftReplyService;
+  /** Email store — used by the draft-reply button handler to load the urgent row. */
+  emailStore?: EmailStore;
+  /** IMAP header fetcher used by the draft-reply flow (fetchHeaders only). */
+  imapClient?: DraftImapClient;
+  /** Thread walker used by the draft-reply flow to assemble full thread context. */
+  threadFetcher?: DraftThreadFetcher;
+  /** Anthropic SDK client — draft-reply generation runs as a one-shot Claude call. */
+  anthropic?: Anthropic;
+  /** Account id → ImapAccount lookup used by draft-reply SMTP send. */
+  imapAccounts?: Map<string, ImapAccount>;
+  /** SMTP client used to send the final reply. */
+  smtpClient?: SmtpClient;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -269,6 +292,13 @@ export async function startDiscordBot(
         cognitionService: deps.cognitionService,
         memoryConfirmService: deps.memoryConfirmService,
         memoryConfirmInitialValues,
+        draftReplyService: deps.draftReplyService,
+        emailStore: deps.emailStore,
+        imapClient: deps.imapClient,
+        threadFetcher: deps.threadFetcher,
+        anthropic: deps.anthropic,
+        imapAccounts: deps.imapAccounts,
+        smtpClient: deps.smtpClient,
       });
     } catch (err) {
       console.error('[discord] interaction error:', err instanceof Error ? err.message : err);
