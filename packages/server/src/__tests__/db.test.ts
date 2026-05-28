@@ -233,6 +233,34 @@ describe('email tables', () => {
   });
 });
 
+describe('initDb path resolution', () => {
+  it('explicit dbPath arg wins over DB_PATH env (regression: cwd drift)', async () => {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const tmp = path.join(
+      os.tmpdir(),
+      `r2-db-explicit-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`,
+    );
+    const prevEnv = process.env.DB_PATH;
+    process.env.DB_PATH = './should-not-be-used/r2.db';
+    try {
+      initDb(tmp);
+      expect(fs.existsSync(tmp)).toBe(true);
+      // The env-derived relative path should NOT have been created.
+      expect(fs.existsSync(path.join(process.cwd(), 'should-not-be-used', 'r2.db'))).toBe(false);
+    } finally {
+      closeDb();
+      if (prevEnv === undefined) delete process.env.DB_PATH;
+      else process.env.DB_PATH = prevEnv;
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      for (const ext of ['-wal', '-shm']) {
+        if (fs.existsSync(tmp + ext)) fs.unlinkSync(tmp + ext);
+      }
+    }
+  });
+});
+
 describe('initDb idempotency for email_pending migrations', () => {
   it('running initDb twice on the same file does not throw and column is present once', async () => {
     const os = await import('node:os');

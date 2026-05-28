@@ -144,24 +144,24 @@ intentional.
 
 ### Task 2: `db.ts` — use `resolveProjectPath`
 
-- [ ] in `packages/server/src/db.ts`, replace lines 22-24 with:
+- [x] in `packages/server/src/db.ts`, replace lines 22-24 with:
   ```ts
   const resolvedPath = dbPath ?? resolveProjectPath(
     process.env.DB_PATH,
     ['data', 'r2.db'],
   );
   ```
-- [ ] remove the now-unused `thisDir` and `defaultDbPath` lines
-- [ ] verify existing `__tests__/db.test.ts` still passes (no
+- [x] remove the now-unused `thisDir` and `defaultDbPath` lines
+- [x] verify existing `__tests__/db.test.ts` still passes (no
   behavioural change for absolute env paths or for unset env, given the
   default still resolves to `<root>/data/r2.db`)
-- [ ] add a regression test in `db.test.ts` that does NOT mock
+- [x] add a regression test in `db.test.ts` that does NOT mock
   `process.cwd`: call `initDb` with explicit `dbPath` arg pointing at a
   tmp file; verify it lands at the tmp path regardless of what
   `DB_PATH` env says. Separate unit test using `resolveProjectPath`
   directly with two different `projectRoot` injections confirms the
   cwd-independence property — no `vi.spyOn(process, 'cwd')` needed.
-- [ ] run `npm -w @r2/server test -- db.test` — must pass before task 3
+- [x] run `npm -w @r2/server test -- db.test` — must pass before task 3
 
 ### Task 3: `evals/store.ts` — use `resolveProjectPath`
 

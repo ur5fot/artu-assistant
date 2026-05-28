@@ -2,9 +2,9 @@ import Database from 'better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
 import path from 'node:path';
 import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import type { ToolCall } from '@r2/shared';
 import type { TopicDetector } from './topics/detector.js';
+import { resolveProjectPath } from './path-utils.js';
 
 let db: Database.Database | null = null;
 let topicDetector: TopicDetector | null = null;
@@ -19,9 +19,10 @@ export function initDb(dbPath?: string): void {
     db = null;
   }
 
-  const thisDir = path.dirname(fileURLToPath(import.meta.url));
-  const defaultDbPath = path.resolve(thisDir, '..', '..', '..', 'data', 'r2.db');
-  const resolvedPath = dbPath ?? (process.env.DB_PATH || defaultDbPath);
+  const resolvedPath = dbPath ?? resolveProjectPath(
+    process.env.DB_PATH,
+    ['data', 'r2.db'],
+  );
   const dir = path.dirname(resolvedPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
