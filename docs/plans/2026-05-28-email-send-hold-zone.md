@@ -326,7 +326,7 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
 
 ### Task 6: Integration test — full round-trip
 
-- [ ] write integration test in
+- [x] write integration test in
   `packages/server/src/__tests__/email-send-hold.integration.test.ts`:
   - boot minimal deps with mocked `smtpClient`, real
     `draftReplyService`, real `emailSentLog` (in-memory DB), fake
@@ -345,7 +345,7 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
   - **15-min pre-check**: seed interaction with
     `createdTimestamp = now - 14*60*1000`, Send with hold=30 → no
     timer armed, no SMTP, ephemeral shows "истекает", state dropped.
-- [ ] run `npm -w @r2/server test -- email-send-hold.integration` —
+- [x] run `npm -w @r2/server test -- email-send-hold.integration` —
   must pass before task 7
 
 ### Task 7: Acceptance + docs
