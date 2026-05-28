@@ -1,5 +1,6 @@
 import type { Handler } from '../types.js';
 import type { EmailStore } from '../../emails/store.js';
+import { buildUrgentEmailEmbed } from '../../channels/discord/embeds.js';
 import { inQuietHours, MORNING_FALLBACK_HOUR } from './emailDigest.helpers.js';
 
 // Observability — manual review queries (run via sqlite3 on r2.db):
@@ -50,14 +51,17 @@ export function createEmailUrgentHandler(deps: Deps): Handler {
       // (from name, subject) and snippets can contain raw \n / \r / \t
       // that would break the expected 3-line Discord layout.
       const from = row.from_addr.replace(/\s+/g, ' ').trim();
-      const subject = (row.subject ?? '').replace(/\s+/g, ' ').trim();
-      const snippet = (row.snippet ?? '').replace(/\s+/g, ' ').trim();
+      const subject = row.subject.replace(/\s+/g, ' ').trim();
+      const snippet = row.snippet.replace(/\s+/g, ' ').trim();
       const truncated =
         snippet.length > SNIPPET_MAX ? snippet.slice(0, SNIPPET_MAX - 1) + '…' : snippet;
       const content = `🚨 ${from}\n${subject}\n${truncated}`;
+      const { embed, components } = buildUrgentEmailEmbed(row);
       return {
         publish: true,
         content,
+        embed,
+        components,
         onPublished: () => deps.store.markUrgentPinged(row.id, Date.now()),
       };
     },

@@ -215,4 +215,31 @@ describe('createEmailUrgentHandler.run', () => {
     const again = await h.run(mkCtx(Date.now() + 1000));
     expect(again).toEqual({ skip: true, reason: 'no unpinged urgent row' });
   });
+
+  it('result includes embed + components with a Draft reply button keyed by row id', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, tz: TZ, quietStart: 22 });
+    mkPending({
+      uid: 1,
+      importance: 5,
+      received_at: 1000,
+      from: 'boss@acme.com',
+      subject: 'Server down',
+      snippet: 'Prod is on fire',
+    });
+    const res = await h.run(mkCtx(Date.now()));
+    expect('publish' in res && res.publish).toBe(true);
+    if ('publish' in res && res.publish) {
+      expect(res.embed).toBeDefined();
+      expect(res.embed!.title).toBe('🚨 Urgent email');
+      expect(res.components).toBeDefined();
+      const buttons = res.components![0]!.buttons;
+      expect(buttons).toHaveLength(1);
+      // customId encodes the email_pending row id (autoincrement so look it up)
+      const rowId = store.findUnpingedUrgent()!.id;
+      expect(buttons[0]!.customId).toBe(`email_draft:start:${rowId}`);
+      expect(buttons[0]!.label).toBe('Draft reply');
+      expect(buttons[0]!.style).toBe('primary');
+    }
+  });
 });

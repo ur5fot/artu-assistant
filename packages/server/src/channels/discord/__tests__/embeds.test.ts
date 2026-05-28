@@ -5,7 +5,26 @@ import {
   buildPermissionEmbed,
   buildPlanReviewChunks,
   buildPermissionsListReply,
+  buildUrgentEmailEmbed,
 } from '../embeds.js';
+import type { EmailPendingRow } from '../../../emails/types.js';
+
+function mkRow(overrides: Partial<EmailPendingRow> = {}): EmailPendingRow {
+  return {
+    id: 7,
+    account_id: 'a',
+    message_uid: 1,
+    from_addr: 'sender@example.com',
+    subject: 'subject',
+    snippet: 'snip',
+    importance: 5,
+    received_at: 1000,
+    added_at: 1000,
+    delivered_at: null,
+    urgent_pinged_at: null,
+    ...overrides,
+  };
+}
 
 describe('buildReminderEmbed', () => {
   it('ringing state: includes title, footer, dismiss and snooze buttons', () => {
@@ -184,5 +203,70 @@ describe('buildPermissionsListReply', () => {
     expect(reply.components).toHaveLength(5);
     const embedJson = reply.embeds![0]!.toJSON();
     expect(embedJson.footer?.text).toContain('Showing 5 of 8');
+  });
+});
+
+describe('buildUrgentEmailEmbed', () => {
+  it('returns plain data: title, fields (from/subject/snippet), single Draft reply button', () => {
+    const { embed, components } = buildUrgentEmailEmbed(
+      mkRow({
+        id: 42,
+        from_addr: 'boss@acme.com',
+        subject: 'Server down',
+        snippet: 'Prod is on fire',
+      }),
+    );
+    expect(embed.title).toBe('🚨 Urgent email');
+    expect(embed.fields).toEqual([
+      { name: 'From', value: 'boss@acme.com' },
+      { name: 'Subject', value: 'Server down' },
+      { name: 'Snippet', value: 'Prod is on fire' },
+    ]);
+    expect(components).toHaveLength(1);
+    expect(components[0]!.type).toBe('row');
+    expect(components[0]!.buttons).toHaveLength(1);
+    expect(components[0]!.buttons[0]!).toEqual({
+      customId: 'email_draft:start:42',
+      label: 'Draft reply',
+      style: 'primary',
+    });
+  });
+
+  it('button customId encodes the email_pending row id', () => {
+    const { components } = buildUrgentEmailEmbed(mkRow({ id: 1337 }));
+    expect(components[0]!.buttons[0]!.customId).toBe('email_draft:start:1337');
+  });
+
+  it('collapses internal whitespace in from/subject/snippet', () => {
+    const { embed } = buildUrgentEmailEmbed(
+      mkRow({
+        from_addr: 'Boss\nBoss\t<boss@acme.com>',
+        subject: 'line1\nline2\t  end',
+        snippet: '  one\n\ntwo\rthree  ',
+      }),
+    );
+    const fields = embed.fields!;
+    expect(fields.find((f) => f.name === 'From')!.value).toBe('Boss Boss <boss@acme.com>');
+    expect(fields.find((f) => f.name === 'Subject')!.value).toBe('line1 line2 end');
+    expect(fields.find((f) => f.name === 'Snippet')!.value).toBe('one two three');
+  });
+
+  it('truncates snippet > 200 chars with ellipsis', () => {
+    const long = 'a'.repeat(250);
+    const { embed } = buildUrgentEmailEmbed(mkRow({ snippet: long }));
+    const snippet = embed.fields!.find((f) => f.name === 'Snippet')!.value;
+    expect(snippet.length).toBe(200);
+    expect(snippet.endsWith('…')).toBe(true);
+  });
+
+  it('omits Snippet field when snippet is empty', () => {
+    const { embed } = buildUrgentEmailEmbed(mkRow({ snippet: '' }));
+    expect(embed.fields!.find((f) => f.name === 'Snippet')).toBeUndefined();
+    expect(embed.fields!.map((f) => f.name)).toEqual(['From', 'Subject']);
+  });
+
+  it('falls back to "(no subject)" when subject is empty', () => {
+    const { embed } = buildUrgentEmailEmbed(mkRow({ subject: '' }));
+    expect(embed.fields!.find((f) => f.name === 'Subject')!.value).toBe('(no subject)');
   });
 });

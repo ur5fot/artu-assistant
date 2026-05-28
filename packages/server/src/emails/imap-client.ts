@@ -192,6 +192,107 @@ export async function fetchNewMessages(
   });
 }
 
+export interface MessageHeaders {
+  messageId: string | null;
+  inReplyTo: string | null;
+  references: string[];
+}
+
+// Header values may be folded across lines per RFC 5322 §2.2.3 (continuation
+// lines begin with WSP). Unfold by collapsing each CRLF+WSP into a single space
+// before splitting into individual headers.
+function unfoldHeaders(raw: string): string {
+  return raw.replace(/\r?\n[ \t]+/g, ' ');
+}
+
+function parseHeaderValue(unfolded: string, name: string): string | null {
+  const pattern = new RegExp(`^${name}\\s*:\\s*(.*)$`, 'im');
+  const m = unfolded.match(pattern);
+  if (!m) return null;
+  const v = m[1].trim();
+  return v.length > 0 ? v : null;
+}
+
+function parseReferences(unfolded: string): string[] {
+  const v = parseHeaderValue(unfolded, 'References');
+  if (!v) return [];
+  // References is a space-separated list of msg-ids: <a@h> <b@h> <c@h>
+  const ids = v.match(/<[^>]+>/g) || [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+export async function fetchHeaders(account: ImapAccount, uid: number): Promise<MessageHeaders> {
+  return withClient(account, async (client) => {
+    const row = await client.fetchOne(
+      uid,
+      { headers: ['Message-ID', 'In-Reply-To', 'References'] },
+      { uid: true },
+    );
+    if (!row || !row.headers) {
+      return { messageId: null, inReplyTo: null, references: [] };
+    }
+    const raw = Buffer.isBuffer(row.headers)
+      ? row.headers.toString('utf-8')
+      : String(row.headers);
+    const unfolded = unfoldHeaders(raw);
+    return {
+      messageId: parseHeaderValue(unfolded, 'Message-ID'),
+      inReplyTo: parseHeaderValue(unfolded, 'In-Reply-To'),
+      references: parseReferences(unfolded),
+    };
+  });
+}
+
+// Search INBOX for a message by RFC 5322 Message-ID. Returns a FullMessage so
+// the draft-reply prompt can include real body text (not a 500-char snippet —
+// the plan calls for "full thread context for higher draft quality"). Null
+// when the id isn't found (ref points to Sent or another folder we don't index)
+// or when the server's SEARCH returns NO/BAD — treat both as "not in INBOX",
+// the caller silently skips.
+export async function fetchByMessageId(
+  account: ImapAccount,
+  messageId: string,
+): Promise<FullMessage | null> {
+  return withClient(account, async (client) => {
+    const result = await client.search({ header: { 'Message-ID': messageId } }, { uid: true });
+    if (!result || result === false || result.length === 0) return null;
+    const uid = result[0];
+    const metaRows = await client.fetchAll(
+      [uid],
+      { envelope: true, internalDate: true, bodyStructure: true },
+      { uid: true },
+    );
+    const meta = metaRows[0];
+    if (!meta) return null;
+    const picked = pickTextPart(meta.bodyStructure);
+    let buf: unknown = undefined;
+    if (picked) {
+      const bodyRows = await client.fetchAll(
+        [uid],
+        { bodyParts: [picked.partId] },
+        { uid: true },
+      );
+      const bodyRow = bodyRows[0];
+      if (bodyRow) buf = getBodyPart(bodyRow.bodyParts, picked.partId);
+    }
+    const text = decodePickedText(buf, picked);
+    return {
+      uid,
+      from: formatFrom(meta.envelope),
+      subject: decodeHeader(meta.envelope?.subject),
+      bodyText: toBody(text, FULL_BODY_LEN),
+      receivedAt: pickReceivedAt(meta),
+    };
+  });
+}
+
 export async function fetchFullBody(account: ImapAccount, uid: number): Promise<FullMessage> {
   return withClient(account, async (client) => {
     // Same two-phase shape as fetchNewMessages — see comments there. Avoids

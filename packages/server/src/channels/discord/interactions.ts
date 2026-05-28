@@ -1,3 +1,4 @@
+import type Anthropic from '@anthropic-ai/sdk';
 import type {
   ButtonInteraction,
   ChatInputCommandInteraction,
@@ -6,17 +7,28 @@ import type {
 } from 'discord.js';
 import {
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   MessageFlags,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
+import { randomUUID } from 'crypto';
 import type { ReminderService } from '../../services/reminder-service.js';
 import type { PermissionService } from '../../services/permission-service.js';
 import type { PlanReviewService } from '../../services/plan-review-service.js';
 import type { CommandService } from '../../services/command-service.js';
 import type { CognitionService } from '../../cognition/service.js';
 import type { MemoryConfirmService } from '../../services/memory-confirm-service.js';
+import type {
+  DraftReplyService,
+  DraftState,
+} from '../../services/draft-reply-service.js';
+import type { EmailStore } from '../../emails/store.js';
+import type { ImapAccount, FullMessage } from '../../emails/types.js';
+import type { MessageHeaders } from '../../emails/imap-client.js';
+import type { PiiProxy } from '../../pii/proxy.js';
 import {
   buildReminderEmbed,
   buildPermissionEmbed,
@@ -52,6 +64,25 @@ function truncateLines(lines: string[]): string {
   return out.join('\n');
 }
 
+export interface DraftImapClient {
+  fetchHeaders(account: ImapAccount, uid: number): Promise<MessageHeaders>;
+}
+
+export interface DraftThreadFetcher {
+  fetchThread(account: ImapAccount, uid: number): Promise<FullMessage[]>;
+}
+
+export interface SmtpClient {
+  sendReply(params: {
+    account: ImapAccount;
+    to: string;
+    subject: string;
+    body: string;
+    inReplyTo: string | null;
+    references: string[];
+  }): Promise<unknown>;
+}
+
 export interface InteractionDeps {
   whitelist: Set<string>;
   reminderService: ReminderService;
@@ -67,6 +98,18 @@ export interface InteractionDeps {
    * (custom_id has a 32-char cap and can't carry the value itself).
    */
   memoryConfirmInitialValues?: Map<string, string>;
+  /** Email draft reply flow — pending in-memory state keyed by nanoid. */
+  draftReplyService?: DraftReplyService;
+  emailStore?: EmailStore;
+  imapClient?: DraftImapClient;
+  threadFetcher?: DraftThreadFetcher;
+  anthropic?: Anthropic;
+  /** Lookup by account id used by the urgent email row's account_id. */
+  imapAccounts?: Map<string, ImapAccount>;
+  smtpClient?: SmtpClient;
+  /** PII proxy — anonymizes the email thread before it leaves to Claude, then
+   *  deanonymizes Claude's draft so the body sent over SMTP has real names. */
+  piiProxy?: PiiProxy;
 }
 
 // Parses the description rendered by buildPermissionEmbed —
@@ -269,6 +312,26 @@ async function routeButton(
     return;
   }
 
+  if (domain === 'email_draft') {
+    if (action === 'start') {
+      await handleEmailDraftStart(ixn, deps, rawId ?? '');
+      return;
+    }
+    if (action === 'send') {
+      await handleEmailDraftSend(ixn, deps, rawId ?? '');
+      return;
+    }
+    if (action === 'edit') {
+      await handleEmailDraftEdit(ixn, deps, rawId ?? '');
+      return;
+    }
+    if (action === 'cancel') {
+      await handleEmailDraftCancel(ixn, deps, rawId ?? '');
+      return;
+    }
+    return;
+  }
+
   if (domain === 'perm_rule' && action === 'revoke') {
     const toolName = rawId ?? '';
     deps.commandService.revokePermissionRule(toolName);
@@ -291,11 +354,439 @@ async function routeButton(
   }
 }
 
+const DRAFT_MAX_TOKENS = 1024;
+const DRAFT_BODY_MARKER = '✏️ Черновик:\n\n';
+// Discord caps a message at 2000 chars; leave room for the "Черновик:" prefix
+// plus the trailing "…" ellipsis when we slice an oversized draft.
+const DRAFT_BODY_MAX_DISPLAY = 2000 - DRAFT_BODY_MARKER.length - 1;
+// Per-message body cap when serialising the thread into the LLM prompt. Full
+// bodies arrive via fetchFullBody (already capped at FULL_BODY_LEN=50_000),
+// but a single 50k message × 20-thread cap would blow past 1M tokens; clamp
+// each message so a long thread still fits well under the Claude 200k context.
+const THREAD_BODY_LIMIT = 8_000;
+// Block on outbound mentions — Claude-generated draft bodies are LLM output
+// and could contain @everyone / @here / role mentions that would notify the
+// recipient when rendered in Discord. Ephemerals do not fire notifications,
+// but defense in depth costs nothing.
+const NO_MENTIONS = { parse: [] as never[] };
+const DRAFT_SYSTEM_PROMPT =
+  "You are R2's email draft writer. Compose a concise, natural reply matching the language of the thread. Plain text only. No greeting boilerplate, no signature.";
+
+// Discord caps a single message at 2000 chars. Error messages from SMTP/IMAP/
+// Claude can include verbose server responses; an unclamped `${msg}` would
+// blow the cap and make editReply throw, leaving the ephemeral stuck on
+// "thinking…" until the 15-min webhook window expires.
+const DISCORD_MESSAGE_MAX = 2000;
+function clampReplyContent(content: string): string {
+  return content.length > DISCORD_MESSAGE_MAX
+    ? content.slice(0, DISCORD_MESSAGE_MAX - 1) + '…'
+    : content;
+}
+
+// Parses an RFC 5322 mailbox of the form `Name <addr@host>` or a bare
+// `addr@host` into just the address part. Reply needs the bare address —
+// nodemailer accepts the wrapped form too, but `to` should be canonical so
+// the SMTP envelope and visible header agree across providers.
+// Pick the LAST angle-bracketed group: an attacker-controlled display name
+// can contain `<fake@evil.com>` (e.g. `"Bank <fake@evil.com>" <real@bank.com>`)
+// and matching the first group would route the reply to the spoof address.
+export function parseFromAddress(fromAddr: string): string {
+  const matches = fromAddr.match(/<([^>]+)>/g);
+  if (matches && matches.length > 0) {
+    const last = matches[matches.length - 1]!;
+    return last.slice(1, -1).trim();
+  }
+  return fromAddr.trim();
+}
+
+function buildDraftPrompt(thread: FullMessage[], currentUid: number): string {
+  const parts: string[] = [];
+  for (const msg of thread) {
+    const marker = msg.uid === currentUid ? ' ⟵ current' : '';
+    const body = (msg.bodyText ?? '').slice(0, THREAD_BODY_LIMIT);
+    parts.push(
+      `From: ${msg.from}${marker}\nSubject: ${msg.subject}\nBody: ${body}`,
+    );
+  }
+  return (
+    'Email thread (oldest first). Draft a reply to the current message.\n\n' +
+    parts.join('\n---\n')
+  );
+}
+
+function extractClaudeText(content: any[]): string {
+  if (!Array.isArray(content)) return '';
+  const block = content.find((b) => b && b.type === 'text');
+  return block && typeof block.text === 'string' ? block.text.trim() : '';
+}
+
+function buildDraftActionRow(pendingId: string): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`email_draft:send:${pendingId}`)
+      .setLabel('Send')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`email_draft:edit:${pendingId}`)
+      .setLabel('Edit')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`email_draft:cancel:${pendingId}`)
+      .setLabel('Cancel')
+      .setStyle(ButtonStyle.Danger),
+  );
+}
+
+async function handleEmailDraftStart(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (
+    !deps.draftReplyService ||
+    !deps.emailStore ||
+    !deps.imapClient ||
+    !deps.threadFetcher ||
+    !deps.anthropic ||
+    !deps.imapAccounts
+  ) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Draft reply is not configured.',
+    });
+    return;
+  }
+
+  const rowId = Number(rawId);
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    // A bare `return` here would leave Discord showing "thinking…" until the
+    // 3s ack window expires. Surface the bad customId immediately instead.
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Некорректная ссылка на письмо',
+    });
+    return;
+  }
+
+  // deferReply gives us 15 minutes to edit a follow-up; the IMAP+Claude path
+  // here easily exceeds Discord's 3s initial-ack window.
+  await (ixn as any).deferReply({ flags: MessageFlags.Ephemeral });
+
+  const row = deps.emailStore.findByPendingId(rowId);
+  if (!row) {
+    await (ixn as any).editReply({ content: '⚠️ Письмо пропало' });
+    return;
+  }
+
+  const account = deps.imapAccounts.get(row.account_id);
+  if (!account) {
+    await (ixn as any).editReply({
+      content: `⚠️ Аккаунт ${row.account_id} не настроен`,
+    });
+    return;
+  }
+
+  let headers: MessageHeaders;
+  let thread: FullMessage[];
+  try {
+    headers = await deps.imapClient.fetchHeaders(account, row.message_uid);
+    thread = await deps.threadFetcher.fetchThread(account, row.message_uid);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await (ixn as any).editReply({
+      content: clampReplyContent(`❌ Не удалось загрузить тред: ${msg}`),
+    });
+    return;
+  }
+
+  // thread-fetcher silently degrades to "ancestors only" when fetchFullBody
+  // for the current uid throws (network blip, message moved between scoring
+  // and click). Without the current message the draft prompt would ask
+  // Claude to reply to whatever the last ancestor is — wrong context. Bail.
+  if (!thread.some((m) => m.uid === row.message_uid)) {
+    await (ixn as any).editReply({
+      content: '❌ Не удалось загрузить текущее письмо',
+    });
+    return;
+  }
+
+  const rawPrompt = buildDraftPrompt(thread, row.message_uid);
+  // PII proxy is always present at runtime (index.ts always constructs one —
+  // either a real proxy or a passthrough). The optional `?` keeps the type
+  // surface contained but at runtime we always anonymize → call → deanonymize,
+  // mirroring morningBrief.ai.ts. With a passthrough proxy this collapses to
+  // a no-op so behaviour is unchanged when PII is disabled.
+  let prompt: string;
+  try {
+    prompt = deps.piiProxy
+      ? (await deps.piiProxy.anonymize(rawPrompt)).text
+      : rawPrompt;
+  } catch (err) {
+    // In PII_MODE=required, a Presidio outage throws here. Without a catch
+    // the error bubbles past bot.ts's logger and the ephemeral reply hangs
+    // on "thinking…" until the 15-min webhook window expires.
+    const msg = err instanceof Error ? err.message : String(err);
+    await (ixn as any).editReply({
+      content: clampReplyContent(`❌ PII proxy failed: ${msg}`),
+    });
+    return;
+  }
+  let body: string;
+  try {
+    const model = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
+    const msg = await deps.anthropic.messages.create({
+      model,
+      max_tokens: DRAFT_MAX_TOKENS,
+      system: DRAFT_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    body = extractClaudeText(msg.content as any[]);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await (ixn as any).editReply({
+      content: clampReplyContent(`❌ Claude не ответил: ${msg}`),
+    });
+    return;
+  }
+
+  if (body && deps.piiProxy) {
+    try {
+      body = await deps.piiProxy.deanonymize(body);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await (ixn as any).editReply({
+        content: clampReplyContent(`❌ PII proxy failed: ${msg}`),
+      });
+      return;
+    }
+  }
+
+  if (!body) {
+    await (ixn as any).editReply({
+      content: '❌ Не удалось сгенерировать черновик',
+    });
+    return;
+  }
+
+  const pendingId = randomUUID();
+  // References chain: existing refs + parent Message-ID, deduped, nulls dropped.
+  // We always reply *to* the current message, so its Message-ID belongs at the
+  // tail of References (it's the most recent ancestor of the future reply).
+  const refSet = new Set<string>();
+  for (const r of headers.references) refSet.add(r);
+  if (headers.messageId) refSet.add(headers.messageId);
+  // Cap stored body to what the preview will show: Discord clips at 2000
+  // chars, but Claude (max_tokens=1024) can emit a longer reply. Send must
+  // never ship a hidden tail past the "…" — store only what the user saw.
+  // If they want to extend, Edit lets them grow from this base.
+  const prepared = prepareDraftBody(body);
+  const state: DraftState = {
+    pendingId,
+    originalUid: row.message_uid,
+    accountId: row.account_id,
+    to: parseFromAddress(row.from_addr),
+    subject: row.subject,
+    inReplyTo: headers.messageId,
+    references: Array.from(refSet),
+    body: prepared.stored,
+  };
+  deps.draftReplyService.put(state);
+
+  await (ixn as any).editReply({
+    content: DRAFT_BODY_MARKER + prepared.display,
+    components: [buildDraftActionRow(pendingId)],
+    allowedMentions: NO_MENTIONS,
+  });
+}
+
+function prepareDraftBody(body: string): { stored: string; display: string } {
+  if (body.length <= DRAFT_BODY_MAX_DISPLAY) {
+    return { stored: body, display: body };
+  }
+  // Reserve one char for the ellipsis marker so the display still fits the
+  // Discord cap. Stored matches display (minus the marker) so what Send ships
+  // equals what the user reviewed in the preview.
+  const stored = body.slice(0, DRAFT_BODY_MAX_DISPLAY - 1);
+  return { stored, display: stored + '…' };
+}
+
+// Display-only clip for modal-submitted bodies. Unlike LLM output, the user
+// just authored the text in the 4000-char modal — there's no hidden-tail
+// concern, so we keep the full body in state and only clip the preview.
+function clipDraftBodyForDisplay(body: string): string {
+  return body.length > DRAFT_BODY_MAX_DISPLAY
+    ? body.slice(0, DRAFT_BODY_MAX_DISPLAY - 1) + '…'
+    : body;
+}
+
+async function handleEmailDraftSend(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  pendingId: string,
+): Promise<void> {
+  if (!deps.draftReplyService || !deps.imapAccounts || !deps.smtpClient) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Draft reply is not configured.',
+    });
+    return;
+  }
+  await (ixn as any).deferUpdate();
+  // Consume the draft *before* awaiting SMTP so a rapid double-click can't
+  // observe the same pending state twice and send duplicate emails. Restore
+  // it on transient failures (no account, SMTP reject) so the user can retry
+  // without re-generating the draft.
+  const state = deps.draftReplyService.get(pendingId);
+  if (!state) {
+    await (ixn as any).editReply({
+      content: '⚠️ Черновик истёк',
+      components: [],
+    });
+    return;
+  }
+  deps.draftReplyService.drop(pendingId);
+  const account = deps.imapAccounts.get(state.accountId);
+  if (!account) {
+    // Restore state + keep buttons mirrors the SMTP-reject branch below: the
+    // user can still Cancel (to clean up the leaked Map entry) or retry Send
+    // if config is fixed before the 15-min ephemeral window expires. Stripping
+    // buttons here would leave the draft permanently unreachable while state
+    // sits in pendingDrafts until process restart.
+    deps.draftReplyService.put(state);
+    await (ixn as any).editReply({
+      content: `⚠️ Аккаунт ${state.accountId} не настроен`,
+      components: [buildDraftActionRow(pendingId)],
+    });
+    return;
+  }
+  try {
+    await deps.smtpClient.sendReply({
+      account,
+      to: state.to,
+      subject: state.subject,
+      body: state.body,
+      inReplyTo: state.inReplyTo,
+      references: state.references,
+    });
+  } catch (err) {
+    // Restore state + buttons so the user can retry without re-generating.
+    deps.draftReplyService.put(state);
+    const msg = err instanceof Error ? err.message : String(err);
+    await (ixn as any).editReply({
+      content: clampReplyContent(`❌ Не отправилось: ${msg}`),
+      components: [buildDraftActionRow(pendingId)],
+    });
+    return;
+  }
+  await (ixn as any).editReply({
+    content: '✅ Отправлено',
+    components: [],
+  });
+}
+
+async function handleEmailDraftCancel(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  pendingId: string,
+): Promise<void> {
+  if (!deps.draftReplyService) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Draft reply is not configured.',
+    });
+    return;
+  }
+  await (ixn as any).deferUpdate();
+  deps.draftReplyService.drop(pendingId);
+  await (ixn as any).editReply({
+    content: '❌ Отменено',
+    components: [],
+  });
+}
+
+async function handleEmailDraftEdit(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  pendingId: string,
+): Promise<void> {
+  if (!deps.draftReplyService) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Draft reply is not configured.',
+    });
+    return;
+  }
+  const state = deps.draftReplyService.get(pendingId);
+  if (!state) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Черновик истёк',
+    });
+    return;
+  }
+  // Discord modal text input is capped at 4000 chars; clamp defensively so a
+  // longer body doesn't make setValue throw and silently break the Edit flow.
+  const initial = state.body.length > 4000 ? state.body.slice(0, 4000) : state.body;
+  const modal = new ModalBuilder()
+    .setCustomId(`email_draft_modal:${pendingId}`)
+    .setTitle('Edit draft');
+  const input = new TextInputBuilder()
+    .setCustomId('body')
+    .setLabel('Body')
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(true)
+    .setValue(initial);
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(input),
+  );
+  await (ixn as any).showModal(modal);
+}
+
+async function handleEmailDraftModalSubmit(
+  ixn: ModalSubmitInteraction,
+  deps: InteractionDeps,
+  pendingId: string,
+): Promise<void> {
+  if (!deps.draftReplyService) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Draft reply is not configured.',
+    });
+    return;
+  }
+  const state = deps.draftReplyService.get(pendingId);
+  if (!state) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Черновик истёк',
+    });
+    return;
+  }
+  const newBody = ixn.fields.getTextInputValue('body');
+  deps.draftReplyService.put({ ...state, body: newBody });
+  // ModalSubmitInteraction#update edits the message the originating button
+  // was on — for us, that's the ephemeral draft reply. This avoids needing
+  // a separate webhook editMessage call against the stored messageId.
+  await (ixn as any).update({
+    content: DRAFT_BODY_MARKER + clipDraftBodyForDisplay(newBody),
+    components: [buildDraftActionRow(pendingId)],
+    allowedMentions: NO_MENTIONS,
+  });
+}
+
 async function routeModalSubmit(
   ixn: ModalSubmitInteraction,
   deps: InteractionDeps,
 ): Promise<void> {
   const customId = ixn.customId;
+  if (customId.startsWith('email_draft_modal:')) {
+    await handleEmailDraftModalSubmit(
+      ixn,
+      deps,
+      customId.slice('email_draft_modal:'.length),
+    );
+    return;
+  }
   if (!customId.startsWith('memconfirm_modal:')) return;
   if (!deps.memoryConfirmService) {
     await (ixn as any).reply({

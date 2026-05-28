@@ -92,6 +92,8 @@ export function createJobQueue(deps: Deps): JobQueue {
           runId,
           handler: handler.name,
           content: result.content,
+          embed: result.embed,
+          components: result.components,
         });
       }
     }

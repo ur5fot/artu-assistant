@@ -1,6 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { ImapAccount } from '../types.js';
-import { fetchNewMessages, fetchFullBody, getMaxUid, __setImapFlowCtor } from '../imap-client.js';
+import {
+  fetchNewMessages,
+  fetchFullBody,
+  fetchHeaders,
+  fetchByMessageId,
+  getMaxUid,
+  __setImapFlowCtor,
+} from '../imap-client.js';
 
 const account: ImapAccount = {
   id: 'a', host: 'h', port: 993, user: 'u', password: 'p', tls: true,
@@ -891,5 +898,192 @@ describe('fetchFullBody', () => {
     const full = await fetchFullBody(account, 10);
     expect(queries).toHaveLength(1);
     expect(full.bodyText).toBe('');
+  });
+});
+
+describe('fetchHeaders', () => {
+  it('parses Message-ID, In-Reply-To and References from raw header buffer', async () => {
+    const raw = [
+      'Message-ID: <abc@host>',
+      'In-Reply-To: <parent@host>',
+      'References: <grandparent@host> <parent@host>',
+      '',
+    ].join('\r\n');
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn();
+      fetchAll = vi.fn();
+      fetchOne = vi.fn(async (_uid: number, _query: any) => ({
+        uid: 700,
+        headers: Buffer.from(raw, 'utf-8'),
+      }));
+    };
+    __setImapFlowCtor(Ctor as any);
+    const h = await fetchHeaders(account, 700);
+    expect(h.messageId).toBe('<abc@host>');
+    expect(h.inReplyTo).toBe('<parent@host>');
+    expect(h.references).toEqual(['<grandparent@host>', '<parent@host>']);
+  });
+
+  it('returns null/[] for missing headers', async () => {
+    const raw = ['Subject: hi', '', ''].join('\r\n');
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn();
+      fetchAll = vi.fn();
+      fetchOne = vi.fn(async () => ({ uid: 701, headers: Buffer.from(raw) }));
+    };
+    __setImapFlowCtor(Ctor as any);
+    const h = await fetchHeaders(account, 701);
+    expect(h.messageId).toBeNull();
+    expect(h.inReplyTo).toBeNull();
+    expect(h.references).toEqual([]);
+  });
+
+  it('handles wrapped References across multiple physical lines', async () => {
+    // RFC 5322 allows long header values to be folded across lines starting
+    // with whitespace.
+    const raw = [
+      'Message-ID: <m1@h>',
+      'References: <a@h>',
+      ' <b@h>',
+      '\t<c@h>',
+      '',
+      '',
+    ].join('\r\n');
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn();
+      fetchAll = vi.fn();
+      fetchOne = vi.fn(async () => ({ uid: 702, headers: Buffer.from(raw) }));
+    };
+    __setImapFlowCtor(Ctor as any);
+    const h = await fetchHeaders(account, 702);
+    expect(h.references).toEqual(['<a@h>', '<b@h>', '<c@h>']);
+  });
+
+  it('is case-insensitive on header names', async () => {
+    const raw = [
+      'MESSAGE-ID: <up@host>',
+      'in-reply-to: <p@host>',
+      'references: <p@host>',
+      '',
+    ].join('\r\n');
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn();
+      fetchAll = vi.fn();
+      fetchOne = vi.fn(async () => ({ uid: 703, headers: Buffer.from(raw) }));
+    };
+    __setImapFlowCtor(Ctor as any);
+    const h = await fetchHeaders(account, 703);
+    expect(h.messageId).toBe('<up@host>');
+    expect(h.inReplyTo).toBe('<p@host>');
+    expect(h.references).toEqual(['<p@host>']);
+  });
+
+  it('returns nulls/[] when fetchOne returns null (uid not found)', async () => {
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn();
+      fetchAll = vi.fn();
+      fetchOne = vi.fn(async () => null);
+    };
+    __setImapFlowCtor(Ctor as any);
+    const h = await fetchHeaders(account, 704);
+    expect(h).toEqual({ messageId: null, inReplyTo: null, references: [] });
+  });
+
+  it('dedupes References while preserving order', async () => {
+    const raw = [
+      'References: <a@h> <b@h> <a@h> <c@h>',
+      '',
+    ].join('\r\n');
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn();
+      fetchAll = vi.fn();
+      fetchOne = vi.fn(async () => ({ uid: 705, headers: Buffer.from(raw) }));
+    };
+    __setImapFlowCtor(Ctor as any);
+    const h = await fetchHeaders(account, 705);
+    expect(h.references).toEqual(['<a@h>', '<b@h>', '<c@h>']);
+  });
+});
+
+describe('fetchByMessageId', () => {
+  it('returns null when search finds no matching message', async () => {
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn(async () => []);
+      fetchAll = vi.fn(async () => []);
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    const msg = await fetchByMessageId(account, '<missing@x>');
+    expect(msg).toBeNull();
+  });
+
+  it('returns null when imapflow search returns false (server NO/BAD)', async () => {
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn(async () => false);
+      fetchAll = vi.fn();
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    const msg = await fetchByMessageId(account, '<x@y>');
+    expect(msg).toBeNull();
+  });
+
+  it('searches by header Message-ID and returns FullMessage with bodyText', async () => {
+    const calls: any[] = [];
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn(async (criteria: any) => {
+        calls.push(criteria);
+        return [42];
+      });
+      fetchAll = vi.fn(async () => [
+        {
+          uid: 42,
+          envelope: { from: [{ name: 'X', address: 'x@y' }], subject: 'hi' },
+          bodyParts: new Map([['1', Buffer.from('body text', 'latin1')]]),
+          bodyStructure: {
+            type: 'text/plain',
+            encoding: '7bit',
+            parameters: { charset: 'utf-8' },
+            part: '1',
+          },
+          internalDate: new Date('2026-04-20T10:00:00Z'),
+        },
+      ]);
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    const msg = await fetchByMessageId(account, '<m42@h>');
+    expect(msg).not.toBeNull();
+    expect(msg!.uid).toBe(42);
+    expect(msg!.subject).toBe('hi');
+    expect(msg!.bodyText).toContain('body text');
+    expect(calls[0]).toEqual({ header: { 'Message-ID': '<m42@h>' } });
   });
 });

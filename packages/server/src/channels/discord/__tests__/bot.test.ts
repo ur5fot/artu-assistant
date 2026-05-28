@@ -184,7 +184,9 @@ describe('Discord bot', () => {
     client.emit('messageCreate', msg as any);
     await delay();
 
-    expect(channel.send).toHaveBeenCalledWith('hello world');
+    expect(channel.send).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'hello world', allowedMentions: { parse: [] } }),
+    );
   });
 
   it('splits long messages into chunks <= 2000 chars', async () => {
@@ -204,10 +206,10 @@ describe('Discord bot', () => {
     expect(channel.send.mock.calls.length).toBeGreaterThanOrEqual(2);
 
     for (const call of channel.send.mock.calls) {
-      expect((call[0] as string).length).toBeLessThanOrEqual(2000);
+      expect(call[0].content.length).toBeLessThanOrEqual(2000);
     }
 
-    const concatenated = channel.send.mock.calls.map((c: any) => c[0]).join(' ');
+    const concatenated = channel.send.mock.calls.map((c: any) => c[0].content).join(' ');
     expect(concatenated.replace(/\s+/g, ' ')).toBe(longText);
   });
 
@@ -222,7 +224,9 @@ describe('Discord bot', () => {
     client.emit('messageCreate', msg as any);
     await delay();
 
-    expect(channel.send).toHaveBeenCalledWith('⚠️ Something went wrong. Please try again later.');
+    expect(channel.send).toHaveBeenCalledWith(
+      expect.objectContaining({ content: '⚠️ Something went wrong. Please try again later.' }),
+    );
   });
 
   it('stop() destroys the client', async () => {
@@ -270,7 +274,9 @@ describe('retry on network error', () => {
     await delay(1500);
 
     expect(runChatRequest).toHaveBeenCalledTimes(2);
-    expect(channel.send).toHaveBeenCalledWith('ok');
+    expect(channel.send).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'ok' }),
+    );
   });
 
   it('does not retry on non-retryable errors', async () => {
@@ -285,7 +291,9 @@ describe('retry on network error', () => {
     await delay(100);
 
     expect(runChatRequest).toHaveBeenCalledTimes(1);
-    expect(channel.send).toHaveBeenCalledWith('⚠️ Something went wrong. Please try again later.');
+    expect(channel.send).toHaveBeenCalledWith(
+      expect.objectContaining({ content: '⚠️ Something went wrong. Please try again later.' }),
+    );
   });
 });
 
@@ -519,8 +527,14 @@ describe('mid-stream tool_confirm_request handling', () => {
     await delay(100);
 
     const calls = (channel.send as any).mock.calls;
+    // After allowedMentions hardening: text sends are now {content, allowedMentions} objects.
+    // Discriminate text from embeds by the absence of `embeds`.
     const textsSent = calls
-      .map((c: any[]) => (typeof c[0] === 'string' ? c[0] : ''))
+      .map((c: any[]) =>
+        typeof c[0] === 'object' && c[0] !== null && typeof c[0].content === 'string' && !('embeds' in c[0])
+          ? c[0].content
+          : '',
+      )
       .filter(Boolean);
     const embedsSent = calls.filter(
       (c: any[]) => typeof c[0] === 'object' && c[0] !== null && 'embeds' in c[0],
@@ -574,7 +588,11 @@ describe('mid-stream tool_confirm_request handling', () => {
 
     const calls = (channel.send as any).mock.calls;
     const textsSent = calls
-      .map((c: any[]) => (typeof c[0] === 'string' ? c[0] : ''))
+      .map((c: any[]) =>
+        typeof c[0] === 'object' && c[0] !== null && typeof c[0].content === 'string' && !('embeds' in c[0])
+          ? c[0].content
+          : '',
+      )
       .filter(Boolean);
     expect(textsSent).toEqual(expect.arrayContaining(['analyzing ']));
     const planChunkSent = calls.some(
@@ -1176,9 +1194,9 @@ describe('escalation prefix', () => {
     await delay(100);
 
     const textCalls = (channel.send as any).mock.calls
-      .filter((c: any[]) => typeof c[0] === 'string');
+      .filter((c: any[]) => typeof c[0] === 'object' && c[0] !== null && 'content' in c[0]);
     expect(textCalls.length).toBe(1);
-    expect(textCalls[0][0]).toBe('🔵 claude\n\nhi world');
+    expect(textCalls[0][0].content).toBe('🔵 claude\n\nhi world');
   });
 
   it('claude only (no prior ollama): no prefix', async () => {
@@ -1213,9 +1231,9 @@ describe('escalation prefix', () => {
     await delay(100);
 
     const textCalls = (channel.send as any).mock.calls
-      .filter((c: any[]) => typeof c[0] === 'string');
+      .filter((c: any[]) => typeof c[0] === 'object' && c[0] !== null && 'content' in c[0]);
     expect(textCalls.length).toBe(1);
-    expect(textCalls[0][0]).toBe('hello');
+    expect(textCalls[0][0].content).toBe('hello');
   });
 });
 
@@ -1252,7 +1270,9 @@ describe('cognition_publish handling', () => {
     await new Promise((r) => setImmediate(r));
     await new Promise((r) => setImmediate(r));
 
-    expect(dmSend).toHaveBeenCalledWith(expect.stringContaining('hello'));
+    expect(dmSend).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('hello') }),
+    );
     expect(markPublished).toHaveBeenCalledWith(7, expect.any(Number));
     await stop();
   });
@@ -1294,6 +1314,75 @@ describe('cognition_publish handling', () => {
     expect(dmSend).toHaveBeenCalledTimes(3);
     expect(markPublished).toHaveBeenCalledTimes(1);
     expect(markPublished).toHaveBeenCalledWith(42, expect.any(Number));
+    await stop();
+  });
+
+  it('cognition_publish with embed → DM sent as embeds/components, not plain text', async () => {
+    const client = makeFakeClient();
+    const bus = new EventEmitter();
+    const dmSend = vi.fn().mockResolvedValue(undefined);
+    const fetchUser = vi.fn().mockResolvedValue({ createDM: vi.fn().mockResolvedValue({ send: dmSend }) });
+    (client as any).users = { fetch: fetchUser };
+    const markPublished = vi.fn();
+
+    const { stop } = await startDiscordBot({
+      token: 'test', whitelist: new Set(['123']),
+      runChatRequest: vi.fn(),
+      db: makeFakeDb() as any, historyLimit: 10, saveMessage: vi.fn(),
+      memoryService: null, _client: client,
+      reminderBus: bus,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      permissionService: { hasPending: vi.fn(), resolveConfirm: vi.fn() } as any,
+      planReviewService: { hasPending: vi.fn(), resolveReview: vi.fn() } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]), revokePermissionRule: vi.fn(),
+      } as any,
+      cognitionService: {
+        register: vi.fn(), start: vi.fn(), stop: vi.fn(),
+        pause: vi.fn(), resume: vi.fn(),
+        status: vi.fn(), markPublished,
+      } as any,
+    });
+
+    bus.emit('push', {
+      type: 'cognition_publish',
+      runId: 99,
+      handler: 'emailUrgent',
+      content: '🚨 fallback text',
+      embed: {
+        title: '🚨 Urgent email',
+        fields: [
+          { name: 'From', value: 'boss@acme.com' },
+          { name: 'Subject', value: 'Server down' },
+          { name: 'Snippet', value: 'Prod is on fire' },
+        ],
+      },
+      components: [
+        {
+          type: 'row',
+          buttons: [
+            { customId: 'email_draft:start:42', label: 'Draft reply', style: 'primary' },
+          ],
+        },
+      ],
+    });
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+
+    expect(dmSend).toHaveBeenCalledTimes(1);
+    const arg = dmSend.mock.calls[0]![0];
+    expect(typeof arg).toBe('object');
+    expect(arg.embeds).toBeDefined();
+    expect(arg.embeds).toHaveLength(1);
+    expect(arg.embeds[0].toJSON().title).toBe('🚨 Urgent email');
+    expect(arg.components).toBeDefined();
+    expect(arg.components).toHaveLength(1);
+    const buttonJson = arg.components[0].toJSON().components[0];
+    expect(buttonJson.custom_id).toBe('email_draft:start:42');
+    expect(buttonJson.label).toBe('Draft reply');
+    expect(markPublished).toHaveBeenCalledWith(99, expect.any(Number));
     await stop();
   });
 });
@@ -1414,7 +1503,7 @@ describe('multi-turn coalescing', () => {
 
       expect(runChatRequest).not.toHaveBeenCalled();
       expect(channel.send).toHaveBeenCalledWith(
-        expect.stringContaining('Something went wrong'),
+        expect.objectContaining({ content: expect.stringContaining('Something went wrong') }),
       );
     } finally {
       vi.useRealTimers();
@@ -1586,11 +1675,14 @@ describe('multi-turn coalescing', () => {
 });
 
 describe('sendReply', () => {
-  it('sends short text in one message', async () => {
+  it('sends short text in one message with allowedMentions blocked', async () => {
     const ch = makeDmChannel();
     await sendReply(ch as any, 'short message');
     expect(ch.send).toHaveBeenCalledTimes(1);
-    expect(ch.send).toHaveBeenCalledWith('short message');
+    expect(ch.send).toHaveBeenCalledWith({
+      content: 'short message',
+      allowedMentions: { parse: [] },
+    });
   });
 
   it('splits text longer than 2000 into multiple sends', async () => {
@@ -1599,9 +1691,10 @@ describe('sendReply', () => {
     await sendReply(ch as any, text);
     expect(ch.send.mock.calls.length).toBeGreaterThanOrEqual(3);
     for (const call of ch.send.mock.calls) {
-      expect((call[0] as string).length).toBeLessThanOrEqual(2000);
+      expect(call[0].content.length).toBeLessThanOrEqual(2000);
+      expect(call[0].allowedMentions).toEqual({ parse: [] });
     }
-    const joined = ch.send.mock.calls.map((c: any) => c[0]).join('');
+    const joined = ch.send.mock.calls.map((c: any) => c[0].content).join('');
     expect(joined).toBe(text);
   });
 });
