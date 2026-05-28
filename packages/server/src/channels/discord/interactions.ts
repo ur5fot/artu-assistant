@@ -32,6 +32,7 @@ import type { EmailSuppressionStore } from '../../emails/suppression-store.js';
 import type { ImapAccount, FullMessage } from '../../emails/types.js';
 import type { MessageHeaders } from '../../emails/imap-client.js';
 import type { PiiProxy } from '../../pii/proxy.js';
+import { parseFromAddress } from '../../emails/address.js';
 import {
   buildReminderEmbed,
   buildPermissionEmbed,
@@ -411,9 +412,6 @@ function clampReplyContent(content: string): string {
     ? content.slice(0, DISCORD_MESSAGE_MAX - 1) + '…'
     : content;
 }
-
-export { parseFromAddress } from '../../emails/address.js';
-import { parseFromAddress } from '../../emails/address.js';
 
 function buildDraftPrompt(thread: FullMessage[], currentUid: number): string {
   const parts: string[] = [];

@@ -54,6 +54,36 @@ describe('createEmailSuppressionStore', () => {
         .get(inserted.id) as { expires_at: number | null };
       expect(row.expires_at).toBeNull();
     });
+
+    it('trims subject pattern whitespace at the storage boundary', () => {
+      // The Discord modal trims user input, but the store is the canonical
+      // boundary — a future caller bypassing the modal must not be able to
+      // store `"  pattern  "`, since `includes()` is whitespace-sensitive
+      // and would silently miss real subjects.
+      const store = createEmailSuppressionStore({ db: getDb() });
+      const inserted = store.insertRule({
+        rule_type: 'subject',
+        pattern: '  Order shipped  ',
+        ttl_days: null,
+      });
+      const row = getDb()
+        .prepare('SELECT pattern FROM email_suppression_rules WHERE id = ?')
+        .get(inserted.id) as { pattern: string };
+      expect(row.pattern).toBe('Order shipped');
+    });
+
+    it('rejects empty subject pattern (would suppress every email)', () => {
+      // `''.includes('')` is true, so an empty stored pattern would match
+      // every subject and silently suppress all urgent emails. Reject at
+      // the storage boundary so no non-modal call path can hit this.
+      const store = createEmailSuppressionStore({ db: getDb() });
+      expect(() =>
+        store.insertRule({ rule_type: 'subject', pattern: '', ttl_days: 7 }),
+      ).toThrow(/non-empty/);
+      expect(() =>
+        store.insertRule({ rule_type: 'subject', pattern: '   ', ttl_days: 7 }),
+      ).toThrow(/non-empty/);
+    });
   });
 
   describe('findActiveMatch', () => {

@@ -42,8 +42,16 @@ export function createEmailSuppressionStore(deps: {
       const expires_at = ttl_days === null ? null : now + ttl_days * DAY_MS;
       // Sender rules are keyed by bare address so they survive display-name
       // variance across messages (`"Bob" <b@x>` vs `"Bob Smith" <b@x>`).
+      // Subject rules trim at the boundary so a future caller skipping the
+      // modal's trim can't store `"  pattern  "` — `includes` is whitespace-
+      // sensitive and would silently miss normal subjects. An empty string
+      // is rejected outright because `''.includes('')` is true and would
+      // suppress every urgent email.
       const storedPattern =
-        rule_type === 'sender' ? parseFromAddress(pattern) : pattern;
+        rule_type === 'sender' ? parseFromAddress(pattern) : pattern.trim();
+      if (rule_type === 'subject' && storedPattern.length === 0) {
+        throw new Error('subject pattern must be non-empty after trim');
+      }
       const info = db
         .prepare(
           `INSERT INTO email_suppression_rules

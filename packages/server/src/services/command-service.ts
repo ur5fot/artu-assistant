@@ -176,12 +176,15 @@ export function createCommandService(deps: Deps): CommandService {
         return { kind: 'not_urgent', row, activeRule } as const;
       }
       const sinceMs = now - HISTORY_WINDOW_DAYS * 86_400_000;
-      // sent-log stores recipients as the bare address (see parseFromAddress
-      // callsite in interactions.ts:draft reply). The pending row's from_addr
-      // carries the display-name form, so canonicalize before the lookup.
+      // Both history helpers expect the bare address: sent-log stores the
+      // canonical recipient (see parseFromAddress callsite in interactions.ts:
+      // draft reply), and countPendingFromSender accepts either form but is
+      // documented to take the canonical key. Pass `senderKey` to both so the
+      // call sites stay symmetric and a future refactor that drops the
+      // helper's internal canonicalization doesn't silently regress pendings.
       const senderKey = parseFromAddress(row.from_addr);
       const history = {
-        pendings: emailStore.countPendingFromSender(row.from_addr, sinceMs),
+        pendings: emailStore.countPendingFromSender(senderKey, sinceMs),
         sent: emailSentLog.countBySender(senderKey, HISTORY_WINDOW_DAYS, 'sent', now),
         cancelled: emailSentLog.countBySender(senderKey, HISTORY_WINDOW_DAYS, 'cancelled', now),
         error: emailSentLog.countBySender(senderKey, HISTORY_WINDOW_DAYS, 'error', now),
