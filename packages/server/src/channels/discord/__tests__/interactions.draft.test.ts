@@ -467,7 +467,7 @@ describe('email_draft:send', () => {
     );
   });
 
-  it('account missing → editReply, no SMTP call', async () => {
+  it('account missing → editReply, no SMTP call, state preserved with buttons for cancel/retry', async () => {
     const deps = makeDeps({ imapAccounts: new Map() });
     deps.draftReplyService!.put(sampleDraftState());
     const ixn = makeButton({ customId: 'email_draft:send:p1' });
@@ -475,9 +475,19 @@ describe('email_draft:send', () => {
     await routeInteraction(ixn, deps);
 
     expect((deps.smtpClient as any).sendReply).not.toHaveBeenCalled();
-    expect(ixn.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('acc-1') }),
-    );
+    // State must remain so the user can Cancel cleanly (otherwise the Map
+    // entry would leak until process restart). Buttons must remain so the
+    // ephemeral message stays actionable.
+    expect(deps.draftReplyService!.has('p1')).toBe(true);
+    const editArg = ixn.editReply.mock.calls[ixn.editReply.mock.calls.length - 1][0];
+    expect(editArg.content).toContain('acc-1');
+    expect(editArg.components).toHaveLength(1);
+    const customIds = editArg.components[0].components.map((c: any) => c.data.custom_id);
+    expect(customIds).toEqual([
+      'email_draft:send:p1',
+      'email_draft:edit:p1',
+      'email_draft:cancel:p1',
+    ]);
   });
 
   it('SMTP rejects → editReply with error, state preserved for retry, buttons kept', async () => {

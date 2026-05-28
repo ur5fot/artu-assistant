@@ -636,10 +636,15 @@ async function handleEmailDraftSend(
   deps.draftReplyService.drop(pendingId);
   const account = deps.imapAccounts.get(state.accountId);
   if (!account) {
+    // Restore state + keep buttons mirrors the SMTP-reject branch below: the
+    // user can still Cancel (to clean up the leaked Map entry) or retry Send
+    // if config is fixed before the 15-min ephemeral window expires. Stripping
+    // buttons here would leave the draft permanently unreachable while state
+    // sits in pendingDrafts until process restart.
     deps.draftReplyService.put(state);
     await (ixn as any).editReply({
       content: `⚠️ Аккаунт ${state.accountId} не настроен`,
-      components: [],
+      components: [buildDraftActionRow(pendingId)],
     });
     return;
   }
