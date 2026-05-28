@@ -51,8 +51,8 @@ export function createEmailUrgentHandler(deps: Deps): Handler {
       // (from name, subject) and snippets can contain raw \n / \r / \t
       // that would break the expected 3-line Discord layout.
       const from = row.from_addr.replace(/\s+/g, ' ').trim();
-      const subject = (row.subject ?? '').replace(/\s+/g, ' ').trim();
-      const snippet = (row.snippet ?? '').replace(/\s+/g, ' ').trim();
+      const subject = row.subject.replace(/\s+/g, ' ').trim();
+      const snippet = row.snippet.replace(/\s+/g, ' ').trim();
       const truncated =
         snippet.length > SNIPPET_MAX ? snippet.slice(0, SNIPPET_MAX - 1) + '…' : snippet;
       const content = `🚨 ${from}\n${subject}\n${truncated}`;

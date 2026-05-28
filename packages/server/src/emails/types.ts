@@ -28,11 +28,8 @@ export interface EmailPendingRow {
   account_id: string;
   message_uid: number;
   from_addr: string;
-  // Schema allows NULL for both subject and snippet — IMAP envelopes for
-  // header-only / multipart messages don't always carry them. Callers must
-  // tolerate null (most use `?? ''` or `?? '(no subject)'`).
-  subject: string | null;
-  snippet: string | null;
+  subject: string;
+  snippet: string;
   importance: number;
   received_at: number;
   added_at: number;

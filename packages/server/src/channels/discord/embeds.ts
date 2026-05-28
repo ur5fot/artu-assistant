@@ -227,8 +227,8 @@ export function buildUrgentEmailEmbed(row: EmailPendingRow): {
   components: ComponentData[];
 } {
   const from = collapseWs(row.from_addr);
-  const subject = collapseWs(row.subject ?? '') || '(no subject)';
-  const snippetRaw = collapseWs(row.snippet ?? '');
+  const subject = collapseWs(row.subject) || '(no subject)';
+  const snippetRaw = collapseWs(row.snippet);
   const snippet = truncate(snippetRaw, URGENT_SNIPPET_MAX);
 
   const fields = [

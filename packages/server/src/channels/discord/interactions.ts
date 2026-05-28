@@ -574,7 +574,7 @@ async function handleEmailDraftStart(
     originalUid: row.message_uid,
     accountId: row.account_id,
     to: parseFromAddress(row.from_addr),
-    subject: row.subject ?? '',
+    subject: row.subject,
     inReplyTo: headers.messageId,
     references: Array.from(refSet),
     body: prepared.stored,
