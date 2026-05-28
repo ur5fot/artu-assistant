@@ -372,6 +372,17 @@ const NO_MENTIONS = { parse: [] as never[] };
 const DRAFT_SYSTEM_PROMPT =
   "You are R2's email draft writer. Compose a concise, natural reply matching the language of the thread. Plain text only. No greeting boilerplate, no signature.";
 
+// Discord caps a single message at 2000 chars. Error messages from SMTP/IMAP/
+// Claude can include verbose server responses; an unclamped `${msg}` would
+// blow the cap and make editReply throw, leaving the ephemeral stuck on
+// "thinking…" until the 15-min webhook window expires.
+const DISCORD_MESSAGE_MAX = 2000;
+function clampReplyContent(content: string): string {
+  return content.length > DISCORD_MESSAGE_MAX
+    ? content.slice(0, DISCORD_MESSAGE_MAX - 1) + '…'
+    : content;
+}
+
 // Parses an RFC 5322 mailbox of the form `Name <addr@host>` or a bare
 // `addr@host` into just the address part. Reply needs the bare address —
 // nodemailer accepts the wrapped form too, but `to` should be canonical so
@@ -483,7 +494,7 @@ async function handleEmailDraftStart(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await (ixn as any).editReply({
-      content: `❌ Не удалось загрузить тред: ${msg}`,
+      content: clampReplyContent(`❌ Не удалось загрузить тред: ${msg}`),
     });
     return;
   }
@@ -516,7 +527,7 @@ async function handleEmailDraftStart(
     // on "thinking…" until the 15-min webhook window expires.
     const msg = err instanceof Error ? err.message : String(err);
     await (ixn as any).editReply({
-      content: `❌ PII proxy failed: ${msg}`,
+      content: clampReplyContent(`❌ PII proxy failed: ${msg}`),
     });
     return;
   }
@@ -533,7 +544,7 @@ async function handleEmailDraftStart(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await (ixn as any).editReply({
-      content: `❌ Claude не ответил: ${msg}`,
+      content: clampReplyContent(`❌ Claude не ответил: ${msg}`),
     });
     return;
   }
@@ -544,7 +555,7 @@ async function handleEmailDraftStart(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       await (ixn as any).editReply({
-        content: `❌ PII proxy failed: ${msg}`,
+        content: clampReplyContent(`❌ PII proxy failed: ${msg}`),
       });
       return;
     }
@@ -662,7 +673,7 @@ async function handleEmailDraftSend(
     deps.draftReplyService.put(state);
     const msg = err instanceof Error ? err.message : String(err);
     await (ixn as any).editReply({
-      content: `❌ Не отправилось: ${msg}`,
+      content: clampReplyContent(`❌ Не отправилось: ${msg}`),
       components: [buildDraftActionRow(pendingId)],
     });
     return;

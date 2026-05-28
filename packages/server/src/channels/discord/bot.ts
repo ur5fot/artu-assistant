@@ -1118,7 +1118,10 @@ export async function startDiscordBot(
       // published_at N times and could falsely mark a run as published even
       // when earlier recipients' sends failed.
       let marked = false;
-      const hasEmbed = event.embed && typeof event.embed === 'object';
+      // `typeof [] === 'object'` is true, so guard against an accidental array
+      // shape from a future caller — buildEmbedFromData would silently produce
+      // an empty embed instead of throwing.
+      const hasEmbed = event.embed && typeof event.embed === 'object' && !Array.isArray(event.embed);
       const body = `💭 _from ${event.handler}_\n${event.content}`;
       for (const userId of deps.whitelist) {
         client.users.fetch(userId)
