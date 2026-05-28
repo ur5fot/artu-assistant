@@ -124,6 +124,12 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
     // Silent no-op on missing id: the emailUrgent handler races with itself
     // across ticks (trigger sees row, run re-fetches, another tick already
     // marked it), and bumping an absent id is harmless. No throw.
+    //
+    // `now` is normally a positive epoch ms, but the urgent handler also passes
+    // the sentinel -1 to mark a row as "suppressed by an active rule before any
+    // ping went out" (see SUPPRESSED_PING_SENTINEL in emailUrgent.ts). Both
+    // shapes are stored verbatim — the column type is INTEGER and downstream
+    // queries (`findUnpingedUrgent`, `/why`) interpret the value.
     markUrgentPinged(id, now) {
       db.prepare('UPDATE email_pending SET urgent_pinged_at = ? WHERE id = ?').run(now, id);
     },

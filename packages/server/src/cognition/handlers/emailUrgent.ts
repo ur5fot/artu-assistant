@@ -1,7 +1,14 @@
 import type { Handler } from '../types.js';
 import type { EmailStore } from '../../emails/store.js';
+import type { EmailSuppressionStore } from '../../emails/suppression-store.js';
 import { buildUrgentEmailEmbed } from '../../channels/discord/embeds.js';
 import { inQuietHours, MORNING_FALLBACK_HOUR } from './emailDigest.helpers.js';
+
+// Sentinel stored in `email_pending.urgent_pinged_at` when a row was matched by
+// an active suppression rule before any urgent ping went out. Distinct from
+// NULL (never considered) and from a positive epoch ms (actually pinged) so
+// that `/why` can later distinguish the three states.
+export const SUPPRESSED_PING_SENTINEL = -1;
 
 // Observability — manual review queries (run via sqlite3 on r2.db):
 //
@@ -27,6 +34,7 @@ const SNIPPET_MAX = 200;
 
 interface Deps {
   store: EmailStore;
+  suppressionStore: EmailSuppressionStore;
   tz: string;
   quietStart: number;
 }
@@ -39,7 +47,17 @@ export function createEmailUrgentHandler(deps: Deps): Handler {
       // morning release. Without this the handler would ping at 02:00 —
       // inQuietHours alone only suppresses quietStart..23:59.
       if (inQuietHours(state.now, deps.quietStart, deps.tz, MORNING_FALLBACK_HOUR)) return false;
-      return deps.store.findUnpingedUrgent() !== null;
+      const row = deps.store.findUnpingedUrgent();
+      if (row === null) return false;
+      const rule = deps.suppressionStore.findActiveMatch(row.from_addr, row.subject, state.now);
+      if (rule !== null) {
+        // Mark with sentinel so this row is excluded from future urgent
+        // candidate sets (findUnpingedUrgent filters `IS NULL`) and so /why
+        // can later report "suppressed by rule X" instead of "pinged".
+        deps.store.markUrgentPinged(row.id, SUPPRESSED_PING_SENTINEL);
+        return false;
+      }
+      return true;
     },
     async run() {
       // Defensive re-fetch: trigger and run execute at different instants, so

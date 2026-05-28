@@ -213,7 +213,7 @@ Dependencies: no new npm packages.
 
 ### Task 3: `emailUrgent` trigger gate + sentinel marking
 
-- [ ] in `packages/server/src/cognition/handlers/emailUrgent.ts`,
+- [x] in `packages/server/src/cognition/handlers/emailUrgent.ts`,
   modify `trigger`:
   - same quiet-hours check first
   - call `store.findUnpingedUrgent()` to get the candidate row
@@ -225,12 +225,12 @@ Dependencies: no new npm packages.
     detect suppression.
   - if no rule matches → return true (handler runs, sends embed as
     before)
-- [ ] update `store.markUrgentPinged` to allow `-1` as well as positive
+- [x] update `store.markUrgentPinged` to allow `-1` as well as positive
   epoch ms (just store the value as-is; no validation change needed,
   but document in code comment why `-1` is a valid input)
-- [ ] add deps `suppressionStore` to the `createEmailUrgentHandler`
+- [x] add deps `suppressionStore` to the `createEmailUrgentHandler`
   factory signature
-- [ ] write tests in
+- [x] write tests in
   `packages/server/src/cognition/__tests__/handlers/emailUrgent.test.ts`:
   - existing tests still pass (no suppression registered → behavior
     unchanged)
@@ -241,7 +241,7 @@ Dependencies: no new npm packages.
     for different sender doesn't suppress)
   - with an expired rule (created earlier, TTL past) → trigger returns
     true (expired rules don't suppress)
-- [ ] run `npm -w @r2/server test -- emailUrgent.test
+- [x] run `npm -w @r2/server test -- emailUrgent.test
   suppression-store.test` — must pass before task 4
 
 ### Task 4: Embed buttons + `email_suppress` button routing (sender path)

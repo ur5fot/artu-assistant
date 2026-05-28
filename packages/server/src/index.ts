@@ -49,6 +49,7 @@ import { pulseHandler } from './cognition/handlers/pulse.js';
 import { createMorningBriefHandler } from './cognition/handlers/morningBrief.js';
 import { parseImapAccounts } from './emails/config.js';
 import { createEmailStore } from './emails/store.js';
+import { createEmailSuppressionStore } from './emails/suppression-store.js';
 import { fetchNewMessages, fetchFullBody, getMaxUid, fetchHeaders } from './emails/imap-client.js';
 import { fetchThread } from './emails/thread-fetcher.js';
 import { sendReply as sendSmtpReply } from './emails/smtp-client.js';
@@ -277,6 +278,7 @@ const stopScheduler = startScheduler({ store: reminderStore, db: getDb(), bus: r
 
 const emailStore = createEmailStore({ db: getDb() });
 const emailSentLog = createEmailSentLog({ db: getDb() });
+const emailSuppressionStore = createEmailSuppressionStore({ db: getDb() });
 // Hold zone before SMTP send for outgoing draft replies. 0 = bypass (instant
 // send, restores pre-iter-3 behaviour — kill switch). Max 300s keeps under
 // Discord's 15-min ephemeral webhook window with comfortable margin.
@@ -693,6 +695,7 @@ if (discordToken) {
     cognitionService.register(
       createEmailUrgentHandler({
         store: emailStore,
+        suppressionStore: emailSuppressionStore,
         tz: 'Europe/Kyiv',
         quietStart: envInt(process.env.EMAIL_QUIET_HOUR_START, 22, MORNING_FALLBACK_HOUR + 1, 23),
       }),
