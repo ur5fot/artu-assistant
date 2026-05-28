@@ -246,14 +246,14 @@ Dependencies: no new npm packages.
 
 ### Task 4: Embed buttons + `email_suppress` button routing (sender path)
 
-- [ ] in `packages/server/src/channels/discord/embeds.ts`, extend
+- [x] in `packages/server/src/channels/discord/embeds.ts`, extend
   `buildUrgentEmailEmbed(row)` to add two new secondary buttons after
   the existing primary `Draft reply`:
   - `🙈 Sender` with custom id `email_suppress:sender_start:${row.id}`
   - `🙈 Subject` with custom id
     `email_suppress:subject_start:${row.id}`
   (still under the 5-button-per-row Discord limit)
-- [ ] in `packages/server/src/channels/discord/interactions.ts`, add
+- [x] in `packages/server/src/channels/discord/interactions.ts`, add
   routing for `email_suppress` domain with action handlers:
   - `sender_start`: read the row from `emailStore` by id; if row missing
     → ephemeral "Письмо больше недоступно" and return; otherwise post
@@ -266,7 +266,7 @@ Dependencies: no new npm packages.
     ttl_days: ttl===0 ? null : ttl})`; edit ephemeral to "🙈 Заглушён
     `${from_addr}` до `${expires_label}`" (use `formatExpiry` helper or
     "навсегда" if NULL). No buttons after.
-- [ ] write tests in
+- [x] write tests in
   `packages/server/src/channels/discord/__tests__/interactions.suppress.test.ts`
   (new file):
   - `sender_start` with missing row → "недоступно" message
@@ -276,7 +276,7 @@ Dependencies: no new npm packages.
     `pattern=row.from_addr`; ephemeral edited to confirmation
   - `sender_set_ttl` with `0` → `insertRule` called with `ttl_days=null`
     (forever); ephemeral shows "навсегда"
-- [ ] run `npm -w @r2/server test -- interactions.suppress.test` — must
+- [x] run `npm -w @r2/server test -- interactions.suppress.test` — must
   pass before task 5
 
 ### Task 5: Subject path — modal flow

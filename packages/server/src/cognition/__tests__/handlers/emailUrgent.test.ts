@@ -249,12 +249,16 @@ describe('createEmailUrgentHandler.run', () => {
       expect(res.embed!.title).toBe('🚨 Urgent email');
       expect(res.components).toBeDefined();
       const buttons = res.components![0]!.buttons;
-      expect(buttons).toHaveLength(1);
+      expect(buttons).toHaveLength(3);
       // customId encodes the email_pending row id (autoincrement so look it up)
       const rowId = store.findUnpingedUrgent()!.id;
       expect(buttons[0]!.customId).toBe(`email_draft:start:${rowId}`);
       expect(buttons[0]!.label).toBe('Draft reply');
       expect(buttons[0]!.style).toBe('primary');
+      expect(buttons[1]!.customId).toBe(`email_suppress:sender_start:${rowId}`);
+      expect(buttons[1]!.style).toBe('secondary');
+      expect(buttons[2]!.customId).toBe(`email_suppress:subject_start:${rowId}`);
+      expect(buttons[2]!.style).toBe('secondary');
     }
   });
 });

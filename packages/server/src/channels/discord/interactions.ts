@@ -27,6 +27,7 @@ import type {
 } from '../../services/draft-reply-service.js';
 import type { EmailStore } from '../../emails/store.js';
 import type { EmailSentLog } from '../../emails/sent-log.js';
+import type { EmailSuppressionStore } from '../../emails/suppression-store.js';
 import type { ImapAccount, FullMessage } from '../../emails/types.js';
 import type { MessageHeaders } from '../../emails/imap-client.js';
 import type { PiiProxy } from '../../pii/proxy.js';
@@ -112,6 +113,8 @@ export interface InteractionDeps {
   emailSendHoldSeconds?: number;
   /** Mini audit table for send/cancel/error outcomes. */
   emailSentLog?: EmailSentLog;
+  /** Sender/subject suppression rules — read by the urgent trigger gate, written by Discord buttons. */
+  emailSuppressionStore?: EmailSuppressionStore;
   /** PII proxy — anonymizes the email thread before it leaves to Claude, then
    *  deanonymizes Claude's draft so the body sent over SMTP has real names. */
   piiProxy?: PiiProxy;
@@ -336,6 +339,18 @@ async function routeButton(
     }
     if (action === 'cancelSend') {
       await handleEmailDraftCancelSend(ixn, deps, rawId ?? '');
+      return;
+    }
+    return;
+  }
+
+  if (domain === 'email_suppress') {
+    if (action === 'sender_start') {
+      await handleSuppressSenderStart(ixn, deps, rawId ?? '');
+      return;
+    }
+    if (action === 'sender_set_ttl') {
+      await handleSuppressSenderSetTtl(ixn, deps, rawId ?? '');
       return;
     }
     return;
@@ -1131,6 +1146,133 @@ async function handleEmailDraftEdit(
     new ActionRowBuilder<TextInputBuilder>().addComponents(input),
   );
   await (ixn as any).showModal(modal);
+}
+
+// uk-UA locale renders 24h `DD.MM.YYYY HH:MM`, consistent with other absolute
+// times surfaced by the bot (formatHoldTime above).
+function formatExpiryLabel(ms: number): string {
+  return new Date(ms).toLocaleString('uk-UA', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function buildSenderTtlActionRow(rowId: number): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`email_suppress:sender_set_ttl:${rowId}:1`)
+      .setLabel('1d')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`email_suppress:sender_set_ttl:${rowId}:7`)
+      .setLabel('7d')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`email_suppress:sender_set_ttl:${rowId}:30`)
+      .setLabel('30d')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`email_suppress:sender_set_ttl:${rowId}:0`)
+      .setLabel('forever')
+      .setStyle(ButtonStyle.Danger),
+  );
+}
+
+async function handleSuppressSenderStart(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (!deps.emailStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Suppression is not configured.',
+    });
+    return;
+  }
+  const rowId = Number(rawId);
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Некорректная ссылка на письмо',
+    });
+    return;
+  }
+  const row = deps.emailStore.findByPendingId(rowId);
+  if (!row) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Письмо больше недоступно',
+    });
+    return;
+  }
+  await (ixn as any).reply({
+    flags: MessageFlags.Ephemeral,
+    content: `🙈 На сколько заглушить \`${row.from_addr}\`?`,
+    components: [buildSenderTtlActionRow(row.id)],
+  });
+}
+
+async function handleSuppressSenderSetTtl(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (!deps.emailStore || !deps.emailSuppressionStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Suppression is not configured.',
+    });
+    return;
+  }
+  // rawId format: `${rowId}:${ttl}`
+  const sepIdx = rawId.indexOf(':');
+  if (sepIdx < 0) {
+    await (ixn as any).update({
+      content: '⚠️ Некорректная ссылка',
+      components: [],
+    });
+    return;
+  }
+  const rowId = Number(rawId.slice(0, sepIdx));
+  const ttl = Number(rawId.slice(sepIdx + 1));
+  if (
+    !Number.isInteger(rowId) ||
+    rowId <= 0 ||
+    !Number.isInteger(ttl) ||
+    ttl < 0
+  ) {
+    await (ixn as any).update({
+      content: '⚠️ Некорректная ссылка',
+      components: [],
+    });
+    return;
+  }
+  const row = deps.emailStore.findByPendingId(rowId);
+  if (!row) {
+    await (ixn as any).update({
+      content: '⚠️ Письмо больше недоступно',
+      components: [],
+    });
+    return;
+  }
+  // ttl=0 sentinel maps to expires_at=NULL ("forever"). Any other value is the
+  // TTL in days; suppression-store converts to absolute epoch ms.
+  const ttl_days = ttl === 0 ? null : ttl;
+  const inserted = deps.emailSuppressionStore.insertRule({
+    rule_type: 'sender',
+    pattern: row.from_addr,
+    ttl_days,
+  });
+  const expiresLabel =
+    inserted.expires_at === null ? 'навсегда' : formatExpiryLabel(inserted.expires_at);
+  await (ixn as any).update({
+    content: `🙈 Заглушён \`${row.from_addr}\` до ${expiresLabel}`,
+    components: [],
+  });
 }
 
 async function handleEmailDraftModalSubmit(
