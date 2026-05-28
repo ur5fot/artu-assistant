@@ -10,7 +10,7 @@ import {
   type DraftState,
 } from '../../../services/draft-reply-service.js';
 import type { EmailStore } from '../../../emails/store.js';
-import type { EmailPendingRow, ImapAccount, NewMessage } from '../../../emails/types.js';
+import type { EmailPendingRow, FullMessage, ImapAccount } from '../../../emails/types.js';
 import type { MessageHeaders } from '../../../emails/imap-client.js';
 
 const SAMPLE_ROW: EmailPendingRow = {
@@ -42,9 +42,9 @@ const SAMPLE_HEADERS: MessageHeaders = {
   references: ['<root@example.com>'],
 };
 
-const SAMPLE_THREAD: NewMessage[] = [
-  { uid: 30, from: 'Alice', subject: 'Project status', snippet: 'kickoff', receivedAt: 1 },
-  { uid: 42, from: 'Alice', subject: 'Project status', snippet: 'Hey, any update?', receivedAt: 2 },
+const SAMPLE_THREAD: FullMessage[] = [
+  { uid: 30, from: 'Alice', subject: 'Project status', bodyText: 'kickoff plan attached', receivedAt: 1 },
+  { uid: 42, from: 'Alice', subject: 'Project status', bodyText: 'Hey, any update on the kickoff?', receivedAt: 2 },
 ];
 
 function makeDeps(overrides: Partial<InteractionDeps> = {}): InteractionDeps {
@@ -96,7 +96,6 @@ function sampleDraftState(overrides: Partial<DraftState> = {}): DraftState {
     inReplyTo: '<orig@example.com>',
     references: ['<root@example.com>', '<orig@example.com>'],
     body: 'Yes, shipping Friday.',
-    messageId: 'msg-1',
     ...overrides,
   };
 }
@@ -173,32 +172,94 @@ describe('email_draft:start — happy path', () => {
 
   it('stores draft state with parsed to-address and ordered references', async () => {
     const deps = makeDeps();
-    const putSpy = vi.spyOn(deps.draftReplyService!, 'put');
     const ixn = makeButton();
     await routeInteraction(ixn, deps);
 
-    // put is called twice: initial state (messageId=null), then again with
-    // messageId once editReply returns the ephemeral's Message.
-    expect(putSpy).toHaveBeenCalledTimes(2);
-    const state = putSpy.mock.calls[0]![0];
-    expect(state.accountId).toBe('acc-1');
-    expect(state.originalUid).toBe(42);
-    expect(state.to).toBe('alice@example.com');
-    expect(state.subject).toBe('Project status');
-    expect(state.inReplyTo).toBe('<orig@example.com>');
-    expect(state.references).toEqual(['<root@example.com>', '<orig@example.com>']);
-    expect(state.body).toBe('Yes, shipping Friday.');
-    expect(state.messageId).toBeNull();
-    expect(typeof state.pendingId).toBe('string');
-    expect(state.pendingId.length).toBeGreaterThan(0);
+    // Assert via the final stored state (rather than spying on `put`) so the
+    // test is decoupled from how many times the handler writes during start.
+    const editArg = ixn.editReply.mock.calls[0]![0];
+    const sendCustomId = editArg.components[0].components[0].data.custom_id;
+    const pendingId = sendCustomId.replace(/^email_draft:send:/, '');
+    const state = deps.draftReplyService!.get(pendingId);
+    expect(state).not.toBeNull();
+    expect(state!.accountId).toBe('acc-1');
+    expect(state!.originalUid).toBe(42);
+    expect(state!.to).toBe('alice@example.com');
+    expect(state!.subject).toBe('Project status');
+    expect(state!.inReplyTo).toBe('<orig@example.com>');
+    expect(state!.references).toEqual(['<root@example.com>', '<orig@example.com>']);
+    expect(state!.body).toBe('Yes, shipping Friday.');
+    expect(state!.pendingId).toBe(pendingId);
+  });
 
-    const finalState = putSpy.mock.calls[1]![0];
-    expect(finalState.messageId).toBe('msg-99');
-    expect(finalState.pendingId).toBe(state.pendingId);
+  it('blocks @everyone in editReply via allowedMentions', async () => {
+    const deps = makeDeps();
+    const ixn = makeButton();
+    await routeInteraction(ixn, deps);
+    const editArg = ixn.editReply.mock.calls[0]![0];
+    expect(editArg.allowedMentions).toEqual({ parse: [] });
+  });
+
+  it('clips long Claude output to fit Discord 2000-char cap', async () => {
+    const longBody = 'A'.repeat(3000);
+    const deps = makeDeps({
+      anthropic: {
+        messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: longBody }] }) },
+      } as any,
+    });
+    const ixn = makeButton();
+    await routeInteraction(ixn, deps);
+    const editArg = ixn.editReply.mock.calls[0]![0];
+    expect(editArg.content.length).toBeLessThanOrEqual(2000);
+    expect(editArg.content.endsWith('…')).toBe(true);
+  });
+
+  it('anonymizes prompt before Claude and deanonymizes the draft body', async () => {
+    const anonymize = vi.fn(async (text: string) => ({
+      text: text.replace(/Alice/g, '<PERSON:abcd1234>'),
+      entities: [{ type: 'PERSON', token: '<PERSON:abcd1234>', original: 'Alice' }],
+    }));
+    const deanonymize = vi.fn(async (text: string) =>
+      text.replace(/<PERSON:abcd1234>/g, 'Alice'),
+    );
+    const deps = makeDeps({
+      piiProxy: { anonymize, deanonymize } as any,
+      anthropic: {
+        messages: {
+          create: vi
+            .fn()
+            .mockResolvedValue({ content: [{ type: 'text', text: 'Hi <PERSON:abcd1234>, ok' }] }),
+        },
+      } as any,
+    });
+    const ixn = makeButton();
+    await routeInteraction(ixn, deps);
+
+    expect(anonymize).toHaveBeenCalled();
+    const promptArg = (deps.anthropic as any).messages.create.mock.calls[0][0].messages[0].content;
+    expect(promptArg).not.toContain('Alice');
+    expect(promptArg).toContain('<PERSON:abcd1234>');
+
+    expect(deanonymize).toHaveBeenCalledWith('Hi <PERSON:abcd1234>, ok');
+    const editArg = ixn.editReply.mock.calls[0]![0];
+    expect(editArg.content).toContain('Hi Alice, ok');
   });
 });
 
 describe('email_draft:start — error paths', () => {
+  it('invalid rowId → ephemeral reply, no defer', async () => {
+    const deps = makeDeps();
+    const ixn = makeButton({ customId: 'email_draft:start:not-a-number' });
+    await routeInteraction(ixn, deps);
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.stringContaining('Некорректная'),
+      }),
+    );
+    expect(ixn.deferReply).not.toHaveBeenCalled();
+  });
+
   it('row not found → editReply "пропало", no Claude call', async () => {
     const deps = makeDeps({
       emailStore: { findByPendingId: vi.fn().mockReturnValue(null) } as unknown as EmailStore,

@@ -14,7 +14,6 @@ function sampleState(overrides: Partial<DraftState> = {}): DraftState {
     inReplyTo: '<orig@example.com>',
     references: ['<orig@example.com>'],
     body: 'draft body',
-    messageId: null,
     ...overrides,
   };
 }

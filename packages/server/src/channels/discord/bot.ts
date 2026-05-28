@@ -37,6 +37,7 @@ import type { DraftReplyService } from '../../services/draft-reply-service.js';
 import type { EmailStore } from '../../emails/store.js';
 import type { ImapAccount } from '../../emails/types.js';
 import type Anthropic from '@anthropic-ai/sdk';
+import type { PiiProxy } from '../../pii/proxy.js';
 import { SLASH_COMMAND_DEFINITIONS } from './slash-commands.js';
 
 export interface DiscordBotDeps {
@@ -102,6 +103,8 @@ export interface DiscordBotDeps {
   imapAccounts?: Map<string, ImapAccount>;
   /** SMTP client used to send the final reply. */
   smtpClient?: SmtpClient;
+  /** PII proxy — anonymizes draft-reply prompts before they leave to Claude. */
+  piiProxy?: PiiProxy;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -186,20 +189,23 @@ function buildComponentsFromData(
 
 export async function sendReply(channel: DMChannel, text: string): Promise<void> {
   const MAX = 2000;
+  // Block @everyone / role pings — Claude (chat + cognition) generates this
+  // text, so it could surface mentions verbatim from quoted user content.
+  const noMentions = { parse: [] as never[] };
   if (text.length <= MAX) {
-    await channel.send(text);
+    await channel.send({ content: text, allowedMentions: noMentions });
     return;
   }
 
   let remaining = text;
   while (remaining.length > 0) {
     if (remaining.length <= MAX) {
-      await channel.send(remaining);
+      await channel.send({ content: remaining, allowedMentions: noMentions });
       break;
     }
     let splitAt = remaining.lastIndexOf(' ', MAX);
     if (splitAt <= 0) splitAt = MAX;
-    await channel.send(remaining.slice(0, splitAt));
+    await channel.send({ content: remaining.slice(0, splitAt), allowedMentions: noMentions });
     remaining = remaining.slice(splitAt).trimStart();
   }
 }
@@ -299,6 +305,7 @@ export async function startDiscordBot(
         anthropic: deps.anthropic,
         imapAccounts: deps.imapAccounts,
         smtpClient: deps.smtpClient,
+        piiProxy: deps.piiProxy,
       });
     } catch (err) {
       console.error('[discord] interaction error:', err instanceof Error ? err.message : err);
@@ -348,7 +355,10 @@ export async function startDiscordBot(
       );
       try {
         const dmChannel = msg.channel as DMChannel;
-        await dmChannel.send('⚠️ Something went wrong. Please try again later.');
+        await dmChannel.send({
+  content: '⚠️ Something went wrong. Please try again later.',
+  allowedMentions: { parse: [] },
+});
       } catch {
         // ignore send failure
       }
@@ -776,7 +786,10 @@ export async function startDiscordBot(
                   errorSent = true;
                   console.error('[discord] chat error event:', event.message);
                   await flush();
-                  await dmChannel.send('⚠️ Something went wrong. Please try again later.');
+                  await dmChannel.send({
+  content: '⚠️ Something went wrong. Please try again later.',
+  allowedMentions: { parse: [] },
+});
                   return;
                 }
               }).catch((err) => {
@@ -850,7 +863,10 @@ export async function startDiscordBot(
       if (!sendSucceeded) {
         try {
           const dmChannel = msg.channel as DMChannel;
-          await dmChannel.send('⚠️ Something went wrong. Please try again later.');
+          await dmChannel.send({
+  content: '⚠️ Something went wrong. Please try again later.',
+  allowedMentions: { parse: [] },
+});
         } catch {
           // ignore send failure
         }
@@ -1116,6 +1132,10 @@ export async function startDiscordBot(
               await (dm as unknown as DMChannel).send({
                 embeds: [embed],
                 components,
+                // Cognition handlers compose `content` from LLM output (e.g.
+                // morningBrief, draft replies). Block @everyone / role pings
+                // even though the channel is a 1:1 DM — defense in depth.
+                allowedMentions: { parse: [] },
               });
               return;
             }

@@ -633,6 +633,11 @@ if (discordToken) {
       anthropic: client.anthropic,
       imapAccounts: emailEnabled ? imapAccountsById : undefined,
       smtpClient: emailEnabled ? { sendReply: sendSmtpReply } : undefined,
+      // Always pass piiProxy — at runtime it's a real anonymizer or a
+      // passthrough depending on PII_GATEWAY_MODE. The interactions handler
+      // anonymizes the email thread before sending to Claude (plan: outbound
+      // draft prompt goes through PII proxy when memory uses Claude).
+      piiProxy,
       requestTimeoutMs: (() => {
         const n = Number(process.env.DISCORD_REQUEST_TIMEOUT_MS);
         return Number.isFinite(n) && n > 0 ? n : 300_000;

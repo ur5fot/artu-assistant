@@ -26,8 +26,9 @@ import type {
   DraftState,
 } from '../../services/draft-reply-service.js';
 import type { EmailStore } from '../../emails/store.js';
-import type { ImapAccount, NewMessage } from '../../emails/types.js';
+import type { ImapAccount, FullMessage } from '../../emails/types.js';
 import type { MessageHeaders } from '../../emails/imap-client.js';
+import type { PiiProxy } from '../../pii/proxy.js';
 import {
   buildReminderEmbed,
   buildPermissionEmbed,
@@ -68,7 +69,7 @@ export interface DraftImapClient {
 }
 
 export interface DraftThreadFetcher {
-  fetchThread(account: ImapAccount, uid: number): Promise<NewMessage[]>;
+  fetchThread(account: ImapAccount, uid: number): Promise<FullMessage[]>;
 }
 
 export interface SmtpClient {
@@ -106,6 +107,9 @@ export interface InteractionDeps {
   /** Lookup by account id used by the urgent email row's account_id. */
   imapAccounts?: Map<string, ImapAccount>;
   smtpClient?: SmtpClient;
+  /** PII proxy — anonymizes the email thread before it leaves to Claude, then
+   *  deanonymizes Claude's draft so the body sent over SMTP has real names. */
+  piiProxy?: PiiProxy;
 }
 
 // Parses the description rendered by buildPermissionEmbed —
@@ -353,12 +357,18 @@ async function routeButton(
 const DRAFT_MAX_TOKENS = 1024;
 const DRAFT_BODY_MARKER = '✏️ Черновик:\n\n';
 // Discord caps a message at 2000 chars; leave room for the "Черновик:" prefix
-// so a verbose Claude reply doesn't cause editReply to throw 50035.
-const DRAFT_BODY_MAX_DISPLAY = 2000 - DRAFT_BODY_MARKER.length - 4;
-// Snippet cap when serialising thread messages into the LLM prompt. Each
-// message contributes from/subject + snippet — kept compact so a long thread
-// fits well under the 200k-token Claude context.
-const THREAD_BODY_LIMIT = 1000;
+// plus the trailing "…" ellipsis when we slice an oversized draft.
+const DRAFT_BODY_MAX_DISPLAY = 2000 - DRAFT_BODY_MARKER.length - 1;
+// Per-message body cap when serialising the thread into the LLM prompt. Full
+// bodies arrive via fetchFullBody (already capped at FULL_BODY_LEN=50_000),
+// but a single 50k message × 20-thread cap would blow past 1M tokens; clamp
+// each message so a long thread still fits well under the Claude 200k context.
+const THREAD_BODY_LIMIT = 8_000;
+// Block on outbound mentions — Claude-generated draft bodies are LLM output
+// and could contain @everyone / @here / role mentions that would notify the
+// recipient when rendered in Discord. Ephemerals do not fire notifications,
+// but defense in depth costs nothing.
+const NO_MENTIONS = { parse: [] as never[] };
 const DRAFT_SYSTEM_PROMPT =
   "You are R2's email draft writer. Compose a concise, natural reply matching the language of the thread. Plain text only. No greeting boilerplate, no signature.";
 
@@ -372,11 +382,11 @@ export function parseFromAddress(fromAddr: string): string {
   return fromAddr.trim();
 }
 
-function buildDraftPrompt(thread: NewMessage[], currentUid: number): string {
+function buildDraftPrompt(thread: FullMessage[], currentUid: number): string {
   const parts: string[] = [];
   for (const msg of thread) {
     const marker = msg.uid === currentUid ? ' ⟵ current' : '';
-    const body = (msg.snippet ?? '').slice(0, THREAD_BODY_LIMIT);
+    const body = (msg.bodyText ?? '').slice(0, THREAD_BODY_LIMIT);
     parts.push(
       `From: ${msg.from}${marker}\nSubject: ${msg.subject}\nBody: ${body}`,
     );
@@ -431,7 +441,15 @@ async function handleEmailDraftStart(
   }
 
   const rowId = Number(rawId);
-  if (!Number.isInteger(rowId) || rowId <= 0) return;
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    // A bare `return` here would leave Discord showing "thinking…" until the
+    // 3s ack window expires. Surface the bad customId immediately instead.
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Некорректная ссылка на письмо',
+    });
+    return;
+  }
 
   // deferReply gives us 15 minutes to edit a follow-up; the IMAP+Claude path
   // here easily exceeds Discord's 3s initial-ack window.
@@ -452,7 +470,7 @@ async function handleEmailDraftStart(
   }
 
   let headers: MessageHeaders;
-  let thread: NewMessage[];
+  let thread: FullMessage[];
   try {
     headers = await deps.imapClient.fetchHeaders(account, row.message_uid);
     thread = await deps.threadFetcher.fetchThread(account, row.message_uid);
@@ -464,7 +482,15 @@ async function handleEmailDraftStart(
     return;
   }
 
-  const prompt = buildDraftPrompt(thread, row.message_uid);
+  const rawPrompt = buildDraftPrompt(thread, row.message_uid);
+  // PII proxy is always present at runtime (index.ts always constructs one —
+  // either a real proxy or a passthrough). The optional `?` keeps the type
+  // surface contained but at runtime we always anonymize → call → deanonymize,
+  // mirroring morningBrief.ai.ts. With a passthrough proxy this collapses to
+  // a no-op so behaviour is unchanged when PII is disabled.
+  const prompt = deps.piiProxy
+    ? (await deps.piiProxy.anonymize(rawPrompt)).text
+    : rawPrompt;
   let body: string;
   try {
     const model = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
@@ -474,7 +500,8 @@ async function handleEmailDraftStart(
       system: DRAFT_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
     });
-    body = extractClaudeText(msg.content as any[]);
+    const raw = extractClaudeText(msg.content as any[]);
+    body = deps.piiProxy && raw ? await deps.piiProxy.deanonymize(raw) : raw;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await (ixn as any).editReply({
@@ -506,23 +533,14 @@ async function handleEmailDraftStart(
     inReplyTo: headers.messageId,
     references: Array.from(refSet),
     body,
-    messageId: null,
   };
   deps.draftReplyService.put(state);
 
-  const display =
-    body.length > DRAFT_BODY_MAX_DISPLAY
-      ? body.slice(0, DRAFT_BODY_MAX_DISPLAY - 1) + '…'
-      : body;
-  // editReply returns the Message; persist its id so a modal submit (which
-  // arrives as a fresh interaction) can locate this ephemeral to edit.
-  const sent: any = await (ixn as any).editReply({
-    content: DRAFT_BODY_MARKER + display,
+  await (ixn as any).editReply({
+    content: DRAFT_BODY_MARKER + clipDraftBody(body),
     components: [buildDraftActionRow(pendingId)],
+    allowedMentions: NO_MENTIONS,
   });
-  if (sent && typeof sent.id === 'string') {
-    deps.draftReplyService.put({ ...state, messageId: sent.id });
-  }
 }
 
 function clipDraftBody(body: string): string {
@@ -671,6 +689,7 @@ async function handleEmailDraftModalSubmit(
   await (ixn as any).update({
     content: DRAFT_BODY_MARKER + clipDraftBody(newBody),
     components: [buildDraftActionRow(pendingId)],
+    allowedMentions: NO_MENTIONS,
   });
 }
 

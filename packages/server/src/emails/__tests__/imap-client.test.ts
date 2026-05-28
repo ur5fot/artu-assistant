@@ -1052,7 +1052,7 @@ describe('fetchByMessageId', () => {
     expect(msg).toBeNull();
   });
 
-  it('searches by header Message-ID and returns NewMessage', async () => {
+  it('searches by header Message-ID and returns FullMessage with bodyText', async () => {
     const calls: any[] = [];
     const Ctor = class {
       async connect() {}
@@ -1083,7 +1083,7 @@ describe('fetchByMessageId', () => {
     expect(msg).not.toBeNull();
     expect(msg!.uid).toBe(42);
     expect(msg!.subject).toBe('hi');
-    expect(msg!.snippet).toContain('body text');
+    expect(msg!.bodyText).toContain('body text');
     expect(calls[0]).toEqual({ header: { 'Message-ID': '<m42@h>' } });
   });
 });

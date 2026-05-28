@@ -7,9 +7,6 @@ export interface DraftState {
   inReplyTo: string | null;
   references: string[];
   body: string;
-  // Set after the ephemeral draft message is sent so a modal submit (which
-  // arrives as a fresh interaction) can edit the original draft in place.
-  messageId: string | null;
 }
 
 export interface DraftReplyService {

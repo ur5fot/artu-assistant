@@ -115,6 +115,20 @@ describe('sendReply', () => {
     expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ subject: 'RE: Hello world' }));
   });
 
+  it('falls back to "Re: (no subject)" when subject is empty or whitespace', async () => {
+    const { factory, sendMail } = makeStubTransport();
+    __setTransportFactory(factory as any);
+    await sendReply({
+      account,
+      to: 't@x.com',
+      subject: '   ',
+      body: 'b',
+      inReplyTo: null,
+      references: [],
+    });
+    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ subject: 'Re: (no subject)' }));
+  });
+
   it('sets inReplyTo and references when provided', async () => {
     const { factory, sendMail } = makeStubTransport();
     __setTransportFactory(factory as any);

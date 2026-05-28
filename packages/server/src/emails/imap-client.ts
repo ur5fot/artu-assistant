@@ -250,15 +250,16 @@ export async function fetchHeaders(account: ImapAccount, uid: number): Promise<M
   });
 }
 
-// Search INBOX for a message by RFC 5322 Message-ID. Returns a NewMessage so
-// the thread-fetcher can present uniform shapes to the prompt builder. Null
+// Search INBOX for a message by RFC 5322 Message-ID. Returns a FullMessage so
+// the draft-reply prompt can include real body text (not a 500-char snippet —
+// the plan calls for "full thread context for higher draft quality"). Null
 // when the id isn't found (ref points to Sent or another folder we don't index)
 // or when the server's SEARCH returns NO/BAD — treat both as "not in INBOX",
 // the caller silently skips.
 export async function fetchByMessageId(
   account: ImapAccount,
   messageId: string,
-): Promise<NewMessage | null> {
+): Promise<FullMessage | null> {
   return withClient(account, async (client) => {
     const result = await client.search({ header: { 'Message-ID': messageId } }, { uid: true });
     if (!result || result === false || result.length === 0) return null;
@@ -286,7 +287,7 @@ export async function fetchByMessageId(
       uid,
       from: formatFrom(meta.envelope),
       subject: decodeHeader(meta.envelope?.subject),
-      snippet: toSnippet(text, SNIPPET_LEN),
+      bodyText: toBody(text, FULL_BODY_LEN),
       receivedAt: pickReceivedAt(meta),
     };
   });

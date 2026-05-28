@@ -35,7 +35,12 @@ export function smtpHostFor(imapHost: string): string {
 }
 
 function ensureRePrefix(subject: string): string {
-  return /^re:/i.test(subject.trim()) ? subject : `Re: ${subject}`;
+  // An empty subject from the urgent row produces a bare "Re: " which some
+  // SMTP servers reject and reads as broken to the recipient. Fall back to a
+  // placeholder so the header is always at least informational.
+  const trimmed = subject.trim();
+  if (!trimmed) return 'Re: (no subject)';
+  return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
 }
 
 export async function sendReply(params: SendReplyParams): Promise<any> {
