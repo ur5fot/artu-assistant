@@ -177,13 +177,13 @@ intentional.
 
 ### Task 4: Acceptance + docs
 
-- [ ] run full server test suite (`npm -w @r2/server test`) — all green
-- [ ] run TypeScript build (`npm -w @r2/server run build`) — no errors
-- [ ] update `AGENTS.md` "Уроки из ревью" section: add one line under
+- [x] run full server test suite (`npm -w @r2/server test`) — all green (87 files, 1198 tests passing)
+- [x] run TypeScript build (`npm -w @r2/server run build`) — no errors
+- [x] update `AGENTS.md` "Уроки из ревью" section: add one line under
   the existing DB path advice noting that `resolveProjectPath` from
   `path-utils.ts` is the canonical helper for any new relative-path env
   var (so the next person doesn't reinvent the same bug)
-- [ ] update `.env.example` — add comment above each relative path:
+- [x] update `.env.example` — add comment above each relative path:
   ```
   # Relative paths resolve from the project root (not process.cwd) —
   # safe to start the server from any directory.
@@ -191,7 +191,7 @@ intentional.
   ...
   EVALS_PATH=./data/evals.json
   ```
-- [ ] note in Post-Completion that the existing
+- [x] note in Post-Completion that the existing
   `packages/server/data/r2.db` / `data/r2.db` split was already
   resolved manually (operator merged before running this plan); the
   code fix only prevents future drift.
@@ -257,6 +257,12 @@ behaviour (same migration step performed for `r2.db`).
 ## Post-Completion
 
 *No checkboxes — needs operator decision.*
+
+**Status note:** the on-disk split between `packages/server/data/r2.db`
+and `data/r2.db` is assumed to have been resolved manually by the
+operator before this plan landed. This code change only prevents
+*future* drift — it does not migrate any data. Same caveat applies to
+`evals.json`.
 
 **Manual cleanup after this plan ships:**
 
