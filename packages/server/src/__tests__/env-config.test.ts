@@ -12,6 +12,11 @@ describe('envInt — EMAIL_SEND_HOLD_SECONDS bounds (min=0, max=300, default=30)
     expect(parse('abc')).toBe(30);
   });
 
+  it('returns default 30 when env var is empty / whitespace (typo guard)', () => {
+    expect(parse('')).toBe(30);
+    expect(parse('   ')).toBe(30);
+  });
+
   it('returns 30 for explicit "30"', () => {
     expect(parse('30')).toBe(30);
   });
