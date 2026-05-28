@@ -350,15 +350,15 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
 
 ### Task 7: Acceptance + docs
 
-- [ ] run full server test suite (`npm -w @r2/server test`) — all green
-- [ ] run TypeScript build (`npm -w @r2/server run build`) — no errors
-- [ ] verify backward compatibility: existing `email_draft` tests
+- [x] run full server test suite (`npm -w @r2/server test`) — all green
+- [x] run TypeScript build (`npm -w @r2/server run build`) — no errors
+- [x] verify backward compatibility: existing `email_draft` tests
   still pass (Send, Edit, Cancel of draft body, modal — all
   unchanged)
-- [ ] update `AGENTS.md` Discord embeds section with the Send hold
+- [x] update `AGENTS.md` Discord embeds section with the Send hold
   flow: Send → "Will send at HH:MM:SS" + Cancel-send button →
   Cancel/expire → "Sent" / "Cancelled"
-- [ ] update `README.md` "Email watcher" section: extend the line about
+- [x] update `README.md` "Email watcher" section: extend the line about
   Draft reply with
   `"… → 30s Cancel-send hold (configurable via EMAIL_SEND_HOLD_SECONDS, 0 disables)"`
 
