@@ -214,6 +214,30 @@ describe('email_draft:start — happy path', () => {
     expect(editArg.content.endsWith('…')).toBe(true);
   });
 
+  it('caps stored body to displayed length so Send cannot ship a hidden tail', async () => {
+    const longBody = 'A'.repeat(3000);
+    const deps = makeDeps({
+      anthropic: {
+        messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: longBody }] }) },
+      } as any,
+    });
+    const ixn = makeButton();
+    await routeInteraction(ixn, deps);
+
+    const editArg = ixn.editReply.mock.calls[0]![0];
+    const sendCustomId = editArg.components[0].components[0].data.custom_id;
+    const pendingId = sendCustomId.replace(/^email_draft:send:/, '');
+    const stored = deps.draftReplyService!.get(pendingId);
+    // Stored must be strictly shorter than what Claude produced and must equal
+    // the preview text (minus the trailing ellipsis marker the preview adds).
+    expect(stored!.body.length).toBeLessThan(longBody.length);
+    expect(stored!.body.length).toBeLessThan(2000);
+    expect(longBody.startsWith(stored!.body)).toBe(true);
+    // What Send would ship == what the user reviewed (preview minus marker).
+    const displayedBody = editArg.content.replace(/^✏️ Черновик:\n\n/, '');
+    expect(displayedBody.replace(/…$/, '')).toBe(stored!.body);
+  });
+
   it('anonymizes prompt before Claude and deanonymizes the draft body', async () => {
     const anonymize = vi.fn(async (text: string) => ({
       text: text.replace(/Alice/g, '<PERSON:abcd1234>'),
@@ -311,6 +335,51 @@ describe('email_draft:start — error paths', () => {
     expect(putSpy).not.toHaveBeenCalled();
   });
 
+  it('PII anonymize throws → editReply with PII proxy error (no hung "thinking…")', async () => {
+    const anonymize = vi.fn().mockRejectedValue(new Error('presidio down'));
+    const deanonymize = vi.fn();
+    const deps = makeDeps({
+      piiProxy: { anonymize, deanonymize } as any,
+    });
+    const ixn = makeButton();
+    await routeInteraction(ixn, deps);
+    expect(ixn.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('PII proxy') }),
+    );
+    expect((deps.anthropic as any).messages.create).not.toHaveBeenCalled();
+  });
+
+  it('PII deanonymize throws → editReply with PII proxy error', async () => {
+    const anonymize = vi.fn(async (t: string) => ({ text: t, entities: [] }));
+    const deanonymize = vi.fn().mockRejectedValue(new Error('presidio down'));
+    const deps = makeDeps({
+      piiProxy: { anonymize, deanonymize } as any,
+    });
+    const ixn = makeButton();
+    await routeInteraction(ixn, deps);
+    const editArg = ixn.editReply.mock.calls[ixn.editReply.mock.calls.length - 1][0];
+    expect(editArg.content).toContain('PII proxy');
+  });
+
+  it('thread fetch returns ancestors only (no current) → editReply, no Claude call', async () => {
+    const deps = makeDeps({
+      // Thread missing the current uid (42) — only ancestor 30 present.
+      threadFetcher: {
+        fetchThread: vi.fn().mockResolvedValue([
+          { uid: 30, from: 'Alice', subject: 'Project status', bodyText: 'old', receivedAt: 1 },
+        ]),
+      },
+    });
+    const ixn = makeButton();
+    await routeInteraction(ixn, deps);
+    expect(ixn.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('текущее письмо'),
+      }),
+    );
+    expect((deps.anthropic as any).messages.create).not.toHaveBeenCalled();
+  });
+
   it('Claude throws → editReply with error', async () => {
     const deps = makeDeps({
       anthropic: {
@@ -404,17 +473,18 @@ describe('email_draft:send', () => {
     );
   });
 
-  it('SMTP rejects → editReply with error, state NOT dropped, buttons kept', async () => {
+  it('SMTP rejects → editReply with error, state preserved for retry, buttons kept', async () => {
     const deps = makeDeps({
       smtpClient: { sendReply: vi.fn().mockRejectedValue(new Error('554 reject')) },
     });
     deps.draftReplyService!.put(sampleDraftState());
-    const dropSpy = vi.spyOn(deps.draftReplyService!, 'drop');
     const ixn = makeButton({ customId: 'email_draft:send:p1' });
 
     await routeInteraction(ixn, deps);
 
-    expect(dropSpy).not.toHaveBeenCalled();
+    // Implementation drops-then-restores around await to block double-click
+    // races; what matters for retry is the final state, not the internal
+    // call sequence.
     expect(deps.draftReplyService!.has('p1')).toBe(true);
     const editArg = ixn.editReply.mock.calls[ixn.editReply.mock.calls.length - 1][0];
     expect(editArg.content).toContain('554 reject');
@@ -425,6 +495,36 @@ describe('email_draft:send', () => {
       'email_draft:edit:p1',
       'email_draft:cancel:p1',
     ]);
+  });
+
+  it('rapid double-click consumes state once → exactly one SMTP send', async () => {
+    // sendReply hangs until released so two concurrent clicks both reach the
+    // await before either completes — the exact window where a get-then-await
+    // pattern races and double-sends.
+    let release: () => void = () => {};
+    const sendPromise = new Promise<unknown>((res) => {
+      release = () => res({ messageId: 'smtp-1' });
+    });
+    const sendReply = vi.fn().mockReturnValue(sendPromise);
+    const deps = makeDeps({ smtpClient: { sendReply } });
+    deps.draftReplyService!.put(sampleDraftState());
+
+    const ixn1 = makeButton({ customId: 'email_draft:send:p1' });
+    const ixn2 = makeButton({ customId: 'email_draft:send:p1' });
+
+    const p1 = routeInteraction(ixn1, deps);
+    const p2 = routeInteraction(ixn2, deps);
+    // Yield so both handlers reach the consume-state step before SMTP resolves.
+    await new Promise((r) => setImmediate(r));
+    release();
+    await Promise.all([p1, p2]);
+
+    expect(sendReply).toHaveBeenCalledTimes(1);
+    // Second click sees the state already consumed and surfaces "истёк".
+    const secondEdit = ixn2.editReply.mock.calls[0]![0];
+    expect(secondEdit.content).toContain('истёк');
+    // State remains dropped after successful send.
+    expect(deps.draftReplyService!.has('p1')).toBe(false);
   });
 
   it('smtpClient not configured → ephemeral reply, no defer', async () => {

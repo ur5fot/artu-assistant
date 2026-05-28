@@ -37,6 +37,13 @@ export async function fetchThread(account: ImapAccount, uid: number): Promise<Fu
     seen.add(ref);
     ancestorIds.push(ref);
   }
+  // Some clients send In-Reply-To without a full References chain; treat it
+  // as a fallback ancestor so a parent message isn't silently dropped from
+  // the thread context.
+  if (headers.inReplyTo && !seen.has(headers.inReplyTo)) {
+    seen.add(headers.inReplyTo);
+    ancestorIds.push(headers.inReplyTo);
+  }
 
   // Reserve a slot for the current message: cap ancestors at MAX-1 so the
   // current is always present even on pathological 30-deep threads.

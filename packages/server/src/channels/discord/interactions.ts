@@ -482,15 +482,38 @@ async function handleEmailDraftStart(
     return;
   }
 
+  // thread-fetcher silently degrades to "ancestors only" when fetchFullBody
+  // for the current uid throws (network blip, message moved between scoring
+  // and click). Without the current message the draft prompt would ask
+  // Claude to reply to whatever the last ancestor is — wrong context. Bail.
+  if (!thread.some((m) => m.uid === row.message_uid)) {
+    await (ixn as any).editReply({
+      content: '❌ Не удалось загрузить текущее письмо',
+    });
+    return;
+  }
+
   const rawPrompt = buildDraftPrompt(thread, row.message_uid);
   // PII proxy is always present at runtime (index.ts always constructs one —
   // either a real proxy or a passthrough). The optional `?` keeps the type
   // surface contained but at runtime we always anonymize → call → deanonymize,
   // mirroring morningBrief.ai.ts. With a passthrough proxy this collapses to
   // a no-op so behaviour is unchanged when PII is disabled.
-  const prompt = deps.piiProxy
-    ? (await deps.piiProxy.anonymize(rawPrompt)).text
-    : rawPrompt;
+  let prompt: string;
+  try {
+    prompt = deps.piiProxy
+      ? (await deps.piiProxy.anonymize(rawPrompt)).text
+      : rawPrompt;
+  } catch (err) {
+    // In PII_MODE=required, a Presidio outage throws here. Without a catch
+    // the error bubbles past bot.ts's logger and the ephemeral reply hangs
+    // on "thinking…" until the 15-min webhook window expires.
+    const msg = err instanceof Error ? err.message : String(err);
+    await (ixn as any).editReply({
+      content: `❌ PII proxy failed: ${msg}`,
+    });
+    return;
+  }
   let body: string;
   try {
     const model = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
@@ -500,14 +523,25 @@ async function handleEmailDraftStart(
       system: DRAFT_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
     });
-    const raw = extractClaudeText(msg.content as any[]);
-    body = deps.piiProxy && raw ? await deps.piiProxy.deanonymize(raw) : raw;
+    body = extractClaudeText(msg.content as any[]);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await (ixn as any).editReply({
       content: `❌ Claude не ответил: ${msg}`,
     });
     return;
+  }
+
+  if (body && deps.piiProxy) {
+    try {
+      body = await deps.piiProxy.deanonymize(body);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await (ixn as any).editReply({
+        content: `❌ PII proxy failed: ${msg}`,
+      });
+      return;
+    }
   }
 
   if (!body) {
@@ -524,6 +558,11 @@ async function handleEmailDraftStart(
   const refSet = new Set<string>();
   for (const r of headers.references) refSet.add(r);
   if (headers.messageId) refSet.add(headers.messageId);
+  // Cap stored body to what the preview will show: Discord clips at 2000
+  // chars, but Claude (max_tokens=1024) can emit a longer reply. Send must
+  // never ship a hidden tail past the "…" — store only what the user saw.
+  // If they want to extend, Edit lets them grow from this base.
+  const prepared = prepareDraftBody(body);
   const state: DraftState = {
     pendingId,
     originalUid: row.message_uid,
@@ -532,18 +571,32 @@ async function handleEmailDraftStart(
     subject: row.subject ?? '',
     inReplyTo: headers.messageId,
     references: Array.from(refSet),
-    body,
+    body: prepared.stored,
   };
   deps.draftReplyService.put(state);
 
   await (ixn as any).editReply({
-    content: DRAFT_BODY_MARKER + clipDraftBody(body),
+    content: DRAFT_BODY_MARKER + prepared.display,
     components: [buildDraftActionRow(pendingId)],
     allowedMentions: NO_MENTIONS,
   });
 }
 
-function clipDraftBody(body: string): string {
+function prepareDraftBody(body: string): { stored: string; display: string } {
+  if (body.length <= DRAFT_BODY_MAX_DISPLAY) {
+    return { stored: body, display: body };
+  }
+  // Reserve one char for the ellipsis marker so the display still fits the
+  // Discord cap. Stored matches display (minus the marker) so what Send ships
+  // equals what the user reviewed in the preview.
+  const stored = body.slice(0, DRAFT_BODY_MAX_DISPLAY - 1);
+  return { stored, display: stored + '…' };
+}
+
+// Display-only clip for modal-submitted bodies. Unlike LLM output, the user
+// just authored the text in the 4000-char modal — there's no hidden-tail
+// concern, so we keep the full body in state and only clip the preview.
+function clipDraftBodyForDisplay(body: string): string {
   return body.length > DRAFT_BODY_MAX_DISPLAY
     ? body.slice(0, DRAFT_BODY_MAX_DISPLAY - 1) + '…'
     : body;
@@ -562,6 +615,10 @@ async function handleEmailDraftSend(
     return;
   }
   await (ixn as any).deferUpdate();
+  // Consume the draft *before* awaiting SMTP so a rapid double-click can't
+  // observe the same pending state twice and send duplicate emails. Restore
+  // it on transient failures (no account, SMTP reject) so the user can retry
+  // without re-generating the draft.
   const state = deps.draftReplyService.get(pendingId);
   if (!state) {
     await (ixn as any).editReply({
@@ -570,8 +627,10 @@ async function handleEmailDraftSend(
     });
     return;
   }
+  deps.draftReplyService.drop(pendingId);
   const account = deps.imapAccounts.get(state.accountId);
   if (!account) {
+    deps.draftReplyService.put(state);
     await (ixn as any).editReply({
       content: `⚠️ Аккаунт ${state.accountId} не настроен`,
       components: [],
@@ -588,7 +647,8 @@ async function handleEmailDraftSend(
       references: state.references,
     });
   } catch (err) {
-    // Keep state + buttons so the user can retry without re-generating.
+    // Restore state + buttons so the user can retry without re-generating.
+    deps.draftReplyService.put(state);
     const msg = err instanceof Error ? err.message : String(err);
     await (ixn as any).editReply({
       content: `❌ Не отправилось: ${msg}`,
@@ -596,7 +656,6 @@ async function handleEmailDraftSend(
     });
     return;
   }
-  deps.draftReplyService.drop(pendingId);
   await (ixn as any).editReply({
     content: '✅ Отправлено',
     components: [],
@@ -687,7 +746,7 @@ async function handleEmailDraftModalSubmit(
   // was on — for us, that's the ephemeral draft reply. This avoids needing
   // a separate webhook editMessage call against the stored messageId.
   await (ixn as any).update({
-    content: DRAFT_BODY_MARKER + clipDraftBody(newBody),
+    content: DRAFT_BODY_MARKER + clipDraftBodyForDisplay(newBody),
     components: [buildDraftActionRow(pendingId)],
     allowedMentions: NO_MENTIONS,
   });

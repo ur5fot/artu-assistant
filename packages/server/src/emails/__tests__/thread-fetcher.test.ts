@@ -176,6 +176,39 @@ describe('fetchThread', () => {
     expect(thread[0].bodyText).toBe('body-500');
   });
 
+  it('uses In-Reply-To as fallback ancestor when References is empty', async () => {
+    // Some lightweight clients send In-Reply-To without populating References;
+    // the parent would otherwise be dropped from the thread context.
+    installClient({
+      headersByUid: {
+        700: { messageId: '<m700@x>', inReplyTo: '<m699@x>', references: [] },
+      },
+      messagesByMessageId: { '<m699@x>': mkMsg(699, 'parent') },
+      fullBodyByUid: { 700: mkMsg(700, 'reply') },
+    });
+    const thread = await fetchThread(account, 700);
+    expect(thread.map((m) => m.uid)).toEqual([699, 700]);
+  });
+
+  it('does not duplicate In-Reply-To when it is already in References', async () => {
+    installClient({
+      headersByUid: {
+        750: {
+          messageId: '<m750@x>',
+          inReplyTo: '<m749@x>',
+          references: ['<m748@x>', '<m749@x>'],
+        },
+      },
+      messagesByMessageId: {
+        '<m748@x>': mkMsg(748, 'root'),
+        '<m749@x>': mkMsg(749, 'parent'),
+      },
+      fullBodyByUid: { 750: mkMsg(750, 'reply') },
+    });
+    const thread = await fetchThread(account, 750);
+    expect(thread.map((m) => m.uid)).toEqual([748, 749, 750]);
+  });
+
   it('returns ancestors only when fetchFullBody fails for current', async () => {
     installClient({
       headersByUid: {
