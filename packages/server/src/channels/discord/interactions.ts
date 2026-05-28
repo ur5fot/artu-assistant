@@ -902,7 +902,10 @@ async function executeQueuedSend(
 
     const account = deps.imapAccounts.get(state.accountId);
     if (!account) {
-      // Pre-check at Send time normally catches this; fall through defensively.
+      // Pre-check at Send time normally catches this; fall through defensively
+      // (account removed between Send click and timer fire, e.g. config reload).
+      // The ephemeral is still showing "Will send at …" with a Cancel-send
+      // button — surface the failure so the user isn't lied to by stale UI.
       recordSentLogSafe(deps.emailSentLog, {
         action: 'error',
         draftId: pendingId,
@@ -910,6 +913,17 @@ async function executeQueuedSend(
         subject: state.subject,
         errorMessage: `Account ${state.accountId} missing at send time`,
       });
+      try {
+        await (ixn as any).webhook.editMessage('@original', {
+          content: clampReplyContent(`⚠️ Аккаунт ${state.accountId} не настроен`),
+          components: [],
+        });
+      } catch (editErr) {
+        console.warn(
+          '[email_draft] ephemeral edit failed after account-missing:',
+          editErr instanceof Error ? editErr.message : editErr,
+        );
+      }
       return;
     }
 
@@ -989,7 +1003,17 @@ async function handleEmailDraftCancel(
   // would complete, and we'd then overwrite the terminal "✅ Sent" UI with
   // "❌ Отменено". `drop` also clearTimeouts any armed holdTimer, so the
   // queued send can't fire even with the callback already on the event loop.
-  const hadState = deps.draftReplyService.get(pendingId) != null;
+  const existing = deps.draftReplyService.get(pendingId);
+  const hadState = existing != null;
+  // If the dropped state was Send-armed (timer armed, or holdPending mid-arm),
+  // mirror Cancel-send's audit row so the post-period cancel-rate query sees
+  // OLD-Cancel-during-hold cancellations too. Plain draft-discards (no Send
+  // ever clicked) are not a send terminal outcome and must not be logged.
+  const wasSendQueued =
+    existing != null &&
+    (existing.holdTimer != null || existing.holdPending === true);
+  const to = existing?.to;
+  const subject = existing?.subject;
   if (hadState) {
     deps.draftReplyService.drop(pendingId);
   }
@@ -1000,6 +1024,14 @@ async function handleEmailDraftCancel(
     // Don't editReply; we have nothing to cancel and any write would clobber
     // the terminal UI the Send flow owns.
     return;
+  }
+  if (wasSendQueued) {
+    recordSentLogSafe(deps.emailSentLog, {
+      action: 'cancelled',
+      draftId: pendingId,
+      to: to!,
+      subject: subject!,
+    });
   }
   await (ixn as any).editReply({
     content: '❌ Отменено',

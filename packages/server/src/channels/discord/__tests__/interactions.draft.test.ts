@@ -861,6 +861,48 @@ describe('email_draft:send — hold zone', () => {
     );
   });
 
+  // Defensive branch: account is removed between Send click and timer fire
+  // (e.g. config reload, account disabled). The ephemeral is still showing
+  // "Will send at …" + Cancel-send — surface the failure so the user isn't
+  // lied to by stale UI, and log the error so it's observable in the audit.
+  it('executeQueuedSend account-missing → records error + edits ephemeral to account warning', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const imapAccounts = new Map<string, ImapAccount>([['acc-1', SAMPLE_ACCOUNT]]);
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+      imapAccounts,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const ixn = makeButton({
+      customId: 'email_draft:send:p1',
+      createdTimestamp: Date.now(),
+    });
+
+    await routeInteraction(ixn, deps);
+    // Simulate account being removed between Send-time pre-check and timer fire.
+    imapAccounts.delete('acc-1');
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect((deps.smtpClient as any).sendReply).not.toHaveBeenCalled();
+    expect(recordLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'error',
+        draftId: 'p1',
+        errorMessage: expect.stringContaining('acc-1 missing'),
+      }),
+    );
+    expect(ixn.webhook.editMessage).toHaveBeenCalledWith(
+      '@original',
+      expect.objectContaining({
+        content: expect.stringContaining('acc-1'),
+        components: [],
+      }),
+    );
+  });
+
   it('emailSentLog.record throws on success path → ephemeral still edits to "Sent"', async () => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
     const recordLog = vi.fn().mockImplementation(() => {
@@ -973,6 +1015,60 @@ describe('email_draft:cancel', () => {
         content: expect.stringContaining('Отменено'),
         components: [],
       }),
+    );
+  });
+
+  // OLD Cancel button click while Send's hold timer is armed must also record
+  // a 'cancelled' audit row, otherwise the post-period cancel-rate query
+  // undercounts every stale-client cancel that lands on the old button.
+  it('OLD Cancel on a hold-armed draft → records cancelled in emailSentLog', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const sendIxn = makeButton({
+      customId: 'email_draft:send:p1',
+      createdTimestamp: Date.now(),
+    });
+    await routeInteraction(sendIxn, deps);
+    expect(deps.draftReplyService!.get('p1')?.holdTimer).toBeTruthy();
+
+    const cancelIxn = makeButton({ customId: 'email_draft:cancel:p1' });
+    await routeInteraction(cancelIxn, deps);
+
+    expect(recordLog).toHaveBeenCalledTimes(1);
+    expect(recordLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'cancelled',
+        draftId: 'p1',
+        to: 'alice@example.com',
+        subject: 'Re: Project status',
+      }),
+    );
+    // Timer was disarmed by drop — SMTP must not fire on advance.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect((deps.smtpClient as any).sendReply).not.toHaveBeenCalled();
+  });
+
+  // OLD Cancel on a plain (never-Send-clicked) draft must NOT log — it's a
+  // draft discard, not a send terminal outcome, and logging would skew the
+  // cancel-rate metric.
+  it('OLD Cancel on a non-Send-armed draft → does NOT record cancelled', async () => {
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const cancelIxn = makeButton({ customId: 'email_draft:cancel:p1' });
+
+    await routeInteraction(cancelIxn, deps);
+
+    expect(recordLog).not.toHaveBeenCalled();
+    expect(cancelIxn.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Отменено') }),
     );
   });
 
