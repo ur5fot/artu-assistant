@@ -9,6 +9,12 @@ export interface DraftState {
   body: string;
   holdTimer?: ReturnType<typeof setTimeout> | null;
   holdSendAt?: number | null;
+  // True between Send click and armHold, i.e. while editReply is in flight.
+  // Distinct from holdTimer because the timer can only be armed after
+  // editReply resolves, but the draft body must be locked from the moment
+  // the user clicks Send — otherwise a stale Edit modal can mutate the body
+  // during the round-trip and the timer fires against unreviewed content.
+  holdPending?: boolean | null;
 }
 
 export interface DraftReplyService {
@@ -32,6 +38,7 @@ export function createDraftReplyService(deps: Deps): DraftReplyService {
         ...state,
         holdTimer: state.holdTimer ?? null,
         holdSendAt: state.holdSendAt ?? null,
+        holdPending: state.holdPending ?? null,
       });
     },
     get(id) {
