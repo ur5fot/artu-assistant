@@ -237,4 +237,83 @@ describe('createEmailStore', () => {
     // handler must not re-surface it as a separate ping.
     expect(store.findUnpingedUrgent()).toBeNull();
   });
+
+  it('findMostRecentUrgent returns null when nothing has been pinged', () => {
+    const store = createEmailStore({ db: getDb() });
+    expect(store.findMostRecentUrgent()).toBeNull();
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    expect(store.findMostRecentUrgent()).toBeNull();
+  });
+
+  it('findMostRecentUrgent returns the row with the largest positive urgent_pinged_at', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 'older',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: 'x', subject: 'newer',
+      snippet: 'x', importance: 5, received_at: 2000, added_at: 2000,
+    });
+    const rows = store.fetchPendingUndelivered(50);
+    const older = rows.find((r) => r.subject === 'older')!;
+    const newer = rows.find((r) => r.subject === 'newer')!;
+    store.markUrgentPinged(older.id, 100_000);
+    store.markUrgentPinged(newer.id, 200_000);
+    expect(store.findMostRecentUrgent()?.id).toBe(newer.id);
+  });
+
+  it('findMostRecentUrgent excludes suppressed-by-rule sentinel (-1)', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 'real',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: 'x', subject: 'suppressed',
+      snippet: 'x', importance: 5, received_at: 2000, added_at: 2000,
+    });
+    const rows = store.fetchPendingUndelivered(50);
+    const real = rows.find((r) => r.subject === 'real')!;
+    const suppressed = rows.find((r) => r.subject === 'suppressed')!;
+    store.markUrgentPinged(real.id, 50_000);
+    store.markUrgentPinged(suppressed.id, -1);
+    // Without the `> 0` filter the suppressed row would be returned because
+    // its `urgent_pinged_at` (-1) is not NULL — that would lie to `/why` by
+    // surfacing it as the "last urgent ping".
+    expect(store.findMostRecentUrgent()?.id).toBe(real.id);
+  });
+
+  it('countPendingFromSender counts only the matching sender within the window', () => {
+    const store = createEmailStore({ db: getDb() });
+    const sender = 'alerts@bank.com';
+    const other = 'spam@x.com';
+    const now = 1_700_000_000_000;
+    const sinceMs = now - 7 * 86_400_000;
+    // 3 from target sender inside window
+    for (let uid = 1; uid <= 3; uid++) {
+      store.insertPending({
+        account_id: 'a', message_uid: uid, from_addr: sender, subject: 's',
+        snippet: 'x', importance: 4, received_at: now - uid * 1000, added_at: now,
+      });
+    }
+    // 1 from target sender BEFORE the window — must be excluded
+    store.insertPending({
+      account_id: 'a', message_uid: 4, from_addr: sender, subject: 'old',
+      snippet: 'x', importance: 4, received_at: sinceMs - 1, added_at: now,
+    });
+    // 2 from other sender inside window — must not contaminate the count
+    for (let uid = 5; uid <= 6; uid++) {
+      store.insertPending({
+        account_id: 'a', message_uid: uid, from_addr: other, subject: 's',
+        snippet: 'x', importance: 4, received_at: now - uid * 1000, added_at: now,
+      });
+    }
+    expect(store.countPendingFromSender(sender, sinceMs)).toBe(3);
+    expect(store.countPendingFromSender(other, sinceMs)).toBe(2);
+    expect(store.countPendingFromSender('nobody@nope', sinceMs)).toBe(0);
+  });
 });

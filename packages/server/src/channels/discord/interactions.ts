@@ -9,6 +9,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  EmbedBuilder,
   MessageFlags,
   ModalBuilder,
   TextInputBuilder,
@@ -1616,6 +1617,10 @@ async function routeSlashCommand(
     }
     return;
   }
+  if (name === 'why') {
+    await handleWhySlash(ixn, deps);
+    return;
+  }
   if (name === 'heartbeat') {
     const sub = (ixn as any).options.getSubcommand();
     if (sub === 'status') {
@@ -1658,4 +1663,123 @@ async function routeSlashCommand(
       content: `Unknown /heartbeat subcommand: \`${sub}\`.`,
     });
   }
+}
+
+// Embed-friendly subject clip. Discord embed description has a 4096-char cap,
+// but the full /why payload is small; we clip subject independently so a
+// pathological 5KB subject doesn't push the rest off-screen.
+const WHY_SUBJECT_MAX_LEN = 100;
+function clipSubjectForWhy(subject: string): string {
+  return subject.length > WHY_SUBJECT_MAX_LEN
+    ? subject.slice(0, WHY_SUBJECT_MAX_LEN - 1) + '…'
+    : subject;
+}
+
+function formatWhyTime(ms: number): string {
+  // `HH:MM DD.MM` — short form matching the plan's embed mockup. Same uk-UA
+  // locale used elsewhere (24h, day-first) so dates align across surfaces.
+  const d = new Date(ms);
+  const time = d.toLocaleTimeString('uk-UA', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const date = d.toLocaleDateString('uk-UA', {
+    day: '2-digit',
+    month: '2-digit',
+  });
+  return `${time} ${date}`;
+}
+
+function formatWhyHourMinute(ms: number): string {
+  return new Date(ms).toLocaleTimeString('uk-UA', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function describeRule(rule: import('../../emails/suppression-store.js').SuppressionRule): string {
+  const expires =
+    rule.expires_at === null ? 'навсегда' : `до ${formatExpiryLabel(rule.expires_at)}`;
+  const kind = rule.rule_type === 'sender' ? 'отправитель' : 'тема';
+  return `${kind} \`${rule.pattern}\` (${expires})`;
+}
+
+async function handleWhySlash(
+  ixn: ChatInputCommandInteraction,
+  deps: InteractionDeps,
+): Promise<void> {
+  const rawId = (ixn as any).options.getInteger('id') as number | null;
+  const id = typeof rawId === 'number' ? rawId : undefined;
+  const result = deps.commandService.whyEmailUrgent({ id });
+
+  if (result.kind === 'not_configured') {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Email-наблюдение не настроено.',
+    });
+    return;
+  }
+  if (result.kind === 'not_found') {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: `Письмо с id=\`${result.id}\` не найдено.`,
+    });
+    return;
+  }
+  if (result.kind === 'no_recent_urgent') {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Недавних urgent писем нет.',
+    });
+    return;
+  }
+
+  if (result.kind === 'suppressed') {
+    const row = result.row;
+    const ruleLine = result.matchedRule
+      ? describeRule(result.matchedRule)
+      : 'правило истекло или удалено';
+    const embed = new EmbedBuilder()
+      .setTitle('🙈 Suppressed by rule')
+      .setDescription(
+        [
+          `From: ${row.from_addr}`,
+          `Subject: ${clipSubjectForWhy(row.subject)}`,
+          `Получено: ${formatWhyTime(row.received_at)}`,
+          '',
+          `Заглушено правилом: ${ruleLine}`,
+        ].join('\n'),
+      );
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      embeds: [embed],
+    });
+    return;
+  }
+
+  // kind === 'urgent'
+  const row = result.row;
+  const pingedAt =
+    row.urgent_pinged_at != null && row.urgent_pinged_at > 0
+      ? formatWhyHourMinute(row.urgent_pinged_at)
+      : '—';
+  const ruleLine = result.activeRule ? describeRule(result.activeRule) : '—';
+  const embed = new EmbedBuilder()
+    .setTitle('🔍 Why this is urgent')
+    .setDescription(
+      [
+        `From: ${row.from_addr}`,
+        `Subject: ${clipSubjectForWhy(row.subject)}`,
+        `Importance: ${row.importance}/5 — received ${formatWhyTime(row.received_at)} — pinged ${pingedAt}`,
+        '',
+        'Прошлые 7 дней с этого отправителя:',
+        `  пингов: ${result.history.pendings} — отправлено: ${result.history.sent} — отменено: ${result.history.cancelled} — ошибок: ${result.history.error}`,
+        '',
+        `Активное правило заглушения: ${ruleLine}`,
+      ].join('\n'),
+    );
+  await (ixn as any).reply({
+    flags: MessageFlags.Ephemeral,
+    embeds: [embed],
+  });
 }

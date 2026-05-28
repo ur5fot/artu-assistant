@@ -16,6 +16,13 @@ export interface EmailStore {
   findByPendingId(id: number): EmailPendingRow | null;
   findUnpingedUrgent(): EmailPendingRow | null;
   markUrgentPinged(id: number, now: number): void;
+  /** Most recent row whose urgent path actually published (positive
+   *  `urgent_pinged_at`). Suppressed rows (sentinel `-1`) and never-pinged
+   *  rows (NULL) are excluded — `/why` with no arg targets only real pings. */
+  findMostRecentUrgent(): EmailPendingRow | null;
+  /** Count of distinct `email_pending` rows for this sender since `sinceMs`.
+   *  Used by `/why` to surface frequency from the same sender. */
+  countPendingFromSender(sender: string, sinceMs: number): number;
 }
 
 export function createEmailStore(deps: { db: Database.Database }): EmailStore {
@@ -132,6 +139,28 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
     // queries (`findUnpingedUrgent`, `/why`) interpret the value.
     markUrgentPinged(id, now) {
       db.prepare('UPDATE email_pending SET urgent_pinged_at = ? WHERE id = ?').run(now, id);
+    },
+    findMostRecentUrgent() {
+      // Filter on `> 0` (not `IS NOT NULL`) so the suppression sentinel `-1`
+      // doesn't get surfaced as a real urgent ping by `/why` without args.
+      const row = db
+        .prepare(
+          `SELECT * FROM email_pending
+           WHERE urgent_pinged_at IS NOT NULL AND urgent_pinged_at > 0
+           ORDER BY urgent_pinged_at DESC
+           LIMIT 1`,
+        )
+        .get() as EmailPendingRow | undefined;
+      return row ?? null;
+    },
+    countPendingFromSender(sender, sinceMs) {
+      const row = db
+        .prepare(
+          `SELECT COUNT(*) AS c FROM email_pending
+           WHERE from_addr = ? AND received_at >= ?`,
+        )
+        .get(sender, sinceMs) as { c: number };
+      return row.c;
     },
   };
 }

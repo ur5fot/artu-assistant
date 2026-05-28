@@ -311,19 +311,19 @@ Dependencies: no new npm packages.
 
 ### Task 6: `/why` slash command
 
-- [ ] in
+- [x] in
   `packages/server/src/channels/discord/slash-commands.ts`,
   register a new `/why` command (alongside `/clear`, `/status`,
   `/reminders`, etc.) with an optional integer arg `id` (the
   `email_pending.id` to inspect).
-- [ ] new method on `emailSentLog` if missing:
+- [x] new method on `emailSentLog` if missing:
   `listBySender(sender, sinceMs): EmailSentLogRow[]` (or
   `countBySender(sender, sinceMs, action)`). Test as part of this task.
-- [ ] new method on `emailStore`: `getById(id): EmailPendingRow | null`
+- [x] new method on `emailStore`: `getById(id): EmailPendingRow | null`
   (if not already present) and `findMostRecentUrgent(): EmailPendingRow |
   null` (most recent row with `urgent_pinged_at` not null and != -1, i.e.
   successfully pinged). Tests as part of this task.
-- [ ] handler in
+- [x] handler in
   `packages/server/src/channels/discord/command-service.ts` or wherever
   slash commands route through:
   - if arg `id` provided → `emailStore.getById(id)`. If null → reply
@@ -364,7 +364,7 @@ Dependencies: no new npm packages.
       Активное правило заглушения: <text or "—">
       ```
     - reply ephemerally (only the user sees it).
-- [ ] write tests in
+- [x] write tests in
   `packages/server/src/channels/discord/__tests__/command-service.why.test.ts`
   (new file):
   - `/why` (no arg) with no urgent rows → "Недавних urgent писем нет"
@@ -377,7 +377,7 @@ Dependencies: no new npm packages.
     days → counts in embed
   - `/why id:N` with row + active matching sender rule → "Активное
     правило" line shows pattern + expiry
-- [ ] run `npm -w @r2/server test -- command-service.why.test` — must
+- [x] run `npm -w @r2/server test -- command-service.why.test` — must
   pass before task 7
 
 ### Task 7: Wire into `index.ts` + bot.ts

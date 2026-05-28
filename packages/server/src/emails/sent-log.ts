@@ -13,6 +13,10 @@ export interface EmailSentLogEntry {
 export interface EmailSentLog {
   record(entry: EmailSentLogEntry): void;
   countLastDays(action: EmailSentAction, days: number): number;
+  /** Count of `action` events to `sender` (matched by `to_addr`, which is the
+   *  recipient of the reply = original sender of the urgent email) within the
+   *  last `days` days. Used by `/why` to show per-sender history. */
+  countBySender(sender: string, days: number, action: EmailSentAction): number;
 }
 
 export function createEmailSentLog(deps: { db: Database.Database }): EmailSentLog {
@@ -39,6 +43,16 @@ export function createEmailSentLog(deps: { db: Database.Database }): EmailSentLo
           'SELECT COUNT(*) AS c FROM email_sent_log WHERE action = ? AND created_at > ?',
         )
         .get(action, cutoff) as { c: number };
+      return row.c;
+    },
+    countBySender(sender, days, action) {
+      const cutoff = Date.now() - days * 86400_000;
+      const row = db
+        .prepare(
+          `SELECT COUNT(*) AS c FROM email_sent_log
+           WHERE to_addr = ? AND action = ? AND created_at > ?`,
+        )
+        .get(sender, action, cutoff) as { c: number };
       return row.c;
     },
   };
