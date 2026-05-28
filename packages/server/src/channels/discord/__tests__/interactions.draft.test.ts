@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import {
   parseFromAddress,
@@ -115,18 +115,21 @@ function makeModalSubmit(overrides: Record<string, any> = {}) {
 }
 
 function makeButton(overrides: Record<string, any> = {}) {
+  const webhookEditMessage = vi.fn().mockResolvedValue(undefined);
   return {
     isButton: () => true,
     isModalSubmit: () => false,
     isChatInputCommand: () => false,
     user: { id: 'user-1' },
     customId: 'email_draft:start:7',
+    createdTimestamp: Date.now(),
     deferReply: vi.fn().mockResolvedValue(undefined),
     deferUpdate: vi.fn().mockResolvedValue(undefined),
     editReply: vi.fn().mockResolvedValue({ id: 'msg-99' }),
     reply: vi.fn().mockResolvedValue(undefined),
     update: vi.fn().mockResolvedValue(undefined),
     showModal: vi.fn().mockResolvedValue(undefined),
+    webhook: { editMessage: webhookEditMessage },
     ...overrides,
   } as any;
 }
@@ -557,6 +560,235 @@ describe('email_draft:send', () => {
       }),
     );
     expect(ixn.deferUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('email_draft:send — hold zone', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('bypass mode (holdSeconds=0): SMTP fires synchronously, records sent, no Cancel-send button', async () => {
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 0,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const ixn = makeButton({ customId: 'email_draft:send:p1' });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.smtpClient as any).sendReply).toHaveBeenCalledTimes(1);
+    expect(recordLog).toHaveBeenCalledTimes(1);
+    expect(recordLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'sent',
+        draftId: 'p1',
+        to: 'alice@example.com',
+        subject: 'Re: Project status',
+      }),
+    );
+    const editArg = ixn.editReply.mock.calls[ixn.editReply.mock.calls.length - 1][0];
+    expect(editArg.content).toContain('Отправлено');
+    expect(editArg.components).toEqual([]);
+  });
+
+  it('bypass mode SMTP failure: records error, restores state + buttons', async () => {
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 0,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+      smtpClient: { sendReply: vi.fn().mockRejectedValue(new Error('554 reject')) },
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const ixn = makeButton({ customId: 'email_draft:send:p1' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(recordLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'error',
+        draftId: 'p1',
+        errorMessage: expect.stringContaining('554 reject'),
+      }),
+    );
+    expect(deps.draftReplyService!.has('p1')).toBe(true);
+  });
+
+  it('hold path: arms timer, edits to "Will send at HH:MM:SS" + Cancel-send, no SMTP yet', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const ixn = makeButton({
+      customId: 'email_draft:send:p1',
+      createdTimestamp: Date.now(),
+    });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.smtpClient as any).sendReply).not.toHaveBeenCalled();
+    expect(recordLog).not.toHaveBeenCalled();
+
+    const editArg = ixn.editReply.mock.calls[ixn.editReply.mock.calls.length - 1][0];
+    expect(editArg.content).toMatch(/Will send at \d{2}:\d{2}:\d{2}/);
+    expect(editArg.components).toHaveLength(1);
+    const cancelCustomId = editArg.components[0].components[0].data.custom_id;
+    expect(cancelCustomId).toBe('email_draft:cancelSend:p1');
+
+    const state = deps.draftReplyService!.get('p1');
+    expect(state!.holdTimer).not.toBeNull();
+    expect(state!.holdSendAt).toBe(Date.now() + 30_000);
+  });
+
+  it('15-min pre-check: ephemeral lifetime too short → refuse, drop state, no timer, no SMTP', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    // Interaction created 14 min ago → only 1 min of ephemeral life left, less
+    // than holdSeconds(30) + 60s buffer.
+    const ixn = makeButton({
+      customId: 'email_draft:send:p1',
+      createdTimestamp: Date.now() - 14 * 60 * 1000,
+    });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.smtpClient as any).sendReply).not.toHaveBeenCalled();
+    expect(recordLog).not.toHaveBeenCalled();
+    expect(deps.draftReplyService!.has('p1')).toBe(false);
+    const editArg = ixn.editReply.mock.calls[ixn.editReply.mock.calls.length - 1][0];
+    expect(editArg.content).toContain('истекает');
+    expect(editArg.components).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect((deps.smtpClient as any).sendReply).not.toHaveBeenCalled();
+  });
+
+  it('timer expiry success: SMTP called once, records sent, edits "@original" to "✅ Sent"', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const ixn = makeButton({
+      customId: 'email_draft:send:p1',
+      createdTimestamp: Date.now(),
+    });
+
+    await routeInteraction(ixn, deps);
+    expect((deps.smtpClient as any).sendReply).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect((deps.smtpClient as any).sendReply).toHaveBeenCalledTimes(1);
+    expect(recordLog).toHaveBeenCalledTimes(1);
+    expect(recordLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'sent', draftId: 'p1' }),
+    );
+    expect(ixn.webhook.editMessage).toHaveBeenCalledWith(
+      '@original',
+      expect.objectContaining({
+        content: expect.stringContaining('Sent'),
+        components: [],
+      }),
+    );
+    expect(deps.draftReplyService!.has('p1')).toBe(false);
+  });
+
+  it('timer expiry SMTP failure: records error, edits "@original" to clamped error string', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+      smtpClient: { sendReply: vi.fn().mockRejectedValue(new Error('554 reject')) },
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const ixn = makeButton({
+      customId: 'email_draft:send:p1',
+      createdTimestamp: Date.now(),
+    });
+
+    await routeInteraction(ixn, deps);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(recordLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'error',
+        draftId: 'p1',
+        errorMessage: expect.stringContaining('554 reject'),
+      }),
+    );
+    expect(ixn.webhook.editMessage).toHaveBeenCalledWith(
+      '@original',
+      expect.objectContaining({
+        content: expect.stringContaining('554 reject'),
+        components: [],
+      }),
+    );
+    expect(deps.draftReplyService!.has('p1')).toBe(false);
+  });
+
+  it('edit-after-expire: webhook.editMessage rejects but SMTP completes + records sent + no thrown error', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const failingEdit = vi.fn().mockRejectedValue(new Error('Unknown Webhook'));
+    const ixn = makeButton({
+      customId: 'email_draft:send:p1',
+      createdTimestamp: Date.now(),
+      webhook: { editMessage: failingEdit },
+    });
+
+    await routeInteraction(ixn, deps);
+    // advanceTimersByTimeAsync awaits the timer-fired promise chain; this would
+    // reject if executeQueuedSend let the edit error escape.
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect((deps.smtpClient as any).sendReply).toHaveBeenCalledTimes(1);
+    expect(recordLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'sent', draftId: 'p1' }),
+    );
+    expect(failingEdit).toHaveBeenCalled();
+    expect(deps.draftReplyService!.has('p1')).toBe(false);
+  });
+
+  it('missing state on Send (hold mode) → "истёк" path preserved, no timer armed', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const recordLog = vi.fn();
+    const deps = makeDeps({
+      emailSendHoldSeconds: 30,
+      emailSentLog: { record: recordLog, countLastDays: vi.fn() } as any,
+    });
+    const ixn = makeButton({
+      customId: 'email_draft:send:missing',
+      createdTimestamp: Date.now(),
+    });
+
+    await routeInteraction(ixn, deps);
+
+    const editArg = ixn.editReply.mock.calls[ixn.editReply.mock.calls.length - 1][0];
+    expect(editArg.content).toContain('истёк');
+    expect(editArg.components).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect((deps.smtpClient as any).sendReply).not.toHaveBeenCalled();
+    expect(recordLog).not.toHaveBeenCalled();
   });
 });
 

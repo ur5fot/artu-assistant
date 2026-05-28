@@ -624,6 +624,26 @@ function clipDraftBodyForDisplay(body: string): string {
     : body;
 }
 
+// Absolute-time label for the hold zone ephemeral. uk-UA locale renders 24h
+// `HH:MM:SS` consistently with the user's expectations; a 12h locale would
+// surface AM/PM which clashes with the rest of the bot.
+function formatHoldTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString('uk-UA', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function buildCancelSendActionRow(pendingId: string): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`email_draft:cancelSend:${pendingId}`)
+      .setLabel('Cancel send')
+      .setStyle(ButtonStyle.Danger),
+  );
+}
+
 async function handleEmailDraftSend(
   ixn: ButtonInteraction,
   deps: InteractionDeps,
@@ -637,10 +657,6 @@ async function handleEmailDraftSend(
     return;
   }
   await (ixn as any).deferUpdate();
-  // Consume the draft *before* awaiting SMTP so a rapid double-click can't
-  // observe the same pending state twice and send duplicate emails. Restore
-  // it on transient failures (no account, SMTP reject) so the user can retry
-  // without re-generating the draft.
   const state = deps.draftReplyService.get(pendingId);
   if (!state) {
     await (ixn as any).editReply({
@@ -649,44 +665,193 @@ async function handleEmailDraftSend(
     });
     return;
   }
-  deps.draftReplyService.drop(pendingId);
+
+  // Treat absent dep as 0 (bypass) so existing call sites without the env
+  // wiring keep the pre-iter-3 synchronous behaviour.
+  const holdSeconds = deps.emailSendHoldSeconds ?? 0;
+
+  if (holdSeconds === 0) {
+    // Bypass branch: consume state before awaiting SMTP so a rapid double-click
+    // can't observe the same pending state twice and send duplicate emails.
+    // Restore it on transient failures (no account, SMTP reject) so the user
+    // can retry without re-generating the draft.
+    deps.draftReplyService.drop(pendingId);
+    const account = deps.imapAccounts.get(state.accountId);
+    if (!account) {
+      deps.draftReplyService.put(state);
+      await (ixn as any).editReply({
+        content: `⚠️ Аккаунт ${state.accountId} не настроен`,
+        components: [buildDraftActionRow(pendingId)],
+      });
+      return;
+    }
+    try {
+      await deps.smtpClient.sendReply({
+        account,
+        to: state.to,
+        subject: state.subject,
+        body: state.body,
+        inReplyTo: state.inReplyTo,
+        references: state.references,
+      });
+    } catch (err) {
+      deps.draftReplyService.put(state);
+      const msg = err instanceof Error ? err.message : String(err);
+      deps.emailSentLog?.record({
+        action: 'error',
+        draftId: pendingId,
+        to: state.to,
+        subject: state.subject,
+        errorMessage: msg,
+      });
+      await (ixn as any).editReply({
+        content: clampReplyContent(`❌ Не отправилось: ${msg}`),
+        components: [buildDraftActionRow(pendingId)],
+      });
+      return;
+    }
+    deps.emailSentLog?.record({
+      action: 'sent',
+      draftId: pendingId,
+      to: state.to,
+      subject: state.subject,
+    });
+    await (ixn as any).editReply({
+      content: '✅ Отправлено',
+      components: [],
+    });
+    return;
+  }
+
+  // Hold branch: arm a per-draft timer; SMTP fires inside executeQueuedSend.
+  // Pre-check that the 15-min ephemeral webhook window has enough lifetime
+  // left for the hold + a 60s buffer (clock skew + SMTP latency). If not,
+  // refuse Send so the timer doesn't fire with an already-expired token.
+  const ephemeralExpiresAt = ixn.createdTimestamp + 15 * 60 * 1000;
+  if (Date.now() + holdSeconds * 1000 + 60_000 > ephemeralExpiresAt) {
+    deps.draftReplyService.drop(pendingId);
+    await (ixn as any).editReply({
+      content: '⚠️ Сессия черновика истекает. Нажми Draft reply ещё раз.',
+      components: [],
+    });
+    return;
+  }
+
   const account = deps.imapAccounts.get(state.accountId);
   if (!account) {
-    // Restore state + keep buttons mirrors the SMTP-reject branch below: the
-    // user can still Cancel (to clean up the leaked Map entry) or retry Send
-    // if config is fixed before the 15-min ephemeral window expires. Stripping
-    // buttons here would leave the draft permanently unreachable while state
-    // sits in pendingDrafts until process restart.
-    deps.draftReplyService.put(state);
     await (ixn as any).editReply({
       content: `⚠️ Аккаунт ${state.accountId} не настроен`,
       components: [buildDraftActionRow(pendingId)],
     });
     return;
   }
+
+  const sendAt = Date.now() + holdSeconds * 1000;
+  const timer = setTimeout(
+    () => executeQueuedSend(pendingId, ixn, deps),
+    holdSeconds * 1000,
+  );
+  deps.draftReplyService.armHold(pendingId, timer, sendAt);
+
+  await (ixn as any).editReply({
+    content: `✉️ Will send at ${formatHoldTime(sendAt)}`,
+    components: [buildCancelSendActionRow(pendingId)],
+  });
+}
+
+// Timer-fired tail of the hold-zone Send. Runs out-of-band from the original
+// click, so any thrown error here has no caller to surface it — wrap the whole
+// body in a try/catch and only escalate to logger.warn. The ephemeral webhook
+// token can still be valid here (we pre-checked at Send time); if the edit
+// fails anyway (clock skew, deep buffer miss) we accept the loss — SMTP has
+// already completed and the user can verify in their Sent folder.
+async function executeQueuedSend(
+  pendingId: string,
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+): Promise<void> {
   try {
-    await deps.smtpClient.sendReply({
-      account,
+    if (!deps.draftReplyService || !deps.imapAccounts || !deps.smtpClient) return;
+    const state = deps.draftReplyService.get(pendingId);
+    // holdTimer null/undefined means Cancel ran between this setTimeout firing
+    // and the callback actually executing (rare microtask race in production;
+    // unreachable under fake timers since clearTimeout in disarmHold cancels
+    // the scheduled callback synchronously).
+    if (!state || !state.holdTimer) return;
+
+    deps.draftReplyService.disarmHold(pendingId);
+
+    const account = deps.imapAccounts.get(state.accountId);
+    if (!account) {
+      // Pre-check at Send time normally catches this; fall through defensively.
+      deps.draftReplyService.drop(pendingId);
+      deps.emailSentLog?.record({
+        action: 'error',
+        draftId: pendingId,
+        to: state.to,
+        subject: state.subject,
+        errorMessage: `Account ${state.accountId} missing at send time`,
+      });
+      return;
+    }
+
+    try {
+      await deps.smtpClient.sendReply({
+        account,
+        to: state.to,
+        subject: state.subject,
+        body: state.body,
+        inReplyTo: state.inReplyTo,
+        references: state.references,
+      });
+    } catch (err) {
+      deps.draftReplyService.drop(pendingId);
+      const msg = err instanceof Error ? err.message : String(err);
+      deps.emailSentLog?.record({
+        action: 'error',
+        draftId: pendingId,
+        to: state.to,
+        subject: state.subject,
+        errorMessage: msg,
+      });
+      try {
+        await (ixn as any).webhook.editMessage('@original', {
+          content: clampReplyContent(`❌ Не отправилось: ${msg}`),
+          components: [],
+        });
+      } catch (editErr) {
+        console.warn(
+          '[email_draft] ephemeral edit failed after SMTP error:',
+          editErr instanceof Error ? editErr.message : editErr,
+        );
+      }
+      return;
+    }
+
+    deps.draftReplyService.drop(pendingId);
+    deps.emailSentLog?.record({
+      action: 'sent',
+      draftId: pendingId,
       to: state.to,
       subject: state.subject,
-      body: state.body,
-      inReplyTo: state.inReplyTo,
-      references: state.references,
     });
-  } catch (err) {
-    // Restore state + buttons so the user can retry without re-generating.
-    deps.draftReplyService.put(state);
-    const msg = err instanceof Error ? err.message : String(err);
-    await (ixn as any).editReply({
-      content: clampReplyContent(`❌ Не отправилось: ${msg}`),
-      components: [buildDraftActionRow(pendingId)],
-    });
-    return;
+    try {
+      await (ixn as any).webhook.editMessage('@original', {
+        content: '✅ Sent',
+        components: [],
+      });
+    } catch (editErr) {
+      console.warn(
+        '[email_draft] ephemeral edit failed after SMTP success:',
+        editErr instanceof Error ? editErr.message : editErr,
+      );
+    }
+  } catch (outerErr) {
+    console.error(
+      '[email_draft] executeQueuedSend unexpected error:',
+      outerErr instanceof Error ? outerErr.message : outerErr,
+    );
   }
-  await (ixn as any).editReply({
-    content: '✅ Отправлено',
-    components: [],
-  });
 }
 
 async function handleEmailDraftCancel(

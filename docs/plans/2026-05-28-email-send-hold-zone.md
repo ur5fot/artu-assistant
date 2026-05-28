@@ -231,7 +231,7 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
 
 ### Task 4: Refactor `handleEmailDraftSend` — bypass, pre-check, arm timer
 
-- [ ] in `packages/server/src/channels/discord/interactions.ts`, modify
+- [x] in `packages/server/src/channels/discord/interactions.ts`, modify
   the `email_draft:send` handler (`handleEmailDraftSend` around
   lines 622-685):
   - keep `deferUpdate()` at the start
@@ -258,7 +258,7 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
       {hour:'2-digit', minute:'2-digit', second:'2-digit'})`)
     - `editReply` to show `label` and a single `Cancel send` button
       (`email_draft:cancelSend:${pendingId}`)
-- [ ] extract a private helper `async function
+- [x] extract a private helper `async function
   executeQueuedSend(pendingId, interaction, deps)`:
   - look up state; if missing or `holdTimer` is null (cancelled
     between fire and execution) → silent return
@@ -275,7 +275,7 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
     errorMessage: err.message, ...})`, try edit ephemeral to clamped
     error string (reuse `clampReplyContent`), no buttons. Same
     try/catch on the edit.
-- [ ] write tests in `interactions.draft.test.ts` with fake timers
+- [x] write tests in `interactions.draft.test.ts` with fake timers
   (note: vitest does NOT fake `Date.now()` by default —
   `vi.useFakeTimers({toFake:['Date','setTimeout','clearTimeout']})` is
   needed to control absolute timestamps):
@@ -295,7 +295,7 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
     rejects (simulated expired webhook), SMTP still completes,
     `record('sent')` still called, no thrown error
   - missing state on Send → existing "expired" path preserved
-- [ ] run `npm -w @r2/server test -- interactions.draft` — must pass
+- [x] run `npm -w @r2/server test -- interactions.draft` — must pass
   before task 5
 
 ### Task 5: New `Cancel send` button handler
