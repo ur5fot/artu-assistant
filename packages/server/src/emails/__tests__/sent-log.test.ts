@@ -111,4 +111,57 @@ describe('createEmailSentLog', () => {
     expect(repo.countLastDays('sent', 7)).toBe(1);
     expect(repo.countLastDays('sent', 30)).toBe(2);
   });
+
+  it('countBySender filters by to_addr, action, and window', () => {
+    const repo = createEmailSentLog({ db: getDb() });
+    repo.record({ action: 'sent', draftId: 'a', to: 'alerts@bank.com', subject: 's1' });
+    repo.record({ action: 'sent', draftId: 'b', to: 'alerts@bank.com', subject: 's2' });
+    repo.record({ action: 'cancelled', draftId: 'c', to: 'alerts@bank.com', subject: 's3' });
+    repo.record({ action: 'sent', draftId: 'd', to: 'other@x.com', subject: 's4' });
+    repo.record({
+      action: 'error',
+      draftId: 'e',
+      to: 'alerts@bank.com',
+      subject: 's5',
+      errorMessage: 'oops',
+    });
+
+    expect(repo.countBySender('alerts@bank.com', 7, 'sent')).toBe(2);
+    expect(repo.countBySender('alerts@bank.com', 7, 'cancelled')).toBe(1);
+    expect(repo.countBySender('alerts@bank.com', 7, 'error')).toBe(1);
+    expect(repo.countBySender('other@x.com', 7, 'sent')).toBe(1);
+    expect(repo.countBySender('nobody@nope', 7, 'sent')).toBe(0);
+  });
+
+  it('countBySender excludes rows older than the window', () => {
+    const db = getDb();
+    const tenDaysAgo = Date.now() - 10 * 86400_000;
+    db.prepare(
+      `INSERT INTO email_sent_log
+       (action, draft_id, to_addr, subject, error_message, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run('sent', 'old', 'alerts@bank.com', 's-old', null, tenDaysAgo);
+    const repo = createEmailSentLog({ db });
+    repo.record({ action: 'sent', draftId: 'new', to: 'alerts@bank.com', subject: 's' });
+    expect(repo.countBySender('alerts@bank.com', 7, 'sent')).toBe(1);
+    expect(repo.countBySender('alerts@bank.com', 30, 'sent')).toBe(2);
+  });
+
+  it('countBySender uses caller-supplied `now` for the window anchor', () => {
+    const db = getDb();
+    // Anchor the synthetic row in the past so the test does not depend on
+    // wall-clock time.
+    const anchor = 1_700_000_000_000;
+    db.prepare(
+      `INSERT INTO email_sent_log
+       (action, draft_id, to_addr, subject, error_message, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run('sent', 'r1', 'alerts@bank.com', 's-old', null, anchor - 3 * 86400_000);
+    const repo = createEmailSentLog({ db });
+
+    // 7-day window relative to `anchor` includes the row.
+    expect(repo.countBySender('alerts@bank.com', 7, 'sent', anchor)).toBe(1);
+    // 1-day window relative to `anchor` excludes it.
+    expect(repo.countBySender('alerts@bank.com', 1, 'sent', anchor)).toBe(0);
+  });
 });

@@ -128,6 +128,109 @@ describe('email tables', () => {
     expect(row!.sql).toMatch(/urgent_pinged_at/);
     expect(row!.sql).toMatch(/WHERE\s+urgent_pinged_at\s+IS\s+NULL/i);
   });
+
+  it('creates email_suppression_rules with expected columns', () => {
+    const cols = getDb()
+      .prepare("PRAGMA table_info('email_suppression_rules')")
+      .all() as Array<{ name: string }>;
+    const names = cols.map((c) => c.name).sort();
+    expect(names).toEqual([
+      'created_at', 'created_via', 'expires_at', 'id', 'pattern', 'rule_type',
+    ].sort());
+  });
+
+  it('email_suppression_rules CHECK constraint rejects invalid rule_type', () => {
+    const db = getDb();
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO email_suppression_rules (rule_type, pattern, created_at)
+           VALUES (?, ?, ?)`,
+        )
+        .run('bogus', 'pat', Date.now()),
+    ).toThrow();
+  });
+
+  it('email_suppression_rules allows NULL expires_at (forever)', () => {
+    const db = getDb();
+    const info = db
+      .prepare(
+        `INSERT INTO email_suppression_rules (rule_type, pattern, created_at, expires_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run('sender', 'a@b.com', Date.now(), null);
+    expect(info.changes).toBe(1);
+    const row = db
+      .prepare('SELECT expires_at FROM email_suppression_rules WHERE id = ?')
+      .get(info.lastInsertRowid) as { expires_at: number | null };
+    expect(row.expires_at).toBeNull();
+  });
+
+  it('email_suppression_rules defaults created_via to discord_button', () => {
+    const db = getDb();
+    const info = db
+      .prepare(
+        `INSERT INTO email_suppression_rules (rule_type, pattern, created_at)
+         VALUES (?, ?, ?)`,
+      )
+      .run('sender', 'a@b.com', Date.now());
+    const row = db
+      .prepare('SELECT created_via FROM email_suppression_rules WHERE id = ?')
+      .get(info.lastInsertRowid) as { created_via: string };
+    expect(row.created_via).toBe('discord_button');
+  });
+
+  it('creates index idx_email_suppression_rules_type_pattern', () => {
+    const row = getDb()
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_email_suppression_rules_type_pattern'",
+      )
+      .get() as { sql: string } | undefined;
+    expect(row).toBeDefined();
+    expect(row!.sql).toMatch(/email_suppression_rules/);
+    expect(row!.sql).toMatch(/rule_type/);
+    expect(row!.sql).toMatch(/pattern/);
+  });
+
+  it('creates index idx_email_suppression_rules_expires', () => {
+    const row = getDb()
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_email_suppression_rules_expires'",
+      )
+      .get() as { sql: string } | undefined;
+    expect(row).toBeDefined();
+    expect(row!.sql).toMatch(/email_suppression_rules/);
+    expect(row!.sql).toMatch(/expires_at/);
+  });
+
+  it('initDb is idempotent: email_suppression_rules survives a second initDb call', async () => {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const tmp = path.join(
+      os.tmpdir(),
+      `r2-db-suppress-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`,
+    );
+    try {
+      initDb(tmp);
+      let cols = getDb()
+        .prepare("PRAGMA table_info('email_suppression_rules')")
+        .all() as Array<{ name: string }>;
+      expect(cols.length).toBeGreaterThan(0);
+
+      expect(() => initDb(tmp)).not.toThrow();
+      cols = getDb()
+        .prepare("PRAGMA table_info('email_suppression_rules')")
+        .all() as Array<{ name: string }>;
+      expect(cols.length).toBeGreaterThan(0);
+    } finally {
+      closeDb();
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      for (const ext of ['-wal', '-shm']) {
+        if (fs.existsSync(tmp + ext)) fs.unlinkSync(tmp + ext);
+      }
+    }
+  });
 });
 
 describe('initDb idempotency for email_pending migrations', () => {

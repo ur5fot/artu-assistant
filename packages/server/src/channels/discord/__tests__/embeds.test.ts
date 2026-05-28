@@ -207,7 +207,7 @@ describe('buildPermissionsListReply', () => {
 });
 
 describe('buildUrgentEmailEmbed', () => {
-  it('returns plain data: title, fields (from/subject/snippet), single Draft reply button', () => {
+  it('returns plain data: title, fields (from/subject/snippet), draft+sender+subject buttons', () => {
     const { embed, components } = buildUrgentEmailEmbed(
       mkRow({
         id: 42,
@@ -224,17 +224,29 @@ describe('buildUrgentEmailEmbed', () => {
     ]);
     expect(components).toHaveLength(1);
     expect(components[0]!.type).toBe('row');
-    expect(components[0]!.buttons).toHaveLength(1);
+    expect(components[0]!.buttons).toHaveLength(3);
     expect(components[0]!.buttons[0]!).toEqual({
       customId: 'email_draft:start:42',
       label: 'Draft reply',
       style: 'primary',
+    });
+    expect(components[0]!.buttons[1]!).toEqual({
+      customId: 'email_suppress:sender_start:42',
+      label: '🙈 Sender',
+      style: 'secondary',
+    });
+    expect(components[0]!.buttons[2]!).toEqual({
+      customId: 'email_suppress:subject_start:42',
+      label: '🙈 Subject',
+      style: 'secondary',
     });
   });
 
   it('button customId encodes the email_pending row id', () => {
     const { components } = buildUrgentEmailEmbed(mkRow({ id: 1337 }));
     expect(components[0]!.buttons[0]!.customId).toBe('email_draft:start:1337');
+    expect(components[0]!.buttons[1]!.customId).toBe('email_suppress:sender_start:1337');
+    expect(components[0]!.buttons[2]!.customId).toBe('email_suppress:subject_start:1337');
   });
 
   it('collapses internal whitespace in from/subject/snippet', () => {

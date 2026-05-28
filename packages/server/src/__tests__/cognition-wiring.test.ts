@@ -6,6 +6,7 @@ import { createHandlerRegistry } from '../cognition/registry.js';
 import { createJobQueue } from '../cognition/queue.js';
 import { createDispatcher } from '../cognition/dispatcher.js';
 import { createEmailStore } from '../emails/store.js';
+import { createEmailSuppressionStore } from '../emails/suppression-store.js';
 import { createEmailUrgentHandler } from '../cognition/handlers/emailUrgent.js';
 
 beforeEach(() => initDb(':memory:'));
@@ -31,8 +32,9 @@ describe('emailUrgent cognition wiring', () => {
     const dispatcher = createDispatcher({ registry, queue, store, db });
 
     const emailStore = createEmailStore({ db });
+    const suppressionStore = createEmailSuppressionStore({ db });
     registry.register(
-      createEmailUrgentHandler({ store: emailStore, tz: TZ, quietStart: 22 }),
+      createEmailUrgentHandler({ store: emailStore, suppressionStore, tz: TZ, quietStart: 22 }),
     );
 
     db.prepare(
@@ -83,8 +85,9 @@ describe('emailUrgent cognition wiring', () => {
     const dispatcher = createDispatcher({ registry, queue, store, db });
 
     const emailStore = createEmailStore({ db });
+    const suppressionStore = createEmailSuppressionStore({ db });
     registry.register(
-      createEmailUrgentHandler({ store: emailStore, tz: TZ, quietStart: 22 }),
+      createEmailUrgentHandler({ store: emailStore, suppressionStore, tz: TZ, quietStart: 22 }),
     );
 
     db.prepare(

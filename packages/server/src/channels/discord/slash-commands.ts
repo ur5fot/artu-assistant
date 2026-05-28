@@ -31,4 +31,14 @@ export const SLASH_COMMAND_DEFINITIONS = [
     .addSubcommand((sub) => sub.setName('status').setDescription('Show heartbeat status'))
     .addSubcommand((sub) => sub.setName('pause').setDescription('Pause heartbeat'))
     .addSubcommand((sub) => sub.setName('resume').setDescription('Resume heartbeat')),
+  new SlashCommandBuilder()
+    .setName('why')
+    .setDescription('Show why an urgent email got the urgent treatment')
+    .addIntegerOption((o) =>
+      o
+        .setName('id')
+        .setDescription('email_pending row id (defaults to most recent urgent)')
+        .setRequired(false),
+    )
+    .setDMPermission(true),
 ].map((b) => b.toJSON());

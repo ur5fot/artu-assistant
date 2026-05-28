@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import type { EmailPendingRow } from './types.js';
+import { parseFromAddress } from './address.js';
 
 export interface EmailStore {
   getLastSeenUid(accountId: string): number;
@@ -16,6 +17,13 @@ export interface EmailStore {
   findByPendingId(id: number): EmailPendingRow | null;
   findUnpingedUrgent(): EmailPendingRow | null;
   markUrgentPinged(id: number, now: number): void;
+  /** Most recent row whose urgent path actually published (positive
+   *  `urgent_pinged_at`). Suppressed rows (sentinel `-1`) and never-pinged
+   *  rows (NULL) are excluded — `/why` with no arg targets only real pings. */
+  findMostRecentUrgent(): EmailPendingRow | null;
+  /** Count of distinct `email_pending` rows for this sender since `sinceMs`.
+   *  Used by `/why` to surface frequency from the same sender. */
+  countPendingFromSender(sender: string, sinceMs: number): number;
 }
 
 export function createEmailStore(deps: { db: Database.Database }): EmailStore {
@@ -70,20 +78,26 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
       );
     },
     countPendingUndelivered() {
-      // Exclude urgent-pinged rows: they were already surfaced to the user
-      // via the urgent channel, so they shouldn't keep inflating the digest
-      // threshold or get re-shown in the next batch.
+      // Exclude rows that already reached the user via an urgent ping
+      // (positive epoch ms). Suppressed-by-rule rows carry the sentinel `-1`
+      // (see SUPPRESSED_PING_SENTINEL) — those were NOT shown to the user, so
+      // they still belong in the digest as the only remaining surface.
       const row = db
         .prepare(
-          'SELECT COUNT(*) AS c FROM email_pending WHERE delivered_at IS NULL AND urgent_pinged_at IS NULL',
+          `SELECT COUNT(*) AS c FROM email_pending
+           WHERE delivered_at IS NULL
+             AND (urgent_pinged_at IS NULL OR urgent_pinged_at < 0)`,
         )
         .get() as { c: number };
       return row.c;
     },
     fetchPendingUndelivered(limit) {
+      // Same NULL-or-sentinel rule as countPendingUndelivered: suppressed rows
+      // are still candidates for the digest even though they skipped urgent.
       return db.prepare(`
         SELECT * FROM email_pending
-        WHERE delivered_at IS NULL AND urgent_pinged_at IS NULL
+        WHERE delivered_at IS NULL
+          AND (urgent_pinged_at IS NULL OR urgent_pinged_at < 0)
         ORDER BY importance DESC, received_at DESC
         LIMIT ?
       `).all(limit) as EmailPendingRow[];
@@ -124,8 +138,51 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
     // Silent no-op on missing id: the emailUrgent handler races with itself
     // across ticks (trigger sees row, run re-fetches, another tick already
     // marked it), and bumping an absent id is harmless. No throw.
+    //
+    // `now` is normally a positive epoch ms, but the urgent handler also passes
+    // the sentinel -1 to mark a row as "suppressed by an active rule before any
+    // ping went out" (see SUPPRESSED_PING_SENTINEL in emailUrgent.ts). Both
+    // shapes are stored verbatim — the column type is INTEGER and downstream
+    // queries (`findUnpingedUrgent`, `/why`) interpret the value.
     markUrgentPinged(id, now) {
       db.prepare('UPDATE email_pending SET urgent_pinged_at = ? WHERE id = ?').run(now, id);
+    },
+    findMostRecentUrgent() {
+      // Filter on `> 0` (not `IS NOT NULL`) so the suppression sentinel `-1`
+      // doesn't get surfaced as a real urgent ping by `/why` without args.
+      const row = db
+        .prepare(
+          `SELECT * FROM email_pending
+           WHERE urgent_pinged_at IS NOT NULL AND urgent_pinged_at > 0
+           ORDER BY urgent_pinged_at DESC
+           LIMIT 1`,
+        )
+        .get() as EmailPendingRow | undefined;
+      return row ?? null;
+    },
+    countPendingFromSender(sender, sinceMs) {
+      // Match on the canonical bare address: rows are stored verbatim — either
+      // `addr@host` or `"Display Name" <addr@host>` depending on the sender's
+      // mail client. We fetch the window in SQL, then canonicalize each stored
+      // `from_addr` with parseFromAddress in JS so two display-name variants
+      // ("John D" vs "John Doe") still collapse to one count.
+      //
+      // Why not `LIKE '%<bare>%'` in SQL: (a) `_` and `%` in addresses (e.g.
+      // `john_doe@x.com`) are LIKE wildcards and would overcount, and (b) an
+      // attacker can stuff `<victim@bank.com>` into the display name and have
+      // a different sender match the substring. parseFromAddress already picks
+      // the LAST angle-bracketed group precisely to defeat that spoof.
+      const bare = parseFromAddress(sender);
+      const rows = db
+        .prepare(
+          `SELECT from_addr FROM email_pending WHERE received_at >= ?`,
+        )
+        .all(sinceMs) as { from_addr: string }[];
+      let count = 0;
+      for (const r of rows) {
+        if (parseFromAddress(r.from_addr) === bare) count++;
+      }
+      return count;
     },
   };
 }
