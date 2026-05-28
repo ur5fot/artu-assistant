@@ -348,6 +348,79 @@ describe('createEmailUrgentHandler.trigger — suppression gate', () => {
     expect(row.urgent_pinged_at).toBeNull();
   });
 
+  it('drains a backlog of suppressed candidates in a single tick', async () => {
+    // Regression: previously the trigger only ever inspected the single
+    // oldest urgent candidate. A backlog of N suppressed rows ahead of a
+    // genuine urgent row would delay the real ping by N heartbeat ticks
+    // (~60s each). The loop must keep marking suppressed candidates with
+    // the sentinel until it reaches an unsuppressed row.
+    const store = createEmailStore({ db: getDb() });
+    const suppressionStore = createEmailSuppressionStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, suppressionStore, tz: TZ, quietStart: 22 });
+    // Three suppressed rows ordered oldest-first; one unsuppressed row last.
+    mkPending({ uid: 1, importance: 5, received_at: 1000, from: 'spam@bank.com' });
+    mkPending({ uid: 2, importance: 5, received_at: 2000, from: 'spam@bank.com' });
+    mkPending({ uid: 3, importance: 5, received_at: 3000, from: 'spam@bank.com' });
+    mkPending({ uid: 4, importance: 5, received_at: 4000, from: 'boss@acme.com' });
+    suppressionStore.insertRule({ rule_type: 'sender', pattern: 'spam@bank.com', ttl_days: 7 });
+
+    const fire = await h.trigger({ now: noon, lastFiredAt: null, lastResult: null }, { db: getDb() });
+    // Trigger should report fireable because row 4 is reachable in this tick.
+    expect(fire).toBe(true);
+    // All three suppressed rows are now stamped with the sentinel, freeing
+    // the candidate queue.
+    const sentinels = getDb()
+      .prepare("SELECT message_uid, urgent_pinged_at FROM email_pending WHERE message_uid IN (1, 2, 3) ORDER BY message_uid")
+      .all() as Array<{ message_uid: number; urgent_pinged_at: number | null }>;
+    expect(sentinels.map((r) => r.urgent_pinged_at)).toEqual([
+      SUPPRESSED_PING_SENTINEL,
+      SUPPRESSED_PING_SENTINEL,
+      SUPPRESSED_PING_SENTINEL,
+    ]);
+    // Row 4 is the next candidate findUnpingedUrgent surfaces.
+    expect(store.findUnpingedUrgent()?.message_uid).toBe(4);
+  });
+
+  it('drains and returns false when every remaining candidate is suppressed', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const suppressionStore = createEmailSuppressionStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, suppressionStore, tz: TZ, quietStart: 22 });
+    mkPending({ uid: 1, importance: 5, received_at: 1000, from: 'spam@bank.com' });
+    mkPending({ uid: 2, importance: 5, received_at: 2000, from: 'spam@bank.com' });
+    suppressionStore.insertRule({ rule_type: 'sender', pattern: 'spam@bank.com', ttl_days: 7 });
+
+    const fire = await h.trigger({ now: noon, lastFiredAt: null, lastResult: null }, { db: getDb() });
+    expect(fire).toBe(false);
+    // Both rows marked, no candidates remain for the urgent path.
+    expect(store.findUnpingedUrgent()).toBeNull();
+  });
+
+  it('run() suppresses + marks sentinel when a rule appears between trigger and run', async () => {
+    // Race window: trigger sees an unsuppressed row, the queue delays run by
+    // some seconds, and a rule matching that row gets created in between
+    // (e.g., user clicks 🙈 Sender on a prior ping from the same sender).
+    // run() must re-check suppression, NOT publish, and stamp the sentinel so
+    // the row stays out of subsequent urgent attempts.
+    const store = createEmailStore({ db: getDb() });
+    const suppressionStore = createEmailSuppressionStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, suppressionStore, tz: TZ, quietStart: 22 });
+    mkPending({ uid: 1, importance: 5, received_at: 1000, from: 'spam@bank.com' });
+
+    const fire = await h.trigger({ now: noon, lastFiredAt: null, lastResult: null }, { db: getDb() });
+    expect(fire).toBe(true);
+
+    // Rule appears between trigger and run.
+    suppressionStore.insertRule({ rule_type: 'sender', pattern: 'spam@bank.com', ttl_days: 7 });
+
+    const res = await h.run(mkCtx(noon));
+    expect(res).toEqual({ skip: true, reason: 'no unpinged urgent row' });
+
+    const row = getDb()
+      .prepare('SELECT urgent_pinged_at FROM email_pending WHERE message_uid = 1')
+      .get() as { urgent_pinged_at: number | null };
+    expect(row.urgent_pinged_at).toBe(SUPPRESSED_PING_SENTINEL);
+  });
+
   it('still respects quiet hours regardless of suppression rules', async () => {
     const store = createEmailStore({ db: getDb() });
     const suppressionStore = createEmailSuppressionStore({ db: getDb() });

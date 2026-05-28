@@ -287,6 +287,111 @@ describe('createEmailStore', () => {
     expect(store.findMostRecentUrgent()?.id).toBe(real.id);
   });
 
+  it('countPendingUndelivered and fetchPendingUndelivered include suppressed (-1) rows', () => {
+    // Suppression sentinel `-1` means "the urgent path declined to surface
+    // this row to the user". The digest is then the only remaining surface;
+    // excluding -1 rows here would silently drop them entirely. Real ping
+    // timestamps (positive) still exclude the row.
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 'pinged',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: 'x', subject: 'suppressed',
+      snippet: 'x', importance: 5, received_at: 2000, added_at: 2000,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 3, from_addr: 'x', subject: 'fresh',
+      snippet: 'x', importance: 4, received_at: 3000, added_at: 3000,
+    });
+    const rows = store.fetchPendingUndelivered(50);
+    const pinged = rows.find((r) => r.subject === 'pinged')!;
+    const suppressed = rows.find((r) => r.subject === 'suppressed')!;
+    store.markUrgentPinged(pinged.id, 50_000);
+    store.markUrgentPinged(suppressed.id, -1);
+
+    // Suppressed + fresh = 2; pinged was actually shown via urgent so excluded.
+    expect(store.countPendingUndelivered()).toBe(2);
+    const undelivered = store.fetchPendingUndelivered(50);
+    expect(undelivered.map((r) => r.subject).sort()).toEqual(['fresh', 'suppressed']);
+  });
+
+  it('countPendingFromSender matches across display-name variants of the same address', () => {
+    // Same underlying address, three different headers a mail client might
+    // emit. countPendingFromSender must count all three regardless of which
+    // variant is queried — otherwise the /why history would split by
+    // display name and undercount the sender.
+    const store = createEmailStore({ db: getDb() });
+    const now = 1_700_000_000_000;
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'boss@example.com',
+      subject: 's', snippet: 'x', importance: 4, received_at: now - 1000, added_at: now,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: '"Big Boss" <boss@example.com>',
+      subject: 's', snippet: 'x', importance: 4, received_at: now - 2000, added_at: now,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 3, from_addr: 'Boss <boss@example.com>',
+      subject: 's', snippet: 'x', importance: 4, received_at: now - 3000, added_at: now,
+    });
+    // Unrelated sender — must not contaminate.
+    store.insertPending({
+      account_id: 'a', message_uid: 4, from_addr: 'other@example.com',
+      subject: 's', snippet: 'x', importance: 4, received_at: now - 4000, added_at: now,
+    });
+    const sinceMs = now - 7 * 86_400_000;
+    expect(store.countPendingFromSender('boss@example.com', sinceMs)).toBe(3);
+    expect(store.countPendingFromSender('"Big Boss" <boss@example.com>', sinceMs)).toBe(3);
+    expect(store.countPendingFromSender('Boss <boss@example.com>', sinceMs)).toBe(3);
+    expect(store.countPendingFromSender('other@example.com', sinceMs)).toBe(1);
+  });
+
+  it('countPendingFromSender treats `_` in address literally, not as SQL wildcard', () => {
+    // SQLite LIKE treats `_` as "any single char". If countPendingFromSender
+    // ever falls back to LIKE on the bare address, `john_doe@x.com` would
+    // erroneously match `johnXdoe@x.com` etc. and overcount the history.
+    const store = createEmailStore({ db: getDb() });
+    const now = 1_700_000_000_000;
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'john_doe@x.com',
+      subject: 's', snippet: 'x', importance: 4, received_at: now - 1000, added_at: now,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2, from_addr: 'johnXdoe@x.com',
+      subject: 's', snippet: 'x', importance: 4, received_at: now - 2000, added_at: now,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 3, from_addr: 'johnYdoe@x.com',
+      subject: 's', snippet: 'x', importance: 4, received_at: now - 3000, added_at: now,
+    });
+    const sinceMs = now - 7 * 86_400_000;
+    expect(store.countPendingFromSender('john_doe@x.com', sinceMs)).toBe(1);
+  });
+
+  it('countPendingFromSender ignores spoofed bare address inside another sender\'s display name', () => {
+    // An attacker can stuff `<victim@bank.com>` into the display name of a
+    // different sender (`"Bank <victim@bank.com>" <evil@attacker.com>`).
+    // parseFromAddress picks the LAST angle group, so the canonical sender of
+    // that row is `evil@attacker.com`, not the victim — the count for the
+    // victim must not include it.
+    const store = createEmailStore({ db: getDb() });
+    const now = 1_700_000_000_000;
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'victim@bank.com',
+      subject: 's', snippet: 'x', importance: 4, received_at: now - 1000, added_at: now,
+    });
+    store.insertPending({
+      account_id: 'a', message_uid: 2,
+      from_addr: '"Bank <victim@bank.com>" <evil@attacker.com>',
+      subject: 's', snippet: 'x', importance: 4, received_at: now - 2000, added_at: now,
+    });
+    const sinceMs = now - 7 * 86_400_000;
+    expect(store.countPendingFromSender('victim@bank.com', sinceMs)).toBe(1);
+    expect(store.countPendingFromSender('evil@attacker.com', sinceMs)).toBe(1);
+  });
+
   it('countPendingFromSender counts only the matching sender within the window', () => {
     const store = createEmailStore({ db: getDb() });
     const sender = 'alerts@bank.com';

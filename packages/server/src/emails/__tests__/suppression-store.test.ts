@@ -85,6 +85,23 @@ describe('createEmailSuppressionStore', () => {
       expect(hit?.rule_type).toBe('subject');
     });
 
+    it('matches subject case-insensitively for Cyrillic (Unicode lower)', () => {
+      // Regression: SQLite's built-in `lower()` is ASCII-only, so
+      // `lower('РАХУНОК')` returns `'РАХУНОК'` and a SQL-side case-insensitive
+      // match misses Cyrillic subjects entirely. Match must use JS Unicode
+      // lowercasing so Ukrainian/Russian subjects work.
+      const store = createEmailSuppressionStore({ db: getDb() });
+      store.insertRule({ rule_type: 'subject', pattern: 'рахунок', ttl_days: 7 });
+      expect(
+        store.findActiveMatch('any@x.com', 'Ваш РАХУНОК за травень', Date.now()),
+      ).not.toBeNull();
+      // Mixed-case pattern + lowercase subject — the other direction.
+      store.insertRule({ rule_type: 'subject', pattern: 'ЗАКАЗ', ttl_days: 7 });
+      expect(
+        store.findActiveMatch('any@x.com', 'ваш заказ доставлен', Date.now()),
+      ).not.toBeNull();
+    });
+
     it('does not match subject when substring absent', () => {
       const store = createEmailSuppressionStore({ db: getDb() });
       store.insertRule({ rule_type: 'subject', pattern: 'invoice', ttl_days: 7 });

@@ -57,22 +57,32 @@ export function createEmailSuppressionStore(deps: {
       // Canonicalize the inbound sender to the bare address so rules inserted
       // before this fix (or via tests passing bare addresses) match either way.
       const senderKey = parseFromAddress(sender);
-      // `instr()` is a literal substring match — unlike `LIKE`, it does not
-      // expand `%` or `_` in the user-supplied pattern into wildcards, so a
-      // rule like `100% discount` matches only that exact substring.
-      const row = db
+      // Subject substring is matched JS-side because SQLite's built-in
+      // `lower()` is ASCII-only — `lower('РАХУНОК')` returns `'РАХУНОК'`, so a
+      // SQL-side `instr(lower(?), lower(pattern))` would miss Cyrillic subjects
+      // even though the plan calls for case-insensitive matching. JS's
+      // `toLocaleLowerCase` handles Unicode correctly. Sender stays exact-match
+      // in SQL because canonicalized addresses are ASCII.
+      const lowerSubject = subject.toLocaleLowerCase();
+      const candidates = db
         .prepare(
           `SELECT * FROM email_suppression_rules
            WHERE (expires_at IS NULL OR expires_at > ?)
              AND (
                (rule_type = 'sender' AND pattern = ?)
-               OR (rule_type = 'subject' AND instr(lower(?), lower(pattern)) > 0)
+               OR rule_type = 'subject'
              )
-           ORDER BY id DESC
-           LIMIT 1`,
+           ORDER BY id DESC`,
         )
-        .get(now, senderKey, subject) as SuppressionRule | undefined;
-      return row ?? null;
+        .all(now, senderKey) as SuppressionRule[];
+      for (const rule of candidates) {
+        if (rule.rule_type === 'sender') return rule;
+        // Plain `String.prototype.includes` is a literal substring check, so
+        // user-typed `%` / `_` in subject patterns stay literal — same property
+        // the previous SQL `instr(...)` form had vs. `LIKE`.
+        if (lowerSubject.includes(rule.pattern.toLocaleLowerCase())) return rule;
+      }
+      return null;
     },
     listActive(now) {
       return db

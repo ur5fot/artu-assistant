@@ -17,6 +17,7 @@ export type WhyEmailUrgentResult =
   | { kind: 'not_configured' }
   | { kind: 'not_found'; id: number }
   | { kind: 'no_recent_urgent' }
+  | { kind: 'not_urgent'; row: EmailPendingRow; activeRule: SuppressionRule | null }
   | { kind: 'suppressed'; row: EmailPendingRow; matchedRule: SuppressionRule | null }
   | {
       kind: 'urgent';
@@ -161,6 +162,18 @@ export function createCommandService(deps: Deps): CommandService {
           now,
         );
         return { kind: 'suppressed', row, matchedRule } as const;
+      }
+      if (row.urgent_pinged_at === null) {
+        // Row was never urgent-pinged — either importance < 5 or it's still
+        // queued. /why must not render "🔍 Why this is urgent" for these,
+        // since that title would lie about treatment that never happened.
+        // Caller renders a separate "not pinged" embed instead.
+        const activeRule = emailSuppressionStore.findActiveMatch(
+          row.from_addr,
+          row.subject,
+          now,
+        );
+        return { kind: 'not_urgent', row, activeRule } as const;
       }
       const sinceMs = now - HISTORY_WINDOW_DAYS * 86_400_000;
       // sent-log stores recipients as the bare address (see parseFromAddress

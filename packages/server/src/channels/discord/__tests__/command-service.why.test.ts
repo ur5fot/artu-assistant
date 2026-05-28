@@ -241,6 +241,28 @@ describe('commandService.whyEmailUrgent', () => {
     }
   });
 
+  it('returns not_urgent when row exists but was never urgent-pinged', () => {
+    // /why id:<n> must not render "🔍 Why this is urgent" for rows that were
+    // never pinged (importance < 5, or still queued). Caller renders a
+    // separate "not pinged" embed instead.
+    const row = insertPendingRow({ importance: 4 });
+    const svc = createCommandService({
+      db: getDb(),
+      reminderService: { list: vi.fn().mockReturnValue([]) } as any,
+      permissionService: { hasPending: vi.fn() } as any,
+      memoryService: null,
+      emailStore: createEmailStore({ db: getDb() }),
+      emailSentLog: createEmailSentLog({ db: getDb() }),
+      emailSuppressionStore: createEmailSuppressionStore({ db: getDb() }),
+    });
+    const result = svc.whyEmailUrgent({ id: row.id, now: Date.now() });
+    expect(result.kind).toBe('not_urgent');
+    if (result.kind === 'not_urgent') {
+      expect(result.row.id).toBe(row.id);
+      expect(result.activeRule).toBeNull();
+    }
+  });
+
   it('returns suppressed when row has sentinel urgent_pinged_at = -1', () => {
     const sender = 'spam@nope.com';
     const row = insertPendingRow({ from_addr: sender, urgent_pinged_at: -1 });
@@ -354,7 +376,7 @@ describe('/why slash command routing', () => {
     expect(description).toContain('alerts@bank.com');
     expect(description).toContain('Large transaction notice');
     expect(description).toContain('Importance: 5/5');
-    expect(description).toMatch(/пингов: 0/);
+    expect(description).toMatch(/писем: 0/);
     expect(description).toMatch(/отправлено: 0/);
     expect(description).toMatch(/отменено: 0/);
     expect(description).toMatch(/ошибок: 0/);
@@ -397,7 +419,7 @@ describe('/why slash command routing', () => {
     const args = ixn.reply.mock.calls[0]![0];
     const embeds = args.embeds as any[];
     const description = embeds[0].data?.description ?? embeds[0].description ?? '';
-    expect(description).toMatch(/пингов: 3/);
+    expect(description).toMatch(/писем: 3/);
     expect(description).toMatch(/отправлено: 1/);
     expect(description).toMatch(/отменено: 1/);
     expect(description).toMatch(/ошибок: 0/);
@@ -405,6 +427,36 @@ describe('/why slash command routing', () => {
     // The rule line names the pattern; expiry label is locale-formatted, so
     // assert just the prefix to avoid a brittle date string match.
     expect(description).toMatch(/Активное правило заглушения: отправитель/);
+  });
+
+  it('not_urgent → embed says urgent ping never fired', async () => {
+    const row: EmailPendingRow = {
+      id: 17,
+      account_id: 'acc-1',
+      message_uid: 42,
+      from_addr: 'newsletter@example.com',
+      subject: 'Weekly update',
+      snippet: 'snip',
+      importance: 3,
+      received_at: 1_700_000_000_000,
+      added_at: 1_700_000_001_000,
+      delivered_at: null,
+      urgent_pinged_at: null,
+    };
+    const ixn = makeWhySlashIxn({ id: 17 });
+    const deps = makeBaseDeps({
+      commandService: makeCommandSvc({
+        result: { kind: 'not_urgent', row, activeRule: null },
+      }),
+    });
+    await routeInteraction(ixn, deps);
+    const args = ixn.reply.mock.calls[0]![0];
+    const embeds = args.embeds as any[];
+    const description = embeds[0].data?.description ?? embeds[0].description ?? '';
+    expect(embeds[0].data?.title ?? embeds[0].title).toMatch(/не помечено как urgent/);
+    expect(description).toContain('newsletter@example.com');
+    expect(description).toContain('Importance: 3/5');
+    expect(description).toMatch(/urgent ping не отправлялся/);
   });
 
   it('suppressed → embed explains which rule blocked it', async () => {

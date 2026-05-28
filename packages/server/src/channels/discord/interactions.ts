@@ -1726,6 +1726,29 @@ async function handleWhySlash(
     return;
   }
 
+  if (result.kind === 'not_urgent') {
+    const row = result.row;
+    const ruleLine = result.activeRule ? describeRule(result.activeRule) : '—';
+    const embed = new EmbedBuilder()
+      .setTitle('ℹ️ Письмо не помечено как urgent')
+      .setDescription(
+        [
+          `From: ${row.from_addr}`,
+          `Subject: ${clipSubjectForWhy(row.subject)}`,
+          `Importance: ${row.importance}/5 — получено ${formatWhyTime(row.received_at)}`,
+          '',
+          'urgent ping не отправлялся — importance < 5 или письмо ещё в очереди.',
+          '',
+          `Активное правило заглушения: ${ruleLine}`,
+        ].join('\n'),
+      );
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      embeds: [embed],
+    });
+    return;
+  }
+
   if (result.kind === 'suppressed') {
     const row = result.row;
     const ruleLine = result.matchedRule
@@ -1765,7 +1788,7 @@ async function handleWhySlash(
         `Importance: ${row.importance}/5 — received ${formatWhyTime(row.received_at)} — pinged ${pingedAt}`,
         '',
         'Прошлые 7 дней с этого отправителя:',
-        `  пингов: ${result.history.pendings} — отправлено: ${result.history.sent} — отменено: ${result.history.cancelled} — ошибок: ${result.history.error}`,
+        `  писем: ${result.history.pendings} — отправлено: ${result.history.sent} — отменено: ${result.history.cancelled} — ошибок: ${result.history.error}`,
         '',
         `Активное правило заглушения: ${ruleLine}`,
       ].join('\n'),
