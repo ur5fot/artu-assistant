@@ -49,13 +49,16 @@ export function createEmailSuppressionStore(deps: {
       return { id: Number(info.lastInsertRowid), expires_at };
     },
     findActiveMatch(sender, subject, now) {
+      // `instr()` is a literal substring match — unlike `LIKE`, it does not
+      // expand `%` or `_` in the user-supplied pattern into wildcards, so a
+      // rule like `100% discount` matches only that exact substring.
       const row = db
         .prepare(
           `SELECT * FROM email_suppression_rules
            WHERE (expires_at IS NULL OR expires_at > ?)
              AND (
                (rule_type = 'sender' AND pattern = ?)
-               OR (rule_type = 'subject' AND lower(?) LIKE '%' || lower(pattern) || '%')
+               OR (rule_type = 'subject' AND instr(lower(?), lower(pattern)) > 0)
              )
            ORDER BY id DESC
            LIMIT 1`,

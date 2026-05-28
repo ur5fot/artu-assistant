@@ -91,6 +91,30 @@ describe('createEmailSuppressionStore', () => {
       expect(store.findActiveMatch('any@x.com', 'Order shipped today', Date.now())).toBeNull();
     });
 
+    it('treats SQL LIKE wildcards in subject pattern as literal characters', () => {
+      // Regression: previously the subject match used LIKE, which would expand
+      // user-typed `%` / `_` into wildcards and over-suppress.
+      const store = createEmailSuppressionStore({ db: getDb() });
+      store.insertRule({ rule_type: 'subject', pattern: '100%', ttl_days: 7 });
+      // Literal `100%` substring matches.
+      expect(
+        store.findActiveMatch('any@x.com', '100% discount today', Date.now()),
+      ).not.toBeNull();
+      // `%` must NOT act as wildcard — `100 something` does not contain `100%`.
+      expect(
+        store.findActiveMatch('any@x.com', '100 dollars off', Date.now()),
+      ).toBeNull();
+
+      // `_` should not act as a single-char wildcard either.
+      store.insertRule({ rule_type: 'subject', pattern: 'order_shipped', ttl_days: 7 });
+      expect(
+        store.findActiveMatch('any@x.com', 'your order_shipped notification', Date.now()),
+      ).not.toBeNull();
+      expect(
+        store.findActiveMatch('any@x.com', 'your order shipped today', Date.now()),
+      ).toBeNull();
+    });
+
     it('skips expired rules (advance fake timer past expires_at)', () => {
       vi.useFakeTimers();
       const t0 = 1_700_000_000_000;

@@ -10,6 +10,7 @@ import type {
   SuppressionRule,
 } from '../emails/suppression-store.js';
 import type { EmailPendingRow } from '../emails/types.js';
+import { SUPPRESSED_PING_SENTINEL } from '../cognition/handlers/emailUrgent.js';
 
 export type WhyEmailUrgentResult =
   | { kind: 'not_configured' }
@@ -68,7 +69,6 @@ interface Deps {
 }
 
 const HISTORY_WINDOW_DAYS = 7;
-const SUPPRESSED_PING_SENTINEL = -1;
 
 export function createCommandService(deps: Deps): CommandService {
   const {
@@ -164,9 +164,9 @@ export function createCommandService(deps: Deps): CommandService {
       const sinceMs = now - HISTORY_WINDOW_DAYS * 86_400_000;
       const history = {
         pendings: emailStore.countPendingFromSender(row.from_addr, sinceMs),
-        sent: emailSentLog.countBySender(row.from_addr, HISTORY_WINDOW_DAYS, 'sent'),
-        cancelled: emailSentLog.countBySender(row.from_addr, HISTORY_WINDOW_DAYS, 'cancelled'),
-        error: emailSentLog.countBySender(row.from_addr, HISTORY_WINDOW_DAYS, 'error'),
+        sent: emailSentLog.countBySender(row.from_addr, HISTORY_WINDOW_DAYS, 'sent', now),
+        cancelled: emailSentLog.countBySender(row.from_addr, HISTORY_WINDOW_DAYS, 'cancelled', now),
+        error: emailSentLog.countBySender(row.from_addr, HISTORY_WINDOW_DAYS, 'error', now),
       };
       const activeRule = emailSuppressionStore.findActiveMatch(
         row.from_addr,

@@ -146,4 +146,22 @@ describe('createEmailSentLog', () => {
     expect(repo.countBySender('alerts@bank.com', 7, 'sent')).toBe(1);
     expect(repo.countBySender('alerts@bank.com', 30, 'sent')).toBe(2);
   });
+
+  it('countBySender uses caller-supplied `now` for the window anchor', () => {
+    const db = getDb();
+    // Anchor the synthetic row in the past so the test does not depend on
+    // wall-clock time.
+    const anchor = 1_700_000_000_000;
+    db.prepare(
+      `INSERT INTO email_sent_log
+       (action, draft_id, to_addr, subject, error_message, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run('sent', 'r1', 'alerts@bank.com', 's-old', null, anchor - 3 * 86400_000);
+    const repo = createEmailSentLog({ db });
+
+    // 7-day window relative to `anchor` includes the row.
+    expect(repo.countBySender('alerts@bank.com', 7, 'sent', anchor)).toBe(1);
+    // 1-day window relative to `anchor` excludes it.
+    expect(repo.countBySender('alerts@bank.com', 1, 'sent', anchor)).toBe(0);
+  });
 });
