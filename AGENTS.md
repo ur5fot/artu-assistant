@@ -539,6 +539,7 @@ EMAIL_DIGEST_THRESHOLD=3           # pending undelivered count required to fire 
 EMAIL_DIGEST_COOLDOWN_MS=7200000   # min gap between digest publishes (applies only after a successful publish)
 EMAIL_QUIET_HOUR_START=22          # local hour when evening quiet starts (0-23); morning release is tied to morning-brief publish, 09:00 fallback after 7d silence
 EMAIL_URGENT_ENABLED=false         # opt-in: immediate Discord ping for importance=5 emails (also requires Discord bot live; suppressed during quiet hours)
+EMAIL_SEND_HOLD_SECONDS=30         # hold zone before SMTP send for draft replies (0-300, default 30); 0 bypasses the hold (kill switch, restores pre-iter-3 instant send)
 ```
 
 ## Discord Bot (DM channel)
