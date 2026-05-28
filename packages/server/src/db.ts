@@ -249,6 +249,22 @@ export function initDb(dbPath?: string): void {
       WHERE urgent_pinged_at IS NULL
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_sent_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action TEXT NOT NULL CHECK(action IN ('sent','cancelled','error')),
+      draft_id TEXT NOT NULL,
+      to_addr TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      error_message TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_email_sent_log_action_at
+      ON email_sent_log(action, created_at DESC)
+  `);
+
   // Migration: add `source` column if missing
   const cols = db.prepare("PRAGMA table_info(chat_messages)").all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === 'source')) {

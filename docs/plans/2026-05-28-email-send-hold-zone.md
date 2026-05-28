@@ -173,30 +173,30 @@ matches pre-iter-3 behaviour) — gives a one-env-edit kill switch.
 
 ### Task 2: `email_sent_log` table + repo
 
-- [ ] in `packages/server/src/db.ts`, add `CREATE TABLE IF NOT EXISTS
+- [x] in `packages/server/src/db.ts`, add `CREATE TABLE IF NOT EXISTS
   email_sent_log (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT
   NOT NULL CHECK(action IN ('sent','cancelled','error')), draft_id
   TEXT NOT NULL, to_addr TEXT NOT NULL, subject TEXT NOT NULL,
   error_message TEXT, created_at INTEGER NOT NULL)`
-- [ ] add `CREATE INDEX IF NOT EXISTS idx_email_sent_log_action_at ON
+- [x] add `CREATE INDEX IF NOT EXISTS idx_email_sent_log_action_at ON
   email_sent_log(action, created_at DESC)`
-- [ ] create `packages/server/src/emails/sent-log.ts` with
+- [x] create `packages/server/src/emails/sent-log.ts` with
   `createEmailSentLog({ db })` returning `{ record(entry), countLastDays(action,
   days) }`
-- [ ] `record({action, draftId, to, subject, errorMessage?})` inserts
+- [x] `record({action, draftId, to, subject, errorMessage?})` inserts
   with `Date.now()` for `created_at`
-- [ ] `countLastDays(action, days)` returns count where `created_at >
+- [x] `countLastDays(action, days)` returns count where `created_at >
   (now - days*86400000)`
-- [ ] write tests in `packages/server/src/emails/__tests__/sent-log.test.ts`:
+- [x] write tests in `packages/server/src/emails/__tests__/sent-log.test.ts`:
   - `record` inserts a row with all fields, `created_at` set
   - `record` rejects invalid action (CHECK constraint throws)
   - `countLastDays` returns 0 on empty table
   - `countLastDays('sent', 7)` counts only sent rows in last 7 days
   - `countLastDays` does not double-count old rows
-- [ ] write migration test in
+- [x] write migration test in
   `packages/server/src/__tests__/db.test.ts`: `email_sent_log` table
   exists after `initDb`; re-running `initDb` is idempotent
-- [ ] run `npm -w @r2/server test -- sent-log.test db.test` — must pass
+- [x] run `npm -w @r2/server test -- sent-log.test db.test` — must pass
   before task 3
 
 ### Task 3: Env var + deps wiring
