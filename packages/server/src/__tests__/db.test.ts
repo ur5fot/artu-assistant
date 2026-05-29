@@ -233,6 +233,127 @@ describe('email tables', () => {
   });
 });
 
+describe('window_history table', () => {
+  it('creates window_history with expected columns', () => {
+    const cols = getDb()
+      .prepare("PRAGMA table_info('window_history')")
+      .all() as Array<{ name: string }>;
+    const names = cols.map((c) => c.name).sort();
+    expect(names).toEqual([
+      'app_name', 'id', 'last_seen_at', 'sample_count', 'started_at', 'window_title',
+    ].sort());
+  });
+
+  it('creates index idx_window_history_last_seen', () => {
+    const row = getDb()
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_window_history_last_seen'",
+      )
+      .get() as { sql: string } | undefined;
+    expect(row).toBeDefined();
+    expect(row!.sql).toMatch(/window_history/);
+    expect(row!.sql).toMatch(/last_seen_at/);
+  });
+
+  it('creates index idx_window_history_app_last_seen', () => {
+    const row = getDb()
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_window_history_app_last_seen'",
+      )
+      .get() as { sql: string } | undefined;
+    expect(row).toBeDefined();
+    expect(row!.sql).toMatch(/window_history/);
+    expect(row!.sql).toMatch(/app_name/);
+    expect(row!.sql).toMatch(/last_seen_at/);
+  });
+
+  it('sample_count defaults to 1', () => {
+    const db = getDb();
+    const info = db
+      .prepare(
+        `INSERT INTO window_history (app_name, window_title, started_at, last_seen_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run('Chrome', 'Gmail', 1_700_000_000_000, 1_700_000_000_000);
+    const row = db
+      .prepare('SELECT sample_count FROM window_history WHERE id = ?')
+      .get(info.lastInsertRowid) as { sample_count: number };
+    expect(row.sample_count).toBe(1);
+  });
+});
+
+describe('context_pings table', () => {
+  it('creates context_pings with expected columns', () => {
+    const cols = getDb()
+      .prepare("PRAGMA table_info('context_pings')")
+      .all() as Array<{ name: string }>;
+    const names = cols.map((c) => c.name).sort();
+    expect(names).toEqual([
+      'away_app', 'away_session_ended_at', 'away_session_started_at', 'id', 'pinged_at',
+    ].sort());
+  });
+
+  it('creates index idx_context_pings_app_at', () => {
+    const row = getDb()
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_context_pings_app_at'",
+      )
+      .get() as { sql: string } | undefined;
+    expect(row).toBeDefined();
+    expect(row!.sql).toMatch(/context_pings/);
+    expect(row!.sql).toMatch(/away_app/);
+    expect(row!.sql).toMatch(/pinged_at/);
+  });
+});
+
+describe('initDb idempotency for window_history + context_pings', () => {
+  it('running initDb twice on the same file does not throw and tables remain', async () => {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const tmp = path.join(
+      os.tmpdir(),
+      `r2-db-window-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`,
+    );
+    try {
+      initDb(tmp);
+      let wh = getDb()
+        .prepare("PRAGMA table_info('window_history')")
+        .all() as Array<{ name: string }>;
+      let cp = getDb()
+        .prepare("PRAGMA table_info('context_pings')")
+        .all() as Array<{ name: string }>;
+      expect(wh.length).toBeGreaterThan(0);
+      expect(cp.length).toBeGreaterThan(0);
+
+      expect(() => initDb(tmp)).not.toThrow();
+
+      wh = getDb()
+        .prepare("PRAGMA table_info('window_history')")
+        .all() as Array<{ name: string }>;
+      cp = getDb()
+        .prepare("PRAGMA table_info('context_pings')")
+        .all() as Array<{ name: string }>;
+      expect(wh.length).toBeGreaterThan(0);
+      expect(cp.length).toBeGreaterThan(0);
+
+      // All three indexes still present
+      const indexes = getDb()
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_window_history_last_seen','idx_window_history_app_last_seen','idx_context_pings_app_at')",
+        )
+        .all() as Array<{ name: string }>;
+      expect(indexes.length).toBe(3);
+    } finally {
+      closeDb();
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      for (const ext of ['-wal', '-shm']) {
+        if (fs.existsSync(tmp + ext)) fs.unlinkSync(tmp + ext);
+      }
+    }
+  });
+});
+
 describe('initDb idempotency for email_pending migrations', () => {
   it('running initDb twice on the same file does not throw and column is present once', async () => {
     const os = await import('node:os');

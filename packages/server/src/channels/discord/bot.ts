@@ -40,6 +40,7 @@ import type { EmailSuppressionStore } from '../../emails/suppression-store.js';
 import type { ImapAccount } from '../../emails/types.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { PiiProxy } from '../../pii/proxy.js';
+import type { WindowHistoryStore } from '../../observers/window-history-store.js';
 import { SLASH_COMMAND_DEFINITIONS } from './slash-commands.js';
 
 export interface DiscordBotDeps {
@@ -114,6 +115,9 @@ export interface DiscordBotDeps {
   emailSuppressionStore?: EmailSuppressionStore;
   /** PII proxy — anonymizes draft-reply prompts before they leave to Claude. */
   piiProxy?: PiiProxy;
+  /** Window history — read by the `window:show` button to reveal session titles
+   *  (privacy-by-default). Without it the "Show titles" button is inert. */
+  windowHistoryStore?: WindowHistoryStore;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -318,6 +322,7 @@ export async function startDiscordBot(
         emailSentLog: deps.emailSentLog,
         emailSuppressionStore: deps.emailSuppressionStore,
         piiProxy: deps.piiProxy,
+        windowHistoryStore: deps.windowHistoryStore,
       });
     } catch (err) {
       console.error('[discord] interaction error:', err instanceof Error ? err.message : err);
