@@ -365,11 +365,11 @@ investing in fragile restore-side integrations.
 
 ### Task 6: Handler + embed + interaction wiring
 
-- [ ] create `packages/server/src/cognition/handlers/contextSwitch.ts`
+- [x] create `packages/server/src/cognition/handlers/contextSwitch.ts`
   exporting `createContextSwitchHandler({store, pingStore,
   longSessionMin, switchGapMin, stableNewMin, dedupeWindowH})` →
   `Handler`
-- [ ] handler:
+- [x] handler:
   - `name: 'contextSwitch'`
   - `trigger(state)`: call detector, return non-null event → true.
   - `run()`: re-detect (defensive); skip if gone. Else compute
@@ -379,7 +379,7 @@ investing in fragile restore-side integrations.
     ${current_app} after ~${duration}min on ${away_app}', embed,
     components, onPublished: () => pingStore.recordPing({...event,
     pinged_at: Date.now()})}`
-- [ ] in `discord/embeds.ts`, add `buildWindowRestoreEmbed(event,
+- [x] in `discord/embeds.ts`, add `buildWindowRestoreEmbed(event,
   durationMin)` returning plain shape:
   - embed:
     - title `🔁 Restore context?`
@@ -391,30 +391,30 @@ investing in fragile restore-side integrations.
     button.
   - one primary button `Show titles` with customId
     `window:show:${away_app}:${away_session_started_at}:${away_session_ended_at}`
-- [ ] in `interactions.ts`, add `window:show:` routing:
+- [x] in `interactions.ts`, add `window:show:` routing:
   - parse the three params from customId
   - call `store.listTitlesInSession(app, from, to)`, cap top 15
   - editReply ephemeral with formatted list (truncate each title to
     80 chars, joined with newlines)
-- [ ] tests in
+- [x] tests in
   `cognition/__tests__/handlers/contextSwitch.test.ts`:
   - `trigger` returns detector result truthiness
   - `run` skip path
   - `run` publish path: embed shape correct, button customId encodes
     params, content string correct
   - `onPublished` calls `pingStore.recordPing` with right shape
-- [ ] tests in `discord/__tests__/embeds.window.test.ts`:
+- [x] tests in `discord/__tests__/embeds.window.test.ts`:
   - `buildWindowRestoreEmbed` field shapes
   - no `Top windows` / `Titles` field exists in default embed (privacy
     regression test — ensures titles never sneak into default embed)
-- [ ] tests in `discord/__tests__/interactions.window.test.ts` for
+- [x] tests in `discord/__tests__/interactions.window.test.ts` for
   `window:show:` handler:
   - parses params correctly
   - calls `store.listTitlesInSession` with right args
   - editReply has ephemeral flag
   - titles truncated to 80 chars
   - empty list → friendly empty-state message
-- [ ] run `npm -w @r2/server test -- contextSwitch.test
+- [x] run `npm -w @r2/server test -- contextSwitch.test
   embeds.window.test interactions.window.test` — must pass before
   task 7
 

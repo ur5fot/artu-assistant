@@ -269,6 +269,49 @@ export function buildUrgentEmailEmbed(row: EmailPendingRow): {
   };
 }
 
+// Plain-data shape consumed by bot.ts. SwitchEvent is re-declared structurally
+// here (rather than imported from the observers layer) so the discord channel
+// stays decoupled from the observation infra.
+export interface WindowRestoreEvent {
+  away_app: string;
+  away_session_started_at: number;
+  away_session_ended_at: number;
+  current_app: string;
+}
+
+// Privacy-by-default — the embed shows ONLY the summary (app + duration). Window
+// titles can leak sensitive context (PDF filenames, DM partner names, banking
+// URLs) to anyone glancing at the screen, so they never appear here; the user
+// must click "Show titles" to fetch them as an ephemeral message. See the
+// plan's "Why no titles in default embed" note. Do not add a titles field.
+export function buildWindowRestoreEmbed(
+  event: WindowRestoreEvent,
+  durationMin: number,
+): { embed: EmbedData; components: ComponentData[] } {
+  return {
+    embed: {
+      title: '🔁 Restore context?',
+      fields: [
+        { name: 'Was on', value: event.away_app, inline: true },
+        { name: 'For', value: `~${durationMin}min`, inline: true },
+        { name: 'Now on', value: event.current_app, inline: true },
+      ],
+    },
+    components: [
+      {
+        type: 'row',
+        buttons: [
+          {
+            customId: `window:show:${event.away_app}:${event.away_session_started_at}:${event.away_session_ended_at}`,
+            label: 'Show titles',
+            style: 'primary',
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export interface PermissionsListReply {
   content: string;
   embeds: EmbedBuilder[];
