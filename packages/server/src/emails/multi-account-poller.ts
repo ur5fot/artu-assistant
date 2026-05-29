@@ -1,9 +1,28 @@
 import type { ImapAccount, NewMessage } from './types.js';
 import type { EmailStore } from './store.js';
+import type { EmailFeedbackStore } from './feedback-store.js';
 
 export type MessageFetcher = (account: ImapAccount, sinceUid: number, limit: number) => Promise<NewMessage[]>;
 export type MessageScorer = (msgs: NewMessage[]) => Promise<Array<{ uid: number; importance: number }>>;
 export type MaxUidProbe = (account: ImapAccount) => Promise<number>;
+/** Re-poll IMAP flags for an explicit UID list (see imap-client.fetchFlagsForUids).
+ *  Best-effort: returns whatever it gathered, never throws into the poll loop. */
+export type FlagFetcher = (
+  account: ImapAccount,
+  uids: number[],
+) => Promise<Array<{ uid: number; seen: boolean; answered: boolean }>>;
+
+/** Optional implicit-feedback resolution wiring. Absent (feature disabled) →
+ *  the poll tick behaves exactly as before (no flag re-poll, no finalization). */
+export interface FeedbackResolution {
+  store: EmailFeedbackStore;
+  flagFetcher: FlagFetcher;
+  /** Hours after the ping before a not-yet-answered email is finalized as
+   *  `read` (was `\Seen`) or `ignored` (never opened). */
+  ignoreHours: number;
+  /** Cap on unresolved rows re-polled per tick (IMAP-cost guard). */
+  maxRepoll: number;
+}
 
 interface TickParams {
   accounts: ImapAccount[];
@@ -14,10 +33,80 @@ interface TickParams {
   now: number;
   fetchLimit?: number;
   importanceCutoff?: number;
+  feedback?: FeedbackResolution;
 }
 
 const DEFAULT_FETCH_LIMIT = 50;
 const DEFAULT_CUTOFF = 4;
+const HOUR_MS = 3_600_000;
+// Grace window for finalization after the ignore deadline: a row stays eligible
+// for re-poll/finalize for this long past `ignoreHours` so a few missed ticks
+// (downtime, slow IMAP) don't strand it forever as unresolved.
+const FEEDBACK_FINALIZE_GRACE_MS = 7 * 24 * HOUR_MS;
+
+// Implicit-feedback resolution for a single account: re-poll IMAP flags for the
+// emails we pinged about that are still unresolved, record first-seen
+// timestamps, and finalize each outcome once its window elapses.
+//
+// State machine (per pinged email):
+//   `\Answered`            → replied   (immediately, even within the window)
+//   `\Seen`, window over   → read
+//   never seen, window over→ ignored
+//   else                   → stays unresolved (re-checked next tick)
+//
+// Best-effort: scoped to its own try/catch so a flag re-poll failure is logged
+// and never escalates into the account's setAccountError path.
+async function resolveAccountFeedback(
+  account: ImapAccount,
+  feedback: FeedbackResolution | undefined,
+  now: number,
+): Promise<void> {
+  if (!feedback) return;
+  try {
+    const ignoreMs = feedback.ignoreHours * HOUR_MS;
+    // Window = wait period + grace, so a row missed across a few ticks still
+    // gets finalized rather than aging out of `findUnresolved` unresolved.
+    const maxAgeMs = ignoreMs + FEEDBACK_FINALIZE_GRACE_MS;
+    // findUnresolved spans all accounts; filter to this one before the IMAP
+    // call so we never fetch another account's UIDs against this connection.
+    const rows = feedback.store
+      .findUnresolved(now, maxAgeMs, feedback.maxRepoll)
+      .filter((r) => r.account_id === account.id);
+    if (rows.length === 0) return;
+
+    const flags = await feedback.flagFetcher(
+      account,
+      rows.map((r) => r.message_uid),
+    );
+    // Empty result = the re-poll failed (fetchFlagsForUids swallows errors to
+    // []). Don't finalize on stale data — leave the rows for the next tick.
+    if (flags.length === 0) return;
+    const flagByUid = new Map(flags.map((f) => [f.uid, f]));
+
+    for (const row of rows) {
+      const f = flagByUid.get(row.message_uid);
+      if (f) {
+        feedback.store.updateFlags(row.pending_id, {
+          seenAt: f.seen ? now : undefined,
+          answeredAt: f.answered ? now : undefined,
+        });
+      }
+      // Combine this poll with any earlier observation (updateFlags COALESCEs,
+      // but `row` is the pre-update snapshot, so OR them here).
+      const answered = row.answered_at != null || (f?.answered ?? false);
+      const seen = row.seen_at != null || (f?.seen ?? false);
+      if (answered) {
+        feedback.store.finalize(row.pending_id, 'replied', now);
+      } else if (now - row.pinged_at >= ignoreMs) {
+        feedback.store.finalize(row.pending_id, seen ? 'read' : 'ignored', now);
+      }
+      // else: still inside the window → leave unresolved.
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[emails] feedback resolution failed for ${account.id}:`, msg);
+  }
+}
 
 export async function runPollTick(params: TickParams): Promise<void> {
   const fetchLimit = params.fetchLimit ?? DEFAULT_FETCH_LIMIT;
@@ -55,7 +144,12 @@ export async function runPollTick(params: TickParams): Promise<void> {
 
         const sinceUid = params.store.getLastSeenUid(acc.id);
         const msgs = await params.fetcher(acc, sinceUid, fetchLimit);
-        if (msgs.length === 0) return;
+        if (msgs.length === 0) {
+          // No new mail, but unresolved feedback rows may still need a flag
+          // re-poll (the user could have opened/replied since the ping).
+          await resolveAccountFeedback(acc, params.feedback, params.now);
+          return;
+        }
 
         const scored = await params.scorer(msgs);
         const byUid = new Map(scored.map((s) => [s.uid, s.importance]));
@@ -84,6 +178,8 @@ export async function runPollTick(params: TickParams): Promise<void> {
         if (maxUid > 0) {
           params.store.updateLastSeenUid(acc.id, maxUid, params.now);
         }
+
+        await resolveAccountFeedback(acc, params.feedback, params.now);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         params.store.setAccountError(acc.id, msg, params.now);

@@ -157,18 +157,18 @@ self-healing on reply.
 - [x] run `npm -w @r2/server test -- emailUrgent` — must pass before task 5
 
 ### Task 5: Outcome resolution — re-poll flags + state machine
-- [ ] add a resolution step (extend the per-account poll tick in
+- [x] add a resolution step (extend the per-account poll tick in
       `multi-account-poller.ts`, reusing the live IMAP connection): after
       fetching new messages, gather `findUnresolved` UIDs for that account,
       call `fetchFlagsForUids`, and `updateFlags`
-- [ ] finalize outcome: `\Answered` → `replied`; else once `now - pinged_at
+- [x] finalize outcome: `\Answered` → `replied`; else once `now - pinged_at
       >= ignoreHours`: `read` if `seen_at` set, else `ignored`
-- [ ] guard: cap how many UIDs re-polled per tick; skip accounts with no
+- [x] guard: cap how many UIDs re-polled per tick; skip accounts with no
       unresolved rows (no extra IMAP work)
-- [ ] write tests (mocked fetcher, fake timers): replied path, read path
+- [x] write tests (mocked fetcher, fake timers): replied path, read path
       (seen, no answer, window elapsed), ignored path (never seen, window
       elapsed), still-pending (within window → stays unresolved)
-- [ ] run `npm -w @r2/server test -- multi-account-poller` — must pass before
+- [x] run `npm -w @r2/server test -- multi-account-poller` — must pass before
       task 6
 
 ### Task 6: Scorer + auto-suppression (downgrade-only)
