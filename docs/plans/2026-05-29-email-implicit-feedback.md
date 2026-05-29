@@ -146,15 +146,15 @@ self-healing on reply.
 - [x] run `npm -w @r2/server test -- feedback-store` — must pass before task 4
 
 ### Task 4: Create a feedback row when an email is urgent-pinged
-- [ ] in `emailUrgent.ts`, on successful publish (where `markUrgentPinged`
+- [x] in `emailUrgent.ts`, on successful publish (where `markUrgentPinged`
       runs with a positive epoch), also call
       `feedbackStore.recordPinged(rowId, now)` — only when feedback enabled;
       suppression sentinel (`-1`) path must NOT create a feedback row
-- [ ] thread `feedbackStore` through the handler deps (optional dep → no-op
+- [x] thread `feedbackStore` through the handler deps (optional dep → no-op
       when absent, like other optional stores)
-- [ ] write tests: publish → feedback row created with `pinged_at`;
+- [x] write tests: publish → feedback row created with `pinged_at`;
       suppressed (`-1`) → no feedback row; disabled/absent store → no-op
-- [ ] run `npm -w @r2/server test -- emailUrgent` — must pass before task 5
+- [x] run `npm -w @r2/server test -- emailUrgent` — must pass before task 5
 
 ### Task 5: Outcome resolution — re-poll flags + state machine
 - [ ] add a resolution step (extend the per-account poll tick in

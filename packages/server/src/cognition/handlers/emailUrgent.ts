@@ -1,6 +1,7 @@
 import type { Handler } from '../types.js';
 import type { EmailStore } from '../../emails/store.js';
 import type { EmailSuppressionStore } from '../../emails/suppression-store.js';
+import type { EmailFeedbackStore } from '../../emails/feedback-store.js';
 import type { EmailPendingRow } from '../../emails/types.js';
 import { buildUrgentEmailEmbed } from '../../channels/discord/embeds.js';
 import { inQuietHours, MORNING_FALLBACK_HOUR } from './emailDigest.helpers.js';
@@ -36,6 +37,12 @@ const SNIPPET_MAX = 200;
 interface Deps {
   store: EmailStore;
   suppressionStore: EmailSuppressionStore;
+  // Optional implicit-feedback collector. When present (feature enabled in
+  // index.ts), a feedback row is recorded for every *actually pinged* urgent
+  // email so the outcome (replied/read/ignored) can be resolved later. Absent
+  // → no-op, like the other optional stores. The suppression-sentinel (-1)
+  // path never reaches here, so demoted rows never get a feedback row.
+  feedbackStore?: EmailFeedbackStore;
   tz: string;
   quietStart: number;
 }
@@ -91,7 +98,14 @@ export function createEmailUrgentHandler(deps: Deps): Handler {
         content,
         embed,
         components,
-        onPublished: () => deps.store.markUrgentPinged(row.id, Date.now()),
+        onPublished: () => {
+          const pingedAt = Date.now();
+          deps.store.markUrgentPinged(row.id, pingedAt);
+          // Record the ping for implicit-feedback outcome tracking. Same epoch
+          // as the marker so the "ignored" timer and the email_pending state
+          // agree. No-op when feedback is disabled (store absent).
+          deps.feedbackStore?.recordPinged(row.id, pingedAt);
+        },
       };
     },
   };
