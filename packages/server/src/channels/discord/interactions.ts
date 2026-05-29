@@ -32,6 +32,7 @@ import type { EmailSuppressionStore } from '../../emails/suppression-store.js';
 import type { ImapAccount, FullMessage } from '../../emails/types.js';
 import type { MessageHeaders } from '../../emails/imap-client.js';
 import type { PiiProxy } from '../../pii/proxy.js';
+import type { WindowHistoryStore } from '../../observers/window-history-store.js';
 import { parseFromAddress } from '../../emails/address.js';
 import {
   buildReminderEmbed,
@@ -120,6 +121,9 @@ export interface InteractionDeps {
   /** PII proxy — anonymizes the email thread before it leaves to Claude, then
    *  deanonymizes Claude's draft so the body sent over SMTP has real names. */
   piiProxy?: PiiProxy;
+  /** Window history — read by the `window:show` button to reveal session titles
+   *  as an ephemeral message (privacy-by-default; titles never go in the embed). */
+  windowHistoryStore?: WindowHistoryStore;
 }
 
 // Parses the description rendered by buildPermissionEmbed —
@@ -362,6 +366,11 @@ async function routeButton(
     return;
   }
 
+  if (domain === 'window' && action === 'show') {
+    await handleWindowShowTitles(ixn, deps, rawId ?? '');
+    return;
+  }
+
   if (domain === 'perm_rule' && action === 'revoke') {
     const toolName = rawId ?? '';
     deps.commandService.revokePermissionRule(toolName);
@@ -382,6 +391,64 @@ async function routeButton(
     });
     return;
   }
+}
+
+// Max session titles to show in the ephemeral detail view, and the per-title
+// char cap. Titles can be arbitrarily long window names — clamp both so the
+// reply never exceeds Discord's 2000-char body limit.
+const WINDOW_TITLES_MAX = 15;
+const WINDOW_TITLE_CHAR_MAX = 80;
+
+// Reveals the window titles for an away-session as an ephemeral message (visible
+// only to the user). customId rawId is `${app}:${from}:${to}` — the app name may
+// itself contain colons, so the two trailing epoch-ms params are parsed off the
+// end and everything before them is the app name.
+async function handleWindowShowTitles(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  const lastColon = rawId.lastIndexOf(':');
+  if (lastColon < 0) return;
+  const to = Number(rawId.slice(lastColon + 1));
+  const rest = rawId.slice(0, lastColon);
+  const secondColon = rest.lastIndexOf(':');
+  if (secondColon < 0) return;
+  const from = Number(rest.slice(secondColon + 1));
+  const app = rest.slice(0, secondColon);
+  if (!app || !Number.isInteger(from) || !Number.isInteger(to)) return;
+
+  if (!deps.windowHistoryStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Window history is not configured.',
+    });
+    return;
+  }
+
+  const titles = deps.windowHistoryStore.listTitlesInSession(app, from, to);
+  if (titles.length === 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: `No window titles recorded for ${app}.`,
+    });
+    return;
+  }
+
+  const lines = titles
+    .slice(0, WINDOW_TITLES_MAX)
+    .map((t) => {
+      const title = t.title.replace(/\s+/g, ' ').trim() || '(no title)';
+      return `• ${truncate(title, WINDOW_TITLE_CHAR_MAX)}`;
+    });
+  await (ixn as any).reply({
+    flags: MessageFlags.Ephemeral,
+    content: `**${app}** windows:\n${lines.join('\n')}`,
+  });
+}
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 
 const DRAFT_MAX_TOKENS = 1024;

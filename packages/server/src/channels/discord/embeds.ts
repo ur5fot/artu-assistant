@@ -269,6 +269,63 @@ export function buildUrgentEmailEmbed(row: EmailPendingRow): {
   };
 }
 
+// Plain-data shape consumed by bot.ts. SwitchEvent is re-declared structurally
+// here (rather than imported from the observers layer) so the discord channel
+// stays decoupled from the observation infra.
+export interface WindowRestoreEvent {
+  away_app: string;
+  away_session_started_at: number;
+  away_session_ended_at: number;
+  current_app: string;
+}
+
+// Privacy-by-default — the embed shows ONLY the summary (app + duration). Window
+// titles can leak sensitive context (PDF filenames, DM partner names, banking
+// URLs) to anyone glancing at the screen, so they never appear here; the user
+// must click "Show titles" to fetch them as an ephemeral message. See the
+// plan's "Why no titles in default embed" note. Do not add a titles field.
+// Discord caps a button custom_id at 100 chars. The away-app name is an
+// external macOS process name embedded verbatim, and the title lookup matches
+// it exactly (listTitlesInSession WHERE app_name = ?), so it can't be
+// truncated. For the rare app whose name pushes the id over 100, drop the
+// button rather than let setCustomId throw and fail the whole publish — the
+// summary embed still renders; only the optional "Show titles" affordance is
+// lost. Mirrors the overflow guard in buildPermissionsListReply.
+const CUSTOM_ID_LIMIT = 100;
+
+export function buildWindowRestoreEmbed(
+  event: WindowRestoreEvent,
+  durationMin: number,
+): { embed: EmbedData; components: ComponentData[] } {
+  const customId = `window:show:${event.away_app}:${event.away_session_started_at}:${event.away_session_ended_at}`;
+  const components: ComponentData[] =
+    customId.length <= CUSTOM_ID_LIMIT
+      ? [
+          {
+            type: 'row',
+            buttons: [
+              {
+                customId,
+                label: 'Show titles',
+                style: 'primary',
+              },
+            ],
+          },
+        ]
+      : [];
+  return {
+    embed: {
+      title: '🔁 Restore context?',
+      fields: [
+        { name: 'Was on', value: event.away_app, inline: true },
+        { name: 'For', value: `~${durationMin}min`, inline: true },
+        { name: 'Now on', value: event.current_app, inline: true },
+      ],
+    },
+    components,
+  };
+}
+
 export interface PermissionsListReply {
   content: string;
   embeds: EmbedBuilder[];

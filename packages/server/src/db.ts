@@ -323,6 +323,39 @@ export function initDb(dbPath?: string): void {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_topic_messages_msg ON chat_topic_messages(message_id)`);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS window_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      app_name TEXT NOT NULL,
+      window_title TEXT NOT NULL,
+      started_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL,
+      sample_count INTEGER NOT NULL DEFAULT 1
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_window_history_last_seen
+      ON window_history(last_seen_at DESC)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_window_history_app_last_seen
+      ON window_history(app_name, last_seen_at DESC)
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS context_pings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      away_app TEXT NOT NULL,
+      pinged_at INTEGER NOT NULL,
+      away_session_started_at INTEGER NOT NULL,
+      away_session_ended_at INTEGER NOT NULL
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_context_pings_app_at
+      ON context_pings(away_app, pinged_at DESC)
+  `);
+
   // Migration: add importance / forgotten columns to memory_facts if missing.
   // SQLite can't do IF NOT EXISTS for columns, so we gate on PRAGMA table_info.
   const factCols = db.prepare('PRAGMA table_info(memory_facts)').all() as Array<{ name: string }>;
