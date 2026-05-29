@@ -28,6 +28,27 @@ describe('buildWindowRestoreEmbed', () => {
     );
   });
 
+  // Discord throws if a button custom_id exceeds 100 chars. A very long app
+  // name would push the id over the limit and fail the entire publish, so the
+  // button is dropped (summary embed still renders) rather than crashing.
+  it('omits the button when the customId would exceed 100 chars', () => {
+    const longApp = 'A'.repeat(80);
+    const { embed, components } = buildWindowRestoreEmbed(
+      { ...EVENT, away_app: longApp },
+      60,
+    );
+    expect(components).toHaveLength(0);
+    // Summary still renders so the ping is not lost.
+    expect(embed.title).toBe('🔁 Restore context?');
+  });
+
+  it('keeps the button when the customId is exactly at the limit', () => {
+    // window:show: (12) + app + : + 13 + : + 13 = 40 + app; 60-char app => 100.
+    const app = 'B'.repeat(60);
+    const { components } = buildWindowRestoreEmbed({ ...EVENT, away_app: app }, 60);
+    expect(components[0]?.buttons[0]?.customId.length).toBe(100);
+  });
+
   // Privacy regression: titles must NEVER appear in the default embed. They can
   // leak sensitive context (filenames, DM names, banking URLs) to shoulder
   // surfers; the user must click "Show titles" for an ephemeral reveal.

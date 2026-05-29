@@ -6,7 +6,7 @@ const SCRIPT = `tell application "System Events"
   try
     tell process frontApp
       set frontTitle to name of front window
-    end try
+    end tell
   end try
   return frontApp & "|||" & frontTitle
 end tell`;

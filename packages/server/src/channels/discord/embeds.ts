@@ -284,10 +284,35 @@ export interface WindowRestoreEvent {
 // URLs) to anyone glancing at the screen, so they never appear here; the user
 // must click "Show titles" to fetch them as an ephemeral message. See the
 // plan's "Why no titles in default embed" note. Do not add a titles field.
+// Discord caps a button custom_id at 100 chars. The away-app name is an
+// external macOS process name embedded verbatim, and the title lookup matches
+// it exactly (listTitlesInSession WHERE app_name = ?), so it can't be
+// truncated. For the rare app whose name pushes the id over 100, drop the
+// button rather than let setCustomId throw and fail the whole publish — the
+// summary embed still renders; only the optional "Show titles" affordance is
+// lost. Mirrors the overflow guard in buildPermissionsListReply.
+const CUSTOM_ID_LIMIT = 100;
+
 export function buildWindowRestoreEmbed(
   event: WindowRestoreEvent,
   durationMin: number,
 ): { embed: EmbedData; components: ComponentData[] } {
+  const customId = `window:show:${event.away_app}:${event.away_session_started_at}:${event.away_session_ended_at}`;
+  const components: ComponentData[] =
+    customId.length <= CUSTOM_ID_LIMIT
+      ? [
+          {
+            type: 'row',
+            buttons: [
+              {
+                customId,
+                label: 'Show titles',
+                style: 'primary',
+              },
+            ],
+          },
+        ]
+      : [];
   return {
     embed: {
       title: '🔁 Restore context?',
@@ -297,18 +322,7 @@ export function buildWindowRestoreEmbed(
         { name: 'Now on', value: event.current_app, inline: true },
       ],
     },
-    components: [
-      {
-        type: 'row',
-        buttons: [
-          {
-            customId: `window:show:${event.away_app}:${event.away_session_started_at}:${event.away_session_ended_at}`,
-            label: 'Show titles',
-            style: 'primary',
-          },
-        ],
-      },
-    ],
+    components,
   };
 }
 
