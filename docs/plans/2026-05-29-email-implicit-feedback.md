@@ -120,16 +120,16 @@ self-healing on reply.
 - [x] run `npm -w @r2/server test -- db.test` — must pass before task 2
 
 ### Task 2: IMAP flag fetch in `imap-client.ts`
-- [ ] add `fetchFlagsForUids(account, uids: number[], opts?): Promise<
+- [x] add `fetchFlagsForUids(account, uids: number[], opts?): Promise<
       Array<{ uid: number; seen: boolean; answered: boolean }>>` using
       imapflow `fetch` with `{ uid: true, flags: true }` over the explicit
       UID list (chunked if large)
-- [ ] derive `seen`/`answered` from the flags `Set` (`\Seen`, `\Answered`);
+- [x] derive `seen`/`answered` from the flags `Set` (`\Seen`, `\Answered`);
       handle connection/timeout errors by returning partial/empty (never
       throw into the poll loop), mirroring existing error handling
-- [ ] write tests with a mocked imapflow client: flags present → correct
+- [x] write tests with a mocked imapflow client: flags present → correct
       booleans; empty UID list → no fetch; fetch error → empty array (logged)
-- [ ] run `npm -w @r2/server test -- imap-client` — must pass before task 3
+- [x] run `npm -w @r2/server test -- imap-client` — must pass before task 3
 
 ### Task 3: Feedback store (`feedback-store.ts`)
 - [ ] create `emails/feedback-store.ts` with `createEmailFeedbackStore({db})`

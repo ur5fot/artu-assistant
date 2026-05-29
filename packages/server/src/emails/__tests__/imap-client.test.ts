@@ -5,6 +5,7 @@ import {
   fetchFullBody,
   fetchHeaders,
   fetchByMessageId,
+  fetchFlagsForUids,
   getMaxUid,
   __setImapFlowCtor,
 } from '../imap-client.js';
@@ -1020,6 +1021,102 @@ describe('fetchHeaders', () => {
     __setImapFlowCtor(Ctor as any);
     const h = await fetchHeaders(account, 705);
     expect(h.references).toEqual(['<a@h>', '<b@h>', '<c@h>']);
+  });
+});
+
+describe('fetchFlagsForUids', () => {
+  it('returns [] and issues no fetch for an empty UID list', async () => {
+    const fetchAll = vi.fn();
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn();
+      fetchAll = fetchAll;
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    const res = await fetchFlagsForUids(account, []);
+    expect(res).toEqual([]);
+    expect(fetchAll).not.toHaveBeenCalled();
+  });
+
+  it('derives seen/answered booleans from the flags Set', async () => {
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn();
+      fetchAll = vi.fn(async (_uids: number[], query: any, opts: any) => {
+        expect(query).toEqual({ flags: true });
+        expect(opts).toEqual({ uid: true });
+        return [
+          { uid: 10, flags: new Set(['\\Seen', '\\Answered']) },
+          { uid: 11, flags: new Set(['\\Seen']) },
+          { uid: 12, flags: new Set() },
+        ];
+      });
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    const res = await fetchFlagsForUids(account, [10, 11, 12]);
+    expect(res).toEqual([
+      { uid: 10, seen: true, answered: true },
+      { uid: 11, seen: true, answered: false },
+      { uid: 12, seen: false, answered: false },
+    ]);
+  });
+
+  it('accepts flags returned as an array (not a Set)', async () => {
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn();
+      fetchAll = vi.fn(async () => [{ uid: 20, flags: ['\\Answered'] }]);
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    const res = await fetchFlagsForUids(account, [20]);
+    expect(res).toEqual([{ uid: 20, seen: false, answered: true }]);
+  });
+
+  it('chunks large UID lists into multiple fetches', async () => {
+    const chunks: number[][] = [];
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn();
+      fetchAll = vi.fn(async (uids: number[]) => {
+        chunks.push(uids);
+        return uids.map((uid) => ({ uid, flags: new Set<string>() }));
+      });
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    const uids = Array.from({ length: 5 }, (_, i) => i + 1);
+    const res = await fetchFlagsForUids(account, uids, { chunkSize: 2 });
+    expect(chunks).toEqual([[1, 2], [3, 4], [5]]);
+    expect(res.map((r) => r.uid)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('returns [] (never throws) on a connection error, logged', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    __setImapFlowCtor(makeClientStub({ throwOn: 'connect' }) as any);
+    const res = await fetchFlagsForUids(account, [1, 2, 3]);
+    expect(res).toEqual([]);
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('returns [] (never throws) on a fetch error, logged', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    __setImapFlowCtor(makeClientStub({ throwOn: 'fetch' }) as any);
+    const res = await fetchFlagsForUids(account, [1, 2, 3]);
+    expect(res).toEqual([]);
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
   });
 });
 

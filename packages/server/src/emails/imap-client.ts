@@ -192,6 +192,60 @@ export async function fetchNewMessages(
   });
 }
 
+// imapflow returns message flags as a Set of strings (e.g. '\\Seen'), but a
+// stubbed client or a future lib version may hand back an array — accept both.
+function flagHas(flags: unknown, flag: string): boolean {
+  if (!flags) return false;
+  if (flags instanceof Set) return flags.has(flag);
+  if (Array.isArray(flags)) return flags.includes(flag);
+  if (typeof (flags as { has?: unknown }).has === 'function') {
+    return (flags as { has: (f: string) => boolean }).has(flag);
+  }
+  return false;
+}
+
+// Re-poll only flags for an explicit list of already-known UIDs. Used by the
+// implicit-feedback resolver to learn whether the user opened (`\Seen`) or
+// replied to (`\Answered`) an email we pinged about. Unlike the other fetchers
+// this NEVER throws into the caller: a flag re-poll is best-effort telemetry,
+// so a dead connection or server NO/BAD must not crash the poll tick — we log
+// and return whatever we gathered (empty on a hard failure). Large UID lists
+// are chunked so one FETCH command can't blow past the socket timeout.
+const FLAG_FETCH_CHUNK = 200;
+
+export async function fetchFlagsForUids(
+  account: ImapAccount,
+  uids: number[],
+  opts?: { chunkSize?: number },
+): Promise<Array<{ uid: number; seen: boolean; answered: boolean }>> {
+  if (!uids || uids.length === 0) return [];
+  const chunkSize = opts?.chunkSize && opts.chunkSize > 0 ? opts.chunkSize : FLAG_FETCH_CHUNK;
+  try {
+    return await withClient(account, async (client) => {
+      const out: Array<{ uid: number; seen: boolean; answered: boolean }> = [];
+      for (let i = 0; i < uids.length; i += chunkSize) {
+        const chunk = uids.slice(i, i + chunkSize);
+        const rows = await client.fetchAll(chunk, { flags: true }, { uid: true });
+        for (const row of rows || []) {
+          if (!row || typeof row.uid !== 'number') continue;
+          out.push({
+            uid: row.uid,
+            seen: flagHas(row.flags, '\\Seen'),
+            answered: flagHas(row.flags, '\\Answered'),
+          });
+        }
+      }
+      return out;
+    });
+  } catch (err) {
+    console.error(
+      `[emails] fetchFlagsForUids failed for ${account.id}:`,
+      err instanceof Error ? err.message : err,
+    );
+    return [];
+  }
+}
+
 export interface MessageHeaders {
   messageId: string | null;
   inReplyTo: string | null;
