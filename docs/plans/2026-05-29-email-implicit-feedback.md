@@ -109,15 +109,15 @@ self-healing on reply.
 ## Implementation Steps
 
 ### Task 1: `email_feedback` table + migration
-- [ ] in `db.ts` `initDb()`, add idempotent `CREATE TABLE IF NOT EXISTS
+- [x] in `db.ts` `initDb()`, add idempotent `CREATE TABLE IF NOT EXISTS
       email_feedback` (pending_id PK → email_pending.id, pinged_at, seen_at,
       answered_at, resolved_at, outcome TEXT CHECK in
       ('replied','read','ignored'), created_at)
-- [ ] add index `idx_email_feedback_unresolved` on `(resolved_at)` /
+- [x] add index `idx_email_feedback_unresolved` on `(resolved_at)` /
       `(outcome)` for the "find unresolved" query
-- [ ] write tests in `db.test.ts`: table + columns + index exist after
+- [x] write tests in `db.test.ts`: table + columns + index exist after
       `initDb`, and re-running `initDb` is idempotent
-- [ ] run `npm -w @r2/server test -- db.test` — must pass before task 2
+- [x] run `npm -w @r2/server test -- db.test` — must pass before task 2
 
 ### Task 2: IMAP flag fetch in `imap-client.ts`
 - [ ] add `fetchFlagsForUids(account, uids: number[], opts?): Promise<

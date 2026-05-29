@@ -233,6 +233,114 @@ describe('email tables', () => {
   });
 });
 
+describe('email_feedback table', () => {
+  it('creates email_feedback with expected columns', () => {
+    const cols = getDb()
+      .prepare("PRAGMA table_info('email_feedback')")
+      .all() as Array<{ name: string }>;
+    const names = cols.map((c) => c.name).sort();
+    expect(names).toEqual([
+      'answered_at', 'created_at', 'outcome', 'pending_id',
+      'pinged_at', 'resolved_at', 'seen_at',
+    ].sort());
+  });
+
+  it('email_feedback pending_id is the primary key', () => {
+    const cols = getDb()
+      .prepare("PRAGMA table_info('email_feedback')")
+      .all() as Array<{ name: string; pk: number }>;
+    const pk = cols.find((c) => c.name === 'pending_id');
+    expect(pk).toBeDefined();
+    expect(pk!.pk).toBe(1);
+  });
+
+  it('email_feedback CHECK constraint rejects invalid outcome', () => {
+    const db = getDb();
+    db.prepare(
+      `INSERT INTO email_pending
+       (account_id, message_uid, from_addr, subject, snippet, importance, received_at, added_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run('acc1', 1, 'a@b.com', 's', 'snip', 5, 1000, 1000);
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO email_feedback (pending_id, pinged_at, outcome, created_at)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(1, 1000, 'bogus', 1000),
+    ).toThrow();
+  });
+
+  it('email_feedback accepts valid outcomes and NULL outcome (unresolved)', () => {
+    const db = getDb();
+    const pending = db.prepare(
+      `INSERT INTO email_pending
+       (account_id, message_uid, from_addr, subject, snippet, importance, received_at, added_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run('acc1', 2, 'a@b.com', 's', 'snip', 5, 1000, 1000);
+    const pendingId = Number(pending.lastInsertRowid);
+    const info = db
+      .prepare(
+        `INSERT INTO email_feedback (pending_id, pinged_at, outcome, created_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(pendingId, 1000, null, 1000);
+    expect(info.changes).toBe(1);
+    const row = db
+      .prepare('SELECT outcome, resolved_at FROM email_feedback WHERE pending_id = ?')
+      .get(pendingId) as { outcome: string | null; resolved_at: number | null };
+    expect(row.outcome).toBeNull();
+    expect(row.resolved_at).toBeNull();
+  });
+
+  it('creates index idx_email_feedback_unresolved', () => {
+    const row = getDb()
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_email_feedback_unresolved'",
+      )
+      .get() as { sql: string } | undefined;
+    expect(row).toBeDefined();
+    expect(row!.sql).toMatch(/email_feedback/);
+    expect(row!.sql).toMatch(/resolved_at/);
+  });
+
+  it('initDb is idempotent: email_feedback survives a second initDb call', async () => {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const tmp = path.join(
+      os.tmpdir(),
+      `r2-db-feedback-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`,
+    );
+    try {
+      initDb(tmp);
+      let cols = getDb()
+        .prepare("PRAGMA table_info('email_feedback')")
+        .all() as Array<{ name: string }>;
+      expect(cols.length).toBeGreaterThan(0);
+
+      expect(() => initDb(tmp)).not.toThrow();
+      cols = getDb()
+        .prepare("PRAGMA table_info('email_feedback')")
+        .all() as Array<{ name: string }>;
+      expect(cols.length).toBeGreaterThan(0);
+
+      const idx = getDb()
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_email_feedback_unresolved'",
+        )
+        .get() as { name: string } | undefined;
+      expect(idx).toBeDefined();
+    } finally {
+      closeDb();
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      for (const ext of ['-wal', '-shm']) {
+        if (fs.existsSync(tmp + ext)) fs.unlinkSync(tmp + ext);
+      }
+    }
+  });
+});
+
 describe('window_history table', () => {
   it('creates window_history with expected columns', () => {
     const cols = getDb()
