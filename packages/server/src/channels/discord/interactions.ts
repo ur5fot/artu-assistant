@@ -1844,20 +1844,35 @@ async function handleWhySlash(
       ? formatWhyHourMinute(row.urgent_pinged_at)
       : '—';
   const ruleLine = result.activeRule ? describeRule(result.activeRule) : '—';
+  const lines = [
+    `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
+    `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
+    `Importance: ${row.importance}/5 — received ${formatWhyTime(row.received_at)} — pinged ${pingedAt}`,
+    '',
+    'Прошлые 7 дней с этого отправителя:',
+    `  писем: ${result.history.pendings} — отправлено: ${result.history.sent} — отменено: ${result.history.cancelled} — ошибок: ${result.history.error}`,
+    '',
+    `Активное правило заглушения: ${ruleLine}`,
+  ];
+  if (result.feedback) {
+    const fb = result.feedback;
+    const autoLine = fb.autoSuppression
+      ? `авто-заглушение активно (${
+          fb.autoSuppression.expiresAt === null
+            ? 'навсегда'
+            : `до ${formatExpiryLabel(fb.autoSuppression.expiresAt)}`
+        })`
+      : 'авто-заглушение: нет';
+    lines.push(
+      '',
+      'Реакция на urgent-пинги (7д):',
+      `  ответил: ${fb.replied} — прочитал: ${fb.read} — проигнорировал: ${fb.ignored}`,
+      `  ${autoLine}`,
+    );
+  }
   const embed = new EmbedBuilder()
     .setTitle('🔍 Why this is urgent')
-    .setDescription(
-      [
-        `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
-        `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
-        `Importance: ${row.importance}/5 — received ${formatWhyTime(row.received_at)} — pinged ${pingedAt}`,
-        '',
-        'Прошлые 7 дней с этого отправителя:',
-        `  писем: ${result.history.pendings} — отправлено: ${result.history.sent} — отменено: ${result.history.cancelled} — ошибок: ${result.history.error}`,
-        '',
-        `Активное правило заглушения: ${ruleLine}`,
-      ].join('\n'),
-    );
+    .setDescription(lines.join('\n'));
   await (ixn as any).reply({
     flags: MessageFlags.Ephemeral,
     embeds: [embed],

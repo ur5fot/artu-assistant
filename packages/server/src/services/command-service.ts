@@ -9,9 +9,21 @@ import type {
   EmailSuppressionStore,
   SuppressionRule,
 } from '../emails/suppression-store.js';
+import type { EmailFeedbackStore } from '../emails/feedback-store.js';
+import { AUTO_FEEDBACK_VIA } from '../emails/feedback-scorer.js';
 import type { EmailPendingRow } from '../emails/types.js';
 import { parseFromAddress } from '../emails/address.js';
 import { SUPPRESSED_PING_SENTINEL } from '../cognition/handlers/emailUrgent.js';
+
+/** Implicit-feedback signals for a sender, surfaced by `/why`. Counts are the
+ *  resolved outcomes within the same 7-day lookback used for ping history;
+ *  `autoSuppression` is the active `auto_feedback` rule (if any) and its TTL. */
+export interface SenderFeedbackSignals {
+  replied: number;
+  read: number;
+  ignored: number;
+  autoSuppression: { expiresAt: number | null } | null;
+}
 
 export type WhyEmailUrgentResult =
   | { kind: 'not_configured' }
@@ -29,6 +41,9 @@ export type WhyEmailUrgentResult =
         error: number;
       };
       activeRule: SuppressionRule | null;
+      /** Implicit-feedback signals for the sender; `null` when no feedback
+       *  store is wired (feature disabled) → `/why` omits the section. */
+      feedback: SenderFeedbackSignals | null;
     };
 
 export interface CommandService {
@@ -68,6 +83,9 @@ interface Deps {
   /** Suppression rules — `/why` shows the matching rule for suppressed rows
    *  and any active rule that would suppress a normal urgent row. */
   emailSuppressionStore?: EmailSuppressionStore;
+  /** Implicit-feedback store — `/why` reads per-sender outcome counts and any
+   *  active auto-suppression. Optional: absent → `/why` omits feedback. */
+  emailFeedbackStore?: EmailFeedbackStore;
 }
 
 const HISTORY_WINDOW_DAYS = 7;
@@ -83,6 +101,7 @@ export function createCommandService(deps: Deps): CommandService {
     emailStore,
     emailSentLog,
     emailSuppressionStore,
+    emailFeedbackStore,
   } = deps;
 
   return {
@@ -194,7 +213,32 @@ export function createCommandService(deps: Deps): CommandService {
         row.subject,
         now,
       );
-      return { kind: 'urgent', row, history, activeRule } as const;
+      let feedback: SenderFeedbackSignals | null = null;
+      if (emailFeedbackStore) {
+        const counts = emailFeedbackStore.recentOutcomesBySender(
+          senderKey,
+          HISTORY_WINDOW_DAYS * 86_400_000,
+          now,
+        );
+        // Active auto-feedback rule for *this* sender, if any. Manual
+        // (`discord_button`) rules surface via `activeRule` above; here we only
+        // report the auto one so `/why` can explain R2-driven silencing.
+        const autoRule = emailSuppressionStore
+          .listActive(now)
+          .find(
+            (r) =>
+              r.rule_type === 'sender' &&
+              r.created_via === AUTO_FEEDBACK_VIA &&
+              r.pattern === senderKey,
+          );
+        feedback = {
+          replied: counts.replied,
+          read: counts.read,
+          ignored: counts.ignored,
+          autoSuppression: autoRule ? { expiresAt: autoRule.expires_at } : null,
+        };
+      }
+      return { kind: 'urgent', row, history, activeRule, feedback } as const;
     },
   };
 }

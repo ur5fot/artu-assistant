@@ -190,14 +190,14 @@ self-healing on reply.
       task 7
 
 ### Task 7: `/why` transparency
-- [ ] extend `command-service.ts` `whyEmailUrgent()` result with feedback
+- [x] extend `command-service.ts` `whyEmailUrgent()` result with feedback
       signals for the sender: counts of replied/read/ignored in lookback +
       whether an active `auto_feedback` suppression exists (and its expiry)
-- [ ] surface these in the `/why` Discord reply
+- [x] surface these in the `/why` Discord reply
       (`interactions.ts`/`slash-commands.ts`)
-- [ ] write tests: `/why` for a sender with mixed outcomes shows correct
+- [x] write tests: `/why` for a sender with mixed outcomes shows correct
       counts; shows active auto-suppression; no feedback → graceful empty
-- [ ] run `npm -w @r2/server test -- why` — must pass before task 8
+- [x] run `npm -w @r2/server test -- why` — must pass before task 8
 
 ### Task 8: Wire into `index.ts` + env vars + integration test
 - [ ] in `index.ts`, construct `feedbackStore`, pass it to the urgent
