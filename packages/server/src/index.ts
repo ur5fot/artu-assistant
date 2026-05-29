@@ -61,6 +61,11 @@ import { createDraftReplyService, type DraftState } from './services/draft-reply
 import { MORNING_FALLBACK_HOUR } from './cognition/handlers/emailDigest.helpers.js';
 import { createTopicFinalizerHandler } from './topics/finalizer.js';
 import { createEmailSentLog } from './emails/sent-log.js';
+import { createWindowHistoryStore } from './observers/window-history-store.js';
+import { createContextPingStore } from './observers/context-switch-detector.js';
+import { createOsascriptProvider } from './observers/window-snapshot.js';
+import { startWindowLogger } from './observers/window-logger.js';
+import { createContextSwitchHandler } from './cognition/handlers/contextSwitch.js';
 import { envInt } from './env-utils.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -564,6 +569,9 @@ await discoverTools(registry, {
 let stopEmailPoller: (() => void) | null = null;
 let emailPollerAbort: AbortController | null = null;
 
+// Window logger (Digital Observer) lifecycle handle, hoisted for SIGTERM.
+let stopWindowLogger: (() => void) | null = null;
+
 // Polling runs independently of Discord. email_pending feeds on-demand tools
 // (emails_list/emails_get) as well as the digest handler; gating it on the
 // Discord bot would leave those tools silently empty if Discord is off or
@@ -710,6 +718,48 @@ if (discordToken) {
   }
 }
 
+// Digital Observer (Pain #2 iter 1) — macOS-only window poller + context-switch
+// detector. Three hard gates: feature flag, darwin platform (osascript is
+// Apple-only), and a live Discord bot (the contextSwitch handler publishes via
+// the cognition bus and there is nobody else to consume it — mirror emailUrgent).
+{
+  const windowFlag = process.env.WINDOW_LOGGER_ENABLED === 'true';
+  const isDarwin = process.platform === 'darwin';
+  const discordReady = discordBot !== null;
+  const windowIntervalMs = envInt(process.env.WINDOW_LOGGER_INTERVAL_MS, 30_000, 5_000, 300_000);
+  const longSessionMin = envInt(process.env.CONTEXT_SWITCH_LONG_SESSION_MIN, 30, 10, 240);
+  const switchGapMin = envInt(process.env.CONTEXT_SWITCH_GAP_MIN, 5, 1, 60);
+  const stableNewMin = envInt(process.env.CONTEXT_SWITCH_STABLE_NEW_MIN, 5, 1, 60);
+  const dedupeWindowH = envInt(process.env.CONTEXT_SWITCH_DEDUPE_WINDOW_H, 8, 1, 168);
+
+  if (windowFlag && isDarwin && discordReady) {
+    const windowStore = createWindowHistoryStore({ db: getDb() });
+    const pingStore = createContextPingStore({ db: getDb() });
+    const provider = createOsascriptProvider({ timeoutMs: 5_000 });
+    stopWindowLogger = startWindowLogger({
+      store: windowStore,
+      provider,
+      intervalMs: windowIntervalMs,
+      onError: (e) => console.error('[window-logger]', e instanceof Error ? e.message : e),
+    });
+    cognitionService.register(
+      createContextSwitchHandler({
+        store: windowStore,
+        pingStore,
+        longSessionMin,
+        switchGapMin,
+        stableNewMin,
+        dedupeWindowH,
+      }),
+    );
+    console.log(`[window-logger] started (interval=${Math.round(windowIntervalMs / 1000)}s)`);
+  } else {
+    console.log(
+      `[window-logger] disabled (flag=${windowFlag}, darwin=${isDarwin}, discord=${discordReady})`,
+    );
+  }
+}
+
 const chatRouter = createChatRouter({
   runLoop: ({ messages, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, pendingMemoryConfirms: pmc, piiProxy: pp, currentUserMessageId, currentUserMessageTimestamp }) =>
     runToolLoop({ messages, client, registry, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, pendingMemoryConfirms: pmc, piiProxy: pp, currentUserMessageId, currentUserMessageTimestamp }),
@@ -756,6 +806,7 @@ process.on('SIGTERM', async () => {
   stopScheduler();
   stopEmailPoller?.();
   emailPollerAbort?.abort();
+  stopWindowLogger?.();
   await cognitionService.stop().catch(() => {});
   await discordBot?.stop().catch(() => {});
   server.close(() => {

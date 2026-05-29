@@ -420,18 +420,18 @@ investing in fragile restore-side integrations.
 
 ### Task 7: Wire into `index.ts` + integration test
 
-- [ ] in `index.ts`, parse env:
+- [x] in `index.ts`, parse env:
   - `WINDOW_LOGGER_ENABLED` (`=== 'true'`, default false)
   - `WINDOW_LOGGER_INTERVAL_MS` (`envInt(env, 30000, 5000, 300000)`)
   - `CONTEXT_SWITCH_LONG_SESSION_MIN` (`envInt(env, 30, 10, 240)`)
   - `CONTEXT_SWITCH_GAP_MIN` (`envInt(env, 5, 1, 60)`)
   - `CONTEXT_SWITCH_STABLE_NEW_MIN` (`envInt(env, 5, 1, 60)`)
   - `CONTEXT_SWITCH_DEDUPE_WINDOW_H` (`envInt(env, 8, 1, 168)`)
-- [ ] gate registration on:
+- [x] gate registration on:
   - `WINDOW_LOGGER_ENABLED === 'true'`
   - `process.platform === 'darwin'`
   - `discordBot !== null`
-- [ ] when all gates pass:
+- [x] when all gates pass:
   - `windowStore = createWindowHistoryStore({db})`
   - `pingStore = createContextPingStore({db})`
   - `provider = createOsascriptProvider({timeoutMs: 5000})`
@@ -441,12 +441,12 @@ investing in fragile restore-side integrations.
   - `cognitionService.register(createContextSwitchHandler({store:
     windowStore, pingStore, longSessionMin, switchGapMin,
     stableNewMin, dedupeWindowH}))`
-- [ ] hook `stopWindowLogger` into existing SIGTERM/SIGINT shutdown
+- [x] hook `stopWindowLogger` into existing SIGTERM/SIGINT shutdown
   alongside other pollers.
-- [ ] boot log: `[window-logger] started (interval=30s)` or
+- [x] boot log: `[window-logger] started (interval=30s)` or
   `[window-logger] disabled (flag=${flag}, darwin=${isDarwin},
   discord=${D})`
-- [ ] in `.env.example`, after `EMAIL_SEND_HOLD_SECONDS`:
+- [x] in `.env.example`, after `EMAIL_SEND_HOLD_SECONDS`:
   ```
   # ---- Digital Observer — macOS only (Pain #2 iter 1) ----
   # Polls foreground app+title every 30s via osascript, stores in
@@ -461,7 +461,7 @@ investing in fragile restore-side integrations.
   CONTEXT_SWITCH_STABLE_NEW_MIN=5      # confirm return before pinging
   CONTEXT_SWITCH_DEDUPE_WINDOW_H=8     # don't re-ping for N hours
   ```
-- [ ] integration test in
+- [x] integration test in
   `__tests__/window-logger.integration.test.ts`:
   - boot minimal deps with in-memory DB + mocked provider + spy on
     cognition bus
@@ -472,7 +472,7 @@ investing in fragile restore-side integrations.
     `handler='contextSwitch'`
   - assert the embed's `Was on` field is `Chrome`
   - assert `context_pings` has exactly one row after publish
-- [ ] run `npm -w @r2/server test -- window-logger.integration` — must
+- [x] run `npm -w @r2/server test -- window-logger.integration` — must
   pass before task 8
 
 ### Task 8: Acceptance + docs

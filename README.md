@@ -103,6 +103,8 @@ Closing the gap between Claude Code (the harness) and R2:
   - `emailDigest` — registered when email watcher is enabled.
   - `emailUrgent` — immediate Discord ping for `importance=5` emails, gated on
     `EMAIL_URGENT_ENABLED=true` and suppressed during quiet hours.
+  - `contextSwitch` — macOS Digital Observer (Pain #2 iter 1); see the
+    [Digital Observer](#digital-observer-pain-2--macos-only) section.
   - `pulseHandler` — demo / placeholder.
 - **Discord channel** — DM-only, whitelist-gated. The only active channel today.
   Interactive embeds: reminder ring (dismiss / snooze 10m), permission requests
@@ -315,6 +317,48 @@ buttons — pick a TTL (1d/7d/30d/forever) or edit a subject substring in a moda
 and future matching emails skip the ping. Run `/why` (or `/why id:<n>`) to see
 why a ping fired: scorer importance, last-7-day history with the same sender
 (pings, sent, cancelled, errors), and any active suppression rule.
+
+---
+
+## Digital Observer (Pain #2) — macOS only
+
+R2's first OS-level integration. Every 30 s it polls the foreground app +
+window title via `osascript` (no native deps — AppleScript through the
+existing `execFile` wrapper), coalesces identical consecutive samples into
+`window_history`, and runs a pure heuristic to detect a **context switch**:
+you spent a long stretch in app B, then stably returned to app A. When that
+fires, R2 proactively DMs you a `🔁 Restore context?` embed.
+
+**Privacy by default.** The embed shows only a summary — `Was on Chrome
+~45 min`. Window titles (which can leak PDF names, DM partners, banking URLs)
+never appear in the default embed. A `Show titles` button reveals the list as
+an **ephemeral** message visible only to you.
+
+**This iteration is observation only** — it detects and notifies. Actual
+restore (reopening tabs / files / cwd) is a later iteration.
+
+**Enable it:**
+
+1. Set `WINDOW_LOGGER_ENABLED=true` in `.env` and restart. (Requires a live
+   Discord bot — the ping has nowhere else to go.)
+2. On the first poll, macOS prompts: *"R2 (or node) wants to send events to
+   System Events"* → click **Allow**. If no prompt appears, grant it manually
+   in **System Settings → Privacy & Security → Automation → R2 / node →
+   System Events**.
+3. Tune detection via env vars (all in `.env.example`):
+   `CONTEXT_SWITCH_LONG_SESSION_MIN` (30), `CONTEXT_SWITCH_GAP_MIN` (5),
+   `CONTEXT_SWITCH_STABLE_NEW_MIN` (5), `CONTEXT_SWITCH_DEDUPE_WINDOW_H` (8).
+
+**Known limitations (iter 1):**
+
+- **Screen-lock false positive** — macOS reports the last-focused app as
+  active even while the screen is locked, so a sleeping laptop with Chrome in
+  front looks like "deep work on Chrome". A screen-lock detector is deferred to
+  iter 1.5.
+- **Read-in-browser false positive** — reading docs in a browser for a few
+  minutes can read as a switch away from coding; threshold tuning covers this
+  in practice.
+- macOS only — Linux / Docker silently see nothing.
 
 ---
 
