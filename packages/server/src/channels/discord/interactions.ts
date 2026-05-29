@@ -1786,7 +1786,31 @@ function describeRule(rule: import('../../emails/suppression-store.js').Suppress
   const expires =
     rule.expires_at === null ? 'навсегда' : `до ${formatExpiryLabel(rule.expires_at)}`;
   const kind = rule.rule_type === 'sender' ? 'отправитель' : 'тема';
-  return `${kind} \`${rule.pattern}\` (${expires})`;
+  // Flag R2-driven rules so the user can tell an auto-suppression from a
+  // manual /mute. Keeps `'auto_feedback'` as the single source of truth.
+  const origin = rule.created_via === 'auto_feedback' ? ' — авто (по реакции)' : '';
+  return `${kind} \`${rule.pattern}\` (${expires})${origin}`;
+}
+
+/** Render the implicit-feedback section shown in `/why`. Shared by the urgent
+ *  and suppressed branches so an auto-suppression is explained on the very
+ *  emails it silences. */
+function feedbackLines(
+  fb: import('../../services/command-service.js').SenderFeedbackSignals,
+): string[] {
+  const autoLine = fb.autoSuppression
+    ? `авто-заглушение активно (${
+        fb.autoSuppression.expiresAt === null
+          ? 'навсегда'
+          : `до ${formatExpiryLabel(fb.autoSuppression.expiresAt)}`
+      })`
+    : 'авто-заглушение: нет';
+  return [
+    '',
+    'Реакция на urgent-пинги (7д):',
+    `  ответил: ${fb.replied} — прочитал: ${fb.read} — проигнорировал: ${fb.ignored}`,
+    `  ${autoLine}`,
+  ];
 }
 
 async function handleWhySlash(
@@ -1847,17 +1871,21 @@ async function handleWhySlash(
     const ruleLine = result.matchedRule
       ? describeRule(result.matchedRule)
       : 'правило истекло или удалено';
+    const lines = [
+      `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
+      `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
+      `Получено: ${formatWhyTime(row.received_at)}`,
+      '',
+      `Заглушено правилом: ${ruleLine}`,
+    ];
+    // Explain *why* it's silenced — surfaces the outcome counts and active
+    // auto-suppression so a wrongly-silenced sender is diagnosable from /why.
+    if (result.feedback) {
+      lines.push(...feedbackLines(result.feedback));
+    }
     const embed = new EmbedBuilder()
       .setTitle('🙈 Suppressed by rule')
-      .setDescription(
-        [
-          `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
-          `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
-          `Получено: ${formatWhyTime(row.received_at)}`,
-          '',
-          `Заглушено правилом: ${ruleLine}`,
-        ].join('\n'),
-      );
+      .setDescription(lines.join('\n'));
     await (ixn as any).reply({
       flags: MessageFlags.Ephemeral,
       embeds: [embed],
@@ -1883,20 +1911,7 @@ async function handleWhySlash(
     `Активное правило заглушения: ${ruleLine}`,
   ];
   if (result.feedback) {
-    const fb = result.feedback;
-    const autoLine = fb.autoSuppression
-      ? `авто-заглушение активно (${
-          fb.autoSuppression.expiresAt === null
-            ? 'навсегда'
-            : `до ${formatExpiryLabel(fb.autoSuppression.expiresAt)}`
-        })`
-      : 'авто-заглушение: нет';
-    lines.push(
-      '',
-      'Реакция на urgent-пинги (7д):',
-      `  ответил: ${fb.replied} — прочитал: ${fb.read} — проигнорировал: ${fb.ignored}`,
-      `  ${autoLine}`,
-    );
+    lines.push(...feedbackLines(result.feedback));
   }
   const embed = new EmbedBuilder()
     .setTitle('🔍 Why this is urgent')

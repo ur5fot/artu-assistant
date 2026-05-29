@@ -693,6 +693,53 @@ describe('/why slash command routing', () => {
     expect(description).toMatch(/правило истекло|правило/);
   });
 
+  it('suppressed by auto_feedback rule → embed shows reaction counts + auto provenance', async () => {
+    const row: EmailPendingRow = {
+      id: 22,
+      account_id: 'acc-1',
+      message_uid: 42,
+      from_addr: 'spam@nope.com',
+      subject: 'Newsletter',
+      snippet: 'snip',
+      importance: 5,
+      received_at: 1_700_000_000_000,
+      added_at: 1_700_000_001_000,
+      delivered_at: null,
+      urgent_pinged_at: -1,
+    };
+    const ixn = makeWhySlashIxn({ id: 22 });
+    const deps = makeBaseDeps({
+      commandService: makeCommandSvc({
+        result: {
+          kind: 'suppressed',
+          row,
+          matchedRule: {
+            id: 7,
+            rule_type: 'sender',
+            pattern: 'spam@nope.com',
+            created_at: 1_700_000_000_000,
+            expires_at: 1_700_000_900_000,
+            created_via: 'auto_feedback',
+          },
+          feedback: {
+            replied: 0,
+            read: 1,
+            ignored: 3,
+            autoSuppression: { expiresAt: 1_700_000_900_000 },
+          },
+        },
+      }),
+    });
+    await routeInteraction(ixn, deps);
+    const args = ixn.reply.mock.calls[0]![0];
+    const description = args.embeds[0].data?.description ?? args.embeds[0].description ?? '';
+    // Rule line flags R2 provenance, and the feedback section explains *why*.
+    expect(description).toMatch(/авто \(по реакции\)/);
+    expect(description).toContain('Реакция на urgent-пинги');
+    expect(description).toMatch(/проигнорировал: 3/);
+    expect(description).toMatch(/авто-заглушение активно/);
+  });
+
   it('clips multi-KB from_addr so embed description stays under Discord cap', async () => {
     // Discord embed description hard limit is 4096 — EmbedBuilder.setDescription
     // throws RangeError past it. A malicious sender with a multi-KB display
