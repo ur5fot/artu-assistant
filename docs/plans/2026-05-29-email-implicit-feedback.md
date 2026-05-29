@@ -218,13 +218,16 @@ self-healing on reply.
       before task 9
 
 ### Task 9: Acceptance + docs
-- [ ] run full server suite — all green
-- [ ] verify backward-compat: `EMAIL_FEEDBACK_ENABLED` unset → no feedback
-      rows, no auto-rules, urgent behaviour unchanged
-- [ ] run `tsc` build clean + linter
-- [ ] update `AGENTS.md` (email feedback handler/flow) and `README.md`
-      (Pain #1 implicit-feedback subsection: what it does, IMAP-flag basis,
-      config vars, downgrade-only scope, how to enable)
+- [x] run full server suite — all green (1310 tests passed, 98 files)
+- [x] verify backward-compat: `EMAIL_FEEDBACK_ENABLED` unset → no feedback
+      rows, no auto-rules, urgent behaviour unchanged (structural: flag off ⇒
+      `emailFeedbackStore=null`, handler + poll tick receive `undefined` no-op;
+      covered by Task 4/5 disabled-store tests in the green suite)
+- [x] run `tsc` build clean + linter (`tsc --noEmit` EXIT 0; no separate
+      linter script — tsc is the type/lint gate)
+- [x] update `AGENTS.md` (email feedback handler/flow + env block + `/why`)
+      and `README.md` (Pain #1 implicit-feedback subsection: what it does,
+      IMAP-flag basis, config vars, downgrade-only scope, how to enable)
 
 ## Technical Details
 
