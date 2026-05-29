@@ -571,6 +571,12 @@ let emailPollerAbort: AbortController | null = null;
 
 // Window logger (Digital Observer) lifecycle handle, hoisted for SIGTERM.
 let stopWindowLogger: (() => void) | null = null;
+// Window history store is created unconditionally (cheap — just prepared
+// statements over an always-migrated table) so the Discord bot's "Show titles"
+// button can read session titles. The poller + context-switch handler that
+// *write* to it stay gated on the feature flag below, so a disabled feature
+// still produces no rows and no buttons — the store just sits idle.
+const windowStore = createWindowHistoryStore({ db: getDb() });
 
 // Polling runs independently of Discord. email_pending feeds on-demand tools
 // (emails_list/emails_get) as well as the digest handler; gating it on the
@@ -652,6 +658,10 @@ if (discordToken) {
       // anonymizes the email thread before sending to Claude (plan: outbound
       // draft prompt goes through PII proxy when memory uses Claude).
       piiProxy,
+      // Read by the `window:show` button to reveal session titles as an
+      // ephemeral. Passed unconditionally — when the feature is off no pings
+      // (and thus no buttons) are ever created, so the store is never queried.
+      windowHistoryStore: windowStore,
       requestTimeoutMs: (() => {
         const n = Number(process.env.DISCORD_REQUEST_TIMEOUT_MS);
         return Number.isFinite(n) && n > 0 ? n : 300_000;
@@ -733,7 +743,8 @@ if (discordToken) {
   const dedupeWindowH = envInt(process.env.CONTEXT_SWITCH_DEDUPE_WINDOW_H, 8, 1, 168);
 
   if (windowFlag && isDarwin && discordReady) {
-    const windowStore = createWindowHistoryStore({ db: getDb() });
+    // Reuse the hoisted windowStore (also handed to the Discord bot above) so
+    // the poller's writes and the "Show titles" button's reads share one store.
     const pingStore = createContextPingStore({ db: getDb() });
     const provider = createOsascriptProvider({ timeoutMs: 5_000 });
     stopWindowLogger = startWindowLogger({

@@ -100,7 +100,7 @@ describe('createWindowHistoryStore', () => {
   describe('findCurrentSession', () => {
     it('returns null when DB is empty', () => {
       const store = createWindowHistoryStore({ db: getDb() });
-      expect(store.findCurrentSession(Date.now())).toBeNull();
+      expect(store.findCurrentSession()).toBeNull();
     });
 
     it('returns the most recent row', () => {
@@ -109,7 +109,7 @@ describe('createWindowHistoryStore', () => {
       store.recordSample({ app_name: 'Chrome', window_title: 'Gmail', sampled_at: t1 });
       store.recordSample({ app_name: 'iTerm', window_title: 'zsh', sampled_at: t1 + 30_000 });
 
-      const current = store.findCurrentSession(t1 + 60_000);
+      const current = store.findCurrentSession();
       expect(current).not.toBeNull();
       expect(current!.app_name).toBe('iTerm');
       expect(current!.window_title).toBe('zsh');

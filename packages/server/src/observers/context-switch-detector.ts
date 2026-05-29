@@ -91,7 +91,7 @@ export function detectContextSwitch(params: DetectContextSwitchParams): SwitchEv
 
   // 1. Current session must exist and be stable (focused long enough that we
   //    believe the user has actually settled, not mid-alt-tab).
-  const current = store.findCurrentSession(now);
+  const current = store.findCurrentSession();
   if (!current) return null;
   if (now - current.started_at < stableNewMin * MINUTE_MS) return null;
 

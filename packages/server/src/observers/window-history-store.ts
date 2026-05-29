@@ -24,7 +24,8 @@ export interface SessionTitle {
 
 export interface WindowHistoryStore {
   recordSample(sample: WindowSampleInput): void;
-  findCurrentSession(now: number): WindowSession | null;
+  /** The latest recorded session (most recent row). "Current" = newest. */
+  findCurrentSession(): WindowSession | null;
   findRecentRows(since: number, limit?: number): WindowSession[];
   listTitlesInSession(app: string, from: number, to: number): SessionTitle[];
   purgeOlderThan(cutoff: number): number;
@@ -83,7 +84,7 @@ export function createWindowHistoryStore(deps: { db: Database.Database }): Windo
       );
     },
 
-    findCurrentSession(_now) {
+    findCurrentSession() {
       const row = selectLatest.get() as WindowHistoryRow | undefined;
       return row ?? null;
     },
