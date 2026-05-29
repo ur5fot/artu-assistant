@@ -318,6 +318,30 @@ and future matching emails skip the ping. Run `/why` (or `/why id:<n>`) to see
 why a ping fired: scorer importance, last-7-day history with the same sender
 (pings, sent, cancelled, errors), and any active suppression rule.
 
+**Implicit feedback (silence as data).** Beyond the explicit 🙈 buttons, R2 can
+learn from how you *react* to urgent pings and auto-mute senders you keep
+ignoring — opt-in via `EMAIL_FEEDBACK_ENABLED=true` (default off ⇒ nothing is
+recorded and the urgent path is unchanged). For every urgent ping it watches
+the IMAP flags of that email: each poll tick re-reads `\Seen` / `\Answered` for
+unresolved pings (reusing the open connection, capped per tick) and finalizes
+an outcome — **replied** (`\Answered`), **read** (`\Seen` but no reply after
+`EMAIL_FEEDBACK_IGNORE_HOURS`, default 24h), or **ignored** (never opened).
+When a sender's negative outcomes (ignored + read-without-reply) reach
+`EMAIL_FEEDBACK_SUPPRESS_AFTER` (default 3) within the lookback, R2 writes an
+*automatic* sender suppression rule (TTL `EMAIL_FEEDBACK_SUPPRESS_TTL_DAYS`,
+default 7) — so future urgent emails from that sender quietly fall into the
+digest instead of pinging. It's **downgrade-only** (it never auto-promotes), it
+reuses the same suppression machinery as the 🙈 buttons (so it's visible in
+`/why`), and trust is re-earned by replying: a reply (`\Answered`) to a
+still-tracked urgent ping clears the auto-rule. Once a sender is suppressed
+their future emails are demoted straight to the digest and no longer tracked,
+so a reply from there isn't observed (the watcher-only scope doesn't scan the
+inbox by sender) — the auto-rule instead lapses at its TTL, and a reply to the
+next post-TTL urgent ping keeps the sender from being re-suppressed. Manual 🙈
+rules are never touched. The boost direction, subject-pattern scoring, and a
+true reply-driven self-heal (an INBOX `\Answered` sweep) are deferred to a
+later iteration.
+
 ---
 
 ## Digital Observer (Pain #2) — macOS only

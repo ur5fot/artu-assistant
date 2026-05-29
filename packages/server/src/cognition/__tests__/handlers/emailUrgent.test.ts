@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initDb, closeDb, getDb } from '../../../db.js';
 import { createEmailStore } from '../../../emails/store.js';
 import { createEmailSuppressionStore } from '../../../emails/suppression-store.js';
+import { createEmailFeedbackStore } from '../../../emails/feedback-store.js';
 import { createEmailUrgentHandler, SUPPRESSED_PING_SENTINEL } from '../../handlers/emailUrgent.js';
 
 beforeEach(() => initDb(':memory:'));
@@ -439,5 +440,95 @@ describe('createEmailUrgentHandler.trigger — suppression gate', () => {
       .prepare('SELECT urgent_pinged_at FROM email_pending WHERE message_uid = 1')
       .get() as { urgent_pinged_at: number | null };
     expect(row.urgent_pinged_at).toBeNull();
+  });
+});
+
+describe('createEmailUrgentHandler.run — implicit feedback row', () => {
+  function feedbackRowFor(pendingId: number) {
+    return getDb()
+      .prepare('SELECT pending_id, pinged_at FROM email_feedback WHERE pending_id = ?')
+      .get(pendingId) as { pending_id: number; pinged_at: number } | undefined;
+  }
+
+  it('records a feedback row with pinged_at on publish when feedbackStore present', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const suppressionStore = createEmailSuppressionStore({ db: getDb() });
+    const feedbackStore = createEmailFeedbackStore({ db: getDb() });
+    const h = createEmailUrgentHandler({
+      store,
+      suppressionStore,
+      feedbackStore,
+      tz: TZ,
+      quietStart: 22,
+    });
+    mkPending({ uid: 1, importance: 5, received_at: 1000 });
+    const rowId = store.findUnpingedUrgent()!.id;
+
+    const res = await h.run(mkCtx(Date.now()));
+    expect('publish' in res && res.publish).toBe(true);
+    // No feedback row until onPublished actually fires.
+    expect(feedbackRowFor(rowId)).toBeUndefined();
+    if ('publish' in res && res.publish && res.onPublished) {
+      await res.onPublished();
+    }
+    const fb = feedbackRowFor(rowId);
+    expect(fb).toBeDefined();
+    expect(fb!.pending_id).toBe(rowId);
+    // pinged_at equals the marker stamped on email_pending (same epoch).
+    const ping = getDb()
+      .prepare('SELECT urgent_pinged_at FROM email_pending WHERE id = ?')
+      .get(rowId) as { urgent_pinged_at: number };
+    expect(fb!.pinged_at).toBe(ping.urgent_pinged_at);
+  });
+
+  it('does NOT create a feedback row for a suppressed (-1) row', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const suppressionStore = createEmailSuppressionStore({ db: getDb() });
+    const feedbackStore = createEmailFeedbackStore({ db: getDb() });
+    const h = createEmailUrgentHandler({
+      store,
+      suppressionStore,
+      feedbackStore,
+      tz: TZ,
+      quietStart: 22,
+    });
+    mkPending({ uid: 1, importance: 5, received_at: 1000, from: 'spam@bank.com' });
+    const rowId = store.findUnpingedUrgent()!.id;
+    suppressionStore.insertRule({ rule_type: 'sender', pattern: 'spam@bank.com', ttl_days: 7 });
+
+    const noon = Date.UTC(2026, 3, 24, 12 - 3);
+    const fire = await h.trigger({ now: noon, lastFiredAt: null, lastResult: null }, { db: getDb() });
+    expect(fire).toBe(false);
+
+    // Row is sentinel-marked (demoted to digest) and no feedback row exists.
+    const ping = getDb()
+      .prepare('SELECT urgent_pinged_at FROM email_pending WHERE id = ?')
+      .get(rowId) as { urgent_pinged_at: number | null };
+    expect(ping.urgent_pinged_at).toBe(SUPPRESSED_PING_SENTINEL);
+    expect(feedbackRowFor(rowId)).toBeUndefined();
+    const count = getDb()
+      .prepare('SELECT COUNT(*) AS n FROM email_feedback')
+      .get() as { n: number };
+    expect(count.n).toBe(0);
+  });
+
+  it('no-ops (no feedback row, publishes normally) when feedbackStore absent', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const suppressionStore = createEmailSuppressionStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, suppressionStore, tz: TZ, quietStart: 22 });
+    mkPending({ uid: 1, importance: 5, received_at: 1000 });
+    const rowId = store.findUnpingedUrgent()!.id;
+
+    const res = await h.run(mkCtx(Date.now()));
+    expect('publish' in res && res.publish).toBe(true);
+    if ('publish' in res && res.publish && res.onPublished) {
+      await res.onPublished();
+    }
+    // Marker still stamped, but no feedback row (and no crash).
+    const ping = getDb()
+      .prepare('SELECT urgent_pinged_at FROM email_pending WHERE id = ?')
+      .get(rowId) as { urgent_pinged_at: number | null };
+    expect(ping.urgent_pinged_at).toBeGreaterThan(0);
+    expect(feedbackRowFor(rowId)).toBeUndefined();
   });
 });
