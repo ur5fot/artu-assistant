@@ -1,6 +1,8 @@
 import type { ImapAccount, NewMessage } from './types.js';
 import type { EmailStore } from './store.js';
 import type { EmailFeedbackStore } from './feedback-store.js';
+import type { EmailSuppressionStore } from './suppression-store.js';
+import { evaluateSender, type FeedbackScorerConfig } from './feedback-scorer.js';
 
 export type MessageFetcher = (account: ImapAccount, sinceUid: number, limit: number) => Promise<NewMessage[]>;
 export type MessageScorer = (msgs: NewMessage[]) => Promise<Array<{ uid: number; importance: number }>>;
@@ -22,6 +24,12 @@ export interface FeedbackResolution {
   ignoreHours: number;
   /** Cap on unresolved rows re-polled per tick (IMAP-cost guard). */
   maxRepoll: number;
+  /** Optional auto-suppression scoring run after each finalized outcome.
+   *  Absent → outcomes are recorded but never act on the suppression rules. */
+  scorer?: {
+    suppressionStore: EmailSuppressionStore;
+    config: FeedbackScorerConfig;
+  };
 }
 
 interface TickParams {
@@ -56,6 +64,29 @@ const FEEDBACK_FINALIZE_GRACE_MS = 7 * 24 * HOUR_MS;
 //
 // Best-effort: scoped to its own try/catch so a flag re-poll failure is logged
 // and never escalates into the account's setAccountError path.
+// Run the downgrade-only scorer for a sender whose outcome just finalized.
+// Scoped try/catch so a suppression-store hiccup never escalates into the
+// account's error path. No-op when scoring isn't wired (feature/flag off).
+function scoreSender(
+  feedback: FeedbackResolution,
+  sender: string,
+  now: number,
+): void {
+  if (!feedback.scorer) return;
+  try {
+    evaluateSender(
+      sender,
+      feedback.store,
+      feedback.scorer.suppressionStore,
+      feedback.scorer.config,
+      now,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[emails] feedback scoring failed for ${sender}:`, msg);
+  }
+}
+
 async function resolveAccountFeedback(
   account: ImapAccount,
   feedback: FeedbackResolution | undefined,
@@ -97,8 +128,10 @@ async function resolveAccountFeedback(
       const seen = row.seen_at != null || (f?.seen ?? false);
       if (answered) {
         feedback.store.finalize(row.pending_id, 'replied', now);
+        scoreSender(feedback, row.from_addr, now);
       } else if (now - row.pinged_at >= ignoreMs) {
         feedback.store.finalize(row.pending_id, seen ? 'read' : 'ignored', now);
+        scoreSender(feedback, row.from_addr, now);
       }
       // else: still inside the window → leave unresolved.
     }

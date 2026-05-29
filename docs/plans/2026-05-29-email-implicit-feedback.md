@@ -172,21 +172,21 @@ self-healing on reply.
       task 6
 
 ### Task 6: Scorer + auto-suppression (downgrade-only)
-- [ ] create `emails/feedback-scorer.ts` `evaluateSender(sender, store,
+- [x] create `emails/feedback-scorer.ts` `evaluateSender(sender, store,
       suppressionStore, cfg, now)`: from `recentOutcomesBySender`, if the
       sender's negative outcomes (`ignored` + `read`-without-reply) reach
       `suppressAfter` within the lookback AND no active rule exists → insert
       an auto suppression rule (`rule_type='sender'`,
       `created_via='auto_feedback'`, `expires_at = now + suppressTtlDays`)
-- [ ] on a `replied` outcome for a sender: delete any active
+- [x] on a `replied` outcome for a sender: delete any active
       `created_via='auto_feedback'` rule for that sender (trust re-earned);
       never touch manual (`discord_button`) rules
-- [ ] call `evaluateSender` from the resolution step (Task 5) whenever an
+- [x] call `evaluateSender` from the resolution step (Task 5) whenever an
       outcome is finalized; gated on feedback enabled
-- [ ] write tests: negative streak → auto-rule created (correct TTL +
+- [x] write tests: negative streak → auto-rule created (correct TTL +
       created_via); reply → auto-rule cleared, manual rule untouched; below
       threshold → no rule; existing active rule → no duplicate
-- [ ] run `npm -w @r2/server test -- feedback-scorer` — must pass before
+- [x] run `npm -w @r2/server test -- feedback-scorer` — must pass before
       task 7
 
 ### Task 7: `/why` transparency
