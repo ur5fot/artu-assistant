@@ -685,7 +685,13 @@ if (discordToken) {
       commandService,
       draftReplyService,
       emailStore: emailEnabled ? emailStore : undefined,
-      imapClient: emailEnabled ? { fetchHeaders, markAnswered } : undefined,
+      // markAnswered exists only to feed the implicit-feedback resolver, so
+      // only wire it when feedback is enabled — otherwise EMAIL_FEEDBACK_ENABLED=false
+      // would still write \Answered to the mailbox, breaking the "zero behaviour
+      // change when off" guarantee.
+      imapClient: emailEnabled
+        ? { fetchHeaders, ...(emailFeedbackEnabled ? { markAnswered } : {}) }
+        : undefined,
       threadFetcher: emailEnabled ? { fetchThread } : undefined,
       anthropic: client.anthropic,
       imapAccounts: emailEnabled ? imapAccountsById : undefined,
