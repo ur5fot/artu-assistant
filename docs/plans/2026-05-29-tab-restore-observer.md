@@ -292,15 +292,15 @@ investing in fragile restore-side integrations.
 
 ### Task 4: `window-logger.ts` poller
 
-- [ ] create `packages/server/src/observers/window-logger.ts`:
+- [x] create `packages/server/src/observers/window-logger.ts`:
   `startWindowLogger({store, provider, intervalMs, onError}) → () => void`
-- [ ] self-scheduling `setTimeout` loop mirroring
+- [x] self-scheduling `setTimeout` loop mirroring
   `multi-account-poller.ts:99-123`. Each tick: `await provider.getActive()`.
   If non-null call `store.recordSample({...snap, sampled_at: Date.now()})`.
   On thrown error from provider → `onError(err)`, do not call store.
-- [ ] `stopped` flag halts further ticks; return fn sets stopped + clears
+- [x] `stopped` flag halts further ticks; return fn sets stopped + clears
   pending timer.
-- [ ] write tests in
+- [x] write tests in
   `observers/__tests__/window-logger.test.ts` with fake timers + mocked
   provider + real in-memory store:
   - one tick with `{Chrome, Gmail}` snapshot → store has one row
@@ -309,7 +309,7 @@ investing in fragile restore-side integrations.
   - tick where provider throws → `onError` called, no row, next tick
     still fires
   - calling stop fn before timer fires → no more ticks
-- [ ] run `npm -w @r2/server test -- window-logger.test` — must pass
+- [x] run `npm -w @r2/server test -- window-logger.test` — must pass
   before task 5
 
 ### Task 5: Detector + `ContextPingStore` (combined)
