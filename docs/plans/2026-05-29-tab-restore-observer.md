@@ -314,7 +314,7 @@ investing in fragile restore-side integrations.
 
 ### Task 5: Detector + `ContextPingStore` (combined)
 
-- [ ] create `packages/server/src/observers/context-switch-detector.ts`
+- [x] create `packages/server/src/observers/context-switch-detector.ts`
   exporting:
   - `ContextPingRow`, `ContextPingStore`, `createContextPingStore({db})`
     with methods:
@@ -325,7 +325,7 @@ investing in fragile restore-side integrations.
   - pure function `detectContextSwitch({now, store, pingStore,
     longSessionMin, switchGapMin, stableNewMin, dedupeWindowH}):
     SwitchEvent | null`
-- [ ] algorithm (deterministic, no LLM):
+- [x] algorithm (deterministic, no LLM):
   1. `current = store.findCurrentSession(now)`. If null OR
      `(now - current.started_at) < stableNewMin*60000` → null
      (current session not stable yet).
@@ -345,7 +345,7 @@ investing in fragile restore-side integrations.
   6. Return `{away_app: run.app, away_session_started_at:
      run.first.started_at, away_session_ended_at:
      run.last.last_seen_at, current_app: current.app_name}`.
-- [ ] write tests in
+- [x] write tests in
   `observers/__tests__/context-switch-detector.test.ts` using seeded
   in-memory store. Cases:
   - empty history → null
@@ -358,9 +358,9 @@ investing in fragile restore-side integrations.
     scenario; documented as known limitation, not a feature)
   - pingStore already has recent ping for Chrome → null
   - pingStore ping older than dedupeWindow → SwitchEvent
-- [ ] write tests for `ContextPingStore` methods (record + findRecent
+- [x] write tests for `ContextPingStore` methods (record + findRecent
   with various time windows).
-- [ ] run `npm -w @r2/server test -- context-switch-detector.test` —
+- [x] run `npm -w @r2/server test -- context-switch-detector.test` —
   must pass before task 6
 
 ### Task 6: Handler + embed + interaction wiring
