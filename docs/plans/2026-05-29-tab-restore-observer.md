@@ -179,7 +179,7 @@ investing in fragile restore-side integrations.
 
 ### Task 1: DB migration — `window_history` + `context_pings`
 
-- [ ] in `packages/server/src/db.ts`, inside `initDb()`, add idempotent
+- [x] in `packages/server/src/db.ts`, inside `initDb()`, add idempotent
   `CREATE TABLE IF NOT EXISTS window_history`:
   ```sql
   CREATE TABLE IF NOT EXISTS window_history (
@@ -197,7 +197,7 @@ investing in fragile restore-side integrations.
   ```
   **No `bundle_id` column** — not used by detector or embed; add when
   iter 2 needs it.
-- [ ] add idempotent `context_pings`:
+- [x] add idempotent `context_pings`:
   ```sql
   CREATE TABLE IF NOT EXISTS context_pings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -209,9 +209,9 @@ investing in fragile restore-side integrations.
   CREATE INDEX IF NOT EXISTS idx_context_pings_app_at
     ON context_pings(away_app, pinged_at DESC);
   ```
-- [ ] write tests in `__tests__/db.test.ts`: both tables exist after
+- [x] write tests in `__tests__/db.test.ts`: both tables exist after
   `initDb`; all three indexes exist; idempotent re-run no errors.
-- [ ] run `npm -w @r2/server test -- db.test` — must pass before task 2
+- [x] run `npm -w @r2/server test -- db.test` — must pass before task 2
 
 ### Task 2: `WindowHistoryStore` — coalescing insert + session queries
 
