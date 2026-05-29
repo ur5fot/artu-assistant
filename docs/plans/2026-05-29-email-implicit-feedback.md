@@ -132,18 +132,18 @@ self-healing on reply.
 - [x] run `npm -w @r2/server test -- imap-client` — must pass before task 3
 
 ### Task 3: Feedback store (`feedback-store.ts`)
-- [ ] create `emails/feedback-store.ts` with `createEmailFeedbackStore({db})`
+- [x] create `emails/feedback-store.ts` with `createEmailFeedbackStore({db})`
       exposing: `recordPinged(pendingId, pingedAt)`,
       `findUnresolved(now, maxAgeMs, limit)` (pinged, `resolved_at` null,
       within age window), `updateFlags(pendingId, {seenAt?, answeredAt?})`,
       `finalize(pendingId, outcome, now)`,
       `recentOutcomesBySender(sender, sinceMs, now)` (joins email_pending on
       from_addr → counts by outcome)
-- [ ] use prepared statements + the existing factory/typing style
-- [ ] write tests: record + find unresolved (age window boundary),
+- [x] use prepared statements + the existing factory/typing style
+- [x] write tests: record + find unresolved (age window boundary),
       updateFlags, finalize, recentOutcomesBySender aggregation (success +
       empty)
-- [ ] run `npm -w @r2/server test -- feedback-store` — must pass before task 4
+- [x] run `npm -w @r2/server test -- feedback-store` — must pass before task 4
 
 ### Task 4: Create a feedback row when an email is urgent-pinged
 - [ ] in `emailUrgent.ts`, on successful publish (where `markUrgentPinged`
