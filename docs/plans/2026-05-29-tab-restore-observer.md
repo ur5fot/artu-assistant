@@ -215,10 +215,10 @@ investing in fragile restore-side integrations.
 
 ### Task 2: `WindowHistoryStore` — coalescing insert + session queries
 
-- [ ] create `packages/server/src/observers/window-history-store.ts`
+- [x] create `packages/server/src/observers/window-history-store.ts`
   exporting `WindowHistoryRow`, `WindowSession`, `WindowHistoryStore`,
   `createWindowHistoryStore({db})`
-- [ ] methods:
+- [x] methods:
   - `recordSample({app_name, window_title, sampled_at})`: if last row
     matches app+title → UPDATE `last_seen_at` + increment
     `sample_count`. Else INSERT.
@@ -230,7 +230,7 @@ investing in fragile restore-side integrations.
     distinct titles for that app in the window, for the ephemeral
     detail view.
   - `purgeOlderThan(cutoff)` — DELETE old rows (for future retention).
-- [ ] write tests in
+- [x] write tests in
   `observers/__tests__/window-history-store.test.ts`:
   - empty DB: `recordSample` INSERTs
   - same app+title as last row UPDATEs (verify `sample_count` +1, no
@@ -242,7 +242,7 @@ investing in fragile restore-side integrations.
   - `listTitlesInSession` returns distinct titles ordered by
     last_seen_at
   - `purgeOlderThan` deletes right rows
-- [ ] run `npm -w @r2/server test -- window-history-store.test` — must
+- [x] run `npm -w @r2/server test -- window-history-store.test` — must
   pass before task 3
 
 ### Task 3: `WindowSnapshotProvider` — osascript invocation + timeout
