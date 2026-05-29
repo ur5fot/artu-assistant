@@ -51,6 +51,23 @@ describe('createEmailFeedbackStore', () => {
     expect(rows[0]!.resolved_at).toBeNull();
   });
 
+  it('recordPinged after a row is resolved is ignored (terminal outcome preserved)', () => {
+    const db = getDb();
+    const store = createEmailFeedbackStore({ db });
+    const id = insertPending({ message_uid: 1, from_addr: 'a@b' });
+
+    store.recordPinged(id, 1000);
+    store.finalize(id, 'ignored', 5000);
+    store.recordPinged(id, 9000); // re-ping after resolution — must not wipe outcome
+
+    const row = db
+      .prepare('SELECT pinged_at, outcome, resolved_at FROM email_feedback WHERE pending_id = ?')
+      .get(id) as { pinged_at: number; outcome: string; resolved_at: number };
+    expect(row.pinged_at).toBe(1000);
+    expect(row.outcome).toBe('ignored');
+    expect(row.resolved_at).toBe(5000);
+  });
+
   it('findUnresolved returns unresolved rows within the age window, oldest first', () => {
     const db = getDb();
     const store = createEmailFeedbackStore({ db });
@@ -61,7 +78,7 @@ describe('createEmailFeedbackStore', () => {
     store.recordPinged(recent, now - 2 * HOUR);
     store.recordPinged(older, now - 5 * HOUR);
 
-    const res = store.findUnresolved(now, 24 * HOUR, 50);
+    const res = store.findUnresolved('acc1', now, 24 * HOUR, 50);
     expect(res.map((r) => r.pending_id)).toEqual([older, recent]); // oldest first
     expect(res[0]!.account_id).toBe('acc1');
     expect(res[0]!.message_uid).toBe(2);
@@ -79,7 +96,7 @@ describe('createEmailFeedbackStore', () => {
     store.recordPinged(onBoundary, now - maxAge); // exactly at edge → included
     store.recordPinged(tooOld, now - maxAge - 1); // just past edge → excluded
 
-    const res = store.findUnresolved(now, maxAge, 50);
+    const res = store.findUnresolved('acc1', now, maxAge, 50);
     expect(res.map((r) => r.pending_id)).toEqual([onBoundary]);
   });
 
@@ -96,8 +113,33 @@ describe('createEmailFeedbackStore', () => {
     store.recordPinged(c, now - 1 * HOUR);
     store.finalize(a, 'replied', now); // resolved → excluded
 
-    expect(store.findUnresolved(now, 24 * HOUR, 50).map((r) => r.pending_id)).toEqual([b, c]);
-    expect(store.findUnresolved(now, 24 * HOUR, 1).map((r) => r.pending_id)).toEqual([b]);
+    expect(store.findUnresolved('acc1', now, 24 * HOUR, 50).map((r) => r.pending_id)).toEqual([
+      b,
+      c,
+    ]);
+    expect(store.findUnresolved('acc1', now, 24 * HOUR, 1).map((r) => r.pending_id)).toEqual([b]);
+  });
+
+  it('findUnresolved scopes to the account so the limit is per-account (no starvation)', () => {
+    const db = getDb();
+    const store = createEmailFeedbackStore({ db });
+    const now = 100 * HOUR;
+
+    // Two oldest rows belong to acc1; with a global LIMIT they would consume
+    // the whole budget and starve acc2. Per-account scoping must return acc2's.
+    const a1 = insertPending({ account_id: 'acc1', message_uid: 1, from_addr: 'a@b' });
+    const a2 = insertPending({ account_id: 'acc1', message_uid: 2, from_addr: 'c@d' });
+    const b1 = insertPending({ account_id: 'acc2', message_uid: 3, from_addr: 'e@f' });
+    store.recordPinged(a1, now - 5 * HOUR);
+    store.recordPinged(a2, now - 4 * HOUR);
+    store.recordPinged(b1, now - 1 * HOUR);
+
+    // limit 2, oldest-first: a global query would yield [a1, a2] and never b1.
+    expect(store.findUnresolved('acc1', now, 24 * HOUR, 2).map((r) => r.pending_id)).toEqual([
+      a1,
+      a2,
+    ]);
+    expect(store.findUnresolved('acc2', now, 24 * HOUR, 2).map((r) => r.pending_id)).toEqual([b1]);
   });
 
   it('updateFlags sets timestamps and COALESCE keeps the earliest non-null', () => {

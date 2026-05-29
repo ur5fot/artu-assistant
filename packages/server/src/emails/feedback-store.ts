@@ -25,10 +25,17 @@ export interface EmailFeedbackStore {
   /** Record that `pendingId` was urgent-pinged at `pingedAt`. Idempotent on
    *  the pending_id PK — a re-ping (shouldn't happen) leaves the first row. */
   recordPinged(pendingId: number, pingedAt: number): void;
-  /** Unresolved rows (pinged, no `resolved_at`) whose ping is still within the
-   *  age window (`pinged_at >= now - maxAgeMs`), oldest first, capped at
-   *  `limit`. Joined to `email_pending` for the re-poll. */
-  findUnresolved(now: number, maxAgeMs: number, limit: number): UnresolvedFeedback[];
+  /** Unresolved rows (pinged, no `resolved_at`) for `accountId` whose ping is
+   *  still within the age window (`pinged_at >= now - maxAgeMs`), oldest first,
+   *  capped at `limit`. Joined to `email_pending` for the re-poll. The
+   *  account filter lives in SQL so `limit` applies per-account — otherwise a
+   *  global LIMIT lets a backlogged account starve the others' re-polls. */
+  findUnresolved(
+    accountId: string,
+    now: number,
+    maxAgeMs: number,
+    limit: number,
+  ): UnresolvedFeedback[];
   /** First-observation timestamps for the IMAP flags. COALESCE keeps the
    *  earliest non-null value so a later re-poll never clobbers when we first
    *  saw `\Seen`/`\Answered`. */
@@ -53,7 +60,7 @@ export function createEmailFeedbackStore(deps: {
          VALUES (?, ?, ?)`,
       ).run(pendingId, pingedAt, pingedAt);
     },
-    findUnresolved(now, maxAgeMs, limit) {
+    findUnresolved(accountId, now, maxAgeMs, limit) {
       const minPingedAt = now - maxAgeMs;
       return db
         .prepare(
@@ -61,11 +68,11 @@ export function createEmailFeedbackStore(deps: {
                   p.account_id, p.message_uid, p.from_addr
            FROM email_feedback f
            JOIN email_pending p ON p.id = f.pending_id
-           WHERE f.resolved_at IS NULL AND f.pinged_at >= ?
+           WHERE f.resolved_at IS NULL AND p.account_id = ? AND f.pinged_at >= ?
            ORDER BY f.pinged_at ASC
            LIMIT ?`,
         )
-        .all(minPingedAt, limit) as UnresolvedFeedback[];
+        .all(accountId, minPingedAt, limit) as UnresolvedFeedback[];
     },
     updateFlags(pendingId, { seenAt, answeredAt }) {
       db.prepare(

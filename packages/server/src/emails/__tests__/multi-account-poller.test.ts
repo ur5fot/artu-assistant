@@ -412,6 +412,29 @@ describe('runPollTick — implicit-feedback resolution', () => {
     expect(o.resolved_at).toBeNull();
   });
 
+  it('a throwing flag re-poll is isolated: no account error, tick completes', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    const pingedAt = 1000;
+    const id = seedPinged(getDb(), { accountId: 'a', uid: 99, from: 'x@x.com', pingedAt });
+    const flagFetcher = vi.fn<FlagFetcher>(async () => {
+      throw new Error('imap boom');
+    });
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      now: pingedAt + IGNORE_MS + 1,
+      feedback: feedbackDeps(flagFetcher),
+    });
+
+    // The scorer/resolution failure is swallowed inside resolveAccountFeedback,
+    // so it must NOT escalate into the account's error path, and the row stays
+    // unresolved for a later tick rather than finalizing on a failed fetch.
+    expect(store.getAccountError('a')).toBeNull();
+    expect(outcomeOf(getDb(), id).outcome).toBeNull();
+  });
+
   it('no feedback deps → no flag fetch, behaviour unchanged', async () => {
     const store = createEmailStore({ db: getDb() });
     ongoing(store);

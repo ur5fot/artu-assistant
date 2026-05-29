@@ -98,11 +98,14 @@ async function resolveAccountFeedback(
     // Window = wait period + grace, so a row missed across a few ticks still
     // gets finalized rather than aging out of `findUnresolved` unresolved.
     const maxAgeMs = ignoreMs + FEEDBACK_FINALIZE_GRACE_MS;
-    // findUnresolved spans all accounts; filter to this one before the IMAP
-    // call so we never fetch another account's UIDs against this connection.
-    const rows = feedback.store
-      .findUnresolved(now, maxAgeMs, feedback.maxRepoll)
-      .filter((r) => r.account_id === account.id);
+    // Scope to this account in SQL so `maxRepoll` is a per-account cap and we
+    // never fetch another account's UIDs against this connection.
+    const rows = feedback.store.findUnresolved(
+      account.id,
+      now,
+      maxAgeMs,
+      feedback.maxRepoll,
+    );
     if (rows.length === 0) return;
 
     const flags = await feedback.flagFetcher(
