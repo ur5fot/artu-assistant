@@ -393,17 +393,118 @@ describe('runPollTick — implicit-feedback resolution', () => {
     expect(o.seen_at).toBe(pingedAt + IGNORE_MS - 1); // flag still recorded
   });
 
-  it('failed re-poll (empty flags) does NOT finalize on stale data', async () => {
+  it('empty re-poll, no prior observation → not finalized (no fabricated outcome)', async () => {
+    // Empty fetch + a row we never observed seen/answered: there is no evidence
+    // to act on, so the row must stay unresolved rather than be finalized as
+    // `ignored` on a possibly-failed fetch. (Empty fetch *with* a prior
+    // observation does finalize — covered by the two tests below.)
     const store = createEmailStore({ db: getDb() });
     ongoing(store);
     const pingedAt = 1000;
     const id = seedPinged(getDb(), { accountId: 'a', uid: 9, from: 'x@x.com', pingedAt });
-    const flagFetcher = vi.fn<FlagFetcher>(async () => []); // simulates fetch failure
+    const flagFetcher = vi.fn<FlagFetcher>(async () => []); // failed or all-UIDs-gone
 
     await runPollTick({
       accounts: [accA], store,
       fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
       now: pingedAt + IGNORE_MS + 1, // window elapsed, but no data
+      feedback: feedbackDeps(flagFetcher),
+    });
+
+    const o = outcomeOf(getDb(), id);
+    expect(o.outcome).toBeNull();
+    expect(o.resolved_at).toBeNull();
+  });
+
+  it('partial result: a UID missing from a non-empty fetch is NOT finalized as ignored', async () => {
+    // Two pinged emails; the flag fetch returns only one (the other left INBOX:
+    // moved/archived/deleted). Absence is unknown state, not "never opened" —
+    // so the missing UID must stay unresolved rather than fabricate `ignored`.
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    const pingedAt = 1000;
+    const present = seedPinged(getDb(), { accountId: 'a', uid: 30, from: 'seen@x.com', pingedAt });
+    const gone = seedPinged(getDb(), { accountId: 'a', uid: 31, from: 'gone@x.com', pingedAt });
+    // Only uid 30 comes back (seen); uid 31 is absent from a successful fetch.
+    const flagFetcher = vi.fn<FlagFetcher>(async () => [{ uid: 30, seen: true, answered: false }]);
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      now: pingedAt + IGNORE_MS + 1, // window elapsed for both
+      feedback: feedbackDeps(flagFetcher),
+    });
+
+    // Present-and-seen finalizes as read; absent UID stays unresolved.
+    expect(outcomeOf(getDb(), present).outcome).toBe('read');
+    const goneRow = outcomeOf(getDb(), gone);
+    expect(goneRow.outcome).toBeNull();
+    expect(goneRow.resolved_at).toBeNull();
+  });
+
+  it('empty fetch: an absent UID with a prior seen_at still finalizes as read', async () => {
+    // The message left INBOX (archived/deleted/moved) after we'd already
+    // observed `\Seen` on an earlier tick, so *this* tick's flag fetch comes
+    // back empty. We still know it was read, so window-elapsed finalization to
+    // `read` is correct — the prior observation is real evidence, not stale
+    // flag data. Bailing on the empty fetch would strand this row unresolved
+    // until it ages out, contradicting "seen_at set ⇒ read".
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    const pingedAt = 1000;
+    const id = seedPinged(getDb(), { accountId: 'a', uid: 32, from: 'x@x.com', pingedAt });
+    createEmailFeedbackStore({ db: getDb() }).updateFlags(id, { seenAt: pingedAt + 10 });
+    const flagFetcher = vi.fn<FlagFetcher>(async () => []); // UID gone from INBOX
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      now: pingedAt + IGNORE_MS + 1,
+      feedback: feedbackDeps(flagFetcher),
+    });
+
+    expect(outcomeOf(getDb(), id).outcome).toBe('read');
+  });
+
+  it('empty fetch: an absent UID with a prior answered_at still finalizes as replied', async () => {
+    // Same as above but the prior observation was `\Answered`. Replied is a
+    // terminal outcome regardless of window, so an empty re-poll must not
+    // prevent finalization when we already recorded the answer.
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    const pingedAt = 1000;
+    const id = seedPinged(getDb(), { accountId: 'a', uid: 34, from: 'x@x.com', pingedAt });
+    createEmailFeedbackStore({ db: getDb() }).updateFlags(id, { answeredAt: pingedAt + 10 });
+    const flagFetcher = vi.fn<FlagFetcher>(async () => []); // UID gone from INBOX
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      now: pingedAt + 3_600_000, // inside window — replied is immediate
+      feedback: feedbackDeps(flagFetcher),
+    });
+
+    expect(outcomeOf(getDb(), id).outcome).toBe('replied');
+  });
+
+  it('hard fetch failure (null): a prior seen_at row is NOT finalized as read', async () => {
+    // Regression: the user replied (server set `\Answered`) before the deadline,
+    // but the deadline re-poll hits a hard IMAP error → fetcher returns null.
+    // The row already had `\Seen` recorded, so finalizing `read` off that stale
+    // observation would fabricate negative feedback for a sender the user
+    // actually replied to. A `null` carries no evidence: leave it unresolved so
+    // the next successful tick can observe `\Answered` and finalize `replied`.
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    const pingedAt = 1000;
+    const id = seedPinged(getDb(), { accountId: 'a', uid: 33, from: 'boss@x.com', pingedAt });
+    createEmailFeedbackStore({ db: getDb() }).updateFlags(id, { seenAt: pingedAt + 10 });
+    const flagFetcher = vi.fn<FlagFetcher>(async () => null); // hard fetch failure
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      now: pingedAt + IGNORE_MS + 1, // window elapsed, but the fetch failed
       feedback: feedbackDeps(flagFetcher),
     });
 

@@ -6,6 +6,7 @@ import {
   fetchHeaders,
   fetchByMessageId,
   fetchFlagsForUids,
+  markAnswered,
   getMaxUid,
   __setImapFlowCtor,
 } from '../imap-client.js';
@@ -1098,23 +1099,69 @@ describe('fetchFlagsForUids', () => {
     const uids = Array.from({ length: 5 }, (_, i) => i + 1);
     const res = await fetchFlagsForUids(account, uids, { chunkSize: 2 });
     expect(chunks).toEqual([[1, 2], [3, 4], [5]]);
-    expect(res.map((r) => r.uid)).toEqual([1, 2, 3, 4, 5]);
+    expect(res?.map((r) => r.uid)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it('returns [] (never throws) on a connection error, logged', async () => {
+  it('returns null (never throws) on a connection error, logged', async () => {
+    // `null` (not []) distinguishes a hard failure from a successful-empty
+    // fetch so the resolver leaves rows unresolved instead of finalizing them.
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     __setImapFlowCtor(makeClientStub({ throwOn: 'connect' }) as any);
     const res = await fetchFlagsForUids(account, [1, 2, 3]);
-    expect(res).toEqual([]);
+    expect(res).toBeNull();
     expect(errSpy).toHaveBeenCalled();
     errSpy.mockRestore();
   });
 
-  it('returns [] (never throws) on a fetch error, logged', async () => {
+  it('returns null (never throws) on a fetch error, logged', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     __setImapFlowCtor(makeClientStub({ throwOn: 'fetch' }) as any);
     const res = await fetchFlagsForUids(account, [1, 2, 3]);
-    expect(res).toEqual([]);
+    expect(res).toBeNull();
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+});
+
+describe('markAnswered', () => {
+  it('adds \\Answered to the UID and returns true', async () => {
+    let added: { uid: number; flags: string[]; opts: any } | null = null;
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      messageFlagsAdd = vi.fn(async (uid: number, flags: string[], opts: any) => {
+        added = { uid, flags, opts };
+        return true;
+      });
+    };
+    __setImapFlowCtor(Ctor as any);
+    const ok = await markAnswered(account, 42);
+    expect(ok).toBe(true);
+    expect(added).toEqual({ uid: 42, flags: ['\\Answered'], opts: { uid: true } });
+  });
+
+  it('returns false when the server reports no matching message', async () => {
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      messageFlagsAdd = vi.fn(async () => false);
+    };
+    __setImapFlowCtor(Ctor as any);
+    expect(await markAnswered(account, 7)).toBe(false);
+  });
+
+  it('returns false (never throws) on a connection error, logged', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const Ctor = class {
+      async connect() { throw new Error('connect fail'); }
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      messageFlagsAdd = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    expect(await markAnswered(account, 7)).toBe(false);
     expect(errSpy).toHaveBeenCalled();
     errSpy.mockRestore();
   });

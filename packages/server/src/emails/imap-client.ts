@@ -209,15 +209,19 @@ function flagHas(flags: unknown, flag: string): boolean {
 // replied to (`\Answered`) an email we pinged about. Unlike the other fetchers
 // this NEVER throws into the caller: a flag re-poll is best-effort telemetry,
 // so a dead connection or server NO/BAD must not crash the poll tick — we log
-// and return whatever we gathered (empty on a hard failure). Large UID lists
-// are chunked so one FETCH command can't blow past the socket timeout.
+// and return `null` to signal the failure. The caller MUST distinguish this
+// from a successful-but-empty `[]` (all UIDs left INBOX): an empty success is
+// real evidence the messages are gone, whereas a hard failure carries no
+// evidence at all and must not let the resolver finalize a still-answerable row
+// (e.g. one already observed `\Seen`) as terminally `read`. Large UID lists are
+// chunked so one FETCH command can't blow past the socket timeout.
 const FLAG_FETCH_CHUNK = 200;
 
 export async function fetchFlagsForUids(
   account: ImapAccount,
   uids: number[],
   opts?: { chunkSize?: number },
-): Promise<Array<{ uid: number; seen: boolean; answered: boolean }>> {
+): Promise<Array<{ uid: number; seen: boolean; answered: boolean }> | null> {
   if (!uids || uids.length === 0) return [];
   const chunkSize = opts?.chunkSize && opts.chunkSize > 0 ? opts.chunkSize : FLAG_FETCH_CHUNK;
   try {
@@ -242,7 +246,32 @@ export async function fetchFlagsForUids(
       `[emails] fetchFlagsForUids failed for ${account.id}:`,
       err instanceof Error ? err.message : err,
     );
-    return [];
+    return null;
+  }
+}
+
+// Set the `\Answered` flag on an INBOX message we just replied to via SMTP.
+// R2 sends replies out-of-band (SMTP, not the IMAP server's APPEND/reply), so
+// without this the original message never gets `\Answered` and the implicit-
+// feedback resolver — which reads `\Answered` as its sole "replied" signal —
+// would finalize a sender the user actively answered as `read`/`ignored`,
+// fabricating negative feedback and potentially auto-suppressing them. Mirrors
+// the user replying through a normal mail client, so the existing state machine
+// self-heals for free. Best-effort: the reply has already shipped by the time
+// we get here, so a flag-set failure must NOT bubble — we log and return false.
+export async function markAnswered(account: ImapAccount, uid: number): Promise<boolean> {
+  try {
+    return await withClient(account, async (client) => {
+      const ok = await client.messageFlagsAdd(uid, ['\\Answered'], { uid: true });
+      // imapflow returns false when the server reports no matching message.
+      return ok !== false;
+    });
+  } catch (err) {
+    console.error(
+      `[emails] markAnswered failed for ${account.id} uid ${uid}:`,
+      err instanceof Error ? err.message : err,
+    );
+    return false;
   }
 }
 

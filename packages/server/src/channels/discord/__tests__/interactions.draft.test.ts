@@ -50,6 +50,7 @@ function makeDeps(overrides: Partial<InteractionDeps> = {}): InteractionDeps {
   } as unknown as EmailStore;
   const imapClient = {
     fetchHeaders: vi.fn().mockResolvedValue(SAMPLE_HEADERS),
+    markAnswered: vi.fn().mockResolvedValue(true),
   };
   const threadFetcher = {
     fetchThread: vi.fn().mockResolvedValue(SAMPLE_THREAD),
@@ -444,11 +445,32 @@ describe('email_draft:send', () => {
     expect(sendArg.references).toEqual(['<root@example.com>', '<orig@example.com>']);
 
     expect(dropSpy).toHaveBeenCalledWith('p1');
+    // The original message is flagged \Answered so the implicit-feedback
+    // resolver records a `replied` outcome instead of read/ignored.
+    expect((deps.imapClient as any).markAnswered).toHaveBeenCalledWith(SAMPLE_ACCOUNT, 42);
     expect(ixn.editReply).toHaveBeenLastCalledWith(
       expect.objectContaining({
         content: expect.stringContaining('Отправлено'),
         components: [],
       }),
+    );
+  });
+
+  it('markAnswered failure does not fail the (already-sent) reply', async () => {
+    const deps = makeDeps({
+      imapClient: {
+        fetchHeaders: vi.fn().mockResolvedValue(SAMPLE_HEADERS),
+        markAnswered: vi.fn().mockRejectedValue(new Error('imap down')),
+      } as any,
+    });
+    deps.draftReplyService!.put(sampleDraftState());
+    const ixn = makeButton({ customId: 'email_draft:send:p1' });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.smtpClient as any).sendReply).toHaveBeenCalledTimes(1);
+    expect(ixn.editReply).toHaveBeenLastCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Отправлено') }),
     );
   });
 
@@ -700,6 +722,8 @@ describe('email_draft:send — hold zone', () => {
         components: [],
       }),
     );
+    // Queued send also flags the original \Answered (feedback self-heal).
+    expect((deps.imapClient as any).markAnswered).toHaveBeenCalledWith(SAMPLE_ACCOUNT, 42);
     expect(deps.draftReplyService!.has('p1')).toBe(false);
   });
 

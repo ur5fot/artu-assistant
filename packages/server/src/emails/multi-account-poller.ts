@@ -8,11 +8,14 @@ export type MessageFetcher = (account: ImapAccount, sinceUid: number, limit: num
 export type MessageScorer = (msgs: NewMessage[]) => Promise<Array<{ uid: number; importance: number }>>;
 export type MaxUidProbe = (account: ImapAccount) => Promise<number>;
 /** Re-poll IMAP flags for an explicit UID list (see imap-client.fetchFlagsForUids).
- *  Best-effort: returns whatever it gathered, never throws into the poll loop. */
+ *  Best-effort: never throws into the poll loop. Returns the gathered rows on
+ *  success ([] when every UID has left INBOX), or `null` on a hard fetch failure
+ *  (connection/timeout/server NO|BAD) — a `null` carries no evidence and must
+ *  not drive finalization. */
 export type FlagFetcher = (
   account: ImapAccount,
   uids: number[],
-) => Promise<Array<{ uid: number; seen: boolean; answered: boolean }>>;
+) => Promise<Array<{ uid: number; seen: boolean; answered: boolean }> | null>;
 
 /** Optional implicit-feedback resolution wiring. Absent (feature disabled) →
  *  the poll tick behaves exactly as before (no flag re-poll, no finalization). */
@@ -112,9 +115,24 @@ async function resolveAccountFeedback(
       account,
       rows.map((r) => r.message_uid),
     );
-    // Empty result = the re-poll failed (fetchFlagsForUids swallows errors to
-    // []). Don't finalize on stale data — leave the rows for the next tick.
-    if (flags.length === 0) return;
+    // `null` = a hard fetch failure (connection/timeout/server NO|BAD). It
+    // carries no evidence about any UID, so we must not finalize this tick:
+    // a row already observed `\Seen` whose message is still in INBOX could have
+    // just been answered, and a *successful* re-poll would observe `\Answered`
+    // and finalize `replied`. Finalizing it `read` here off stale `seen_at`
+    // would fabricate negative feedback for a sender the user actually replied
+    // to. Bail and leave every row unresolved for the next (hopefully
+    // successful) tick — the grace window keeps them eligible.
+    if (flags === null) return;
+    // A successful-but-empty `[]` is different: every UID has left INBOX
+    // (archived/deleted/moved). We do NOT bail — finalization below is gated on
+    // `observed`, which for a UID absent this tick is true only when we recorded
+    // `\Seen`/`\Answered` on an earlier tick. Such a row carries its own evidence
+    // (a real prior observation, not stale flag data) and finalizes correctly as
+    // read/replied; a row with no prior observation stays unresolved regardless.
+    // Bailing here would strand already-observed rows whose message left INBOX
+    // before the window elapsed — they'd age out unresolved and never finalize,
+    // contradicting "seen_at set ⇒ read".
     const flagByUid = new Map(flags.map((f) => [f.uid, f]));
 
     for (const row of rows) {
@@ -129,14 +147,24 @@ async function resolveAccountFeedback(
       // but `row` is the pre-update snapshot, so OR them here).
       const answered = row.answered_at != null || (f?.answered ?? false);
       const seen = row.seen_at != null || (f?.seen ?? false);
+      // Did we actually observe this message's state? A UID that came back in
+      // the flag fetch (`f`) or that we've seen before (`seen`/answered prior)
+      // is observed. A UID *absent* from a non-empty fetch is no longer in
+      // INBOX (moved/archived/deleted/expunged) — unknown state, NOT evidence
+      // the user never opened it. Finalizing those as `ignored` would fabricate
+      // negative feedback and could auto-suppress a sender the user triaged.
+      const observed = f != null || seen || answered;
       if (answered) {
         feedback.store.finalize(row.pending_id, 'replied', now);
         scoreSender(feedback, row.from_addr, now);
-      } else if (now - row.pinged_at >= ignoreMs) {
+      } else if (observed && now - row.pinged_at >= ignoreMs) {
         feedback.store.finalize(row.pending_id, seen ? 'read' : 'ignored', now);
         scoreSender(feedback, row.from_addr, now);
       }
-      // else: still inside the window → leave unresolved.
+      // else: still inside the window, or no observation of this UID this tick
+      // (gone from INBOX) → leave unresolved for a later tick. If it never
+      // reappears it ages out of `findUnresolved` past the grace window and
+      // simply yields no feedback signal — the safe default for unknown state.
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

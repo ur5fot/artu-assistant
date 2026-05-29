@@ -71,6 +71,11 @@ function truncateLines(lines: string[]): string {
 
 export interface DraftImapClient {
   fetchHeaders(account: ImapAccount, uid: number): Promise<MessageHeaders>;
+  /** Set `\Answered` on the original message after a reply ships, so the
+   *  implicit-feedback resolver records a `replied` outcome (and clears any
+   *  auto-suppression) instead of finalizing the sender as read/ignored.
+   *  Optional so call sites without IMAP write wiring stay a no-op. */
+  markAnswered?(account: ImapAccount, uid: number): Promise<boolean>;
 }
 
 export interface DraftThreadFetcher {
@@ -738,6 +743,27 @@ function recordSentLogSafe(
   }
 }
 
+// After a reply ships, flag the original INBOX message `\Answered` so the
+// implicit-feedback resolver records this as a `replied` outcome rather than
+// fabricating read/ignored negative feedback for a sender the user answered.
+// Best-effort: the email is already sent, so a flag-set failure (or absent
+// wiring) must never surface to the user — log and move on.
+async function markOriginalAnsweredSafe(
+  deps: InteractionDeps,
+  account: ImapAccount,
+  uid: number,
+): Promise<void> {
+  if (!deps.imapClient?.markAnswered) return;
+  try {
+    await deps.imapClient.markAnswered(account, uid);
+  } catch (err) {
+    console.warn(
+      '[email_draft] markAnswered failed:',
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
 async function handleEmailDraftSend(
   ixn: ButtonInteraction,
   deps: InteractionDeps,
@@ -860,6 +886,7 @@ async function handleEmailDraftSend(
       to: state.to,
       subject: state.subject,
     });
+    await markOriginalAnsweredSafe(deps, account, state.originalUid);
     await (ixn as any).editReply({
       content: '✅ Отправлено',
       components: [],
@@ -1037,6 +1064,7 @@ async function executeQueuedSend(
       to: state.to,
       subject: state.subject,
     });
+    await markOriginalAnsweredSafe(deps, account, state.originalUid);
     try {
       await (ixn as any).webhook.editMessage('@original', {
         content: '✅ Sent',

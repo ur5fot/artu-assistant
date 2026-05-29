@@ -51,7 +51,7 @@ import { parseImapAccounts } from './emails/config.js';
 import { createEmailStore } from './emails/store.js';
 import { createEmailSuppressionStore } from './emails/suppression-store.js';
 import { createEmailFeedbackStore } from './emails/feedback-store.js';
-import { fetchNewMessages, fetchFullBody, getMaxUid, fetchHeaders, fetchFlagsForUids } from './emails/imap-client.js';
+import { fetchNewMessages, fetchFullBody, getMaxUid, fetchHeaders, fetchFlagsForUids, markAnswered } from './emails/imap-client.js';
 import { fetchThread } from './emails/thread-fetcher.js';
 import { sendReply as sendSmtpReply } from './emails/smtp-client.js';
 import { scoreBatch } from './emails/scorer.js';
@@ -685,7 +685,7 @@ if (discordToken) {
       commandService,
       draftReplyService,
       emailStore: emailEnabled ? emailStore : undefined,
-      imapClient: emailEnabled ? { fetchHeaders } : undefined,
+      imapClient: emailEnabled ? { fetchHeaders, markAnswered } : undefined,
       threadFetcher: emailEnabled ? { fetchThread } : undefined,
       anthropic: client.anthropic,
       imapAccounts: emailEnabled ? imapAccountsById : undefined,
