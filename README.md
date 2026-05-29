@@ -332,9 +332,15 @@ When a sender's negative outcomes (ignored + read-without-reply) reach
 default 7) — so future urgent emails from that sender quietly fall into the
 digest instead of pinging. It's **downgrade-only** (it never auto-promotes), it
 reuses the same suppression machinery as the 🙈 buttons (so it's visible in
-`/why`), and it self-heals: reply to that sender once and the auto-rule is
-cleared (trust re-earned). Manual 🙈 rules are never touched. The boost
-direction and subject-pattern scoring are deferred to a later iteration.
+`/why`), and trust is re-earned by replying: a reply (`\Answered`) to a
+still-tracked urgent ping clears the auto-rule. Once a sender is suppressed
+their future emails are demoted straight to the digest and no longer tracked,
+so a reply from there isn't observed (the watcher-only scope doesn't scan the
+inbox by sender) — the auto-rule instead lapses at its TTL, and a reply to the
+next post-TTL urgent ping keeps the sender from being re-suppressed. Manual 🙈
+rules are never touched. The boost direction, subject-pattern scoring, and a
+true reply-driven self-heal (an INBOX `\Answered` sweep) are deferred to a
+later iteration.
 
 ---
 
