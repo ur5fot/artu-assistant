@@ -192,6 +192,89 @@ export async function fetchNewMessages(
   });
 }
 
+// imapflow returns message flags as a Set of strings (e.g. '\\Seen'), but a
+// stubbed client or a future lib version may hand back an array — accept both.
+function flagHas(flags: unknown, flag: string): boolean {
+  if (!flags) return false;
+  if (flags instanceof Set) return flags.has(flag);
+  if (Array.isArray(flags)) return flags.includes(flag);
+  if (typeof (flags as { has?: unknown }).has === 'function') {
+    return (flags as { has: (f: string) => boolean }).has(flag);
+  }
+  return false;
+}
+
+// Re-poll only flags for an explicit list of already-known UIDs. Used by the
+// implicit-feedback resolver to learn whether the user opened (`\Seen`) or
+// replied to (`\Answered`) an email we pinged about. Unlike the other fetchers
+// this NEVER throws into the caller: a flag re-poll is best-effort telemetry,
+// so a dead connection or server NO/BAD must not crash the poll tick — we log
+// and return `null` to signal the failure. The caller MUST distinguish this
+// from a successful-but-empty `[]` (all UIDs left INBOX): an empty success is
+// real evidence the messages are gone, whereas a hard failure carries no
+// evidence at all and must not let the resolver finalize a still-answerable row
+// (e.g. one already observed `\Seen`) as terminally `read`. Large UID lists are
+// chunked so one FETCH command can't blow past the socket timeout.
+const FLAG_FETCH_CHUNK = 200;
+
+export async function fetchFlagsForUids(
+  account: ImapAccount,
+  uids: number[],
+  opts?: { chunkSize?: number },
+): Promise<Array<{ uid: number; seen: boolean; answered: boolean }> | null> {
+  if (!uids || uids.length === 0) return [];
+  const chunkSize = opts?.chunkSize && opts.chunkSize > 0 ? opts.chunkSize : FLAG_FETCH_CHUNK;
+  try {
+    return await withClient(account, async (client) => {
+      const out: Array<{ uid: number; seen: boolean; answered: boolean }> = [];
+      for (let i = 0; i < uids.length; i += chunkSize) {
+        const chunk = uids.slice(i, i + chunkSize);
+        const rows = await client.fetchAll(chunk, { flags: true }, { uid: true });
+        for (const row of rows || []) {
+          if (!row || typeof row.uid !== 'number') continue;
+          out.push({
+            uid: row.uid,
+            seen: flagHas(row.flags, '\\Seen'),
+            answered: flagHas(row.flags, '\\Answered'),
+          });
+        }
+      }
+      return out;
+    });
+  } catch (err) {
+    console.error(
+      `[emails] fetchFlagsForUids failed for ${account.id}:`,
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
+}
+
+// Set the `\Answered` flag on an INBOX message we just replied to via SMTP.
+// R2 sends replies out-of-band (SMTP, not the IMAP server's APPEND/reply), so
+// without this the original message never gets `\Answered` and the implicit-
+// feedback resolver — which reads `\Answered` as its sole "replied" signal —
+// would finalize a sender the user actively answered as `read`/`ignored`,
+// fabricating negative feedback and potentially auto-suppressing them. Mirrors
+// the user replying through a normal mail client, so the existing state machine
+// self-heals for free. Best-effort: the reply has already shipped by the time
+// we get here, so a flag-set failure must NOT bubble — we log and return false.
+export async function markAnswered(account: ImapAccount, uid: number): Promise<boolean> {
+  try {
+    return await withClient(account, async (client) => {
+      const ok = await client.messageFlagsAdd(uid, ['\\Answered'], { uid: true });
+      // imapflow returns false when the server reports no matching message.
+      return ok !== false;
+    });
+  } catch (err) {
+    console.error(
+      `[emails] markAnswered failed for ${account.id} uid ${uid}:`,
+      err instanceof Error ? err.message : err,
+    );
+    return false;
+  }
+}
+
 export interface MessageHeaders {
   messageId: string | null;
   inReplyTo: string | null;

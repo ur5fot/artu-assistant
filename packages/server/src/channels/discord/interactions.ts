@@ -71,6 +71,11 @@ function truncateLines(lines: string[]): string {
 
 export interface DraftImapClient {
   fetchHeaders(account: ImapAccount, uid: number): Promise<MessageHeaders>;
+  /** Set `\Answered` on the original message after a reply ships, so the
+   *  implicit-feedback resolver records a `replied` outcome (and clears any
+   *  auto-suppression) instead of finalizing the sender as read/ignored.
+   *  Optional so call sites without IMAP write wiring stay a no-op. */
+  markAnswered?(account: ImapAccount, uid: number): Promise<boolean>;
 }
 
 export interface DraftThreadFetcher {
@@ -738,6 +743,27 @@ function recordSentLogSafe(
   }
 }
 
+// After a reply ships, flag the original INBOX message `\Answered` so the
+// implicit-feedback resolver records this as a `replied` outcome rather than
+// fabricating read/ignored negative feedback for a sender the user answered.
+// Best-effort: the email is already sent, so a flag-set failure (or absent
+// wiring) must never surface to the user — log and move on.
+async function markOriginalAnsweredSafe(
+  deps: InteractionDeps,
+  account: ImapAccount,
+  uid: number,
+): Promise<void> {
+  if (!deps.imapClient?.markAnswered) return;
+  try {
+    await deps.imapClient.markAnswered(account, uid);
+  } catch (err) {
+    console.warn(
+      '[email_draft] markAnswered failed:',
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
 async function handleEmailDraftSend(
   ixn: ButtonInteraction,
   deps: InteractionDeps,
@@ -860,6 +886,7 @@ async function handleEmailDraftSend(
       to: state.to,
       subject: state.subject,
     });
+    await markOriginalAnsweredSafe(deps, account, state.originalUid);
     await (ixn as any).editReply({
       content: '✅ Отправлено',
       components: [],
@@ -1037,6 +1064,7 @@ async function executeQueuedSend(
       to: state.to,
       subject: state.subject,
     });
+    await markOriginalAnsweredSafe(deps, account, state.originalUid);
     try {
       await (ixn as any).webhook.editMessage('@original', {
         content: '✅ Sent',
@@ -1758,7 +1786,31 @@ function describeRule(rule: import('../../emails/suppression-store.js').Suppress
   const expires =
     rule.expires_at === null ? 'навсегда' : `до ${formatExpiryLabel(rule.expires_at)}`;
   const kind = rule.rule_type === 'sender' ? 'отправитель' : 'тема';
-  return `${kind} \`${rule.pattern}\` (${expires})`;
+  // Flag R2-driven rules so the user can tell an auto-suppression from a
+  // manual /mute. Keeps `'auto_feedback'` as the single source of truth.
+  const origin = rule.created_via === 'auto_feedback' ? ' — авто (по реакции)' : '';
+  return `${kind} \`${rule.pattern}\` (${expires})${origin}`;
+}
+
+/** Render the implicit-feedback section shown in `/why`. Shared by the urgent
+ *  and suppressed branches so an auto-suppression is explained on the very
+ *  emails it silences. */
+function feedbackLines(
+  fb: import('../../services/command-service.js').SenderFeedbackSignals,
+): string[] {
+  const autoLine = fb.autoSuppression
+    ? `авто-заглушение активно (${
+        fb.autoSuppression.expiresAt === null
+          ? 'навсегда'
+          : `до ${formatExpiryLabel(fb.autoSuppression.expiresAt)}`
+      })`
+    : 'авто-заглушение: нет';
+  return [
+    '',
+    'Реакция на urgent-пинги (7д):',
+    `  ответил: ${fb.replied} — прочитал: ${fb.read} — проигнорировал: ${fb.ignored}`,
+    `  ${autoLine}`,
+  ];
 }
 
 async function handleWhySlash(
@@ -1819,17 +1871,21 @@ async function handleWhySlash(
     const ruleLine = result.matchedRule
       ? describeRule(result.matchedRule)
       : 'правило истекло или удалено';
+    const lines = [
+      `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
+      `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
+      `Получено: ${formatWhyTime(row.received_at)}`,
+      '',
+      `Заглушено правилом: ${ruleLine}`,
+    ];
+    // Explain *why* it's silenced — surfaces the outcome counts and active
+    // auto-suppression so a wrongly-silenced sender is diagnosable from /why.
+    if (result.feedback) {
+      lines.push(...feedbackLines(result.feedback));
+    }
     const embed = new EmbedBuilder()
       .setTitle('🙈 Suppressed by rule')
-      .setDescription(
-        [
-          `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
-          `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
-          `Получено: ${formatWhyTime(row.received_at)}`,
-          '',
-          `Заглушено правилом: ${ruleLine}`,
-        ].join('\n'),
-      );
+      .setDescription(lines.join('\n'));
     await (ixn as any).reply({
       flags: MessageFlags.Ephemeral,
       embeds: [embed],
@@ -1844,20 +1900,22 @@ async function handleWhySlash(
       ? formatWhyHourMinute(row.urgent_pinged_at)
       : '—';
   const ruleLine = result.activeRule ? describeRule(result.activeRule) : '—';
+  const lines = [
+    `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
+    `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
+    `Importance: ${row.importance}/5 — received ${formatWhyTime(row.received_at)} — pinged ${pingedAt}`,
+    '',
+    'Прошлые 7 дней с этого отправителя:',
+    `  писем: ${result.history.pendings} — отправлено: ${result.history.sent} — отменено: ${result.history.cancelled} — ошибок: ${result.history.error}`,
+    '',
+    `Активное правило заглушения: ${ruleLine}`,
+  ];
+  if (result.feedback) {
+    lines.push(...feedbackLines(result.feedback));
+  }
   const embed = new EmbedBuilder()
     .setTitle('🔍 Why this is urgent')
-    .setDescription(
-      [
-        `From: ${clipForWhy(row.from_addr, WHY_FROM_MAX_LEN)}`,
-        `Subject: ${clipForWhy(row.subject, WHY_SUBJECT_MAX_LEN)}`,
-        `Importance: ${row.importance}/5 — received ${formatWhyTime(row.received_at)} — pinged ${pingedAt}`,
-        '',
-        'Прошлые 7 дней с этого отправителя:',
-        `  писем: ${result.history.pendings} — отправлено: ${result.history.sent} — отменено: ${result.history.cancelled} — ошибок: ${result.history.error}`,
-        '',
-        `Активное правило заглушения: ${ruleLine}`,
-      ].join('\n'),
-    );
+    .setDescription(lines.join('\n'));
   await (ixn as any).reply({
     flags: MessageFlags.Ephemeral,
     embeds: [embed],

@@ -4,6 +4,9 @@ import { initDb, getDb, closeDb } from '../../../db.js';
 import { createEmailStore } from '../../../emails/store.js';
 import { createEmailSentLog } from '../../../emails/sent-log.js';
 import { createEmailSuppressionStore } from '../../../emails/suppression-store.js';
+import { createEmailFeedbackStore } from '../../../emails/feedback-store.js';
+import { AUTO_FEEDBACK_VIA } from '../../../emails/feedback-scorer.js';
+import type { FeedbackOutcome } from '../../../emails/feedback-store.js';
 import { createCommandService } from '../../../services/command-service.js';
 import { routeInteraction, type InteractionDeps } from '../interactions.js';
 import type { EmailPendingRow } from '../../../emails/types.js';
@@ -263,6 +266,96 @@ describe('commandService.whyEmailUrgent', () => {
     }
   });
 
+  it('attaches feedback signals (mixed outcomes) for the sender when feedback store present', () => {
+    const now = Date.now();
+    const sender = 'alerts@bank.com';
+    const feedbackStore = createEmailFeedbackStore({ db: getDb() });
+    // Resolve one of each outcome for the sender, all pinged inside the window.
+    const outcomes: FeedbackOutcome[] = ['replied', 'read', 'ignored', 'ignored'];
+    for (const outcome of outcomes) {
+      const r = insertPendingRow({ from_addr: sender, received_at: now - 60_000 });
+      feedbackStore.recordPinged(r.id, now - 50_000);
+      feedbackStore.finalize(r.id, outcome, now - 10_000);
+    }
+    const urgent = insertPendingRow({
+      from_addr: sender,
+      received_at: now - 10_000,
+      urgent_pinged_at: now - 5_000,
+    });
+    const svc = createCommandService({
+      db: getDb(),
+      reminderService: { list: vi.fn().mockReturnValue([]) } as any,
+      permissionService: { hasPending: vi.fn() } as any,
+      memoryService: null,
+      emailStore: createEmailStore({ db: getDb() }),
+      emailSentLog: createEmailSentLog({ db: getDb() }),
+      emailSuppressionStore: createEmailSuppressionStore({ db: getDb() }),
+      emailFeedbackStore: feedbackStore,
+    });
+    const result = svc.whyEmailUrgent({ id: urgent.id, now });
+    expect(result.kind).toBe('urgent');
+    if (result.kind === 'urgent') {
+      expect(result.feedback).not.toBeNull();
+      expect(result.feedback?.replied).toBe(1);
+      expect(result.feedback?.read).toBe(1);
+      expect(result.feedback?.ignored).toBe(2);
+      expect(result.feedback?.autoSuppression).toBeNull();
+    }
+  });
+
+  it('surfaces an active auto_feedback suppression in feedback signals', () => {
+    const now = Date.now();
+    const sender = 'noisy@spam.com';
+    const suppression = createEmailSuppressionStore({ db: getDb() });
+    const inserted = suppression.insertRule({
+      rule_type: 'sender',
+      pattern: sender,
+      ttl_days: 7,
+      created_via: AUTO_FEEDBACK_VIA,
+    });
+    const urgent = insertPendingRow({
+      from_addr: sender,
+      received_at: now - 10_000,
+      urgent_pinged_at: now - 5_000,
+    });
+    const svc = createCommandService({
+      db: getDb(),
+      reminderService: { list: vi.fn().mockReturnValue([]) } as any,
+      permissionService: { hasPending: vi.fn() } as any,
+      memoryService: null,
+      emailStore: createEmailStore({ db: getDb() }),
+      emailSentLog: createEmailSentLog({ db: getDb() }),
+      emailSuppressionStore: suppression,
+      emailFeedbackStore: createEmailFeedbackStore({ db: getDb() }),
+    });
+    const result = svc.whyEmailUrgent({ id: urgent.id, now });
+    expect(result.kind).toBe('urgent');
+    if (result.kind === 'urgent') {
+      // No outcomes recorded yet → zero counts, but the auto-rule is reported.
+      expect(result.feedback?.replied).toBe(0);
+      expect(result.feedback?.read).toBe(0);
+      expect(result.feedback?.ignored).toBe(0);
+      expect(result.feedback?.autoSuppression).not.toBeNull();
+      expect(result.feedback?.autoSuppression?.expiresAt).toBe(inserted.expires_at);
+    }
+  });
+
+  it('feedback is null when no feedback store is wired (graceful empty)', () => {
+    const urgent = insertPendingRow({ urgent_pinged_at: Date.now() - 5_000 });
+    const svc = createCommandService({
+      db: getDb(),
+      reminderService: { list: vi.fn().mockReturnValue([]) } as any,
+      permissionService: { hasPending: vi.fn() } as any,
+      memoryService: null,
+      emailStore: createEmailStore({ db: getDb() }),
+      emailSentLog: createEmailSentLog({ db: getDb() }),
+      emailSuppressionStore: createEmailSuppressionStore({ db: getDb() }),
+    });
+    const result = svc.whyEmailUrgent({ id: urgent.id, now: Date.now() });
+    expect(result.kind).toBe('urgent');
+    if (result.kind === 'urgent') expect(result.feedback).toBeNull();
+  });
+
   it('returns suppressed when row has sentinel urgent_pinged_at = -1', () => {
     const sender = 'spam@nope.com';
     const row = insertPendingRow({ from_addr: sender, urgent_pinged_at: -1 });
@@ -429,6 +522,79 @@ describe('/why slash command routing', () => {
     expect(description).toMatch(/Активное правило заглушения: отправитель/);
   });
 
+  it('urgent with feedback signals → reaction counts + auto-suppression line shown', async () => {
+    const row: EmailPendingRow = {
+      id: 51,
+      account_id: 'acc-1',
+      message_uid: 42,
+      from_addr: 'noisy@spam.com',
+      subject: 'Daily digest',
+      snippet: 'snip',
+      importance: 5,
+      received_at: 1_700_000_000_000,
+      added_at: 1_700_000_001_000,
+      delivered_at: null,
+      urgent_pinged_at: 1_700_000_005_000,
+    };
+    const ixn = makeWhySlashIxn({ id: 51 });
+    const deps = makeBaseDeps({
+      commandService: makeCommandSvc({
+        result: {
+          kind: 'urgent',
+          row,
+          history: { pendings: 4, sent: 0, cancelled: 0, error: 0 },
+          activeRule: null,
+          feedback: {
+            replied: 0,
+            read: 1,
+            ignored: 3,
+            autoSuppression: { expiresAt: 1_700_000_604_800_000 },
+          },
+        },
+      }),
+    });
+    await routeInteraction(ixn, deps);
+    const args = ixn.reply.mock.calls[0]![0];
+    const description = args.embeds[0].data?.description ?? args.embeds[0].description ?? '';
+    expect(description).toMatch(/Реакция на urgent-пинги/);
+    expect(description).toMatch(/ответил: 0/);
+    expect(description).toMatch(/прочитал: 1/);
+    expect(description).toMatch(/проигнорировал: 3/);
+    expect(description).toMatch(/авто-заглушение активно/);
+  });
+
+  it('urgent without feedback (feature off) → no feedback section', async () => {
+    const row: EmailPendingRow = {
+      id: 52,
+      account_id: 'acc-1',
+      message_uid: 42,
+      from_addr: 'alerts@bank.com',
+      subject: 'Subj',
+      snippet: 'snip',
+      importance: 5,
+      received_at: 1_700_000_000_000,
+      added_at: 1_700_000_001_000,
+      delivered_at: null,
+      urgent_pinged_at: 1_700_000_005_000,
+    };
+    const ixn = makeWhySlashIxn({ id: 52 });
+    const deps = makeBaseDeps({
+      commandService: makeCommandSvc({
+        result: {
+          kind: 'urgent',
+          row,
+          history: { pendings: 0, sent: 0, cancelled: 0, error: 0 },
+          activeRule: null,
+          feedback: null,
+        },
+      }),
+    });
+    await routeInteraction(ixn, deps);
+    const args = ixn.reply.mock.calls[0]![0];
+    const description = args.embeds[0].data?.description ?? args.embeds[0].description ?? '';
+    expect(description).not.toMatch(/Реакция на urgent-пинги/);
+  });
+
   it('not_urgent → embed says urgent ping never fired', async () => {
     const row: EmailPendingRow = {
       id: 17,
@@ -525,6 +691,53 @@ describe('/why slash command routing', () => {
     const args = ixn.reply.mock.calls[0]![0];
     const description = args.embeds[0].data?.description ?? args.embeds[0].description ?? '';
     expect(description).toMatch(/правило истекло|правило/);
+  });
+
+  it('suppressed by auto_feedback rule → embed shows reaction counts + auto provenance', async () => {
+    const row: EmailPendingRow = {
+      id: 22,
+      account_id: 'acc-1',
+      message_uid: 42,
+      from_addr: 'spam@nope.com',
+      subject: 'Newsletter',
+      snippet: 'snip',
+      importance: 5,
+      received_at: 1_700_000_000_000,
+      added_at: 1_700_000_001_000,
+      delivered_at: null,
+      urgent_pinged_at: -1,
+    };
+    const ixn = makeWhySlashIxn({ id: 22 });
+    const deps = makeBaseDeps({
+      commandService: makeCommandSvc({
+        result: {
+          kind: 'suppressed',
+          row,
+          matchedRule: {
+            id: 7,
+            rule_type: 'sender',
+            pattern: 'spam@nope.com',
+            created_at: 1_700_000_000_000,
+            expires_at: 1_700_000_900_000,
+            created_via: 'auto_feedback',
+          },
+          feedback: {
+            replied: 0,
+            read: 1,
+            ignored: 3,
+            autoSuppression: { expiresAt: 1_700_000_900_000 },
+          },
+        },
+      }),
+    });
+    await routeInteraction(ixn, deps);
+    const args = ixn.reply.mock.calls[0]![0];
+    const description = args.embeds[0].data?.description ?? args.embeds[0].description ?? '';
+    // Rule line flags R2 provenance, and the feedback section explains *why*.
+    expect(description).toMatch(/авто \(по реакции\)/);
+    expect(description).toContain('Реакция на urgent-пинги');
+    expect(description).toMatch(/проигнорировал: 3/);
+    expect(description).toMatch(/авто-заглушение активно/);
   });
 
   it('clips multi-KB from_addr so embed description stays under Discord cap', async () => {

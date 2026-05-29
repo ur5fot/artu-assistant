@@ -285,6 +285,28 @@ export function initDb(dbPath?: string): void {
       ON email_suppression_rules(expires_at)
   `);
 
+  // Implicit feedback (silence-as-data): one row per urgent-pinged email,
+  // tracking whether the user replied (\Answered), read-but-ignored (\Seen,
+  // no reply within window), or never opened it. pending_id references
+  // email_pending.id. Terminal once resolved_at + outcome are set.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_feedback (
+      pending_id INTEGER PRIMARY KEY REFERENCES email_pending(id),
+      pinged_at INTEGER NOT NULL,
+      seen_at INTEGER,
+      answered_at INTEGER,
+      resolved_at INTEGER,
+      outcome TEXT CHECK (outcome IN ('replied', 'read', 'ignored')),
+      created_at INTEGER NOT NULL
+    )
+  `);
+  // Index for the "find unresolved" sweep: resolved_at IS NULL rows, scanned
+  // each poll tick to re-poll flags and finalize outcomes.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_email_feedback_unresolved
+      ON email_feedback(resolved_at, outcome)
+  `);
+
   // Migration: add `source` column if missing
   const cols = db.prepare("PRAGMA table_info(chat_messages)").all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === 'source')) {

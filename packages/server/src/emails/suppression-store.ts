@@ -21,6 +21,10 @@ export interface InsertRuleInput {
   rule_type: SuppressionRuleType;
   pattern: string;
   ttl_days: number | null;
+  /** Provenance tag. Defaults to `discord_button` (manual). The implicit-
+   *  feedback scorer passes `auto_feedback` so its rules can be cleared /
+   *  explained without touching user-created ones. */
+  created_via?: string;
 }
 
 export interface EmailSuppressionStore {
@@ -37,7 +41,7 @@ export function createEmailSuppressionStore(deps: {
 }): EmailSuppressionStore {
   const { db } = deps;
   return {
-    insertRule({ rule_type, pattern, ttl_days }) {
+    insertRule({ rule_type, pattern, ttl_days, created_via }) {
       const now = Date.now();
       const expires_at = ttl_days === null ? null : now + ttl_days * DAY_MS;
       // Sender rules are keyed by bare address so they survive display-name
@@ -56,10 +60,10 @@ export function createEmailSuppressionStore(deps: {
       const info = db
         .prepare(
           `INSERT INTO email_suppression_rules
-           (rule_type, pattern, created_at, expires_at)
-           VALUES (?, ?, ?, ?)`,
+           (rule_type, pattern, created_at, expires_at, created_via)
+           VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(rule_type, storedPattern, now, expires_at);
+        .run(rule_type, storedPattern, now, expires_at, created_via ?? 'discord_button');
       return { id: Number(info.lastInsertRowid), expires_at };
     },
     findActiveMatch(sender, subject, now) {
