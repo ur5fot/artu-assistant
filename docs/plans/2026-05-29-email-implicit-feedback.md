@@ -200,21 +200,21 @@ self-healing on reply.
 - [x] run `npm -w @r2/server test -- why` — must pass before task 8
 
 ### Task 8: Wire into `index.ts` + env vars + integration test
-- [ ] in `index.ts`, construct `feedbackStore`, pass it to the urgent
+- [x] in `index.ts`, construct `feedbackStore`, pass it to the urgent
       handler and the poll tick; register only when `EMAIL_FEEDBACK_ENABLED`
       === 'true' AND `EMAIL_ENABLED` (default off → nothing changes)
-- [ ] add env vars via `envInt`/bool: `EMAIL_FEEDBACK_ENABLED`,
+- [x] add env vars via `envInt`/bool: `EMAIL_FEEDBACK_ENABLED`,
       `EMAIL_FEEDBACK_IGNORE_HOURS` (default 24, range 1–168),
       `EMAIL_FEEDBACK_SUPPRESS_AFTER` (default 3, range 1–20),
       `EMAIL_FEEDBACK_SUPPRESS_TTL_DAYS` (default 7, range 1–90),
       `EMAIL_FEEDBACK_MAX_REPOLL` (default 50, range 1–500)
-- [ ] document the block in `.env.example`
-- [ ] write integration test
+- [x] document the block in `.env.example`
+- [x] write integration test
       (`__tests__/email-feedback.integration.test.ts`): mocked provider +
       in-memory DB — ping → flags re-polled → ignored×N → auto-suppress →
       next email from sender demoted (`urgent_pinged_at=-1`, lands in digest);
       separate case: reply → auto-rule cleared
-- [ ] run `npm -w @r2/server test -- email-feedback.integration` — must pass
+- [x] run `npm -w @r2/server test -- email-feedback.integration` — must pass
       before task 9
 
 ### Task 9: Acceptance + docs

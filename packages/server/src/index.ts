@@ -50,7 +50,8 @@ import { createMorningBriefHandler } from './cognition/handlers/morningBrief.js'
 import { parseImapAccounts } from './emails/config.js';
 import { createEmailStore } from './emails/store.js';
 import { createEmailSuppressionStore } from './emails/suppression-store.js';
-import { fetchNewMessages, fetchFullBody, getMaxUid, fetchHeaders } from './emails/imap-client.js';
+import { createEmailFeedbackStore } from './emails/feedback-store.js';
+import { fetchNewMessages, fetchFullBody, getMaxUid, fetchHeaders, fetchFlagsForUids } from './emails/imap-client.js';
 import { fetchThread } from './emails/thread-fetcher.js';
 import { sendReply as sendSmtpReply } from './emails/smtp-client.js';
 import { scoreBatch } from './emails/scorer.js';
@@ -297,6 +298,21 @@ const imapAccounts = (() => {
   }
 })();
 const emailEnabled = (process.env.EMAIL_ENABLED || 'true') !== 'false' && imapAccounts.length > 0;
+
+// Implicit-feedback (Pain #1 iter 4) — learn from how the user reacts to urgent
+// pings and auto-demote senders that keep getting ignored. Hard-gated on the
+// feature flag AND email being enabled, so the default (flag unset) is zero
+// behaviour change: no feedback rows recorded, no auto-suppression created, the
+// urgent path untouched. All four knobs fall back to sane defaults via envInt.
+const emailFeedbackEnabled =
+  process.env.EMAIL_FEEDBACK_ENABLED === 'true' && emailEnabled;
+const emailFeedbackStore = emailFeedbackEnabled
+  ? createEmailFeedbackStore({ db: getDb() })
+  : null;
+const emailFeedbackIgnoreHours = envInt(process.env.EMAIL_FEEDBACK_IGNORE_HOURS, 24, 1, 168);
+const emailFeedbackSuppressAfter = envInt(process.env.EMAIL_FEEDBACK_SUPPRESS_AFTER, 3, 1, 20);
+const emailFeedbackSuppressTtlDays = envInt(process.env.EMAIL_FEEDBACK_SUPPRESS_TTL_DAYS, 7, 1, 90);
+const emailFeedbackMaxRepoll = envInt(process.env.EMAIL_FEEDBACK_MAX_REPOLL, 50, 1, 500);
 // When the feature is disabled, hand `null` to tool-emails so `emails_list` /
 // `emails_get` return a clear "not enabled" error instead of empty data or
 // references to stale accounts.
@@ -527,6 +543,7 @@ const commandService = createCommandService({
   emailStore: emailEnabled ? emailStore : undefined,
   emailSentLog: emailEnabled ? emailSentLog : undefined,
   emailSuppressionStore: emailEnabled ? emailSuppressionStore : undefined,
+  emailFeedbackStore: emailFeedbackStore ?? undefined,
 });
 // Bound runLoop closure — tool factories use this for recursive agent calls
 const runLoopFn = (params: {
@@ -598,8 +615,31 @@ if (emailEnabled) {
         signal: pollerAbort.signal,
       }),
     intervalMs: envInt(process.env.EMAIL_POLL_INTERVAL_MS, 300_000, 1_000),
+    // Implicit-feedback resolution wiring. Absent (flag off) → the poll tick
+    // skips the flag re-poll / finalization entirely (zero extra IMAP work).
+    feedback: emailFeedbackStore
+      ? {
+          store: emailFeedbackStore,
+          flagFetcher: (acc, uids) => fetchFlagsForUids(acc, uids),
+          ignoreHours: emailFeedbackIgnoreHours,
+          maxRepoll: emailFeedbackMaxRepoll,
+          scorer: {
+            suppressionStore: emailSuppressionStore,
+            config: {
+              // Count negatives over the same horizon the suppression lasts —
+              // no separate lookback knob, so the window tracks the TTL.
+              lookbackMs: emailFeedbackSuppressTtlDays * 86_400_000,
+              suppressAfter: emailFeedbackSuppressAfter,
+              suppressTtlDays: emailFeedbackSuppressTtlDays,
+            },
+          },
+        }
+      : undefined,
   });
-  console.log(`[emails] poller started for ${imapAccounts.length} account(s)`);
+  console.log(
+    `[emails] poller started for ${imapAccounts.length} account(s)` +
+      (emailFeedbackStore ? ' (implicit feedback enabled)' : ''),
+  );
 } else {
   console.log('[emails] disabled (EMAIL_ENABLED=false or IMAP_ACCOUNTS empty)');
 }
@@ -718,6 +758,7 @@ if (discordToken) {
       createEmailUrgentHandler({
         store: emailStore,
         suppressionStore: emailSuppressionStore,
+        feedbackStore: emailFeedbackStore ?? undefined,
         tz: 'Europe/Kyiv',
         quietStart: envInt(process.env.EMAIL_QUIET_HOUR_START, 22, MORNING_FALLBACK_HOUR + 1, 23),
       }),
