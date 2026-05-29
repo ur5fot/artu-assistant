@@ -477,13 +477,14 @@ investing in fragile restore-side integrations.
 
 ### Task 8: Acceptance + docs
 
-- [ ] full server test suite — all green
-- [ ] TypeScript build — no errors
-- [ ] verify backward compat: with `WINDOW_LOGGER_ENABLED=false`
+- [x] full server test suite — all green (1263 tests, 95 files)
+- [x] TypeScript build — no errors (`tsc -b` exit 0)
+- [x] verify backward compat: with `WINDOW_LOGGER_ENABLED=false`
   (default), zero new behavior; no logs, no DB writes, no DB rows
-- [ ] update `AGENTS.md` Cognition layer section: one-line entry for
+  (gate at `index.ts:726`; integration test confirms)
+- [x] update `AGENTS.md` Cognition layer section: one-line entry for
   `contextSwitch` handler (mirror `emailUrgent` style)
-- [ ] update `README.md` with a new "Digital Observer (Pain #2)"
+- [x] update `README.md` with a new "Digital Observer (Pain #2)"
   subsection: what it does, macOS-only, Automation permission grant
   step, how to enable (`WINDOW_LOGGER_ENABLED=true`), known limitations
   (screen-lock false positive, etc.)
