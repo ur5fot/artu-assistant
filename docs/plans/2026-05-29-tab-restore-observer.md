@@ -247,7 +247,7 @@ investing in fragile restore-side integrations.
 
 ### Task 3: `WindowSnapshotProvider` — osascript invocation + timeout
 
-- [ ] create `packages/server/src/observers/window-snapshot.ts`
+- [x] create `packages/server/src/observers/window-snapshot.ts`
   exporting:
   - interface `WindowSnapshotProvider { getActive(): Promise<{app_name: string; window_title: string} | null> }`
   - `createOsascriptProvider({timeoutMs = 5000}): WindowSnapshotProvider`
@@ -272,13 +272,13 @@ investing in fragile restore-side integrations.
   - Parse stdout: trim → split on `|||` (exactly 2 parts) → trim each
     → if `app_name` empty return null; if `window_title` empty use
     empty string (no front window — desktop focused etc).
-- [ ] handle these error cases by returning `null` (and letting caller
+- [x] handle these error cases by returning `null` (and letting caller
   log via `onError`):
   - process timed out (`error.killed === true`)
   - non-zero exit code (permission denied — AppleScript "User canceled"
     or "Not authorised to send Apple events to ...")
   - stdout missing `|||`
-- [ ] write tests in
+- [x] write tests in
   `observers/__tests__/window-snapshot.test.ts` — **all mock
   `execFile` via vitest's module mock**:
   - successful stdout `"Chrome|||Inbox - Gmail\n"` → parsed object
@@ -287,7 +287,7 @@ investing in fragile restore-side integrations.
   - timeout error → null
   - non-zero exit → null
   - missing delimiter → null
-- [ ] run `npm -w @r2/server test -- window-snapshot.test` — must pass
+- [x] run `npm -w @r2/server test -- window-snapshot.test` — must pass
   before task 4
 
 ### Task 4: `window-logger.ts` poller
