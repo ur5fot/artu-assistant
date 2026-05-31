@@ -83,6 +83,133 @@ describe('startWindowLogger', () => {
     stop();
   });
 
+  it('fires onBlind once at the threshold on a null streak and does not spam', async () => {
+    const provider = mockProvider(vi.fn(async () => null));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const onBlind = vi.fn();
+
+    const stop = startWindowLogger({ store, provider, intervalMs: 30_000, blindAlertAfter: 3, onBlind });
+    await vi.advanceTimersByTimeAsync(0); // tick 1
+    await vi.advanceTimersByTimeAsync(30_000); // tick 2
+    await vi.advanceTimersByTimeAsync(30_000); // tick 3 → threshold
+
+    expect(onBlind).toHaveBeenCalledTimes(1);
+    expect(onBlind).toHaveBeenCalledWith({ consecutive: 3 });
+
+    // two more blind ticks → still only one alert (no spam)
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(onBlind).toHaveBeenCalledTimes(1);
+    expect(rows()).toEqual([]);
+    stop();
+  });
+
+  it('counts a throw as blind: onError every tick, onBlind once at threshold', async () => {
+    const provider = mockProvider(vi.fn(async () => { throw new Error('boom'); }));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const onError = vi.fn();
+    const onBlind = vi.fn();
+
+    const stop = startWindowLogger({ store, provider, intervalMs: 30_000, blindAlertAfter: 3, onError, onBlind });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(onError).toHaveBeenCalledTimes(3);
+    expect(onBlind).toHaveBeenCalledTimes(1);
+    expect(onBlind).toHaveBeenCalledWith({ consecutive: 3 });
+    stop();
+  });
+
+  it('counts a mixed null+throw streak as blind and fires once at threshold', async () => {
+    const getActive = vi
+      .fn<WindowSnapshotProvider['getActive']>()
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce(null);
+    const provider = mockProvider(getActive);
+    const store = createWindowHistoryStore({ db: getDb() });
+    const onBlind = vi.fn();
+
+    const stop = startWindowLogger({ store, provider, intervalMs: 30_000, blindAlertAfter: 3, onBlind });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(onBlind).toHaveBeenCalledTimes(1);
+    expect(onBlind).toHaveBeenCalledWith({ consecutive: 3 });
+    stop();
+  });
+
+  it('resets the counter on a good sample and can re-arm for the next streak', async () => {
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'Gmail' };
+    const getActive = vi
+      .fn<WindowSnapshotProvider['getActive']>()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(snap)
+      .mockResolvedValue(null);
+    const provider = mockProvider(getActive);
+    const store = createWindowHistoryStore({ db: getDb() });
+    const onBlind = vi.fn();
+
+    const stop = startWindowLogger({ store, provider, intervalMs: 30_000, blindAlertAfter: 3, onBlind });
+    await vi.advanceTimersByTimeAsync(0); // null (1)
+    await vi.advanceTimersByTimeAsync(30_000); // null (2)
+    await vi.advanceTimersByTimeAsync(30_000); // good → reset
+    expect(onBlind).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(30_000); // null (1)
+    await vi.advanceTimersByTimeAsync(30_000); // null (2)
+    await vi.advanceTimersByTimeAsync(30_000); // null (3) → threshold
+
+    expect(onBlind).toHaveBeenCalledTimes(1);
+    expect(onBlind).toHaveBeenCalledWith({ consecutive: 3 });
+    expect(rows()).toEqual([{ app_name: 'Chrome', window_title: 'Gmail', sample_count: 1 }]);
+    stop();
+  });
+
+  it('fires onRecover once after an alert, not on subsequent good samples', async () => {
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'Gmail' };
+    const getActive = vi
+      .fn<WindowSnapshotProvider['getActive']>()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(snap);
+    const provider = mockProvider(getActive);
+    const store = createWindowHistoryStore({ db: getDb() });
+    const onBlind = vi.fn();
+    const onRecover = vi.fn();
+
+    const stop = startWindowLogger({ store, provider, intervalMs: 30_000, blindAlertAfter: 3, onBlind, onRecover });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(30_000); // threshold → onBlind
+    await vi.advanceTimersByTimeAsync(30_000); // good → onRecover
+
+    expect(onBlind).toHaveBeenCalledTimes(1);
+    expect(onRecover).toHaveBeenCalledTimes(1);
+    expect(onRecover).toHaveBeenCalledWith({ blindFor: 3 });
+
+    await vi.advanceTimersByTimeAsync(30_000); // good again → no repeat
+    expect(onRecover).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it('stays inert without blind params (backward-compat) on a null streak', async () => {
+    const provider = mockProvider(vi.fn(async () => null));
+    const store = createWindowHistoryStore({ db: getDb() });
+
+    const stop = startWindowLogger({ store, provider, intervalMs: 30_000 });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(rows()).toEqual([]);
+    stop();
+  });
+
   it('does not fire further ticks after stop is called', async () => {
     const getActive = vi
       .fn<WindowSnapshotProvider['getActive']>()
