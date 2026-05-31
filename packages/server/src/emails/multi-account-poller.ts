@@ -7,6 +7,11 @@ import { evaluateSender, type FeedbackScorerConfig } from './feedback-scorer.js'
 export type MessageFetcher = (account: ImapAccount, sinceUid: number, limit: number) => Promise<NewMessage[]>;
 export type MessageScorer = (msgs: NewMessage[]) => Promise<Array<{ uid: number; importance: number }>>;
 export type MaxUidProbe = (account: ImapAccount) => Promise<number>;
+/** Read the mailbox's current UIDVALIDITY (imap-client.getUidValidity). Probed
+ *  at the start of every ongoing tick, BEFORE the fetch, so we never ingest a
+ *  partial slice from a foreign UID epoch. A throw is treated like any other
+ *  per-account failure (→ setAccountError, retried next tick). */
+export type ValidityProbe = (account: ImapAccount) => Promise<number>;
 /** Re-poll IMAP flags for an explicit UID list (see imap-client.fetchFlagsForUids).
  *  Best-effort: never throws into the poll loop. Returns the gathered rows on
  *  success ([] when every UID has left INBOX), or `null` on a hard fetch failure
@@ -41,10 +46,16 @@ interface TickParams {
   fetcher: MessageFetcher;
   scorer: MessageScorer;
   maxUidProbe: MaxUidProbe;
+  // Required (not optional) on purpose: this is the core detection mechanism,
+  // like `provider` for window-logger. Making it optional would let forgotten
+  // wiring silently re-introduce the exact silent-blindness class we're fixing.
+  validityProbe: ValidityProbe;
   now: number;
   fetchLimit?: number;
   importanceCutoff?: number;
   feedback?: FeedbackResolution;
+  // Optional alert hook (like `onBlind`): fired once per UIDVALIDITY reset.
+  onUidValidityReset?: (info: { account: string; previous: number; current: number }) => void;
 }
 
 const DEFAULT_FETCH_LIMIT = 50;
@@ -207,6 +218,35 @@ export async function runPollTick(params: TickParams): Promise<void> {
         }
 
         const sinceUid = params.store.getLastSeenUid(acc.id);
+
+        // UIDVALIDITY guard, BEFORE the fetch — IMAP UIDs are only stable while
+        // the mailbox's UIDVALIDITY is unchanged. If the provider recreates the
+        // mailbox, UIDs restart from low numbers and `uid:${last+1}:*` returns
+        // nothing (new mail sits below the dead high-watermark) or only the
+        // high tail of the new epoch (silently losing everything below). We
+        // detect the change here and self-heal so we never act on a foreign
+        // epoch's UID data.
+        const storedValidity = params.store.getUidValidity(acc.id);
+        const currentValidity = await params.validityProbe(acc);
+        if (storedValidity == null) {
+          // First time we learn the UIDVALIDITY (new account on its 2nd tick, or
+          // an account older than this column): adopt it as the baseline WITHOUT
+          // resetting the watermark — there's no reason to assume it changed.
+          params.store.setLastSeenAndValidity(acc.id, sinceUid, currentValidity, params.now);
+        } else if (currentValidity !== storedValidity) {
+          // Mailbox recreated: `last_seen_uid` is a dead epoch's watermark. Reset
+          // by the first-tick strategy — skip backlog (last_seen_uid = current
+          // maxUid), persist the new validity — and alert once. Next tick runs
+          // normally (stored == current).
+          console.warn(
+            `[emails] UIDVALIDITY changed for ${acc.id}: ${storedValidity} → ${currentValidity}; mailbox recreated, resetting last_seen_uid to current maxUid (skipping backlog).`,
+          );
+          const maxUid = await params.maxUidProbe(acc);
+          params.store.setLastSeenAndValidity(acc.id, maxUid, currentValidity, params.now);
+          params.onUidValidityReset?.({ account: acc.id, previous: storedValidity, current: currentValidity });
+          return; // skip this tick's ingest; next tick proceeds normally
+        }
+
         const msgs = await params.fetcher(acc, sinceUid, fetchLimit);
         if (msgs.length === 0) {
           // No new mail, but unresolved feedback rows may still need a flag

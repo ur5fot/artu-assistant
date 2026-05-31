@@ -133,6 +133,7 @@ describe('email implicit feedback — integration', () => {
       fetcher,
       scorer: async () => [],
       maxUidProbe: async () => 200,
+      validityProbe: async () => 1,
       now: pollNow,
       feedback: makeFeedback(feedbackStore, suppressionStore, flagFetcher),
     });
@@ -219,6 +220,7 @@ describe('email implicit feedback — integration', () => {
       fetcher: async () => [],
       scorer: async () => [],
       maxUidProbe: async () => 300,
+      validityProbe: async () => 1,
       now: pollNow,
       feedback: makeFeedback(feedbackStore, suppressionStore, flagFetcher),
     });

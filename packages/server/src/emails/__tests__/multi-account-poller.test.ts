@@ -8,6 +8,7 @@ import type { ImapAccount, NewMessage } from '../types.js';
 beforeEach(() => {
   initDb(':memory:');
   noProbe.mockClear();
+  noValidity.mockClear();
 });
 
 const accA: ImapAccount = { id: 'a', host: 'h', port: 993, user: 'u', password: 'p', tls: true };
@@ -21,6 +22,12 @@ function msg(uid: number, from = 'x', subject = 's'): NewMessage {
 // (the first-tick branch never triggers). Tests that exercise the first-tick
 // path supply their own probe.
 const noProbe = vi.fn(async () => 0);
+
+// Default validity probe for existing tests: returns a constant so the ongoing
+// path's backfill branch (stored validity NULL → adopt baseline) is transparent
+// to their assertions — it persists the same last_seen_uid and falls through to
+// the fetch. Tests exercising the reset/backfill logic supply their own probe.
+const noValidity = vi.fn(async () => 1);
 
 describe('runPollTick', () => {
   it('inserts only score >= 4 and updates last_seen_uid', async () => {
@@ -37,6 +44,7 @@ describe('runPollTick', () => {
       fetcher,
       scorer,
       maxUidProbe: noProbe,
+      validityProbe: noValidity,
       now: 5000,
     });
 
@@ -64,6 +72,7 @@ describe('runPollTick', () => {
       fetcher,
       scorer,
       maxUidProbe: noProbe,
+      validityProbe: noValidity,
       now: 6000,
     });
 
@@ -84,6 +93,7 @@ describe('runPollTick', () => {
       fetcher,
       scorer,
       maxUidProbe: noProbe,
+      validityProbe: noValidity,
       now: 7000,
     });
 
@@ -104,6 +114,7 @@ describe('runPollTick', () => {
       fetcher,
       scorer,
       maxUidProbe: noProbe,
+      validityProbe: noValidity,
       now: 8000,
     });
 
@@ -123,6 +134,7 @@ describe('runPollTick', () => {
       fetcher,
       scorer,
       maxUidProbe: probe,
+      validityProbe: noValidity,
       now: 9000,
     });
 
@@ -145,6 +157,7 @@ describe('runPollTick', () => {
       fetcher,
       scorer,
       maxUidProbe: probe,
+      validityProbe: noValidity,
       now: 10000,
     });
 
@@ -169,6 +182,7 @@ describe('runPollTick', () => {
       fetcher,
       scorer,
       maxUidProbe: probe,
+      validityProbe: noValidity,
       now: 11000,
     });
 
@@ -189,6 +203,7 @@ describe('runPollTick', () => {
       fetcher,
       scorer,
       maxUidProbe: probe,
+      validityProbe: noValidity,
       now: 12000,
     });
 
@@ -215,7 +230,7 @@ describe('runPollTick', () => {
 
     // Tick 1: empty inbox, probe returns 0, state row written with uid=0.
     await runPollTick({
-      accounts: [accA], store, fetcher, scorer, maxUidProbe: probe, now: 10000,
+      accounts: [accA], store, fetcher, scorer, maxUidProbe: probe, validityProbe: noValidity, now: 10000,
     });
     expect(probe).toHaveBeenCalledTimes(1);
     expect(fetcher).not.toHaveBeenCalled();
@@ -225,7 +240,7 @@ describe('runPollTick', () => {
     // Tick 2: row exists, so ongoing path runs. Fetcher receives sinceUid=0
     // and returns the freshly-arrived UID=1 — which must NOT be dropped.
     await runPollTick({
-      accounts: [accA], store, fetcher, scorer, maxUidProbe: probe, now: 11000,
+      accounts: [accA], store, fetcher, scorer, maxUidProbe: probe, validityProbe: noValidity, now: 11000,
     });
     expect(probe).toHaveBeenCalledTimes(1); // probe NOT called again
     expect(fetcher).toHaveBeenCalledTimes(1);
@@ -254,6 +269,7 @@ describe('runPollTick', () => {
       fetcher,
       scorer,
       maxUidProbe: probe,
+      validityProbe: noValidity,
       now: 13000,
     });
 
@@ -262,6 +278,135 @@ describe('runPollTick', () => {
     expect(store.getLastSeenUid('a')).toBe(500);
     expect(store.getLastSeenUid('b')).toBe(101);
     expect(store.countPendingUndelivered()).toBe(1);
+  });
+});
+
+describe('runPollTick — UIDVALIDITY detect & self-heal', () => {
+  it('validity unchanged → normal catch-up, no reset', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setLastSeenAndValidity('a', 1, 111, 1000);
+    const fetcher = vi.fn(async () => [msg(2), msg(3)]);
+    const scorer = vi.fn(async (ms: NewMessage[]) =>
+      ms.map((m) => ({ uid: m.uid, importance: 5 })),
+    );
+    const validityProbe = vi.fn(async () => 111);
+    const onUidValidityReset = vi.fn();
+
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, maxUidProbe: noProbe,
+      validityProbe, onUidValidityReset, now: 5000,
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(store.getLastSeenUid('a')).toBe(3);
+    expect(store.getUidValidity('a')).toBe(111);
+    expect(onUidValidityReset).not.toHaveBeenCalled();
+  });
+
+  it('validity changed → reset to maxUid, skip backlog, no ingest, one alert', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setLastSeenAndValidity('a', 5000, 111, 1000);
+    const fetcher = vi.fn(async () => [msg(2)]);
+    const scorer = vi.fn(async () => []);
+    const validityProbe = vi.fn(async () => 222);
+    const maxUidProbe = vi.fn(async () => 7);
+    const onUidValidityReset = vi.fn();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, maxUidProbe,
+      validityProbe, onUidValidityReset, now: 6000,
+    });
+
+    expect(fetcher).not.toHaveBeenCalled(); // bailed before fetch
+    expect(store.getLastSeenUid('a')).toBe(7);
+    expect(store.getUidValidity('a')).toBe(222);
+    expect(store.countPendingUndelivered()).toBe(0);
+    expect(onUidValidityReset).toHaveBeenCalledTimes(1);
+    expect(onUidValidityReset).toHaveBeenCalledWith({ account: 'a', previous: 111, current: 222 });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('[emails] UIDVALIDITY'));
+    warn.mockRestore();
+  });
+
+  it('tick after reset → normal path resumed (stored now matches)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setLastSeenAndValidity('a', 7, 222, 1000); // post-reset state
+    const fetcher = vi.fn(async () => [msg(8)]);
+    const scorer = vi.fn(async (ms: NewMessage[]) =>
+      ms.map((m) => ({ uid: m.uid, importance: 5 })),
+    );
+    const validityProbe = vi.fn(async () => 222);
+    const onUidValidityReset = vi.fn();
+
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, maxUidProbe: noProbe,
+      validityProbe, onUidValidityReset, now: 7000,
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(store.getLastSeenUid('a')).toBe(8);
+    expect(onUidValidityReset).not.toHaveBeenCalled();
+  });
+
+  it('backfill (uid_validity NULL) → record validity, no reset, fetch proceeds', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 1000); // validity NULL
+    const fetcher = vi.fn(async () => [msg(2), msg(3)]);
+    const scorer = vi.fn(async (ms: NewMessage[]) =>
+      ms.map((m) => ({ uid: m.uid, importance: 5 })),
+    );
+    const validityProbe = vi.fn(async () => 333);
+    const maxUidProbe = vi.fn(async () => 99);
+    const onUidValidityReset = vi.fn();
+
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, maxUidProbe,
+      validityProbe, onUidValidityReset, now: 8000,
+    });
+
+    expect(store.getUidValidity('a')).toBe(333);
+    expect(fetcher).toHaveBeenCalledTimes(1); // fetch ran (not a reset)
+    expect(store.getLastSeenUid('a')).toBe(3); // grew via fetch, not maxUid
+    expect(maxUidProbe).not.toHaveBeenCalled();
+    expect(onUidValidityReset).not.toHaveBeenCalled();
+  });
+
+  it('validityProbe throws → setAccountError, no reset, no fetch, state untouched', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setLastSeenAndValidity('a', 5000, 111, 1000);
+    const fetcher = vi.fn(async () => [msg(2)]);
+    const scorer = vi.fn(async () => []);
+    const validityProbe = vi.fn(async () => { throw new Error('validity-down'); });
+    const onUidValidityReset = vi.fn();
+
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, maxUidProbe: noProbe,
+      validityProbe, onUidValidityReset, now: 9000,
+    });
+
+    expect(store.getAccountError('a')?.message).toContain('validity-down');
+    expect(store.getLastSeenUid('a')).toBe(5000);
+    expect(store.getUidValidity('a')).toBe(111);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(onUidValidityReset).not.toHaveBeenCalled();
+  });
+
+  it('first tick (no row) → validityProbe NOT called (exits before ongoing block)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const fetcher = vi.fn(async () => []);
+    const scorer = vi.fn(async () => []);
+    const maxUidProbe = vi.fn(async () => 42);
+    const validityProbe = vi.fn(async () => 333);
+
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, maxUidProbe,
+      validityProbe, now: 10000,
+    });
+
+    expect(maxUidProbe).toHaveBeenCalledTimes(1);
+    expect(validityProbe).not.toHaveBeenCalled();
+    expect(store.getLastSeenUid('a')).toBe(42);
+    expect(store.getUidValidity('a')).toBeNull(); // initialized on the 2nd tick via backfill
   });
 });
 
@@ -323,7 +468,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
     // now is only 1h after the ping — well inside the 24h window.
     await runPollTick({
       accounts: [accA], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: pingedAt + 3_600_000,
       feedback: feedbackDeps(flagFetcher),
     });
@@ -343,7 +488,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     await runPollTick({
       accounts: [accA], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: pingedAt + IGNORE_MS, // exactly at the deadline
       feedback: feedbackDeps(flagFetcher),
     });
@@ -363,7 +508,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     await runPollTick({
       accounts: [accA], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: pingedAt + IGNORE_MS + 1,
       feedback: feedbackDeps(flagFetcher),
     });
@@ -382,7 +527,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     await runPollTick({
       accounts: [accA], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: pingedAt + IGNORE_MS - 1, // one ms short of the deadline
       feedback: feedbackDeps(flagFetcher),
     });
@@ -406,7 +551,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     await runPollTick({
       accounts: [accA], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: pingedAt + IGNORE_MS + 1, // window elapsed, but no data
       feedback: feedbackDeps(flagFetcher),
     });
@@ -430,7 +575,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     await runPollTick({
       accounts: [accA], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: pingedAt + IGNORE_MS + 1, // window elapsed for both
       feedback: feedbackDeps(flagFetcher),
     });
@@ -458,7 +603,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     await runPollTick({
       accounts: [accA], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: pingedAt + IGNORE_MS + 1,
       feedback: feedbackDeps(flagFetcher),
     });
@@ -479,7 +624,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     await runPollTick({
       accounts: [accA], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: pingedAt + 3_600_000, // inside window — replied is immediate
       feedback: feedbackDeps(flagFetcher),
     });
@@ -503,7 +648,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     await runPollTick({
       accounts: [accA], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: pingedAt + IGNORE_MS + 1, // window elapsed, but the fetch failed
       feedback: feedbackDeps(flagFetcher),
     });
@@ -524,7 +669,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     await runPollTick({
       accounts: [accA], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: pingedAt + IGNORE_MS + 1,
       feedback: feedbackDeps(flagFetcher),
     });
@@ -543,7 +688,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     await runPollTick({
       accounts: [accA], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: 1000 + IGNORE_MS + 1,
       // no feedback
     });
@@ -566,7 +711,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     await runPollTick({
       accounts: [accA, accB], store,
-      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []), maxUidProbe: noProbe, validityProbe: noValidity,
       now: 2000,
       feedback: feedbackDeps(flagFetcher),
     });
@@ -591,6 +736,7 @@ describe('runPollTick — implicit-feedback resolution', () => {
       fetcher: vi.fn(async () => [msg(150)]),
       scorer: vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 5 }))),
       maxUidProbe: noProbe,
+      validityProbe: noValidity,
       now: pingedAt + 1000,
       feedback: feedbackDeps(flagFetcher),
     });
