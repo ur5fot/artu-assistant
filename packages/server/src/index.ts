@@ -788,6 +788,7 @@ if (discordToken) {
   const switchGapMin = envInt(process.env.CONTEXT_SWITCH_GAP_MIN, 5, 1, 60);
   const stableNewMin = envInt(process.env.CONTEXT_SWITCH_STABLE_NEW_MIN, 5, 1, 60);
   const dedupeWindowH = envInt(process.env.CONTEXT_SWITCH_DEDUPE_WINDOW_H, 8, 1, 168);
+  const blindAlertAfter = envInt(process.env.WINDOW_LOGGER_BLIND_ALERT_AFTER, 10, 1, 2880);
 
   if (windowFlag && isDarwin && discordReady) {
     // Reuse the hoisted windowStore (also handed to the Discord bot above) so
@@ -799,6 +800,26 @@ if (discordToken) {
       provider,
       intervalMs: windowIntervalMs,
       onError: (e) => console.error('[window-logger]', e instanceof Error ? e.message : e),
+      blindAlertAfter,
+      onBlind: ({ consecutive }) => {
+        const mins = Math.round((consecutive * windowIntervalMs) / 60000);
+        console.warn(
+          `[window-logger] BLIND: no snapshot for ${consecutive} consecutive ticks (~${mins}m). Likely lost macOS Automation permission for System Events. Re-grant: System Settings → Privacy & Security → Automation → R2/node → System Events.`,
+        );
+        // Sentinel runId: -1 — the poller is not a cognition handler and has no
+        // cognition_handler_runs row. The bot's markPublished(-1) updates 0 rows
+        // (harmless) and firePublished(-1) is a no-op; we only reuse the existing
+        // cognition_publish → Discord DM render path.
+        reminderBus.emit('push', {
+          type: 'cognition_publish',
+          runId: -1,
+          handler: 'window-logger',
+          content: `⚠️ Digital Observer ослеп: нет снимков окна ~${mins} мин (${consecutive} тиков подряд). Похоже, потеряна Automation-привилегия (System Events). Re-grant: System Settings → Privacy & Security → Automation.`,
+        });
+      },
+      // Recovery is log-only (don't spam Discord).
+      onRecover: ({ blindFor }) =>
+        console.warn(`[window-logger] recovered after ${blindFor} blind ticks; sampling resumed.`),
     });
     cognitionService.register(
       createContextSwitchHandler({
@@ -810,7 +831,9 @@ if (discordToken) {
         dedupeWindowH,
       }),
     );
-    console.log(`[window-logger] started (interval=${Math.round(windowIntervalMs / 1000)}s)`);
+    console.log(
+      `[window-logger] started (interval=${Math.round(windowIntervalMs / 1000)}s, blind-alert=${blindAlertAfter})`,
+    );
   } else {
     console.log(
       `[window-logger] disabled (flag=${windowFlag}, darwin=${isDarwin}, discord=${discordReady})`,

@@ -125,4 +125,55 @@ describe('window-logger → context-switch → cognition integration', () => {
 
     await queue.stop();
   });
+
+  it('emits exactly one cognition_publish on a blind streak and records no rows', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+
+    const db = getDb();
+    const bus = new EventEmitter();
+    const events: Array<{ type: string; runId?: number; handler?: string; content?: string }> = [];
+    bus.on('push', (e) => events.push(e));
+
+    const windowStore = createWindowHistoryStore({ db });
+
+    // Permanently blind provider: every poll returns null — the real osascript
+    // failure mode after sleep/wake, which onError (throw-only) never sees.
+    const provider: WindowSnapshotProvider = {
+      async getActive() {
+        return null;
+      },
+    };
+
+    const stop = startWindowLogger({
+      store: windowStore,
+      provider,
+      intervalMs: INTERVAL_MS,
+      blindAlertAfter: 3,
+      onBlind: ({ consecutive }) =>
+        bus.emit('push', {
+          type: 'cognition_publish',
+          runId: -1, // sentinel: poller has no cognition_handler_runs row
+          handler: 'window-logger',
+          content: `blind ~${consecutive}`,
+        }),
+    });
+
+    // Six blind ticks — well past the threshold of 3.
+    await vi.advanceTimersByTimeAsync(0);
+    for (let i = 1; i < 6; i++) {
+      await vi.advanceTimersByTimeAsync(INTERVAL_MS);
+    }
+    stop();
+
+    const publishes = events.filter(
+      (e) => e.type === 'cognition_publish' && e.handler === 'window-logger',
+    );
+    expect(publishes.length).toBe(1); // fired once at threshold, no spam
+    expect(typeof publishes[0].content).toBe('string');
+    expect(publishes[0].content!.length).toBeGreaterThan(0);
+
+    // Nothing was written during the blind streak.
+    expect(windowStore.findRecentRows(0, 200)).toEqual([]);
+  });
 });

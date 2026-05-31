@@ -361,6 +361,18 @@ an **ephemeral** message visible only to you.
 **This iteration is observation only** — it detects and notifies. Actual
 restore (reopening tabs / files / cwd) is a later iteration.
 
+**Self-diagnostics (iter 1.5).** The poller can go silently blind — after a
+sleep/wake macOS often revokes Automation access and `osascript` starts
+returning `null`/timeout, so the observer stops recording with no log line and
+no alert (this happened for ~26 h on 2026-05-30). The poller now counts
+consecutive blind ticks (`null` **or** throw) and, once it reaches
+`WINDOW_LOGGER_BLIND_ALERT_AFTER` (default 10 ≈ 5 min at the 30 s interval),
+emits **one** `[window-logger] BLIND: …` warning + a single Discord DM
+("observer ослеп / lost Automation permission — re-grant in System Settings").
+The counter resets on the first good sample; recovery is logged
+(`[window-logger] recovered after N blind ticks`) without a second DM. No spam:
+exactly one alert per blind streak.
+
 **Enable it:**
 
 1. Set `WINDOW_LOGGER_ENABLED=true` in `.env` and restart. (Requires a live
@@ -371,7 +383,9 @@ restore (reopening tabs / files / cwd) is a later iteration.
    System Events**.
 3. Tune detection via env vars (all in `.env.example`):
    `CONTEXT_SWITCH_LONG_SESSION_MIN` (30), `CONTEXT_SWITCH_GAP_MIN` (5),
-   `CONTEXT_SWITCH_STABLE_NEW_MIN` (5), `CONTEXT_SWITCH_DEDUPE_WINDOW_H` (8).
+   `CONTEXT_SWITCH_STABLE_NEW_MIN` (5), `CONTEXT_SWITCH_DEDUPE_WINDOW_H` (8),
+   `WINDOW_LOGGER_BLIND_ALERT_AFTER` (10 — consecutive blind ticks before the
+   self-diagnostics warning + Discord ping; range 1–2880).
 
 **Known limitations (iter 1):**
 
