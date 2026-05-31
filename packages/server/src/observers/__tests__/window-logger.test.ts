@@ -83,6 +83,28 @@ describe('startWindowLogger', () => {
     stop();
   });
 
+  it('treats a recordSample() throw as onError, not blindness', async () => {
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'Gmail' };
+    const provider = mockProvider(vi.fn(async () => snap));
+    const dbErr = new Error('database is locked');
+    const store = createWindowHistoryStore({ db: getDb() });
+    vi.spyOn(store, 'recordSample').mockImplementation(() => { throw dbErr; });
+    const onError = vi.fn();
+    const onBlind = vi.fn();
+
+    const stop = startWindowLogger({ store, provider, intervalMs: 30_000, blindAlertAfter: 1, onError, onBlind });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    // Storage failures surface through onError every tick...
+    expect(onError).toHaveBeenCalledTimes(3);
+    expect(onError).toHaveBeenCalledWith(dbErr);
+    // ...but the provider is healthy, so the observer is never "blind".
+    expect(onBlind).not.toHaveBeenCalled();
+    stop();
+  });
+
   it('fires onBlind once at the threshold on a null streak and does not spam', async () => {
     const provider = mockProvider(vi.fn(async () => null));
     const store = createWindowHistoryStore({ db: getDb() });

@@ -42,16 +42,28 @@ export function startWindowLogger(params: StartWindowLoggerParams): () => void {
   const runOnce = async () => {
     if (stopped) return;
     let blind = false;
+    let snap: Awaited<ReturnType<WindowSnapshotProvider['getActive']>> = null;
+    // Blindness is strictly a provider problem: getActive() returning null OR
+    // throwing means the observer has no eyes (osascript lost Automation
+    // permission after sleep/wake). A storage write is a separate concern.
     try {
-      const snap = await provider.getActive();
-      if (snap) {
-        store.recordSample({ ...snap, sampled_at: Date.now() });
-      } else {
-        blind = true;
-      }
+      snap = await provider.getActive();
+      if (!snap) blind = true;
     } catch (err) {
       blind = true;
       safely(() => onError?.(err));
+    }
+
+    // Persist outside the blind-detection path: a recordSample() throw (locked/
+    // full/corrupt DB) means we DID get a snapshot — the observer is NOT blind.
+    // Route it through onError so it never inflates consecutiveBlind or fires
+    // the "lost macOS Automation permission" alert (wrong remediation).
+    if (snap) {
+      try {
+        store.recordSample({ ...snap, sampled_at: Date.now() });
+      } catch (err) {
+        safely(() => onError?.(err));
+      }
     }
 
     if (blind) {
