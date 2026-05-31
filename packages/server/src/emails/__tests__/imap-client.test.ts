@@ -8,6 +8,7 @@ import {
   fetchFlagsForUids,
   markAnswered,
   getMaxUid,
+  getUidValidity,
   __setImapFlowCtor,
 } from '../imap-client.js';
 
@@ -19,12 +20,17 @@ function makeClientStub(options: {
   searchReturns?: number[] | false;
   fetchRows?: Array<{ uid: number; envelope: any; bodyParts: Map<string, Buffer>; internalDate?: Date; bodyStructure?: any }>;
   throwOn?: 'connect' | 'search' | 'fetch';
+  uidValidity?: number | bigint;
 }) {
-  const { searchReturns = [], fetchRows = [], throwOn } = options;
+  const { searchReturns = [], fetchRows = [], throwOn, uidValidity } = options;
   return class {
+    mailbox: { uidValidity?: number | bigint } | undefined;
     async connect() { if (throwOn === 'connect') throw new Error('connect fail'); }
     async logout() {}
-    mailboxOpen = vi.fn(async () => {});
+    mailboxOpen = vi.fn(async () => {
+      // imapflow exposes the open mailbox (incl. uidValidity) only after open.
+      this.mailbox = uidValidity === undefined ? {} : { uidValidity };
+    });
     search = vi.fn(async () => {
       if (throwOn === 'search') throw new Error('search fail');
       return searchReturns;
@@ -708,6 +714,32 @@ describe('getMaxUid', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].criteria).toEqual({ all: true });
     expect(calls[0].opts).toEqual({ uid: true });
+  });
+});
+
+describe('getUidValidity', () => {
+  it('returns Number(client.mailbox.uidValidity)', async () => {
+    __setImapFlowCtor(makeClientStub({ uidValidity: 1234 }) as any);
+    expect(await getUidValidity(account)).toBe(1234);
+  });
+
+  it('coerces a BigInt uidValidity to a number', async () => {
+    // imapflow hands back uidValidity as BigInt; RFC 3501 caps it at 32-bit
+    // unsigned, so Number() is lossless.
+    __setImapFlowCtor(makeClientStub({ uidValidity: 4294967295n }) as any);
+    const v = await getUidValidity(account);
+    expect(typeof v).toBe('number');
+    expect(v).toBe(4294967295);
+  });
+
+  it('throws when mailbox.uidValidity is missing (probe failure → retry next tick)', async () => {
+    __setImapFlowCtor(makeClientStub({ uidValidity: undefined }) as any);
+    await expect(getUidValidity(account)).rejects.toThrow(/uidValidity/i);
+  });
+
+  it('propagates connection errors', async () => {
+    __setImapFlowCtor(makeClientStub({ throwOn: 'connect' }) as any);
+    await expect(getUidValidity(account)).rejects.toThrow(/connect/);
   });
 });
 

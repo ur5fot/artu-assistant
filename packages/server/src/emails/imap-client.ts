@@ -114,6 +114,32 @@ export async function getMaxUid(account: ImapAccount): Promise<number> {
   });
 }
 
+/**
+ * Returns the current `UIDVALIDITY` of the account's INBOX.
+ *
+ * IMAP UIDs are only stable while `UIDVALIDITY` is unchanged (RFC 3501 §2.3.1.1).
+ * When a provider recreates/resets a mailbox the value changes and UIDs restart
+ * from low numbers, which would make `fetchNewMessages`'s `uid:${last+1}:*`
+ * silently return nothing (new mail now lives *below* the stale watermark). The
+ * poller reads this on each ongoing tick — before fetching — to detect that
+ * reset and self-heal, so it never acts on data from a foreign UID epoch.
+ *
+ * imapflow exposes `client.mailbox.uidValidity` (a BigInt) after `mailboxOpen`.
+ * Per RFC 3501 the value is a 32-bit unsigned int, so `Number()` is lossless.
+ * Throws when the value is absent (treated as a probe failure: the tick falls
+ * into `setAccountError` and retries next tick rather than mis-detecting a
+ * reset against a missing value).
+ */
+export async function getUidValidity(account: ImapAccount): Promise<number> {
+  return withClient(account, async (client) => {
+    const v = client.mailbox?.uidValidity;
+    if (v == null) {
+      throw new Error('IMAP mailbox.uidValidity unavailable');
+    }
+    return Number(v);
+  });
+}
+
 export async function fetchNewMessages(
   account: ImapAccount,
   sinceUid: number,
