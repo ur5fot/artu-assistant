@@ -51,7 +51,7 @@ import { parseImapAccounts } from './emails/config.js';
 import { createEmailStore } from './emails/store.js';
 import { createEmailSuppressionStore } from './emails/suppression-store.js';
 import { createEmailFeedbackStore } from './emails/feedback-store.js';
-import { fetchNewMessages, fetchFullBody, getMaxUid, fetchHeaders, fetchFlagsForUids, markAnswered } from './emails/imap-client.js';
+import { fetchNewMessages, fetchFullBody, getMaxUid, getUidValidity, fetchHeaders, fetchFlagsForUids, markAnswered } from './emails/imap-client.js';
 import { fetchThread } from './emails/thread-fetcher.js';
 import { sendReply as sendSmtpReply } from './emails/smtp-client.js';
 import { scoreBatch } from './emails/scorer.js';
@@ -607,6 +607,26 @@ if (emailEnabled) {
     store: emailStore,
     fetcher: (acc, sinceUid, limit) => fetchNewMessages(acc, sinceUid, limit),
     maxUidProbe: getMaxUid,
+    // Read mailbox UIDVALIDITY before each fetch so a provider mailbox-recreate
+    // (UIDVALIDITY change → UIDs restart low) is detected instead of silently
+    // blinding the watcher to all new mail.
+    validityProbe: getUidValidity,
+    onUidValidityReset: ({ account, previous, current }) => {
+      console.warn(
+        `[emails] UIDVALIDITY reset handled for ${account}: ${previous} → ${current}; watermark reset to current maxUid (backlog skipped).`,
+      );
+      // Sentinel runId: -1 — the poller is not a cognition handler and has no
+      // cognition_handler_runs row. The bot's markPublished(-1) updates 0 rows
+      // (harmless) and firePublished(-1) is a no-op; we only reuse the existing
+      // cognition_publish → Discord DM render path. One reset event → one DM
+      // (next tick sees stored == current and does not re-alert).
+      reminderBus.emit('push', {
+        type: 'cognition_publish',
+        runId: -1,
+        handler: 'email-poller',
+        content: `⚠️ [emails] UIDVALIDITY сброс для ${account}: ${previous} → ${current}. Ящик пересоздан провайдером — watermark сброшен на текущий maxUid (backlog пропущен), ингест продолжится со следующего нового письма.`,
+      });
+    },
     scorer: (msgs) =>
       scoreBatch(msgs, {
         piiProxy,
