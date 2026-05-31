@@ -8,16 +8,12 @@
 #   2. Make sure `node` is reachable.
 #   3. Best-effort `docker compose up -d` (code-task tools need it; must not
 #      block startup if Docker is down).
-#   4. Refuse to start if port 3004 is already taken (likely `npm run dev`),
+#   4. Refuse to start if the worker port is already taken (likely `npm run dev`),
 #      to avoid two workers fighting over the port.
 #   5. exec the supervisor via tsx so deploys (git pull master) are picked up
 #      without a build step.
 
 set -euo pipefail
-
-# Worker (server) port. The supervisor forks the worker which binds this; if it
-# is already held, an interactive `npm run dev` is probably running.
-WORKER_PORT="${R2_WORKER_PORT:-3004}"
 
 log() {
   printf '[r2-service] %s\n' "$*" >&2
@@ -28,6 +24,16 @@ log() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
+
+# Worker (server) port. The supervisor forks the worker which binds process.env.PORT
+# (packages/server/src/index.ts, default 3001). Mirror that resolution here so the
+# conflict guard tracks the real port: prefer an exported PORT, else read it from
+# the repo .env, else fall back to 3001 (the .env.example default).
+WORKER_PORT="${PORT:-}"
+if [ -z "${WORKER_PORT}" ] && [ -f "${REPO_ROOT}/.env" ]; then
+  WORKER_PORT="$(grep -E '^PORT=' "${REPO_ROOT}/.env" | tail -n1 | cut -d= -f2- | tr -d '[:space:]' || true)"
+fi
+WORKER_PORT="${WORKER_PORT:-3001}"
 
 # node must be on PATH. The login shell (-l) should have loaded nvm; fail loudly
 # with a clear message if it did not, rather than dying inside npx.
@@ -53,6 +59,13 @@ if command -v docker >/dev/null 2>&1; then
   docker compose up -d || log "warning: 'docker compose up -d' failed; continuing"
 else
   log "docker not found; skipping compose bring-up"
+fi
+
+# Test hook: skip the real exec so the wrapper's guards/best-effort logic can be
+# exercised without launching the supervisor.
+if [ -n "${R2_SERVICE_NO_EXEC:-}" ]; then
+  log "R2_SERVICE_NO_EXEC set; skipping supervisor exec (test mode)"
+  exit 0
 fi
 
 log "starting supervisor via tsx"
