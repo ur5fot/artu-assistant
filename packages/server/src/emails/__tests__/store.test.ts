@@ -18,6 +18,37 @@ describe('createEmailStore', () => {
     expect(store.getLastSeenUid('acc1')).toBe(99);
   });
 
+  it('getUidValidity returns null for an unknown account', () => {
+    const store = createEmailStore({ db: getDb() });
+    expect(store.getUidValidity('missing')).toBeNull();
+  });
+
+  it('getUidValidity returns null when the row exists but validity is unset', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 42, 1000); // creates row, leaves uid_validity NULL
+    expect(store.getUidValidity('a')).toBeNull();
+  });
+
+  it('setLastSeenAndValidity persists both last_seen_uid and uid_validity', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setLastSeenAndValidity('a', 99, 12345, 1000);
+    expect(store.getLastSeenUid('a')).toBe(99);
+    expect(store.getUidValidity('a')).toBe(12345);
+  });
+
+  it('setLastSeenAndValidity upserts both fields and clears last_error', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setAccountError('a', 'boom', 500); // seeds a row with last_error set
+    store.setLastSeenAndValidity('a', 7, 111, 1000);
+    expect(store.getLastSeenUid('a')).toBe(7);
+    expect(store.getUidValidity('a')).toBe(111);
+    expect(store.getAccountError('a')).toBeNull();
+    // Second call overwrites both fields.
+    store.setLastSeenAndValidity('a', 8, 222, 2000);
+    expect(store.getLastSeenUid('a')).toBe(8);
+    expect(store.getUidValidity('a')).toBe(222);
+  });
+
   it('hasAccountState distinguishes "no row" from "row with uid=0"', () => {
     const store = createEmailStore({ db: getDb() });
     expect(store.hasAccountState('acc1')).toBe(false);

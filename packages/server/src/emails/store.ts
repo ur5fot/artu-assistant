@@ -6,6 +6,13 @@ export interface EmailStore {
   getLastSeenUid(accountId: string): number;
   hasAccountState(accountId: string): boolean;
   updateLastSeenUid(accountId: string, uid: number, now: number): void;
+  /** Stored mailbox UIDVALIDITY for this account, or null when no row exists
+   *  or the baseline has not been recorded yet (`uid_validity IS NULL`). */
+  getUidValidity(accountId: string): number | null;
+  /** Upsert `last_seen_uid` + `uid_validity` together (and clear `last_error`),
+   *  mirroring `updateLastSeenUid`. Used to persist the watermark and the
+   *  mailbox UIDVALIDITY in one write on backfill and on reset. */
+  setLastSeenAndValidity(accountId: string, uid: number, uidValidity: number, now: number): void;
   setAccountError(accountId: string, message: string, now: number): void;
   getAccountError(accountId: string): { message: string; at: number } | null;
 
@@ -50,6 +57,23 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
           last_poll_at = excluded.last_poll_at,
           last_error = NULL
       `).run(accountId, uid, now);
+    },
+    getUidValidity(accountId) {
+      const row = db
+        .prepare('SELECT uid_validity FROM email_account_state WHERE account_id = ?')
+        .get(accountId) as { uid_validity: number | null } | undefined;
+      return row?.uid_validity ?? null;
+    },
+    setLastSeenAndValidity(accountId, uid, uidValidity, now) {
+      db.prepare(`
+        INSERT INTO email_account_state (account_id, last_seen_uid, uid_validity, last_poll_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(account_id) DO UPDATE SET
+          last_seen_uid = excluded.last_seen_uid,
+          uid_validity = excluded.uid_validity,
+          last_poll_at = excluded.last_poll_at,
+          last_error = NULL
+      `).run(accountId, uid, uidValidity, now);
     },
     setAccountError(accountId, message, now) {
       db.prepare(`
