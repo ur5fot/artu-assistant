@@ -29,11 +29,14 @@ cd "${REPO_ROOT}"
 # (packages/server/src/index.ts, default 3001). Mirror that resolution here so the
 # conflict guard tracks the real port: prefer an exported PORT, else read it from
 # the repo .env, else fall back to 3001 (the .env.example default).
+# R2_SERVICE_ENV_FILE overrides the .env path (tests point it at a fixture so they
+# don't depend on the developer's gitignored .env).
+ENV_FILE="${R2_SERVICE_ENV_FILE:-${REPO_ROOT}/.env}"
 WORKER_PORT="${PORT:-}"
-if [ -z "${WORKER_PORT}" ] && [ -f "${REPO_ROOT}/.env" ]; then
+if [ -z "${WORKER_PORT}" ] && [ -f "${ENV_FILE}" ]; then
   # Take the last PORT= line, then strip an inline `# comment`, surrounding
   # whitespace and quotes so e.g. `PORT="3004"  # api` still resolves to 3004.
-  WORKER_PORT="$(grep -E '^PORT=' "${REPO_ROOT}/.env" | tail -n1 | cut -d= -f2- || true)"
+  WORKER_PORT="$(grep -E '^PORT=' "${ENV_FILE}" | tail -n1 | cut -d= -f2- || true)"
   WORKER_PORT="${WORKER_PORT%%#*}"
   WORKER_PORT="$(printf '%s' "${WORKER_PORT}" | tr -d "[:space:]\"'")"
 fi

@@ -6,6 +6,8 @@
 // mutations (no launchctl, no writes to ~/Library/LaunchAgents). Installation
 // lives in install-r2-service.sh.
 
+import { fileURLToPath } from 'node:url';
+
 /** Escape a string for safe inclusion inside an XML text node. */
 function xmlEscape(value) {
   return String(value)
@@ -44,7 +46,11 @@ export function generatePlist(opts) {
     }
   }
 
-  const programArgs = [shellPath, '-lc', wrapperPath]
+  // Run the wrapper as `zsh -lc 'exec "$0"' <wrapperPath>`: the login shell sources
+  // the profile (nvm → node on PATH), then execs the wrapper. Passing wrapperPath as
+  // $0 (not inline in the -c string) keeps the shell from word-splitting paths with
+  // spaces or interpreting shell metacharacters in them — `exec "$0"` is quoted.
+  const programArgs = [shellPath, '-lc', 'exec "$0"', wrapperPath]
     .map((a) => `      <string>${xmlEscape(a)}</string>`)
     .join('\n');
 
@@ -96,6 +102,8 @@ function main() {
 }
 
 // Run as CLI only when invoked directly (not when imported by tests).
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Compare decoded filesystem paths so repos with spaces or URL-special chars
+// (which import.meta.url percent-encodes but argv[1] does not) still match.
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main();
 }

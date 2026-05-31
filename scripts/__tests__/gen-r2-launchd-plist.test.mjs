@@ -56,12 +56,19 @@ describe('generatePlist', () => {
     expect(xml).toContain('<string>com.r2.supervisor</string>');
   });
 
-  it('builds ProgramArguments as [shellPath, "-lc", wrapperPath]', () => {
+  it('builds ProgramArguments as [shellPath, "-lc", \'exec "$0"\', wrapperPath]', () => {
     const xml = generatePlist(baseOpts);
     const argsBlock = xml.match(/<key>ProgramArguments<\/key>\s*<array>([\s\S]*?)<\/array>/);
     expect(argsBlock).toBeTruthy();
     const strings = [...argsBlock[1].matchAll(/<string>([\s\S]*?)<\/string>/g)].map((m) => m[1]);
-    expect(strings).toEqual(['/bin/zsh', '-lc', '/Users/dim/code/R2-D2/scripts/r2-service.sh']);
+    // wrapperPath is passed as $0 (quoted in `exec "$0"`) so paths with spaces or
+    // shell metacharacters survive intact.
+    expect(strings).toEqual([
+      '/bin/zsh',
+      '-lc',
+      'exec "$0"',
+      '/Users/dim/code/R2-D2/scripts/r2-service.sh',
+    ]);
   });
 
   it('sets WorkingDirectory to repoPath', () => {

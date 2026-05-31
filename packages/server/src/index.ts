@@ -900,9 +900,12 @@ const server = app.listen(Number(PORT), '127.0.0.1', () => {
   process.send?.({ type: 'ready' });
 });
 
-// Graceful shutdown on SIGTERM (from supervisor)
-process.on('SIGTERM', async () => {
-  console.log('Worker received SIGTERM, shutting down...');
+// Graceful shutdown, shared by SIGTERM and parent-death (IPC disconnect).
+let shuttingDown = false;
+async function gracefulShutdown(reason: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Worker shutting down (${reason})...`);
   setTimeout(() => process.exit(1), 5000);
   stopScheduler();
   stopEmailPoller?.();
@@ -914,4 +917,18 @@ process.on('SIGTERM', async () => {
     closeDb();
     process.exit(0);
   });
+}
+
+// Graceful shutdown on SIGTERM (from supervisor on restart/stop).
+process.on('SIGTERM', () => {
+  void gracefulShutdown('SIGTERM');
+});
+
+// If the supervisor dies non-gracefully (SIGKILL/crash), the worker is reparented
+// to launchd and keeps holding the server port — which blocks the wrapper's port
+// guard and stops launchd from healing the supervisor. fork() gives us an IPC
+// channel; its 'disconnect' fires when the parent goes away, so self-terminate to
+// release the port. (No-op when run standalone without a supervisor: no channel.)
+process.on('disconnect', () => {
+  void gracefulShutdown('supervisor disconnected');
 });

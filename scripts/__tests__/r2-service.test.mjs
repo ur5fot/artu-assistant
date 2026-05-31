@@ -71,16 +71,21 @@ describe('r2-service.sh wrapper', () => {
     expect(stderr).toMatch(/skipping supervisor exec/);
   });
 
-  it('guards the worker port resolved from the repo .env', () => {
-    // The repo .env sets PORT=3004; the guard must check that resolved port.
-    // Fake lsof records its args, then reports the port free (exit 1) so startup
-    // proceeds — proving which port was actually probed.
+  it('guards the worker port resolved from a .env file', () => {
+    // Build our own .env fixture (PORT=3004) and point the wrapper at it via
+    // R2_SERVICE_ENV_FILE so the test doesn't depend on the developer's local,
+    // gitignored .env. The guard must check that resolved port. Fake lsof records
+    // its args, then reports the port free (exit 1) so startup proceeds — proving
+    // which port was actually probed.
     const capDir = mkdtempSync(join(tmpdir(), 'r2-cap-'));
     tmpDirs.push(capDir);
     const capture = join(capDir, 'lsof-args');
+    const envFile = join(capDir, '.env');
+    writeFileSync(envFile, 'PORT=3004\n');
     const fakeBin = makeFakeBin({ lsof: 'echo "$@" >> "$R2_TEST_LSOF_ARGS"; exit 1' });
     const { code } = runWrapper(fakeBin, {
       R2_SERVICE_NO_EXEC: '1',
+      R2_SERVICE_ENV_FILE: envFile,
       R2_TEST_LSOF_ARGS: capture,
     });
 
