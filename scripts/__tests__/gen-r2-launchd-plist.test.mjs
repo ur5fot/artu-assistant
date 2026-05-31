@@ -98,6 +98,29 @@ describe('generatePlist', () => {
     expect(xml).not.toContain('com.r2.<a&b>');
   });
 
+  it('escapes XML-special characters in every interpolated field', () => {
+    const xml = generatePlist({
+      ...baseOpts,
+      repoPath: '/tmp/a&b',
+      wrapperPath: '/tmp/<w>.sh',
+      outLog: '/tmp/o&ut.log',
+      errLog: '/tmp/e<rr>.log',
+    });
+    expect(xml).toContain('<string>/tmp/a&amp;b</string>');
+    expect(xml).toContain('<string>/tmp/&lt;w&gt;.sh</string>');
+    expect(xml).toContain('<string>/tmp/o&amp;ut.log</string>');
+    expect(xml).toContain('<string>/tmp/e&lt;rr&gt;.log</string>');
+    expect(xml).not.toMatch(/<string>[^<]*&(?!amp;|lt;|gt;)/);
+  });
+
+  it('throws when a required field is missing or empty', () => {
+    expect(() => generatePlist({ ...baseOpts, label: '' })).toThrow(/label/);
+    expect(() => generatePlist({ ...baseOpts, repoPath: 42 })).toThrow(/repoPath/);
+    const { wrapperPath, ...noWrapper } = baseOpts;
+    void wrapperPath;
+    expect(() => generatePlist(noWrapper)).toThrow(/wrapperPath/);
+  });
+
   it.runIf(plutilAvailable())('produces output that passes plutil -lint', () => {
     const xml = generatePlist(baseOpts);
     const dir = mkdtempSync(join(tmpdir(), 'r2-plist-'));

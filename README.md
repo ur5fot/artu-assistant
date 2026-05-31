@@ -258,8 +258,10 @@ curl localhost:3004/api/health            # "R2 online"
   `r2-supervisor.err.log` (stderr).
 - **PATH/node** comes from a login shell — the plist runs the wrapper as
   `/bin/zsh -lc scripts/r2-service.sh`, so nvm is sourced from your profile (no
-  hardcoded node path). The wrapper also does a best-effort `docker compose up
-  -d` (for code-task tools; never fatal).
+  hardcoded node path). It requires **node ≥18** on that PATH (tsx needs it); the
+  wrapper aborts with a clear error rather than crashlooping on a stale system
+  node, so set your nvm `default` alias to ≥18. The wrapper also does a
+  best-effort `docker compose up -d` (for code-task tools; never fatal).
 
 **⚠️ Don't run it alongside `npm run dev`** — both bind port **3004**. The
 wrapper refuses to start if 3004 is already held, so stop the dev server first

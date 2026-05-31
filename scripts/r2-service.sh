@@ -31,7 +31,11 @@ cd "${REPO_ROOT}"
 # the repo .env, else fall back to 3001 (the .env.example default).
 WORKER_PORT="${PORT:-}"
 if [ -z "${WORKER_PORT}" ] && [ -f "${REPO_ROOT}/.env" ]; then
-  WORKER_PORT="$(grep -E '^PORT=' "${REPO_ROOT}/.env" | tail -n1 | cut -d= -f2- | tr -d '[:space:]' || true)"
+  # Take the last PORT= line, then strip an inline `# comment`, surrounding
+  # whitespace and quotes so e.g. `PORT="3004"  # api` still resolves to 3004.
+  WORKER_PORT="$(grep -E '^PORT=' "${REPO_ROOT}/.env" | tail -n1 | cut -d= -f2- || true)"
+  WORKER_PORT="${WORKER_PORT%%#*}"
+  WORKER_PORT="$(printf '%s' "${WORKER_PORT}" | tr -d "[:space:]\"'")"
 fi
 WORKER_PORT="${WORKER_PORT:-3001}"
 
@@ -65,6 +69,8 @@ if command -v lsof >/dev/null 2>&1; then
     log "stop the dev server before starting the always-on service."
     exit 1
   fi
+else
+  log "warning: 'lsof' not found; cannot verify port ${WORKER_PORT} is free — starting anyway"
 fi
 
 # Best-effort Docker bring-up. Never fatal: code-task tools want it, but the

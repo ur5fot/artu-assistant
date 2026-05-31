@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -69,5 +69,55 @@ describe('r2-service.sh wrapper', () => {
     expect(code).toBe(0);
     expect(stderr).not.toMatch(/already in use/);
     expect(stderr).toMatch(/skipping supervisor exec/);
+  });
+
+  it('guards the worker port resolved from the repo .env', () => {
+    // The repo .env sets PORT=3004; the guard must check that resolved port.
+    // Fake lsof records its args, then reports the port free (exit 1) so startup
+    // proceeds — proving which port was actually probed.
+    const capDir = mkdtempSync(join(tmpdir(), 'r2-cap-'));
+    tmpDirs.push(capDir);
+    const capture = join(capDir, 'lsof-args');
+    const fakeBin = makeFakeBin({ lsof: 'echo "$@" >> "$R2_TEST_LSOF_ARGS"; exit 1' });
+    const { code } = runWrapper(fakeBin, {
+      R2_SERVICE_NO_EXEC: '1',
+      R2_TEST_LSOF_ARGS: capture,
+    });
+
+    expect(code).toBe(0);
+    expect(readFileSync(capture, 'utf8')).toMatch(/-iTCP:3004/);
+  });
+
+  it('prefers an exported PORT over the .env value', () => {
+    const capDir = mkdtempSync(join(tmpdir(), 'r2-cap-'));
+    tmpDirs.push(capDir);
+    const capture = join(capDir, 'lsof-args');
+    const fakeBin = makeFakeBin({ lsof: 'echo "$@" >> "$R2_TEST_LSOF_ARGS"; exit 1' });
+    const { code } = runWrapper(fakeBin, {
+      R2_SERVICE_NO_EXEC: '1',
+      PORT: '9999',
+      R2_TEST_LSOF_ARGS: capture,
+    });
+
+    expect(code).toBe(0);
+    expect(readFileSync(capture, 'utf8')).toMatch(/-iTCP:9999/);
+  });
+
+  it('refuses to start on a node older than 18', () => {
+    // Empty NVM_DIR so nvm sourcing is skipped and our fake node wins on PATH.
+    const emptyNvm = mkdtempSync(join(tmpdir(), 'r2-nvm-'));
+    tmpDirs.push(emptyNvm);
+    const fakeBin = makeFakeBin({
+      // `node --version` → v16.0.0; `node -p '...major...'` → 16.
+      node: 'case "$*" in *--version*) echo v16.0.0 ;; *) echo 16 ;; esac',
+      lsof: 'exit 1',
+    });
+    const { code, stderr } = runWrapper(fakeBin, {
+      R2_SERVICE_NO_EXEC: '1',
+      NVM_DIR: emptyNvm,
+    });
+
+    expect(code).not.toBe(0);
+    expect(stderr).toMatch(/too old/);
   });
 });
