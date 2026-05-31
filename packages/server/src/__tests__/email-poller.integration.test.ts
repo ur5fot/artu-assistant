@@ -62,6 +62,10 @@ describe('email-poller UIDVALIDITY reset → cognition integration', () => {
     expect(publishes.length).toBe(1);
     expect(typeof publishes[0].content).toBe('string');
     expect(publishes[0].content!.length).toBeGreaterThan(0);
+    // The sentinel runId -1 is load-bearing: it makes markPublished(-1) a
+    // harmless 0-row update instead of corrupting a real cognition_handler_runs
+    // row. Pin it so a regression to a real/zero runId is caught here.
+    expect(publishes[0].runId).toBe(-1);
 
     // Next tick: validity now matches stored (222) → normal path, no re-alert.
     const validityProbe2 = vi.fn(async () => 222);

@@ -243,6 +243,11 @@ export async function runPollTick(params: TickParams): Promise<void> {
           );
           const maxUid = await params.maxUidProbe(acc);
           params.store.setLastSeenAndValidity(acc.id, maxUid, currentValidity, params.now);
+          // Unresolved feedback rows are scoped to this account by `message_uid`,
+          // and those UIDs belong to the dead epoch. Re-polling their flags
+          // against the new epoch (where the same UID addresses a different
+          // message) could finalize the wrong sender's feedback. Drop them.
+          params.feedback?.store.deleteUnresolved(acc.id);
           params.onUidValidityReset?.({ account: acc.id, previous: storedValidity, current: currentValidity });
           return; // skip this tick's ingest; next tick proceeds normally
         }

@@ -391,6 +391,32 @@ describe('runPollTick — UIDVALIDITY detect & self-heal', () => {
     expect(onUidValidityReset).not.toHaveBeenCalled();
   });
 
+  it('validity changed but maxUidProbe throws → setAccountError, state untouched, no alert (re-detects next tick)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setLastSeenAndValidity('a', 5000, 111, 1000);
+    const fetcher = vi.fn(async () => [msg(2)]);
+    const scorer = vi.fn(async () => []);
+    const validityProbe = vi.fn(async () => 222);
+    const maxUidProbe = vi.fn(async () => { throw new Error('maxuid-down'); });
+    const onUidValidityReset = vi.fn();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, maxUidProbe,
+      validityProbe, onUidValidityReset, now: 6000,
+    });
+
+    expect(store.getAccountError('a')?.message).toContain('maxuid-down');
+    // Watermark + validity must stay at the OLD epoch so the next tick re-detects
+    // the change and retries — the "exactly one alert" guarantee is preserved by
+    // NOT persisting the new validity until the heal actually completes.
+    expect(store.getLastSeenUid('a')).toBe(5000);
+    expect(store.getUidValidity('a')).toBe(111);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(onUidValidityReset).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it('first tick (no row) → validityProbe NOT called (exits before ongoing block)', async () => {
     const store = createEmailStore({ db: getDb() });
     const fetcher = vi.fn(async () => []);
@@ -722,6 +748,31 @@ describe('runPollTick — implicit-feedback resolution', () => {
     const bCall = calls.find((c) => c[0].id === 'b');
     expect(aCall?.[1]).toEqual([11]);
     expect(bCall?.[1]).toEqual([22]);
+  });
+
+  it('UIDVALIDITY reset purges this account\'s unresolved feedback (dead-epoch UIDs not re-polled)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setLastSeenAndValidity('a', 5000, 111, 1000); // ongoing, old epoch
+    const pingedAt = 1000;
+    const id = seedPinged(getDb(), { accountId: 'a', uid: 42, from: 'x@x.com', pingedAt });
+    const flagFetcher = vi.fn<FlagFetcher>(async () => []);
+    const validityProbe = vi.fn(async () => 222); // epoch changed
+    const maxUidProbe = vi.fn(async () => 7);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe, validityProbe,
+      now: pingedAt + 1000,
+      feedback: feedbackDeps(flagFetcher),
+    });
+
+    // The reset bails before resolution, and the dead-epoch row is gone — so it
+    // can never be re-polled against the new epoch and mis-finalized.
+    expect(flagFetcher).not.toHaveBeenCalled();
+    expect(outcomeOf(getDb(), id)).toBeUndefined();
+    warn.mockRestore();
   });
 
   it('resolution also runs when new mail arrives in the same tick', async () => {

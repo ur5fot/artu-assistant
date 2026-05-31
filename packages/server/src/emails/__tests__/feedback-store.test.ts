@@ -173,6 +173,27 @@ describe('createEmailFeedbackStore', () => {
     expect(row.resolved_at).toBe(5000);
   });
 
+  it('deleteUnresolved drops only this account\'s unresolved rows, keeps resolved + other accounts', () => {
+    const db = getDb();
+    const store = createEmailFeedbackStore({ db });
+
+    const unresolvedA = insertPending({ account_id: 'acc1', message_uid: 1, from_addr: 'a@b' });
+    const resolvedA = insertPending({ account_id: 'acc1', message_uid: 2, from_addr: 'c@d' });
+    const unresolvedB = insertPending({ account_id: 'acc2', message_uid: 1, from_addr: 'e@f' });
+    store.recordPinged(unresolvedA, 1000);
+    store.recordPinged(resolvedA, 1000);
+    store.finalize(resolvedA, 'read', 2000); // resolved → must survive
+    store.recordPinged(unresolvedB, 1000);
+
+    store.deleteUnresolved('acc1');
+
+    const remaining = (id: number) =>
+      db.prepare('SELECT 1 FROM email_feedback WHERE pending_id = ?').get(id);
+    expect(remaining(unresolvedA)).toBeUndefined(); // dropped: dead-epoch UID
+    expect(remaining(resolvedA)).toBeDefined(); // kept: outcome already observed
+    expect(remaining(unresolvedB)).toBeDefined(); // kept: different account
+  });
+
   it('recentOutcomesBySender aggregates resolved outcomes within the lookback', () => {
     const db = getDb();
     const store = createEmailFeedbackStore({ db });
