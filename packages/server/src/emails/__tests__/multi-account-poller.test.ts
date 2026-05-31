@@ -372,7 +372,7 @@ describe('runPollTick — UIDVALIDITY detect & self-heal', () => {
         .get('a', 50) as { id: number }
     ).id;
     fb.recordPinged(pid, 1000);
-    fb.finalize(pid, 'read', 1500); // resolved → kept by deleteUnresolved, blocks FK
+    fb.finalize(pid, 'read', 1500); // resolved feedback row → FK references the pending row
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await runPollTick({

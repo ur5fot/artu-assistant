@@ -42,12 +42,6 @@ export interface EmailFeedbackStore {
   updateFlags(pendingId: number, flags: { seenAt?: number; answeredAt?: number }): void;
   /** Terminal transition: set `outcome` + `resolved_at`. */
   finalize(pendingId: number, outcome: FeedbackOutcome, now: number): void;
-  /** Drop all unresolved feedback for `accountId`. Used on a UIDVALIDITY
-   *  reset: those rows' `message_uid`s belong to the dead epoch, so re-polling
-   *  their flags against the new epoch (where the same UIDs address different
-   *  messages) could finalize the wrong sender. Resolved rows are kept — their
-   *  outcome was already observed and is still valid sender history. */
-  deleteUnresolved(accountId: string): void;
   /** Counts of resolved outcomes for `sender` whose ping happened within the
    *  last `sinceMs` (anchored on `now`). Canonicalizes both sides to the bare
    *  address so display-name variants collapse to one sender. */
@@ -94,13 +88,6 @@ export function createEmailFeedbackStore(deps: {
          SET outcome = ?, resolved_at = ?
          WHERE pending_id = ?`,
       ).run(outcome, now, pendingId);
-    },
-    deleteUnresolved(accountId) {
-      db.prepare(
-        `DELETE FROM email_feedback
-         WHERE resolved_at IS NULL
-           AND pending_id IN (SELECT id FROM email_pending WHERE account_id = ?)`,
-      ).run(accountId);
     },
     recentOutcomesBySender(sender, sinceMs, now) {
       const cutoff = now - sinceMs;
