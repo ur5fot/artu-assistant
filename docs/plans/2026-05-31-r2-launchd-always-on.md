@@ -125,24 +125,24 @@
 
 ### Task 2: wrapper + install/uninstall + dry-run тест
 
-- [ ] `scripts/r2-service.sh`: `set -euo pipefail`; resolve node (через
+- [x] `scripts/r2-service.sh`: `set -euo pipefail`; resolve node (через
   login-shell PATH; fallback `command -v node`); `cd` в repo root (вычислить от
   `$0`); `docker compose up -d || true` (best-effort, лог в stderr); guard:
   если порт 3004 уже занят (`npm run dev`?) — внятная ошибка и exit; затем
   `exec npx tsx packages/supervisor/src/index.ts`.
-- [ ] `scripts/install-r2-service.sh`: `set -euo pipefail`; параметры через env
+- [x] `scripts/install-r2-service.sh`: `set -euo pipefail`; параметры через env
   (`TARGET_DIR` default `$HOME/Library/LaunchAgents`, `LABEL` default
   `com.r2.supervisor`) и флаг `--no-load`; вызвать генератор → записать
   `$TARGET_DIR/$LABEL.plist`; если не `--no-load`: `launchctl unload` старого
   (|| true) + `launchctl load -w`; вывести путь к логам и статус.
-- [ ] `scripts/uninstall-r2-service.sh`: `launchctl unload -w` + удалить plist
+- [x] `scripts/uninstall-r2-service.sh`: `launchctl unload -w` + удалить plist
   (идемпотентно).
-- [ ] тест dry-run (vitest или bash-тест в `scripts/__tests__/`): прогнать
+- [x] тест dry-run (vitest или bash-тест в `scripts/__tests__/`): прогнать
   `TARGET_DIR=$(mktemp -d) bash scripts/install-r2-service.sh --no-load` →
   ассертить, что `$TARGET_DIR/com.r2.supervisor.plist` создан и валиден
   (`plutil -lint`); НИЧЕГО в `~/Library/LaunchAgents` и launchctl не тронуто.
-- [ ] `bash -n` на всех новых `.sh`; `shellcheck` если установлен.
-- [ ] прогнать тесты скриптов — зелёно до Task 3.
+- [x] `bash -n` на всех новых `.sh`; `shellcheck` если установлен.
+- [x] прогнать тесты скриптов — зелёно до Task 3.
 
 ### Task 3: docs + приёмка
 
