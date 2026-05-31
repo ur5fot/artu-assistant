@@ -25,6 +25,17 @@ export function startWindowLogger(params: StartWindowLoggerParams): () => void {
   let consecutiveBlind = 0;
   let alerted = false;
 
+  // A throwing callback must never kill the poller: it runs before the next
+  // tick is scheduled, so an uncaught throw would skip the reschedule and stop
+  // sampling silently — the exact failure this observer exists to detect.
+  const safely = (fn: () => void) => {
+    try {
+      fn();
+    } catch {
+      /* swallow — a broken callback must not stop the loop */
+    }
+  };
+
   // Self-scheduling loop: the next tick is only queued once the current one
   // resolves, mirroring multi-account-poller. setInterval would fire
   // concurrently if a tick (osascript) runs longer than intervalMs.
@@ -40,7 +51,7 @@ export function startWindowLogger(params: StartWindowLoggerParams): () => void {
       }
     } catch (err) {
       blind = true;
-      onError?.(err);
+      safely(() => onError?.(err));
     }
 
     if (blind) {
@@ -49,11 +60,11 @@ export function startWindowLogger(params: StartWindowLoggerParams): () => void {
         // Fires exactly once per streak: the counter grows monotonically, so
         // equality holds for a single tick.
         alerted = true;
-        onBlind?.({ consecutive: consecutiveBlind });
+        safely(() => onBlind?.({ consecutive: consecutiveBlind }));
       }
     } else {
       if (alerted) {
-        onRecover?.({ blindFor: consecutiveBlind });
+        safely(() => onRecover?.({ blindFor: consecutiveBlind }));
         alerted = false;
       }
       consecutiveBlind = 0;

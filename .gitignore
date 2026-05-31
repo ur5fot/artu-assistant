@@ -11,8 +11,8 @@ progress-*.txt
 
 # searxng/ is NOT ignored — it contains config, not data
 
-# ralphex progress logs
-.ralphex/progress/
+# ralphex scratch output (progress logs, run summaries)
+.ralphex/
 .superpowers/
 
 # Claude Code local settings (auto-updated by IDE, not meaningful for R2)

@@ -104,6 +104,46 @@ describe('startWindowLogger', () => {
     stop();
   });
 
+  it('fires onBlind on the very first blind tick when blindAlertAfter is 1', async () => {
+    const provider = mockProvider(vi.fn(async () => null));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const onBlind = vi.fn();
+
+    const stop = startWindowLogger({ store, provider, intervalMs: 30_000, blindAlertAfter: 1, onBlind });
+    await vi.advanceTimersByTimeAsync(0); // tick 1 → threshold
+
+    expect(onBlind).toHaveBeenCalledTimes(1);
+    expect(onBlind).toHaveBeenCalledWith({ consecutive: 1 });
+    stop();
+  });
+
+  it('never fires onBlind when blindAlertAfter is 0 (guard)', async () => {
+    const provider = mockProvider(vi.fn(async () => null));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const onBlind = vi.fn();
+
+    const stop = startWindowLogger({ store, provider, intervalMs: 30_000, blindAlertAfter: 0, onBlind });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(onBlind).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('keeps ticking when onBlind throws', async () => {
+    const provider = mockProvider(vi.fn(async () => null));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const onBlind = vi.fn(() => { throw new Error('callback boom'); });
+
+    const stop = startWindowLogger({ store, provider, intervalMs: 30_000, blindAlertAfter: 1, onBlind });
+    await vi.advanceTimersByTimeAsync(0); // tick 1 → onBlind throws
+    await vi.advanceTimersByTimeAsync(30_000); // loop must survive and tick again
+
+    expect(provider.getActive).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
   it('counts a throw as blind: onError every tick, onBlind once at threshold', async () => {
     const provider = mockProvider(vi.fn(async () => { throw new Error('boom'); }));
     const store = createWindowHistoryStore({ db: getDb() });
