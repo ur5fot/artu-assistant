@@ -298,6 +298,20 @@ New accounts skip historical backlog on first connect — only emails arriving
 **after** the account is configured are processed. Bodies and headers are
 MIME-decoded (quoted-printable, base64, charset via `bodyStructure` dispatch).
 
+**Mailbox-recreate self-heal (`UIDVALIDITY`).** IMAP UIDs are only stable while
+the mailbox's `UIDVALIDITY` is unchanged. If a provider recreates/resets the
+mailbox, `UIDVALIDITY` flips and UIDs restart from low numbers — a watcher that
+only remembers a high `last_seen_uid` would then silently stop ingesting new
+mail (it lives below the stale watermark). R2 now stores `UIDVALIDITY` alongside
+`last_seen_uid` and, on each poll tick, reads the current value **before**
+fetching. On a mismatch it logs an `[emails] UIDVALIDITY changed …` warning,
+rebuilds the baseline by skipping the new-epoch backlog (`last_seen_uid` → the
+current max UID), persists the new `UIDVALIDITY`, and sends a **single** Discord
+DM — ingest resumes from the next new email. There is **no new env-var**: a
+`UIDVALIDITY` change is a discrete, rare event, so no threshold or counter is
+needed (the alert fires exactly once per reset because the next tick sees the
+stored value match).
+
 Urgent emails (`importance=5`) ping immediately when `EMAIL_URGENT_ENABLED=true`
 (suppressed during quiet hours; one ping per cognition tick).
 
