@@ -373,7 +373,17 @@ npm run dev
 # Production (через supervisor)
 npm run start:build   # Build all + start supervisor
 npm start             # Start supervisor (requires prior build)
+
+# Always-on (launchd) — survives logout/reboot/sleep
+bash scripts/install-r2-service.sh   # LaunchAgent keeps the supervisor alive
 ```
+
+Supervisor-as-service: the LaunchAgent (`scripts/install-r2-service.sh` →
+`com.r2.supervisor.plist`) runs the supervisor through `tsx` (like the worker,
+not from `dist`), so a `git pull master` deploy is picked up by the git watcher
+with no build step. Two levels of supervision — `launchd` (RunAtLoad/KeepAlive)
+restarts the supervisor; the supervisor restarts the worker. See README
+"Always-on (launchd)". Don't run it with `npm run dev` (port 3004 conflict).
 
 ## Phase 2 — Tools + PII
 

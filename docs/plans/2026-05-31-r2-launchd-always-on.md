@@ -146,14 +146,14 @@
 
 ### Task 3: docs + приёмка
 
-- [ ] `README.md`: секция **«Always-on (launchd)»** — зачем (resilience к
+- [x] `README.md`: секция **«Always-on (launchd)»** — зачем (resilience к
   крэшу/сну/ребуту), как поставить (`bash scripts/install-r2-service.sh`),
   где логи (`~/Library/Logs/r2-supervisor.*.log`), как снять
   (`uninstall-r2-service.sh`), и предупреждение «не запускать одновременно с
   `npm run dev` (конфликт порта 3004)».
-- [ ] `AGENTS.md`: 1–2 строки про supervisor-as-service + что worker и
+- [x] `AGENTS.md`: 1–2 строки про supervisor-as-service + что worker и
   supervisor идут через tsx, деплой подхватывается git-watcher'ом.
-- [ ] приёмка: `npm test` (или scoped vitest на новые тесты) — зелёно;
+- [x] приёмка: `npm test` (или scoped vitest на новые тесты) — зелёно;
   `bash -n` всех скриптов чисто; генератор → `plutil -lint` OK; убедиться, что
   таск-прогон НЕ создал ничего в `~/Library/LaunchAgents` и не звал `launchctl`.
 
