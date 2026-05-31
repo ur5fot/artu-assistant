@@ -54,12 +54,13 @@ PLIST_PATH="${TARGET_DIR}/${LABEL}.plist"
 mkdir -p "${TARGET_DIR}"
 
 log "generating plist -> ${PLIST_PATH}"
-R2_REPO_PATH="${REPO_ROOT}" \
-  R2_LABEL="${LABEL}" \
-  R2_SHELL="${SHELL_PATH}" \
-  R2_WRAPPER="${WRAPPER}" \
-  R2_OUT_LOG="${OUT_LOG}" \
-  R2_ERR_LOG="${ERR_LOG}" \
+# Env var names must match those read by gen-r2-launchd-plist.mjs main().
+REPO_PATH="${REPO_ROOT}" \
+  LABEL="${LABEL}" \
+  SHELL_PATH="${SHELL_PATH}" \
+  WRAPPER_PATH="${WRAPPER}" \
+  OUT_LOG="${OUT_LOG}" \
+  ERR_LOG="${ERR_LOG}" \
   node "${GENERATOR}" >"${PLIST_PATH}"
 
 if [[ "${NO_LOAD}" -eq 1 ]]; then
