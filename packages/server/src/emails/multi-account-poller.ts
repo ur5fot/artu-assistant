@@ -201,8 +201,25 @@ export async function runPollTick(params: TickParams): Promise<void> {
         // dropped by a second first-tick probe.
         if (!params.store.hasAccountState(acc.id)) {
           try {
+            // Capture UIDVALIDITY together with the initial watermark. If we
+            // deferred this to the next tick's backfill branch (as the original
+            // design did), a mailbox recreation between this tick and the next
+            // would pair the now-stale watermark with the new epoch's
+            // UIDVALIDITY and the watcher would go silently blind. Recording the
+            // baseline here means the next tick sees `stored !== current` and
+            // self-heals instead.
+            //
+            // Probe UIDVALIDITY BEFORE maxUid (two separate IMAP connections, so
+            // not truly atomic). A mailbox recreation landing between the two
+            // probes can only pair an *old* validity with a *new* watermark —
+            // next tick then sees `stored !== current` and self-heals via reset.
+            // The reverse order (maxUid then validity) could pair a *stale* high
+            // watermark with the *new* validity, which matches next tick and
+            // blinds the watcher to all new-epoch mail below it — the exact trap
+            // we're avoiding.
+            const currentValidity = await params.validityProbe(acc);
             const maxUid = await params.maxUidProbe(acc);
-            params.store.updateLastSeenUid(acc.id, maxUid, params.now);
+            params.store.setLastSeenAndValidity(acc.id, maxUid, currentValidity, params.now);
             console.log(
               `[emails] first tick for ${acc.id}: skipping backlog, last_seen_uid set to ${maxUid}`,
             );
@@ -242,12 +259,26 @@ export async function runPollTick(params: TickParams): Promise<void> {
             `[emails] UIDVALIDITY changed for ${acc.id}: ${storedValidity} → ${currentValidity}; mailbox recreated, resetting last_seen_uid to current maxUid (skipping backlog).`,
           );
           const maxUid = await params.maxUidProbe(acc);
+          // The dead epoch's UIDs are meaningless in the recreated mailbox, so
+          // purge this account's pending rows (and their referencing feedback —
+          // deletePendingForAccount emulates the missing ON DELETE CASCADE in one
+          // transaction, FK-safe whether or not feedback resolution is wired).
+          // Otherwise:
+          //  - a recycled new-epoch UID could be silently dropped by
+          //    insertPending's INSERT OR IGNORE on a stale (account_id,
+          //    message_uid) row, losing a real new email; and
+          //  - emails_get / draft-reply could fetch a *different* new-epoch
+          //    message body by a stale pending UID; and
+          //  - feedback `message_uid`s belong to the dead epoch too, so
+          //    re-polling them against the new epoch could mis-finalize the
+          //    wrong sender (resolved sender history for THIS account is lost —
+          //    an acceptable, rare cost of a provider mailbox recreation).
+          // Purge BEFORE advancing the watermark/validity: if the delete throws
+          // (e.g. an unexpected FK/IO error), state stays on the dead epoch so
+          // next tick still sees stored != current and retries the reset, rather
+          // than advancing past it and stranding the dead-epoch rows forever.
+          params.store.deletePendingForAccount(acc.id);
           params.store.setLastSeenAndValidity(acc.id, maxUid, currentValidity, params.now);
-          // Unresolved feedback rows are scoped to this account by `message_uid`,
-          // and those UIDs belong to the dead epoch. Re-polling their flags
-          // against the new epoch (where the same UID addresses a different
-          // message) could finalize the wrong sender's feedback. Drop them.
-          params.feedback?.store.deleteUnresolved(acc.id);
           params.onUidValidityReset?.({ account: acc.id, previous: storedValidity, current: currentValidity });
           return; // skip this tick's ingest; next tick proceeds normally
         }

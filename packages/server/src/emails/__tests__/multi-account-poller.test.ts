@@ -328,6 +328,106 @@ describe('runPollTick — UIDVALIDITY detect & self-heal', () => {
     warn.mockRestore();
   });
 
+  it('reset purges this account\'s pending rows (dead-epoch UIDs gone, others untouched)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setLastSeenAndValidity('a', 5000, 111, 1000);
+    // Dead-epoch pending rows for account a, including a low UID (8) the new
+    // epoch will re-issue and a high UID (4900) the new epoch may climb to.
+    const pend = (accountId: string, uid: number) =>
+      store.insertPending({
+        account_id: accountId, message_uid: uid, from_addr: 'x@x', subject: 's',
+        snippet: 'x', importance: 5, received_at: uid, added_at: uid,
+      });
+    pend('a', 8);
+    pend('a', 4900);
+    // A different account's pending must NOT be touched by a's reset.
+    store.setLastSeenAndValidity('b', 10, 111, 1000);
+    pend('b', 8);
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: vi.fn(async () => 7), validityProbe: vi.fn(async () => 222),
+      now: 2000,
+    });
+    warn.mockRestore();
+
+    const rows = store.fetchPendingUndelivered(10);
+    expect(rows.filter((r) => r.account_id === 'a')).toHaveLength(0);
+    expect(rows.filter((r) => r.account_id === 'b')).toHaveLength(1);
+  });
+
+  it('reset purges pending even when a RESOLVED feedback row references it (FK-safe)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const fb = createEmailFeedbackStore({ db: getDb() });
+    store.setLastSeenAndValidity('a', 5000, 111, 1000);
+    store.insertPending({
+      account_id: 'a', message_uid: 50, from_addr: 'x@x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1, added_at: 1,
+    });
+    const pid = (
+      getDb()
+        .prepare('SELECT id FROM email_pending WHERE account_id = ? AND message_uid = ?')
+        .get('a', 50) as { id: number }
+    ).id;
+    fb.recordPinged(pid, 1000);
+    fb.finalize(pid, 'read', 1500); // resolved → kept by deleteUnresolved, blocks FK
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: vi.fn(async () => 7), validityProbe: vi.fn(async () => 222),
+      now: 2000,
+      feedback: { store: fb, flagFetcher: vi.fn(async () => []), ignoreHours: 24, maxRepoll: 50 },
+    });
+    warn.mockRestore();
+
+    // No FK violation escalated into the account's error path, and both the
+    // pending row and its (resolved) feedback are gone with the dead epoch.
+    expect(store.getAccountError('a')).toBeNull();
+    expect(store.fetchPendingUndelivered(10)).toHaveLength(0);
+    expect(getDb().prepare('SELECT COUNT(*) AS c FROM email_feedback').get()).toEqual({ c: 0 });
+  });
+
+  it('reset purges pending + orphan feedback even when feedback resolution is NOT wired (FK-safe)', async () => {
+    // Scenario: a prior EMAIL_FEEDBACK_ENABLED=true run left email_feedback rows,
+    // then the flag was turned off → `feedback` is omitted from runPollTick. The
+    // reset must still purge the dead-epoch pending rows; the FK from the orphan
+    // feedback row must not block the delete and strand stale rows forever.
+    const store = createEmailStore({ db: getDb() });
+    const fb = createEmailFeedbackStore({ db: getDb() });
+    store.setLastSeenAndValidity('a', 5000, 111, 1000);
+    store.insertPending({
+      account_id: 'a', message_uid: 50, from_addr: 'x@x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1, added_at: 1,
+    });
+    const pid = (
+      getDb()
+        .prepare('SELECT id FROM email_pending WHERE account_id = ? AND message_uid = ?')
+        .get('a', 50) as { id: number }
+    ).id;
+    fb.recordPinged(pid, 1000); // unresolved orphan row referencing the pending row
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: vi.fn(async () => 7), validityProbe: vi.fn(async () => 222),
+      now: 2000,
+      // feedback intentionally omitted (resolution disabled this run)
+    });
+    warn.mockRestore();
+
+    // No FK violation, watermark advanced, and the orphan feedback is gone too.
+    expect(store.getAccountError('a')).toBeNull();
+    expect(store.getLastSeenUid('a')).toBe(7);
+    expect(store.getUidValidity('a')).toBe(222);
+    expect(store.fetchPendingUndelivered(10)).toHaveLength(0);
+    expect(getDb().prepare('SELECT COUNT(*) AS c FROM email_feedback').get()).toEqual({ c: 0 });
+  });
+
   it('tick after reset → normal path resumed (stored now matches)', async () => {
     const store = createEmailStore({ db: getDb() });
     store.setLastSeenAndValidity('a', 7, 222, 1000); // post-reset state
@@ -417,7 +517,7 @@ describe('runPollTick — UIDVALIDITY detect & self-heal', () => {
     warn.mockRestore();
   });
 
-  it('first tick (no row) → validityProbe NOT called (exits before ongoing block)', async () => {
+  it('first tick (no row) → captures UIDVALIDITY alongside the initial watermark', async () => {
     const store = createEmailStore({ db: getDb() });
     const fetcher = vi.fn(async () => []);
     const scorer = vi.fn(async () => []);
@@ -430,9 +530,65 @@ describe('runPollTick — UIDVALIDITY detect & self-heal', () => {
     });
 
     expect(maxUidProbe).toHaveBeenCalledTimes(1);
-    expect(validityProbe).not.toHaveBeenCalled();
+    // Validity is recorded on the FIRST tick (not deferred to a backfill tick)
+    // so a mailbox recreation before the next tick is detected as a validity
+    // change instead of silently pairing a stale watermark with the new epoch.
+    expect(validityProbe).toHaveBeenCalledTimes(1);
+    expect(fetcher).not.toHaveBeenCalled();
     expect(store.getLastSeenUid('a')).toBe(42);
-    expect(store.getUidValidity('a')).toBeNull(); // initialized on the 2nd tick via backfill
+    expect(store.getUidValidity('a')).toBe(333);
+  });
+
+  it('first-tick validity probe throws → no state row, next tick retries first-tick', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const fetcher = vi.fn(async () => []);
+    const scorer = vi.fn(async () => []);
+    const maxUidProbe = vi.fn(async () => 42);
+    const validityProbe = vi.fn(async () => { throw new Error('validity-down'); });
+
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, maxUidProbe,
+      validityProbe, now: 10000,
+    });
+
+    // The watermark is only persisted once BOTH probes succeed, so a validity
+    // probe failure must leave no state row — otherwise the next tick would take
+    // the ongoing path and crawl UID 1:* (the backlog we mean to skip).
+    expect(store.hasAccountState('a')).toBe(false);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('recreation between first and second tick is detected (validity captured on tick 1)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const fetcher = vi.fn(async () => []);
+    const scorer = vi.fn(async () => []);
+
+    // Tick 1 (first tick): epoch 111, watermark 5000.
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer,
+      maxUidProbe: vi.fn(async () => 5000),
+      validityProbe: vi.fn(async () => 111),
+      now: 1000,
+    });
+    expect(store.getLastSeenUid('a')).toBe(5000);
+    expect(store.getUidValidity('a')).toBe(111);
+
+    // Mailbox recreated before tick 2: epoch 222, UIDs restarted low (maxUid 7).
+    const onUidValidityReset = vi.fn();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer,
+      maxUidProbe: vi.fn(async () => 7),
+      validityProbe: vi.fn(async () => 222),
+      onUidValidityReset, now: 2000,
+    });
+    warn.mockRestore();
+
+    // Detected & self-healed instead of going blind on the stale 5000 watermark.
+    expect(store.getLastSeenUid('a')).toBe(7);
+    expect(store.getUidValidity('a')).toBe(222);
+    expect(onUidValidityReset).toHaveBeenCalledTimes(1);
+    expect(onUidValidityReset).toHaveBeenCalledWith({ account: 'a', previous: 111, current: 222 });
   });
 });
 

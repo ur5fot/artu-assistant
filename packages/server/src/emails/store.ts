@@ -31,6 +31,16 @@ export interface EmailStore {
   /** Count of distinct `email_pending` rows for this sender since `sinceMs`.
    *  Used by `/why` to surface frequency from the same sender. */
   countPendingFromSender(sender: string, sinceMs: number): number;
+  /** Delete ALL pending rows for `accountId`. Used on a confirmed UIDVALIDITY
+   *  reset: the dead epoch's `message_uid`s are meaningless in the recreated
+   *  mailbox, so leaving the rows risks (a) insertPending's `INSERT OR IGNORE`
+   *  silently dropping a new-epoch message that reuses an old UID (the
+   *  `UNIQUE(account_id, message_uid)` collides), and (b) emails_get /
+   *  draft-reply fetching a *different* new-epoch message body by a stale UID.
+   *  Emulates the ON DELETE CASCADE the schema omits: deletes the referencing
+   *  `email_feedback` rows first (FK is ON), atomically, so the purge succeeds
+   *  whether or not implicit-feedback resolution is currently wired. */
+  deletePendingForAccount(accountId: string): void;
 }
 
 export function createEmailStore(deps: { db: Database.Database }): EmailStore {
@@ -207,6 +217,22 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
         if (parseFromAddress(r.from_addr) === bare) count++;
       }
       return count;
+    },
+    deletePendingForAccount(accountId) {
+      // foreign_keys=ON with no ON DELETE CASCADE: a referencing email_feedback
+      // row would make the email_pending DELETE throw. Clear children first, in
+      // one transaction, so the purge is atomic and FK-safe regardless of
+      // whether feedback resolution is wired this run — orphan feedback rows
+      // left by a prior EMAIL_FEEDBACK_ENABLED=true run would otherwise block
+      // the reset and strand dead-epoch pending rows forever.
+      const txn = db.transaction((id: string) => {
+        db.prepare(
+          `DELETE FROM email_feedback
+           WHERE pending_id IN (SELECT id FROM email_pending WHERE account_id = ?)`,
+        ).run(id);
+        db.prepare(`DELETE FROM email_pending WHERE account_id = ?`).run(id);
+      });
+      txn(accountId);
     },
   };
 }
