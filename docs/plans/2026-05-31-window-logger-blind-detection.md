@@ -183,20 +183,21 @@ Sentinel помечаем комментарием в коде.
 
 ### Task 3: Документация + приёмка
 
-- [ ] `README.md` §347 «Digital Observer»: добавить короткий блок
+- [x] `README.md` §347 «Digital Observer»: добавить короткий блок
   **Self-diagnostics (iter 1.5)** — observer считает подряд идущие слепые тики
   и по `WINDOW_LOGGER_BLIND_ALERT_AFTER` (default 10 ≈ 5 мин) один раз шлёт
   warning + Discord-DM «observer ослеп / потеряна Automation-привилегия»;
   сбрасывается на первом удачном снимке. Добавить env-var в список тюнинга
   (шаг 3).
-- [ ] `AGENTS.md` стр. 617 (абзац `contextSwitch`): дописать предложение про
+- [x] `AGENTS.md` стр. 617 (абзац `contextSwitch`): дописать предложение про
   blind self-diagnostic + `WINDOW_LOGGER_BLIND_ALERT_AFTER`.
-- [ ] приёмка:
-  - `npm -w @r2/server test` — весь сервер-сьют зелёный.
-  - `tsc -b` (или проектная build-команда) — exit 0.
+- [x] приёмка:
+  - `npm -w @r2/server test` — весь сервер-сьют зелёный (1329 tests passed).
+  - `tsc -b` (build-команда `npm run build -w @r2/server`) — exit 0.
   - backward-compat: при `WINDOW_LOGGER_ENABLED=false` poller не стартует →
-    ноль нового поведения (подтверждается gate в index.ts).
-  - линтер по затронутым файлам — чисто.
+    ноль нового поведения (подтверждается gate в index.ts:793).
+  - линтер по затронутым файлам — чисто (ESLint в репо не настроен; tsc-сборка
+    выступает type/lint-гейтом, прошла без ошибок).
 
 ## Technical Details
 
