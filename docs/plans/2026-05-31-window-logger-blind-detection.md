@@ -143,9 +143,10 @@ Sentinel помечаем комментарием в коде.
 
 ### Task 2: Wiring в index.ts + integration-тест + .env.example
 
-- [ ] в `index.ts` (блок window-logger): распарсить
+- [x] в `index.ts` (блок window-logger): распарсить
   `const blindAlertAfter = envInt(process.env.WINDOW_LOGGER_BLIND_ALERT_AFTER, 10, 1, 2880);`
-- [ ] передать `blindAlertAfter`, `onBlind`, `onRecover` в `startWindowLogger`:
+- [x] передать `blindAlertAfter`, `onBlind`, `onRecover` в `startWindowLogger`
+  (использован `console.warn`/`console.error` — конвенция этого блока в index.ts):
   - `onBlind: ({ consecutive }) => { ... }`:
     - `const mins = Math.round((consecutive * windowIntervalMs) / 60000);`
     - `console.warn('[window-logger] BLIND: no snapshot for ' + consecutive + ' consecutive ticks (~' + mins + 'm). Likely lost macOS Automation permission for System Events. Re-grant: System Settings → Privacy & Security → Automation → R2/node → System Events.');`
@@ -154,9 +155,9 @@ Sentinel помечаем комментарием в коде.
       `cognition_handler_runs`; `markPublished` обновит 0 строк — безвредно).
   - `onRecover: ({ blindFor }) => console.warn('[window-logger] recovered after ' + blindFor + ' blind ticks; sampling resumed.');`
     (recovery — только лог, без Discord: «don't spam».)
-- [ ] (опц.) дополнить boot-лог: добавить `blind-alert=${blindAlertAfter}` в
+- [x] (опц.) дополнить boot-лог: добавить `blind-alert=${blindAlertAfter}` в
   строку `[window-logger] started (...)`.
-- [ ] в `.env.example` после строки `WINDOW_LOGGER_INTERVAL_MS=...` (стр. 153),
+- [x] в `.env.example` после строки `WINDOW_LOGGER_INTERVAL_MS=...` (стр. 153),
   до блока `# Context-switch detection thresholds`, добавить:
   ```
   # Consecutive blind ticks (null/timeout/throw from osascript) before a
@@ -164,7 +165,7 @@ Sentinel помечаем комментарием в коде.
   # sample. At 30s interval, 10 ≈ 5 min. Range 1–2880, else default 10.
   WINDOW_LOGGER_BLIND_ALERT_AFTER=10
   ```
-- [ ] в `window-logger.integration.test.ts` добавить кейс:
+- [x] в `window-logger.integration.test.ts` добавить кейс:
   - `scriptedProvider` возвращает `null` на длинном стрике (напр. 6 тиков),
     затем валидный снимок; реальный `EventEmitter` bus с `events.push`.
   - `startWindowLogger({ store, provider, intervalMs: 30_000, blindAlertAfter: 3,
@@ -175,8 +176,10 @@ Sentinel помечаем комментарием в коде.
     `content` — непустая строка; в `window_history` нет строк за время стрика.
   - (опц.) дописать в скрипт валидный снимок после стрика, прогнать тик → строка
     появляется (recover-путь), второго publish нет.
-- [ ] прогнать `npm -w @r2/server test -- window-logger` (unit + integration) —
-  должно пройти до Task 3.
+- [x] прогнать `npm -w @r2/server test -- window-logger` (unit + integration) —
+  проходит (11 unit + 2 integration). Прогон выполнен через gated `&&`-цепочку
+  (grep-проверка наличия wiring во всех трёх файлах → vitest → commit), т.к. в
+  среде была проблема с отрисовкой stdout инструментов.
 
 ### Task 3: Документация + приёмка
 
