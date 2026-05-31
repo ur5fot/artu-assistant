@@ -35,10 +35,25 @@ if [ -z "${WORKER_PORT}" ] && [ -f "${REPO_ROOT}/.env" ]; then
 fi
 WORKER_PORT="${WORKER_PORT:-3001}"
 
-# node must be on PATH. The login shell (-l) should have loaded nvm; fail loudly
-# with a clear message if it did not, rather than dying inside npx.
+# node must be on PATH at a version tsx accepts. launchd invokes us via
+# `zsh -lc`, a NON-interactive login shell that does NOT source ~/.zshrc — which
+# is where nvm (and therefore the right node) lives. Without help the shell falls
+# back to a stale system node (e.g. v16), tsx requires >=18, and the supervisor
+# crashloops invisibly. So source nvm here, independent of shell interactivity.
+export NVM_DIR="${NVM_DIR:-${HOME}/.nvm}"
+if [ -s "${NVM_DIR}/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  . "${NVM_DIR}/nvm.sh" >/dev/null 2>&1 || true
+  nvm use --silent default >/dev/null 2>&1 || true
+fi
+
 if ! command -v node >/dev/null 2>&1; then
-  log "error: 'node' not found on PATH; ensure the login shell loads nvm/node"
+  log "error: 'node' not found on PATH; ensure nvm is installed or node is on PATH"
+  exit 1
+fi
+NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+if [ "${NODE_MAJOR}" -lt 18 ]; then
+  log "error: node $(node --version) is too old; tsx requires >=18 (check nvm default)"
   exit 1
 fi
 log "using node $(node --version) at $(command -v node)"
