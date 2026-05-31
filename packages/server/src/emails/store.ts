@@ -6,6 +6,13 @@ export interface EmailStore {
   getLastSeenUid(accountId: string): number;
   hasAccountState(accountId: string): boolean;
   updateLastSeenUid(accountId: string, uid: number, now: number): void;
+  /** Stored mailbox UIDVALIDITY for this account, or null when no row exists
+   *  or the baseline has not been recorded yet (`uid_validity IS NULL`). */
+  getUidValidity(accountId: string): number | null;
+  /** Upsert `last_seen_uid` + `uid_validity` together (and clear `last_error`),
+   *  mirroring `updateLastSeenUid`. Used to persist the watermark and the
+   *  mailbox UIDVALIDITY in one write on backfill and on reset. */
+  setLastSeenAndValidity(accountId: string, uid: number, uidValidity: number, now: number): void;
   setAccountError(accountId: string, message: string, now: number): void;
   getAccountError(accountId: string): { message: string; at: number } | null;
 
@@ -24,6 +31,16 @@ export interface EmailStore {
   /** Count of distinct `email_pending` rows for this sender since `sinceMs`.
    *  Used by `/why` to surface frequency from the same sender. */
   countPendingFromSender(sender: string, sinceMs: number): number;
+  /** Delete ALL pending rows for `accountId`. Used on a confirmed UIDVALIDITY
+   *  reset: the dead epoch's `message_uid`s are meaningless in the recreated
+   *  mailbox, so leaving the rows risks (a) insertPending's `INSERT OR IGNORE`
+   *  silently dropping a new-epoch message that reuses an old UID (the
+   *  `UNIQUE(account_id, message_uid)` collides), and (b) emails_get /
+   *  draft-reply fetching a *different* new-epoch message body by a stale UID.
+   *  Emulates the ON DELETE CASCADE the schema omits: deletes the referencing
+   *  `email_feedback` rows first (FK is ON), atomically, so the purge succeeds
+   *  whether or not implicit-feedback resolution is currently wired. */
+  deletePendingForAccount(accountId: string): void;
 }
 
 export function createEmailStore(deps: { db: Database.Database }): EmailStore {
@@ -50,6 +67,23 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
           last_poll_at = excluded.last_poll_at,
           last_error = NULL
       `).run(accountId, uid, now);
+    },
+    getUidValidity(accountId) {
+      const row = db
+        .prepare('SELECT uid_validity FROM email_account_state WHERE account_id = ?')
+        .get(accountId) as { uid_validity: number | null } | undefined;
+      return row?.uid_validity ?? null;
+    },
+    setLastSeenAndValidity(accountId, uid, uidValidity, now) {
+      db.prepare(`
+        INSERT INTO email_account_state (account_id, last_seen_uid, uid_validity, last_poll_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(account_id) DO UPDATE SET
+          last_seen_uid = excluded.last_seen_uid,
+          uid_validity = excluded.uid_validity,
+          last_poll_at = excluded.last_poll_at,
+          last_error = NULL
+      `).run(accountId, uid, uidValidity, now);
     },
     setAccountError(accountId, message, now) {
       db.prepare(`
@@ -183,6 +217,22 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
         if (parseFromAddress(r.from_addr) === bare) count++;
       }
       return count;
+    },
+    deletePendingForAccount(accountId) {
+      // foreign_keys=ON with no ON DELETE CASCADE: a referencing email_feedback
+      // row would make the email_pending DELETE throw. Clear children first, in
+      // one transaction, so the purge is atomic and FK-safe regardless of
+      // whether feedback resolution is wired this run — orphan feedback rows
+      // left by a prior EMAIL_FEEDBACK_ENABLED=true run would otherwise block
+      // the reset and strand dead-epoch pending rows forever.
+      const txn = db.transaction((id: string) => {
+        db.prepare(
+          `DELETE FROM email_feedback
+           WHERE pending_id IN (SELECT id FROM email_pending WHERE account_id = ?)`,
+        ).run(id);
+        db.prepare(`DELETE FROM email_pending WHERE account_id = ?`).run(id);
+      });
+      txn(accountId);
     },
   };
 }

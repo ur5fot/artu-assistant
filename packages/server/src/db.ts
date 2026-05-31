@@ -210,9 +210,21 @@ export function initDb(dbPath?: string): void {
       account_id TEXT PRIMARY KEY,
       last_seen_uid INTEGER NOT NULL DEFAULT 0,
       last_poll_at INTEGER,
-      last_error TEXT
+      last_error TEXT,
+      uid_validity INTEGER
     )
   `);
+
+  // Migration: add `uid_validity` column if missing. Stores the mailbox
+  // UIDVALIDITY alongside `last_seen_uid` so the poller can detect a mailbox
+  // recreation (UIDVALIDITY change) and self-heal instead of going silently
+  // blind. Nullable, no DEFAULT — NULL means "baseline not yet recorded".
+  const emailStateCols = db
+    .prepare("PRAGMA table_info(email_account_state)")
+    .all() as Array<{ name: string }>;
+  if (!emailStateCols.some((c) => c.name === 'uid_validity')) {
+    db.exec(`ALTER TABLE email_account_state ADD COLUMN uid_validity INTEGER`);
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS email_pending (

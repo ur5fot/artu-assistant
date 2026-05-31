@@ -7,6 +7,11 @@ import { evaluateSender, type FeedbackScorerConfig } from './feedback-scorer.js'
 export type MessageFetcher = (account: ImapAccount, sinceUid: number, limit: number) => Promise<NewMessage[]>;
 export type MessageScorer = (msgs: NewMessage[]) => Promise<Array<{ uid: number; importance: number }>>;
 export type MaxUidProbe = (account: ImapAccount) => Promise<number>;
+/** Read the mailbox's current UIDVALIDITY (imap-client.getUidValidity). Probed
+ *  at the start of every ongoing tick, BEFORE the fetch, so we never ingest a
+ *  partial slice from a foreign UID epoch. A throw is treated like any other
+ *  per-account failure (→ setAccountError, retried next tick). */
+export type ValidityProbe = (account: ImapAccount) => Promise<number>;
 /** Re-poll IMAP flags for an explicit UID list (see imap-client.fetchFlagsForUids).
  *  Best-effort: never throws into the poll loop. Returns the gathered rows on
  *  success ([] when every UID has left INBOX), or `null` on a hard fetch failure
@@ -41,10 +46,16 @@ interface TickParams {
   fetcher: MessageFetcher;
   scorer: MessageScorer;
   maxUidProbe: MaxUidProbe;
+  // Required (not optional) on purpose: this is the core detection mechanism,
+  // like `provider` for window-logger. Making it optional would let forgotten
+  // wiring silently re-introduce the exact silent-blindness class we're fixing.
+  validityProbe: ValidityProbe;
   now: number;
   fetchLimit?: number;
   importanceCutoff?: number;
   feedback?: FeedbackResolution;
+  // Optional alert hook (like `onBlind`): fired once per UIDVALIDITY reset.
+  onUidValidityReset?: (info: { account: string; previous: number; current: number }) => void;
 }
 
 const DEFAULT_FETCH_LIMIT = 50;
@@ -190,8 +201,25 @@ export async function runPollTick(params: TickParams): Promise<void> {
         // dropped by a second first-tick probe.
         if (!params.store.hasAccountState(acc.id)) {
           try {
+            // Capture UIDVALIDITY together with the initial watermark. If we
+            // deferred this to the next tick's backfill branch (as the original
+            // design did), a mailbox recreation between this tick and the next
+            // would pair the now-stale watermark with the new epoch's
+            // UIDVALIDITY and the watcher would go silently blind. Recording the
+            // baseline here means the next tick sees `stored !== current` and
+            // self-heals instead.
+            //
+            // Probe UIDVALIDITY BEFORE maxUid (two separate IMAP connections, so
+            // not truly atomic). A mailbox recreation landing between the two
+            // probes can only pair an *old* validity with a *new* watermark —
+            // next tick then sees `stored !== current` and self-heals via reset.
+            // The reverse order (maxUid then validity) could pair a *stale* high
+            // watermark with the *new* validity, which matches next tick and
+            // blinds the watcher to all new-epoch mail below it — the exact trap
+            // we're avoiding.
+            const currentValidity = await params.validityProbe(acc);
             const maxUid = await params.maxUidProbe(acc);
-            params.store.updateLastSeenUid(acc.id, maxUid, params.now);
+            params.store.setLastSeenAndValidity(acc.id, maxUid, currentValidity, params.now);
             console.log(
               `[emails] first tick for ${acc.id}: skipping backlog, last_seen_uid set to ${maxUid}`,
             );
@@ -207,6 +235,54 @@ export async function runPollTick(params: TickParams): Promise<void> {
         }
 
         const sinceUid = params.store.getLastSeenUid(acc.id);
+
+        // UIDVALIDITY guard, BEFORE the fetch — IMAP UIDs are only stable while
+        // the mailbox's UIDVALIDITY is unchanged. If the provider recreates the
+        // mailbox, UIDs restart from low numbers and `uid:${last+1}:*` returns
+        // nothing (new mail sits below the dead high-watermark) or only the
+        // high tail of the new epoch (silently losing everything below). We
+        // detect the change here and self-heal so we never act on a foreign
+        // epoch's UID data.
+        const storedValidity = params.store.getUidValidity(acc.id);
+        const currentValidity = await params.validityProbe(acc);
+        if (storedValidity == null) {
+          // First time we learn the UIDVALIDITY (new account on its 2nd tick, or
+          // an account older than this column): adopt it as the baseline WITHOUT
+          // resetting the watermark — there's no reason to assume it changed.
+          params.store.setLastSeenAndValidity(acc.id, sinceUid, currentValidity, params.now);
+        } else if (currentValidity !== storedValidity) {
+          // Mailbox recreated: `last_seen_uid` is a dead epoch's watermark. Reset
+          // by the first-tick strategy — skip backlog (last_seen_uid = current
+          // maxUid), persist the new validity — and alert once. Next tick runs
+          // normally (stored == current).
+          console.warn(
+            `[emails] UIDVALIDITY changed for ${acc.id}: ${storedValidity} → ${currentValidity}; mailbox recreated, resetting last_seen_uid to current maxUid (skipping backlog).`,
+          );
+          const maxUid = await params.maxUidProbe(acc);
+          // The dead epoch's UIDs are meaningless in the recreated mailbox, so
+          // purge this account's pending rows (and their referencing feedback —
+          // deletePendingForAccount emulates the missing ON DELETE CASCADE in one
+          // transaction, FK-safe whether or not feedback resolution is wired).
+          // Otherwise:
+          //  - a recycled new-epoch UID could be silently dropped by
+          //    insertPending's INSERT OR IGNORE on a stale (account_id,
+          //    message_uid) row, losing a real new email; and
+          //  - emails_get / draft-reply could fetch a *different* new-epoch
+          //    message body by a stale pending UID; and
+          //  - feedback `message_uid`s belong to the dead epoch too, so
+          //    re-polling them against the new epoch could mis-finalize the
+          //    wrong sender (resolved sender history for THIS account is lost —
+          //    an acceptable, rare cost of a provider mailbox recreation).
+          // Purge BEFORE advancing the watermark/validity: if the delete throws
+          // (e.g. an unexpected FK/IO error), state stays on the dead epoch so
+          // next tick still sees stored != current and retries the reset, rather
+          // than advancing past it and stranding the dead-epoch rows forever.
+          params.store.deletePendingForAccount(acc.id);
+          params.store.setLastSeenAndValidity(acc.id, maxUid, currentValidity, params.now);
+          params.onUidValidityReset?.({ account: acc.id, previous: storedValidity, current: currentValidity });
+          return; // skip this tick's ingest; next tick proceeds normally
+        }
+
         const msgs = await params.fetcher(acc, sinceUid, fetchLimit);
         if (msgs.length === 0) {
           // No new mail, but unresolved feedback rows may still need a flag

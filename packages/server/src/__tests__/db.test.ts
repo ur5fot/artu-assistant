@@ -16,7 +16,9 @@ describe('email tables', () => {
       .prepare("PRAGMA table_info('email_account_state')")
       .all() as Array<{ name: string }>;
     const names = cols.map((c) => c.name).sort();
-    expect(names).toEqual(['account_id', 'last_error', 'last_poll_at', 'last_seen_uid'].sort());
+    expect(names).toEqual(
+      ['account_id', 'last_error', 'last_poll_at', 'last_seen_uid', 'uid_validity'].sort(),
+    );
   });
 
   it('creates email_pending with expected columns', () => {
