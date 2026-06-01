@@ -635,6 +635,11 @@ if (emailEnabled) {
         signal: pollerAbort.signal,
       }),
     intervalMs: envInt(process.env.EMAIL_POLL_INTERVAL_MS, 300_000, 1_000),
+    // Importance cutoff (scorer scale 1-5): emails scored >= this become pending;
+    // below it they're fetched, scored, then dropped. Default 3 surfaces the
+    // "worth noticing" tier and up; was the poller's hardcoded DEFAULT_CUTOFF (4,
+    // action-required+). Out-of-range / unset → 3 (see envInt).
+    importanceCutoff: envInt(process.env.EMAIL_IMPORTANCE_CUTOFF, 3, 1, 5),
     // Implicit-feedback resolution wiring. Absent (flag off) → the poll tick
     // skips the flag re-poll / finalization entirely (zero extra IMAP work).
     feedback: emailFeedbackStore
