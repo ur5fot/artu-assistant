@@ -58,6 +58,42 @@ function createEmailsListTool(deps: Deps): ToolDefinition {
   };
 }
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+function createEmailsStatusTool(deps: Deps): ToolDefinition {
+  return {
+    name: 'emails_status',
+    description:
+      'Статус почты для проверок и сводок («чек», «что по почте», «всё ли разобрано», статусный обзор). ' +
+      'Возвращает { awaiting: письма, ждущие разбора (непросмотренные — без срочного пинга и без дайджеста — ЛЮБОГО возраста, по важности), ' +
+      'awaiting_count: всего таких, handled_last_7d: сколько важных уже отправлено тебе (срочный пинг или дайджест) за 7 дней }. ' +
+      'Используй ЭТО для статуса/«чек»; emails_list — только для явного просмотра писем за период.',
+    permissionLevel: 'auto',
+    provider: 'all',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: 'Максимум писем в awaiting (default 10, max 50)' },
+      },
+    },
+    async handler(params: Record<string, unknown>): Promise<ToolResult> {
+      if (!deps.emailStore) {
+        return { success: false, error: 'Email integration is not enabled on this server' };
+      }
+      const limit = clampInt(params.limit, 10, 1, 50);
+      const awaiting = deps.emailStore.fetchPendingUndelivered(limit);
+      return {
+        success: true,
+        data: {
+          awaiting: awaiting.map(toListItem),
+          awaiting_count: deps.emailStore.countPendingUndelivered(),
+          handled_last_7d: deps.emailStore.countHandledSince(Date.now() - SEVEN_DAYS_MS),
+        },
+      };
+    },
+  };
+}
+
 function createEmailsGetTool(deps: Deps): ToolDefinition {
   return {
     name: 'emails_get',
@@ -106,7 +142,7 @@ function createEmailsGetTool(deps: Deps): ToolDefinition {
 }
 
 export function createTool(deps: Deps): ToolDefinition[] {
-  return [createEmailsListTool(deps), createEmailsGetTool(deps)];
+  return [createEmailsListTool(deps), createEmailsStatusTool(deps), createEmailsGetTool(deps)];
 }
 
 export default createTool;

@@ -35,6 +35,9 @@ export interface EmailPendingRow {
 
 export interface EmailStoreLike {
   fetchInWindow(sinceHours: number, limit: number, now: number): EmailPendingRow[];
+  fetchPendingUndelivered(limit: number): EmailPendingRow[];
+  countPendingUndelivered(): number;
+  countHandledSince(sinceMs: number): number;
   findByPendingId(id: number): EmailPendingRow | null;
 }
 

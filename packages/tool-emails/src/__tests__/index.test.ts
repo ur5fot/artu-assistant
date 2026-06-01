@@ -21,6 +21,9 @@ function mkStore(rows: EmailPendingRow[]): EmailStoreLike {
   return {
     fetchInWindow: vi.fn((_h: number, _l: number, _now: number) => rows),
     findByPendingId: vi.fn((id: number) => rows.find((r) => r.id === id) ?? null),
+    fetchPendingUndelivered: vi.fn((_l: number) => rows),
+    countPendingUndelivered: vi.fn(() => rows.length),
+    countHandledSince: vi.fn((_s: number) => 0),
   };
 }
 
@@ -96,6 +99,56 @@ describe('emails_list tool', () => {
     const tools = createTool({ emailStore: null, imapClient: mkImap() });
     const list = tools.find((t) => t.name === 'emails_list')!;
     const res = await list.handler({});
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/email/i);
+  });
+});
+
+describe('emails_status tool', () => {
+  it('returns awaiting list (any age) plus awaiting_count and handled_last_7d', async () => {
+    const store = mkStore([mkRow(1, 5), mkRow(2, 4)]);
+    vi.mocked(store.countHandledSince).mockReturnValue(7);
+    const tools = createTool({ emailStore: store, imapClient: mkImap() });
+    const status = tools.find((t) => t.name === 'emails_status')!;
+    const res = await status.handler({});
+    expect(res.success).toBe(true);
+    const data = res.data as Record<string, unknown>;
+    expect(data.awaiting_count).toBe(2);
+    expect(data.handled_last_7d).toBe(7);
+    const awaiting = data.awaiting as Array<Record<string, unknown>>;
+    expect(awaiting).toHaveLength(2);
+    expect(awaiting[0]).toMatchObject({ id: 1, from: 'A <a@b>', subject: 'S', importance: 5 });
+  });
+
+  it('honours limit (default 10, max 50) for the awaiting list', async () => {
+    const store = mkStore([]);
+    const tools = createTool({ emailStore: store, imapClient: mkImap() });
+    const status = tools.find((t) => t.name === 'emails_status')!;
+
+    await status.handler({});
+    expect(store.fetchPendingUndelivered).toHaveBeenLastCalledWith(10);
+
+    await status.handler({ limit: 500 });
+    expect(store.fetchPendingUndelivered).toHaveBeenLastCalledWith(50);
+  });
+
+  it('counts handled emails over a ~7 day window', async () => {
+    const store = mkStore([]);
+    const tools = createTool({ emailStore: store, imapClient: mkImap() });
+    const status = tools.find((t) => t.name === 'emails_status')!;
+    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+    const before = Date.now();
+    await status.handler({});
+    const after = Date.now();
+    const arg = vi.mocked(store.countHandledSince).mock.lastCall![0];
+    expect(arg).toBeGreaterThanOrEqual(before - SEVEN_DAYS);
+    expect(arg).toBeLessThanOrEqual(after - SEVEN_DAYS);
+  });
+
+  it('returns error when emailStore is null', async () => {
+    const tools = createTool({ emailStore: null, imapClient: mkImap() });
+    const status = tools.find((t) => t.name === 'emails_status')!;
+    const res = await status.handler({});
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/email/i);
   });
