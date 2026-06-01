@@ -42,11 +42,12 @@ if [ -z "${WORKER_PORT}" ] && [ -f "${ENV_FILE}" ]; then
 fi
 WORKER_PORT="${WORKER_PORT:-3001}"
 
-# node must be on PATH at a version tsx accepts. launchd invokes us via
-# `zsh -lc`, a NON-interactive login shell that does NOT source ~/.zshrc — which
-# is where nvm (and therefore the right node) lives. Without help the shell falls
-# back to a stale system node (e.g. v16), tsx requires >=18, and the supervisor
-# crashloops invisibly. So source nvm here, independent of shell interactivity.
+# node must be on PATH at a version the `node --import tsx` exec accepts. launchd
+# invokes us via `zsh -lc`, a NON-interactive login shell that does NOT source
+# ~/.zshrc — which is where nvm (and therefore the right node) lives. Without help
+# the shell falls back to a stale system node (e.g. v16), too old for the exec
+# below (the --import loader hook needs >=20), and the supervisor crashloops
+# invisibly. So source nvm here, independent of shell interactivity.
 export NVM_DIR="${NVM_DIR:-${HOME}/.nvm}"
 if [ -s "${NVM_DIR}/nvm.sh" ]; then
   # shellcheck disable=SC1091
@@ -59,8 +60,8 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
-if [ "${NODE_MAJOR}" -lt 18 ]; then
-  log "error: node $(node --version) is too old; tsx requires >=18 (check nvm default)"
+if [ "${NODE_MAJOR}" -lt 20 ]; then
+  log "error: node $(node --version) is too old; 'node --import tsx' requires node >=20 (check nvm default)"
   exit 1
 fi
 log "using node $(node --version) at $(command -v node)"
@@ -92,5 +93,5 @@ if [ -n "${R2_SERVICE_NO_EXEC:-}" ]; then
   exit 0
 fi
 
-log "starting supervisor via tsx"
-exec npx tsx packages/supervisor/src/index.ts
+log "starting supervisor via node --import tsx"
+exec node --import tsx packages/supervisor/src/index.ts
