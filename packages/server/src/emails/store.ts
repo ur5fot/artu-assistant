@@ -20,6 +20,11 @@ export interface EmailStore {
   countPendingUndelivered(): number;
   fetchPendingUndelivered(limit: number): EmailPendingRow[];
   fetchInWindow(sinceHours: number, limit: number, now: number): EmailPendingRow[];
+  /** Count of `email_pending` rows surfaced to the user since `sinceMs` — either
+   *  urgent-pinged (positive `urgent_pinged_at`; the `-1` suppression sentinel is
+   *  excluded) or digest-delivered (`delivered_at`). Powers the `emails_status`
+   *  tool's "N важных за неделю уже отправлены" summary line. */
+  countHandledSince(sinceMs: number): number;
   markDelivered(ids: number[], now: number): void;
   findByPendingId(id: number): EmailPendingRow | null;
   findUnpingedUrgent(): EmailPendingRow | null;
@@ -144,6 +149,16 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
         ORDER BY importance DESC, received_at DESC
         LIMIT ?
       `).all(cutoff, limit) as EmailPendingRow[];
+    },
+    countHandledSince(sinceMs) {
+      const row = db
+        .prepare(
+          `SELECT COUNT(*) AS c FROM email_pending
+           WHERE (urgent_pinged_at > 0 AND urgent_pinged_at >= ?)
+              OR (delivered_at IS NOT NULL AND delivered_at >= ?)`,
+        )
+        .get(sinceMs, sinceMs) as { c: number };
+      return row.c;
     },
     markDelivered(ids, now) {
       if (ids.length === 0) return;
