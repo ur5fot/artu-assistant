@@ -379,7 +379,7 @@ bash scripts/install-r2-service.sh   # LaunchAgent keeps the supervisor alive
 ```
 
 Supervisor-as-service: the LaunchAgent (`scripts/install-r2-service.sh` →
-`com.r2.supervisor.plist`) runs the supervisor through `tsx` (like the worker,
+`com.r2.supervisor.plist`) runs the supervisor through `node --import tsx` (like the worker,
 not from `dist`), so a `git pull master` deploy is picked up by the git watcher
 with no build step. Two levels of supervision — `launchd` (RunAtLoad/KeepAlive)
 restarts the supervisor; the supervisor restarts the worker. See README
