@@ -73,6 +73,22 @@ describe('createEmailStore', () => {
     expect(store.countPendingUndelivered()).toBe(0);
   });
 
+  it('countHandledSince counts rows pinged (>0) or delivered at/after the cutoff', () => {
+    const store = createEmailStore({ db: getDb() });
+    for (const uid of [1, 2, 3, 4]) {
+      store.insertPending({
+        account_id: 'acc1', message_uid: uid, from_addr: 'a@b', subject: 's',
+        snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+      });
+    }
+    const byUid = new Map(store.fetchPendingUndelivered(50).map((r) => [r.message_uid, r.id]));
+    store.markUrgentPinged(byUid.get(1)!, 5000); // pinged at/after cutoff → counted
+    store.markUrgentPinged(byUid.get(2)!, 1000); // pinged before cutoff → not counted
+    store.markDelivered([byUid.get(3)!], 6000); // delivered at/after cutoff → counted
+    store.markUrgentPinged(byUid.get(4)!, -1); // suppressed sentinel (never shown) → not counted
+    expect(store.countHandledSince(4000)).toBe(2);
+  });
+
   it('insertPending is idempotent on duplicate (account_id, message_uid)', () => {
     const store = createEmailStore({ db: getDb() });
     const payload = {
