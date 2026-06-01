@@ -15,6 +15,12 @@
     "tunnel": "echo '' > /tmp/r2-cf.yml && cloudflared tunnel --config /tmp/r2-cf.yml --url http://127.0.0.1:$(node -e \"require('dotenv').config({path:'.env'});console.log(process.env.CLIENT_PORT||5173)\")",
     "start": "node packages/supervisor/dist/index.js",
     "start:build": "npm run build -w @r2/shared && npm run build -w @r2/server && npm run build -w @r2/supervisor && npm start",
+    "service:install": "bash scripts/install-r2-service.sh",
+    "service:uninstall": "bash scripts/uninstall-r2-service.sh",
+    "service:start": "launchctl load -w ~/Library/LaunchAgents/com.r2.supervisor.plist",
+    "service:stop": "launchctl unload -w ~/Library/LaunchAgents/com.r2.supervisor.plist",
+    "service:restart": "launchctl kickstart -k gui/$(id -u)/com.r2.supervisor",
+    "service:status": "launchctl list | grep com.r2.supervisor || echo 'com.r2.supervisor not loaded'",
     "test": "vitest run",
     "test:watch": "vitest"
   },
