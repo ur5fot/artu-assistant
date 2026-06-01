@@ -223,6 +223,58 @@ npm start
 
 ---
 
+## Always-on (launchd)
+
+The supervisor restarts the **worker** on a crash, but it only runs while the
+terminal that launched it stays open — it doesn't survive logout, reboot, or
+sleep, and its logs scroll past in a window nobody reads. On 2026-05-31 R2 died
+together with the machine going to sleep and lay dead ~14 min until restarted by
+hand. A macOS **LaunchAgent** closes that gap by keeping the *supervisor itself*
+always alive, giving two levels of supervision:
+
+```
+launchd (RunAtLoad + KeepAlive) → supervisor (fork + auto-restart) → worker
+```
+
+launchd heals supervisor death / reboot / login; the supervisor heals worker
+crashes in seconds. The supervisor runs through `tsx` (like the worker), so a
+`git pull master` deploy is picked up by the git watcher with no build step.
+
+**Install:**
+
+```bash
+bash scripts/install-r2-service.sh
+```
+
+This generates `~/Library/LaunchAgents/com.r2.supervisor.plist` and registers it
+with `launchctl`. Verify it's running:
+
+```bash
+launchctl list | grep com.r2.supervisor   # a PID means it's up
+curl localhost:3004/api/health            # "R2 online"
+```
+
+- **Logs** → `~/Library/Logs/r2-supervisor.out.log` (stdout) and
+  `r2-supervisor.err.log` (stderr).
+- **PATH/node** comes from a login shell — the plist runs the wrapper as
+  `/bin/zsh -lc scripts/r2-service.sh`, so nvm is sourced from your profile (no
+  hardcoded node path). It requires **node ≥18** on that PATH (tsx needs it); the
+  wrapper aborts with a clear error rather than crashlooping on a stale system
+  node, so set your nvm `default` alias to ≥18. The wrapper also does a
+  best-effort `docker compose up -d` (for code-task tools; never fatal).
+
+**⚠️ Don't run it alongside `npm run dev`** — both bind port **3004**. The
+wrapper refuses to start if 3004 is already held, so stop the dev server first
+(`Ctrl-C`) before installing.
+
+**Uninstall:**
+
+```bash
+bash scripts/uninstall-r2-service.sh   # unloads launchctl + removes the plist
+```
+
+---
+
 ## Install on phone (frozen web UI, but works)
 
 R2's web client can be installed as a home-screen PWA on a phone that's on the
