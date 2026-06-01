@@ -108,14 +108,18 @@ describe('r2-service.sh wrapper', () => {
     expect(readFileSync(capture, 'utf8')).toMatch(/-iTCP:9999/);
   });
 
-  it('refuses to start on a node older than 18', () => {
-    // Empty NVM_DIR so nvm sourcing is skipped and our fake node wins on PATH.
+  it('refuses to start on a node older than 20', () => {
+    // node 18 passed the old >=18 guard but is now rejected: the `node --import
+    // tsx` exec needs the --import loader hook (node >=20). Empty NVM_DIR so nvm
+    // sourcing is skipped and our fake node wins on PATH. Fake docker too so the
+    // guard-revert red-green check can't reach real docker.
     const emptyNvm = mkdtempSync(join(tmpdir(), 'r2-nvm-'));
     tmpDirs.push(emptyNvm);
     const fakeBin = makeFakeBin({
-      // `node --version` → v16.0.0; `node -p '...major...'` → 16.
-      node: 'case "$*" in *--version*) echo v16.0.0 ;; *) echo 16 ;; esac',
+      // `node --version` → v18.20.0; `node -p '...major...'` → 18.
+      node: 'case "$*" in *--version*) echo v18.20.0 ;; *) echo 18 ;; esac',
       lsof: 'exit 1',
+      docker: 'exit 0',
     });
     const { code, stderr } = runWrapper(fakeBin, {
       R2_SERVICE_NO_EXEC: '1',
