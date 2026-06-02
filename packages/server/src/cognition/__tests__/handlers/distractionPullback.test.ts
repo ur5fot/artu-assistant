@@ -196,6 +196,27 @@ describe('createDistractionHandler.run', () => {
     expect(latest?.pinged).toBe(0);
   });
 
+  it('skips on an unknown verdict, recording the eval and never publishing', async () => {
+    const judge = vi.fn<DistractionJudge>(async () => ({
+      verdict: 'unknown',
+      confidence: 0,
+      reason: 'заголовки пустые',
+      work_summary: '',
+    }));
+    const { store, evalStore, handler } = mkHandler(judge);
+    const { chromeStart, now } = seedDriftIntoChrome(store);
+
+    const res = await handler.run(mkCtx(now));
+    expect('skip' in res && res.skip).toBe(true);
+    if (!('skip' in res)) throw new Error('expected skip');
+    expect(res.reason).toContain('unknown');
+
+    const latest = evalStore.findLatestEvalForDwell('Chrome', chromeStart);
+    expect(latest?.verdict).toBe('unknown');
+    expect(latest?.pinged).toBe(0);
+    expect(evalStore.findRecentPing('Chrome', now - 1)).toBeNull();
+  });
+
   it('never publishes when the judge throws — records verdict=error and skips', async () => {
     const judge = vi.fn<DistractionJudge>(async () => {
       throw new Error('boom');

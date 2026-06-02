@@ -58,12 +58,12 @@
 
 ### Task 2: Вердикт `unknown` у судьи + no-nudge в хэндлере
 
-- [ ] `distractionPullback.judge.ts`: `JudgeVerdict` += `'unknown'`; `VERDICT_TOOL` enum += `'unknown'` (+ описание); `isValidVerdict` принимает `'unknown'`
-- [ ] `SYSTEM_PROMPT`: +инструкция «если заголовки пустые/неинформативные и не можешь понять, чем занят юзер — верни `unknown` (лучше, чем гадать `distracted`)»
-- [ ] `distractionPullback.ts`: убедиться, что `unknown` идёт в no-publish ветку (только `distracted && conf>=cutoff` публикует), `recordEval(verdict='unknown')`; правка только если где-то есть явный switch/проверка по вердикту
-- [ ] тесты judge: `unknown` проходит `isValidVerdict`; `judgeDistraction` возвращает `unknown` при таком tool-ответе; `buildJudgePrompt` содержит инструкцию про unknown
-- [ ] тесты handler: `unknown` → skip + eval записан, НЕ publish; `distracted`+conf≥cutoff → по-прежнему publish (регресс)
-- [ ] прогнать тесты — зелёные перед Task 3
+- [x] `distractionPullback.judge.ts`: `JudgeVerdict` += `'unknown'`; `VERDICT_TOOL` enum += `'unknown'` (+ описание); `isValidVerdict` принимает `'unknown'`
+- [x] `SYSTEM_PROMPT`: +инструкция «если заголовки пустые/неинформативные и не можешь понять, чем занят юзер — верни `unknown` (лучше, чем гадать `distracted`)»
+- [x] `distractionPullback.ts`: убедиться, что `unknown` идёт в no-publish ветку (только `distracted && conf>=cutoff` публикует), `recordEval(verdict='unknown')`; правка только если где-то есть явный switch/проверка по вердикту — логика не требовала правок (гейт уже `distracted && conf>=cutoff`); добавлен `'unknown'` в `DistractionVerdict` (eval-store) для типизации
+- [x] тесты judge: `unknown` проходит `isValidVerdict`; `judgeDistraction` возвращает `unknown` при таком tool-ответе; `buildJudgePrompt` содержит инструкцию про unknown
+- [x] тесты handler: `unknown` → skip + eval записан, НЕ publish; `distracted`+conf≥cutoff → по-прежнему publish (регресс)
+- [x] прогнать тесты — зелёные перед Task 3
 
 ### Task 3: Verify acceptance criteria
 

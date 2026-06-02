@@ -15,7 +15,7 @@ export interface CurrentDwell {
   dwellMin: number;
 }
 
-export type JudgeVerdict = 'distracted' | 'break' | 'working';
+export type JudgeVerdict = 'distracted' | 'break' | 'working' | 'unknown';
 
 export interface JudgeResult {
   verdict: JudgeVerdict;
@@ -29,12 +29,15 @@ export interface JudgeResult {
 
 const MAX_TOKENS = 512;
 
-const SYSTEM_PROMPT = `Ты — наблюдатель внимания R2. По таймлайну активных окон (приложения + заголовки + длительности, самые свежие сверху) и тому, на чём юзер залип прямо сейчас, реши одно из трёх:
+const SYSTEM_PROMPT = `Ты — наблюдатель внимания R2. По таймлайну активных окон (приложения + заголовки + длительности, самые свежие сверху) и тому, на чём юзер залип прямо сейчас, реши одно из четырёх:
 - "distracted" — он дрейфанул из рабочего ритма в отвлечение и завис там;
 - "break" — это законный, осмысленный перерыв;
-- "working" — это на самом деле работа.
+- "working" — это на самом деле работа;
+- "unknown" — заголовки пустые/неинформативные, и ты не можешь понять, чем занят юзер.
 
 Различай работу и досуг ВНУТРИ одного приложения по ЗАГОЛОВКАМ, а не по имени приложения: один и тот же Chrome может быть localhost/GitHub (работа) или лентой YouTube (отвлечение). Заголовки могут обманывать — YouTube-туториал по его рабочему стеку это работа, а не залипание. Если сомневаешься — НЕ помечай "distracted" (точность важнее, ложные срабатывания дорого стоят).
+
+Если заголовки пустые или неинформативные и ты не можешь понять, чем занят юзер — верни "unknown" (лучше промолчать, чем гадать "distracted").
 
 Отвечай ТОЛЬКО инструментом report_verdict. Текст reason и work_summary — на русском, коротко.`;
 
@@ -46,8 +49,9 @@ const VERDICT_TOOL: Tool = {
     properties: {
       verdict: {
         type: 'string',
-        enum: ['distracted', 'break', 'working'],
-        description: 'distracted — дрейф в отвлечение; break — законный перерыв; working — это работа.',
+        enum: ['distracted', 'break', 'working', 'unknown'],
+        description:
+          'distracted — дрейф в отвлечение; break — законный перерыв; working — это работа; unknown — заголовки пустые/неинформативные, понять нельзя.',
       },
       confidence: {
         type: 'integer',
@@ -100,7 +104,7 @@ export interface JudgeDeps {
 }
 
 function isValidVerdict(v: unknown): v is JudgeVerdict {
-  return v === 'distracted' || v === 'break' || v === 'working';
+  return v === 'distracted' || v === 'break' || v === 'working' || v === 'unknown';
 }
 
 /**
