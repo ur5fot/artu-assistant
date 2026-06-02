@@ -293,6 +293,14 @@ export interface WindowRestoreEvent {
 // lost. Mirrors the overflow guard in buildPermissionsListReply.
 const CUSTOM_ID_LIMIT = 100;
 
+// Length budgets for the distraction nudge body. Discord caps a message at 2000
+// chars; bot.ts also prefixes "💭 _from distractionPullback_\n" (~30 chars), so
+// keep a comfortable margin. The per-field caps keep the line readable while the
+// overall cap is a hard backstop.
+const NUDGE_TITLE_MAX = 150;
+const NUDGE_WORK_MAX = 400;
+const NUDGE_CONTENT_MAX = 1900;
+
 export function buildWindowRestoreEmbed(
   event: WindowRestoreEvent,
   durationMin: number,
@@ -351,9 +359,20 @@ export function buildDistractionNudge(event: DistractionNudgeEvent): {
   content: string;
   components: ComponentData[];
 } {
-  const titlePart = event.title ? `: ${event.title}` : '';
-  const workPart = event.workSummary ? ` До этого: ${event.workSummary}.` : '';
-  const content = `🧲 Ты ~${event.dwellMin} мин в ${event.app}${titlePart}.${workPart} Вернёшься?`;
+  // Clamp the free-text parts (window title can be arbitrarily long; work
+  // summary comes from the LLM judge) so the body never approaches Discord's
+  // 2000-char message cap. An over-limit send would throw, and because the
+  // nudge carries components it's sent directly (not via the splitter) — a
+  // throw there skips onPublished, so the eval is never recorded and the filter
+  // re-wakes the judge every tick. The final cap is a backstop for a long app.
+  const titlePart = event.title ? `: ${truncateWithEllipsis(event.title, NUDGE_TITLE_MAX)}` : '';
+  const workPart = event.workSummary
+    ? ` До этого: ${truncateWithEllipsis(event.workSummary, NUDGE_WORK_MAX)}.`
+    : '';
+  const content = truncateWithEllipsis(
+    `🧲 Ты ~${event.dwellMin} мин в ${event.app}${titlePart}.${workPart} Вернёшься?`,
+    NUDGE_CONTENT_MAX,
+  );
 
   const workId = `distract:work:${event.app}:${event.runStart}`;
   const snoozeId = `distract:snooze:${event.app}:${event.runStart}`;

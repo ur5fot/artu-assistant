@@ -1170,8 +1170,10 @@ export async function startDiscordBot(
             if (event.components) {
               // Plain-text nudge that still carries interactive buttons (e.g.
               // distractionPullback). sendReply can't attach components, so
-              // send directly. The nudge content is short — no 2000-char split
-              // needed here.
+              // send directly. buildDistractionNudge clamps the content well
+              // under Discord's 2000-char cap (and the prefix added here fits
+              // the margin), so no splitter is needed — and a clamp there is
+              // what keeps this send from throwing and skipping onPublished.
               await (dm as unknown as DMChannel).send({
                 content: body,
                 components: buildComponentsFromData(event.components as ComponentData[]),

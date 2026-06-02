@@ -912,6 +912,10 @@ if (discordToken) {
         reevalMin: envInt(process.env.DISTRACTION_REEVAL_MIN, 30, 5, 240),
         confidencePct: envInt(process.env.DISTRACTION_CONFIDENCE_PCT, 70, 0, 100),
         dailyCap: envInt(process.env.DISTRACTION_DAILY_LLM_CAP, 40, 1, 1000),
+        // Reject a stale "last good" window row (logger went blind/stopped) once
+        // it's older than 3 poll intervals — re-read the interval env the window
+        // poller block uses so the two stay in lockstep without shared scope.
+        freshnessMs: envInt(process.env.WINDOW_LOGGER_INTERVAL_MS, 30_000, 5_000, 300_000) * 3,
         snoozeMin: distractionSnoozeMin,
       }),
     );

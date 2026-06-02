@@ -36,6 +36,9 @@ export interface DistractionHandlerDeps {
   reevalMin: number;
   confidencePct: number;
   dailyCap: number;
+  /** Freshness bound (ms) for the detector's stale-session guard. Derived from
+   *  the window-logger poll interval in production; omit in tests. */
+  freshnessMs?: number;
   /** Snooze window (minutes) rendered into the nudge's "Отстань на Nм" button.
    *  Defaults to the spec default (60) when omitted. */
   snoozeMin?: number;
@@ -55,6 +58,7 @@ function detect(deps: DistractionHandlerDeps, now: number): DistractionCandidate
     dedupeH: deps.dedupeH,
     reevalMin: deps.reevalMin,
     dailyCap: deps.dailyCap,
+    freshnessMs: deps.freshnessMs,
   });
 }
 

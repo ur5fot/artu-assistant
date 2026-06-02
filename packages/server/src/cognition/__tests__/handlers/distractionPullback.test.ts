@@ -94,6 +94,30 @@ describe('createDistractionHandler.trigger', () => {
     );
     expect(fire).toBe(true);
   });
+
+  it('does not fire on a stale current session when freshnessMs is set', async () => {
+    const judge = vi.fn<DistractionJudge>();
+    const store = createWindowHistoryStore({ db: getDb() });
+    const evalStore = createDistractionEvalStore({ db: getDb() });
+    const handler = createDistractionHandler({
+      store,
+      evalStore,
+      anthropic: {} as never,
+      model: 'test-model',
+      judge,
+      freshnessMs: 90_000, // 90s
+      ...THRESHOLDS,
+    });
+    // Chrome last observed 10 min before `now` — logger went blind/stopped.
+    seedSession(store, 'iTerm', T0, T0 + 40 * MIN);
+    const chromeStart = T0 + 40 * MIN + 30_000;
+    seedSession(store, 'Chrome', chromeStart, chromeStart + 20 * MIN);
+    const now = chromeStart + 30 * MIN;
+
+    const fire = await handler.trigger({ now, lastFiredAt: null, lastResult: null }, { db: getDb() });
+    expect(fire).toBe(false);
+    expect(judge).not.toHaveBeenCalled();
+  });
 });
 
 describe('createDistractionHandler.run', () => {

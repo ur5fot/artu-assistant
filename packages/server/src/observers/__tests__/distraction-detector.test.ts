@@ -264,6 +264,40 @@ describe('shouldEvaluateDistraction', () => {
     expect(candidate!.title).toBe('Video 3 - YouTube');
   });
 
+  it('returns a candidate when the current session is fresh under freshnessMs', () => {
+    const { store, evalStore } = stores();
+    seedSession(store, 'iTerm', T0, T0 + 40 * MIN);
+    const chromeStart = T0 + 40 * MIN + 30_000;
+    const now = chromeStart + 30 * MIN;
+    // Continuous sampling: last_seen_at tracks `now` (one coalesced Chrome row).
+    seedSession(store, 'Chrome', chromeStart, now);
+
+    const candidate = shouldEvaluateDistraction({
+      now,
+      store,
+      evalStore,
+      ...THRESHOLDS,
+      freshnessMs: 90_000,
+    });
+    expect(candidate).not.toBeNull();
+    expect(candidate!.runStart).toBe(chromeStart);
+  });
+
+  it('returns null when the current session is stale (logger went blind/stopped)', () => {
+    const { store, evalStore } = stores();
+    seedSession(store, 'iTerm', T0, T0 + 40 * MIN);
+    const chromeStart = T0 + 40 * MIN + 30_000;
+    // Logger stopped 10 min ago: last_seen_at frozen, but `now` keeps advancing
+    // and would otherwise age this into a (false) 30-min dwell candidate.
+    const lastSeen = chromeStart + 20 * MIN;
+    seedSession(store, 'Chrome', chromeStart, lastSeen);
+    const now = chromeStart + 30 * MIN; // 10 min since the last observation
+
+    expect(
+      shouldEvaluateDistraction({ now, store, evalStore, ...THRESHOLDS, freshnessMs: 90_000 }),
+    ).toBeNull();
+  });
+
   it('returns null when the daily LLM cap is reached', () => {
     const { store, evalStore } = stores();
     const { now } = seedDriftIntoChrome(store);

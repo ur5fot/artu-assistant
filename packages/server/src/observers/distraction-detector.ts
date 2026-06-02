@@ -33,6 +33,16 @@ export interface ShouldEvaluateDistractionParams {
   reevalMin: number;
   /** Max evals per day before the filter goes silent (LLM cost ceiling). */
   dailyCap: number;
+  /**
+   * Freshness bound (ms): reject a current session whose last observation is
+   * older than this. The window logger only writes a row when osascript returns
+   * a snapshot, so on blind ticks (null/throw) or a stopped logger it writes
+   * nothing — `findCurrentSession()` then returns a frozen "last good" row whose
+   * dwell (`now - runStart`) keeps growing into a false candidate. Omit to skip
+   * the guard (e.g. detector unit tests that don't simulate live sampling); the
+   * production handler always supplies it from the poller interval.
+   */
+  freshnessMs?: number;
 }
 
 /**
@@ -46,12 +56,20 @@ export interface ShouldEvaluateDistractionParams {
 export function shouldEvaluateDistraction(
   params: ShouldEvaluateDistractionParams,
 ): DistractionCandidate | null {
-  const { now, store, evalStore, dwellMin, workLookbackMin, dedupeH, reevalMin, dailyCap } = params;
+  const { now, store, evalStore, dwellMin, workLookbackMin, dedupeH, reevalMin, dailyCap, freshnessMs } =
+    params;
 
   // §2.1 — current session exists and is not a lock/idle screen.
   const current = store.findCurrentSession();
   if (!current) return null;
   if (IDLE_APP_NAMES.includes(current.app_name)) return null;
+
+  // §2.1b — freshness guard: don't judge a stale "last good" row. When the
+  // logger goes blind (osascript lost Automation permission) or is stopped, no
+  // new row is written, so `now - runStart` would keep aging a long-dead session
+  // into a false distraction. A live dwell refreshes last_seen_at every tick, so
+  // this only rejects genuinely stale state.
+  if (freshnessMs != null && now - current.last_seen_at > freshnessMs) return null;
 
   // §2.2 — app-level dwell. Build the contiguous run of the current app at the
   // head of recent history (most-recent-first). Title changes inside the app

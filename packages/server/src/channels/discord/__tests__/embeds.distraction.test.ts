@@ -46,6 +46,26 @@ describe('buildDistractionNudge', () => {
     expect(buttons.map((b) => b.style)).toEqual(['success', 'secondary', 'danger']);
   });
 
+  // A long window title / LLM work summary must not push the body past
+  // Discord's 2000-char cap — the component-bearing send is direct (no
+  // splitter), and a throw there would skip onPublished and re-burn judge calls.
+  it('clamps a very long title and work summary so the body stays well under 2000', () => {
+    const { content } = buildDistractionNudge({
+      ...EVENT,
+      title: 'x'.repeat(5000),
+      workSummary: 'y'.repeat(5000),
+    });
+    expect(content.length).toBeLessThanOrEqual(1900);
+    // The call-to-action survives because the per-field caps leave room for it.
+    expect(content).toContain('Вернёшься?');
+  });
+
+  it('hard-caps the whole body when even the app name is pathologically long', () => {
+    const { content } = buildDistractionNudge({ ...EVENT, app: 'A'.repeat(5000) });
+    expect(content.length).toBeLessThanOrEqual(1900);
+    expect(content.endsWith('…')).toBe(true);
+  });
+
   // Discord throws if a custom_id exceeds 100 chars. The work/snooze ids embed
   // the app name verbatim, so a pathologically long app drops just those two
   // buttons — the "Возвращаюсь" ack (no app in its id) and the text survive.
