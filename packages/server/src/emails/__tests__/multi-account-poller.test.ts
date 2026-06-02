@@ -1056,6 +1056,39 @@ describe('runPollTick — onAccountBlind alert', () => {
     errSpy.mockRestore();
   });
 
+  it('a successful poll with NO new mail clears the streak and re-arms the alert', async () => {
+    // Regression: the no-new-mail path returns without calling updateLastSeenUid /
+    // setLastSeenAndValidity, so it must clear the error state itself — otherwise a
+    // recovered-but-quiet mailbox keeps a stale last_error + latched blind_alerted
+    // and never alerts on a later, distinct blind spell.
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    const onAccountBlind = vi.fn();
+    const scorer = vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 2 })));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const run = (fetcher: MessageFetcher, now: number) =>
+      runPollTick({
+        accounts: [accA], store, fetcher, scorer,
+        maxUidProbe: noProbe, validityProbe: noValidity,
+        blindAlertAfter: 2, onAccountBlind, now,
+      });
+    const fail: MessageFetcher = async () => { throw new Error('down'); };
+    const okQuiet: MessageFetcher = async () => []; // connected, but no new mail
+
+    await run(fail, 1); await run(fail, 2); // hits threshold → alert #1
+    expect(onAccountBlind).toHaveBeenCalledTimes(1);
+
+    await run(okQuiet, 3); // recovery tick with no new mail
+    expect(store.getAccountErrorState('a')).toEqual({
+      consecutive_errors: 0, blind_alerted: 0, last_error: null,
+    });
+    expect(store.getAccountError('a')).toBeNull(); // stale last_error cleared
+
+    await run(fail, 4); await run(fail, 5); // blind again → alert #2 (re-armed)
+    expect(onAccountBlind).toHaveBeenCalledTimes(2);
+    errSpy.mockRestore();
+  });
+
   it('is skipped when no onAccountBlind is wired (no throw)', async () => {
     const store = createEmailStore({ db: getDb() });
     store.updateLastSeenUid('a', 1, 100);

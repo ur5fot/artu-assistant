@@ -24,8 +24,17 @@ export interface EmailStore {
   ): { consecutive_errors: number; blind_alerted: number; last_error: string | null } | null;
   /** Latch the blind alert for this account so it does not re-fire every tick.
    *  Cleared back to 0 by the success paths (updateLastSeenUid /
-   *  setLastSeenAndValidity). */
+   *  setLastSeenAndValidity / clearAccountError). */
   markBlindAlerted(accountId: string): void;
+  /** Reset the error state (`last_error`, `consecutive_errors`, `blind_alerted`)
+   *  on a successful tick that does NOT move the watermark — i.e. a poll that
+   *  connected and fetched but found no new mail. `updateLastSeenUid` /
+   *  `setLastSeenAndValidity` already clear these, but the no-new-mail path
+   *  takes neither, so without this a recovered-but-quiet mailbox would keep a
+   *  stale `last_error` and a latched `blind_alerted` until the next new email
+   *  happened to arrive (defeating the "first success self-heals" guarantee).
+   *  Plain UPDATE: only reached when a state row already exists. */
+  clearAccountError(accountId: string, now: number): void;
 
   insertPending(row: Omit<EmailPendingRow, 'id' | 'delivered_at' | 'urgent_pinged_at'>): void;
   countPendingUndelivered(): number;
@@ -144,6 +153,21 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
       db.prepare(
         'UPDATE email_account_state SET blind_alerted = 1 WHERE account_id = ?',
       ).run(accountId);
+    },
+    clearAccountError(accountId, now) {
+      // Mirrors the reset clause shared by updateLastSeenUid /
+      // setLastSeenAndValidity, but leaves last_seen_uid + uid_validity
+      // untouched (this is a no-new-mail success, the watermark didn't move).
+      // Also advances last_poll_at so a healthy quiet mailbox reflects its most
+      // recent successful poll. Idempotent: a no-op when nothing was erroring.
+      db.prepare(`
+        UPDATE email_account_state SET
+          last_poll_at = ?,
+          last_error = NULL,
+          consecutive_errors = 0,
+          blind_alerted = 0
+        WHERE account_id = ?
+      `).run(now, accountId);
     },
     insertPending(row) {
       db.prepare(`

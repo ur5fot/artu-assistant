@@ -175,6 +175,37 @@ describe('createEmailStore', () => {
     });
   });
 
+  it('clearAccountError resets the error state without moving the watermark', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setLastSeenAndValidity('a', 42, 111, 1000); // ongoing account, healthy
+    store.setAccountError('a', 'boom', 2000);
+    store.setAccountError('a', 'boom', 3000);
+    store.markBlindAlerted('a');
+    expect(store.getAccountErrorState('a')).toEqual({
+      consecutive_errors: 2, blind_alerted: 1, last_error: 'boom',
+    });
+
+    store.clearAccountError('a', 4000); // successful poll, no new mail
+
+    expect(store.getAccountErrorState('a')).toEqual({
+      consecutive_errors: 0, blind_alerted: 0, last_error: null,
+    });
+    // Watermark + validity untouched — this success didn't advance them.
+    expect(store.getLastSeenUid('a')).toBe(42);
+    expect(store.getUidValidity('a')).toBe(111);
+  });
+
+  it('clearAccountError is a harmless no-op on a healthy or missing row', () => {
+    const store = createEmailStore({ db: getDb() });
+    expect(() => store.clearAccountError('missing', 1000)).not.toThrow();
+    expect(store.getAccountErrorState('missing')).toBeNull();
+    store.updateLastSeenUid('a', 5, 1000);
+    store.clearAccountError('a', 2000);
+    expect(store.getAccountErrorState('a')).toEqual({
+      consecutive_errors: 0, blind_alerted: 0, last_error: null,
+    });
+  });
+
   it('markBlindAlerted latches the blind_alerted flag', () => {
     const store = createEmailStore({ db: getDb() });
     store.setAccountError('a', 'boom', 1000);

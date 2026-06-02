@@ -293,8 +293,14 @@ export async function runPollTick(params: TickParams): Promise<void> {
 
         const msgs = await params.fetcher(acc, sinceUid, fetchLimit);
         if (msgs.length === 0) {
-          // No new mail, but unresolved feedback rows may still need a flag
-          // re-poll (the user could have opened/replied since the ping).
+          // A connection that fetched (even with no new mail) is a successful
+          // poll, so clear any error streak/blind latch here — the watermark
+          // update paths (updateLastSeenUid / setLastSeenAndValidity) that
+          // normally reset it are skipped on this no-new-mail branch, and a
+          // recovered mailbox is most often quiet on its recovery tick.
+          params.store.clearAccountError(acc.id, params.now);
+          // Unresolved feedback rows may still need a flag re-poll (the user
+          // could have opened/replied since the ping).
           await resolveAccountFeedback(acc, params.feedback, params.now);
           return;
         }
