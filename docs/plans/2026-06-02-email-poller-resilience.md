@@ -94,8 +94,8 @@
 
 ### Task 7: Документация
 
-- [ ] обновить секцию email-watcher в `README.md` (устойчивость к обрывам, `EMAIL_ACCOUNT_BLIND_ALERT_AFTER`)
-- [ ] `AGENTS.md`, если появились новые паттерны
+- [x] обновить секцию email-watcher в `README.md` (устойчивость к обрывам, `EMAIL_ACCOUNT_BLIND_ALERT_AFTER`)
+- [x] `AGENTS.md`, если появились новые паттерны (новый bullet в email-секции + env-var в `.env`-блоке)
 
 ## Technical Details
 
