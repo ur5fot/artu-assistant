@@ -37,12 +37,12 @@
 ## Implementation Steps
 
 ### Task 1: helper `hasWindowActivitySince` + индекс
-- [ ] в `morningBrief.helpers.ts` добавить экспортируемую const `IDLE_APP_NAMES = ['loginwindow', 'ScreenSaverEngine']` с комментарием (lock-screen / screensaver frontmost apps — не реальное взаимодействие)
-- [ ] в `morningBrief.helpers.ts` добавить `export function hasWindowActivitySince(db, since, now): boolean` — `SELECT 1 FROM window_history WHERE started_at >= ? AND started_at <= ? AND app_name NOT IN (<IDLE_APP_NAMES placeholders>) LIMIT 1`; комментарий почему `started_at` (а не `last_seen_at`) и почему верхняя граница `<= now`
-- [ ] в `db.ts` рядом с прочими индексами `window_history` добавить `CREATE INDEX IF NOT EXISTS idx_window_history_started ON window_history(started_at)`
-- [ ] тесты helper (success): новая сессия `started_at >= since`, реальный app → `true`
-- [ ] тесты helper (edge): сессия `started_at < since` но `last_seen_at >= since` → `false` (ключевой кейс «оставлено с ночи»); `started_at >= since` но `app_name='loginwindow'`/`'ScreenSaverEngine'` → `false`; `started_at > now` → `false`; пустая таблица → `false`
-- [ ] `npm test -w @r2/server` — зелёный перед Task 2
+- [x] в `morningBrief.helpers.ts` добавить экспортируемую const `IDLE_APP_NAMES = ['loginwindow', 'ScreenSaverEngine']` с комментарием (lock-screen / screensaver frontmost apps — не реальное взаимодействие)
+- [x] в `morningBrief.helpers.ts` добавить `export function hasWindowActivitySince(db, since, now): boolean` — `SELECT 1 FROM window_history WHERE started_at >= ? AND started_at <= ? AND app_name NOT IN (<IDLE_APP_NAMES placeholders>) LIMIT 1`; комментарий почему `started_at` (а не `last_seen_at`) и почему верхняя граница `<= now`
+- [x] в `db.ts` рядом с прочими индексами `window_history` добавить `CREATE INDEX IF NOT EXISTS idx_window_history_started ON window_history(started_at)`
+- [x] тесты helper (success): новая сессия `started_at >= since`, реальный app → `true`
+- [x] тесты helper (edge): сессия `started_at < since` но `last_seen_at >= since` → `false` (ключевой кейс «оставлено с ночи»); `started_at >= since` но `app_name='loginwindow'`/`'ScreenSaverEngine'` → `false`; `started_at > now` → `false`; пустая таблица → `false`
+- [x] `npm test -w @r2/server` — зелёный перед Task 2
 
 ### Task 2: OR-комбинация в обеих ветках триггера
 - [ ] в `morningBrief.ts` импортировать `hasWindowActivitySince`
