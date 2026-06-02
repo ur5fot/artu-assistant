@@ -81,6 +81,37 @@ describe('runPollTick', () => {
     expect(store.countPendingUndelivered()).toBe(1);
   });
 
+  it('logs per-account failure to stderr alongside setAccountError', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    store.updateLastSeenUid('b', 1, 100);
+    const fetcher = vi.fn(async (acc: ImapAccount) => {
+      if (acc.id === 'a') throw new Error('socket-boom');
+      return [msg(7)];
+    });
+    const scorer = vi.fn(async (ms: NewMessage[]) =>
+      ms.map((m) => ({ uid: m.uid, importance: 5 })),
+    );
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await runPollTick({
+      accounts: [accA, accB],
+      store,
+      fetcher,
+      scorer,
+      maxUidProbe: noProbe,
+      validityProbe: noValidity,
+      now: 6000,
+    });
+
+    // Failure is visible in stdout (not just swallowed into the DB), and the
+    // healthy account keeps polling (Promise.all per-account isolation).
+    expect(err).toHaveBeenCalledWith('[emails] poll failed for a:', 'socket-boom');
+    expect(store.getAccountError('a')?.message).toContain('socket-boom');
+    expect(store.getLastSeenUid('b')).toBe(7);
+    err.mockRestore();
+  });
+
   it('does NOT update last_seen_uid when scorer throws', async () => {
     const store = createEmailStore({ db: getDb() });
     store.updateLastSeenUid('a', 10, 1000);

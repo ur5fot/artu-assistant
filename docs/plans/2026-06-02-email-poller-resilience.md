@@ -58,9 +58,9 @@
 
 ### Task 2: Видимый stdout-лог per-account падения
 
-- [ ] в `multi-account-poller.ts` catch (323-326): добавить `console.error(\`[emails] poll failed for ${acc.id}:\`, msg)` рядом с `setAccountError`
-- [ ] тест: per-account throw → `setAccountError` вызван **и** `console.error` (spy) с id аккаунта; второй аккаунт продолжает (Promise.all-изоляция)
-- [ ] прогнать тесты — зелёные перед Task 3
+- [x] в `multi-account-poller.ts` catch (323-326): добавить `console.error(\`[emails] poll failed for ${acc.id}:\`, msg)` рядом с `setAccountError`
+- [x] тест: per-account throw → `setAccountError` вызван **и** `console.error` (spy) с id аккаунта; второй аккаунт продолжает (Promise.all-изоляция)
+- [x] прогнать тесты — зелёные перед Task 3
 
 ### Task 3: Счётчик `consecutive_errors` в store + миграция
 

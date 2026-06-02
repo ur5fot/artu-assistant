@@ -322,6 +322,7 @@ export async function runPollTick(params: TickParams): Promise<void> {
         await resolveAccountFeedback(acc, params.feedback, params.now);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[emails] poll failed for ${acc.id}:`, msg);
         params.store.setAccountError(acc.id, msg, params.now);
       }
     }),
