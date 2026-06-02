@@ -97,12 +97,12 @@
 
 ### Task 5: Пинг — embed/components + обработчики кнопок
 
-- [ ] в `channels/discord/embeds.ts` рядом с `buildWindowRestoreEmbed` добавить `buildDistractionNudge(event)` → `{ content, components }` с 3 кнопками: `distract:back:{runStart}`, `distract:work:{app}:{runStart}`, `distract:snooze:{runStart}` (лейблы по спеке §5)
-- [ ] в `channels/discord/bot.ts` (`interactionCreate`, рядом с `window:show`) добавить обработку `distract:*` customId → запись в `distractionEvalStore` (`back`=ack; `work`=`recordFeedback(...,'work')`; `snooze`=`recordFeedback(...,'snooze', now+SNOOZE_MIN)`); эфемерный ответ
-- [ ] прокинуть `distractionEvalStore` и `snoozeMin` в бота (как `windowStore` прокинут сейчас)
-- [ ] написать тесты `buildDistractionNudge` (кнопки/customId/лейблы)
-- [ ] написать тесты обработчиков кнопок: `work` пишет feedback и глушит переоценку; `snooze` ставит `snooze_until`; `back` — ack
-- [ ] прогнать тесты — зелёные перед Task 6
+- [x] в `channels/discord/embeds.ts` рядом с `buildWindowRestoreEmbed` добавить `buildDistractionNudge(event)` → `{ content, components }` с 3 кнопками: `distract:back:{runStart}`, `distract:work:{app}:{runStart}`, `distract:snooze:{app}:{runStart}` (лейблы по спеке §5). **Скоуп-правка:** snooze-кнопка теперь несёт `{app}` (как work), т.к. `recordFeedback(app, dwellStart, …)` адресует строку по ключу dwell `(app, runStart)`; без app снуз не смог бы записать `snooze_until`. customId-overflow (>100) роняет work+snooze, ack «Возвращаюсь» и текст остаются.
+- [x] в `channels/discord/bot.ts` (`interactionCreate`, рядом с `window:show`) добавить обработку `distract:*` customId → запись в `distractionEvalStore` (`back`=ack; `work`=`recordFeedback(...,'work')`; `snooze`=`recordFeedback(...,'snooze', now+SNOOZE_MIN)`); эфемерный ответ (обработчик в `interactions.ts:handleDistractFeedback`, вызывается из `routeButton`)
+- [x] прокинуть `distractionEvalStore` и `snoozeMin` в бота (как `windowStore` прокинут сейчас) — `DiscordBotDeps.distractionEvalStore` + `distractionSnoozeMin` → `routeInteraction` deps
+- [x] написать тесты `buildDistractionNudge` (кнопки/customId/лейблы) — `embeds.distraction.test.ts`
+- [x] написать тесты обработчиков кнопок: `work` пишет feedback и глушит переоценку; `snooze` ставит `snooze_until`; `back` — ack — `interactions.distraction.test.ts`
+- [x] прогнать тесты — зелёные перед Task 6
 
 ### Task 6: Конфиг + регистрация + гашение старого contextSwitch
 

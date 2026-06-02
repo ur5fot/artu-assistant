@@ -326,6 +326,49 @@ export function buildWindowRestoreEmbed(
   };
 }
 
+// Plain-data shape consumed by the distraction handler / bot.ts. The handler
+// composes this from the judge's verdict (app, current title, dwell length,
+// work summary) plus the dwell key (runStart) and the configured snooze window.
+export interface DistractionNudgeEvent {
+  app: string;
+  title: string;
+  dwellMin: number;
+  workSummary: string;
+  /** = runStart — the dwell key the button handlers write feedback against. */
+  runStart: number;
+  /** Snooze window in minutes — rendered into the "Отстань на Nм" label. */
+  snoozeMin: number;
+}
+
+// Builds the proactive pullback ping: a short "you've been stuck N min" line +
+// three buttons (back / it's-work / snooze). Mirrors buildWindowRestoreEmbed's
+// custom_id overflow guard — the `work`/`snooze` ids embed the app name
+// verbatim (the feedback lookup matches it exactly via recordFeedback), so for
+// a pathologically long app name those buttons are dropped rather than letting
+// setCustomId throw and fail the whole publish; the "Возвращаюсь" ack (no app
+// in its id) and the text always survive.
+export function buildDistractionNudge(event: DistractionNudgeEvent): {
+  content: string;
+  components: ComponentData[];
+} {
+  const titlePart = event.title ? `: ${event.title}` : '';
+  const workPart = event.workSummary ? ` До этого: ${event.workSummary}.` : '';
+  const content = `🧲 Ты ~${event.dwellMin} мин в ${event.app}${titlePart}.${workPart} Вернёшься?`;
+
+  const workId = `distract:work:${event.app}:${event.runStart}`;
+  const snoozeId = `distract:snooze:${event.app}:${event.runStart}`;
+  const buttons: ComponentData['buttons'] = [
+    { customId: `distract:back:${event.runStart}`, label: 'Возвращаюсь', style: 'success' },
+  ];
+  if (workId.length <= CUSTOM_ID_LIMIT) {
+    buttons.push({ customId: workId, label: 'Это по работе', style: 'secondary' });
+  }
+  if (snoozeId.length <= CUSTOM_ID_LIMIT) {
+    buttons.push({ customId: snoozeId, label: `Отстань на ${event.snoozeMin}м`, style: 'danger' });
+  }
+  return { content, components: [{ type: 'row', buttons }] };
+}
+
 export interface PermissionsListReply {
   content: string;
   embeds: EmbedBuilder[];

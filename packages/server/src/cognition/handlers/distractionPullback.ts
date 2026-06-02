@@ -1,9 +1,10 @@
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Handler, HandlerResult, ComponentData } from '../types.js';
+import type { Handler, HandlerResult } from '../types.js';
 import type { WindowHistoryStore } from '../../observers/window-history-store.js';
 import type { DistractionEvalStore } from '../../observers/distraction-eval-store.js';
 import { shouldEvaluateDistraction } from '../../observers/distraction-detector.js';
 import type { DistractionCandidate } from '../../observers/distraction-detector.js';
+import { buildDistractionNudge } from '../../channels/discord/embeds.js';
 import {
   judgeDistraction,
   type TimelineEntry,
@@ -35,9 +36,14 @@ export interface DistractionHandlerDeps {
   reevalMin: number;
   confidencePct: number;
   dailyCap: number;
+  /** Snooze window (minutes) rendered into the nudge's "Отстань на Nм" button.
+   *  Defaults to the spec default (60) when omitted. */
+  snoozeMin?: number;
   /** Injectable judge for tests; defaults to the real LLM call. */
   judge?: DistractionJudge;
 }
+
+const DEFAULT_SNOOZE_MIN = 60;
 
 function detect(deps: DistractionHandlerDeps, now: number): DistractionCandidate | null {
   return shouldEvaluateDistraction({
@@ -62,32 +68,6 @@ function buildTimeline(deps: DistractionHandlerDeps, firedAt: number): TimelineE
     title: r.window_title,
     durationMin: Math.max(1, Math.round((r.last_seen_at - r.started_at) / MINUTE_MS)),
   }));
-}
-
-// Provisional nudge text/buttons — Task 5 moves these into a dedicated
-// `buildDistractionNudge` builder (with embeds + snooze-minute label).
-function buildContent(
-  dwellMin: number,
-  app: string,
-  title: string,
-  workSummary: string,
-): string {
-  const titlePart = title ? `: ${title}` : '';
-  const workPart = workSummary ? ` До этого: ${workSummary}.` : '';
-  return `🧲 Ты ~${dwellMin} мин в ${app}${titlePart}.${workPart} Вернёшься?`;
-}
-
-function buildComponents(app: string, runStart: number): ComponentData[] {
-  return [
-    {
-      type: 'row',
-      buttons: [
-        { customId: `distract:back:${runStart}`, label: 'Возвращаюсь', style: 'success' },
-        { customId: `distract:work:${app}:${runStart}`, label: 'Это по работе', style: 'secondary' },
-        { customId: `distract:snooze:${runStart}`, label: 'Отстань', style: 'danger' },
-      ],
-    },
-  ];
 }
 
 export function createDistractionHandler(deps: DistractionHandlerDeps): Handler {
@@ -152,10 +132,19 @@ export function createDistractionHandler(deps: DistractionHandlerDeps): Handler 
         };
       }
 
+      const nudge = buildDistractionNudge({
+        app: candidate.app,
+        title: candidate.title,
+        dwellMin: current.dwellMin,
+        workSummary: verdict.work_summary,
+        runStart: candidate.runStart,
+        snoozeMin: deps.snoozeMin ?? DEFAULT_SNOOZE_MIN,
+      });
+
       return {
         publish: true,
-        content: buildContent(current.dwellMin, candidate.app, candidate.title, verdict.work_summary),
-        components: buildComponents(candidate.app, candidate.runStart),
+        content: nudge.content,
+        components: nudge.components,
         onPublished: () => {
           deps.evalStore.recordEval({
             ...base,

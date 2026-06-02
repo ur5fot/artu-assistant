@@ -119,7 +119,7 @@ describe('createDistractionHandler.run', () => {
     expect(buttons.map((b) => b.customId)).toEqual([
       `distract:back:${chromeStart}`,
       `distract:work:Chrome:${chromeStart}`,
-      `distract:snooze:${chromeStart}`,
+      `distract:snooze:Chrome:${chromeStart}`,
     ]);
 
     // The judge ran with the timeline + current dwell.

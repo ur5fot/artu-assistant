@@ -33,6 +33,7 @@ import type { ImapAccount, FullMessage } from '../../emails/types.js';
 import type { MessageHeaders } from '../../emails/imap-client.js';
 import type { PiiProxy } from '../../pii/proxy.js';
 import type { WindowHistoryStore } from '../../observers/window-history-store.js';
+import type { DistractionEvalStore } from '../../observers/distraction-eval-store.js';
 import { parseFromAddress } from '../../emails/address.js';
 import {
   buildReminderEmbed,
@@ -129,6 +130,11 @@ export interface InteractionDeps {
   /** Window history — read by the `window:show` button to reveal session titles
    *  as an ephemeral message (privacy-by-default; titles never go in the embed). */
   windowHistoryStore?: WindowHistoryStore;
+  /** Distraction evals — written by the `distract:*` pullback buttons
+   *  (work → quiets re-eval; snooze → sets a global snooze_until). */
+  distractionEvalStore?: DistractionEvalStore;
+  /** Snooze window (minutes) applied by the `distract:snooze` button. */
+  distractionSnoozeMin?: number;
 }
 
 // Parses the description rendered by buildPermissionEmbed —
@@ -376,6 +382,11 @@ async function routeButton(
     return;
   }
 
+  if (domain === 'distract') {
+    await handleDistractFeedback(ixn, deps, action, rawId ?? '');
+    return;
+  }
+
   if (domain === 'perm_rule' && action === 'revoke') {
     const toolName = rawId ?? '';
     deps.commandService.revokePermissionRule(toolName);
@@ -454,6 +465,65 @@ async function handleWindowShowTitles(
 
 function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
+// Default snooze window when distractionSnoozeMin is not wired (mirrors the
+// spec default and DISTRACTION_SNOOZE_MIN's fallback).
+const DEFAULT_DISTRACTION_SNOOZE_MIN = 60;
+const MINUTE_MS = 60_000;
+
+// Parses `{app}:{runStart}` where the app may itself contain colons — the
+// trailing epoch-ms runStart is sliced off the end and everything before it is
+// the app name (same shape as handleWindowShowTitles).
+function parseAppDwell(rawId: string): { app: string; runStart: number } | null {
+  const lastColon = rawId.lastIndexOf(':');
+  if (lastColon < 0) return null;
+  const runStart = Number(rawId.slice(lastColon + 1));
+  const app = rawId.slice(0, lastColon);
+  if (!app || !Number.isInteger(runStart)) return null;
+  return { app, runStart };
+}
+
+// Handles the three pullback-nudge buttons. `back` is a pure ack (no DB write);
+// `work` marks the dwell as work so the filter stops re-evaluating it; `snooze`
+// writes a global snooze_until that mutes all pings for DISTRACTION_SNOOZE_MIN.
+// The reply is ephemeral (mirrors window:show) so the original nudge stays
+// visible in the DM. Writes are no-ops if the eval row is missing (e.g. the
+// store was not wired) — the user still gets an acknowledgement.
+async function handleDistractFeedback(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  action: string,
+  rawId: string,
+): Promise<void> {
+  if (action === 'back') {
+    await (ixn as any).reply({ flags: MessageFlags.Ephemeral, content: '👍 Возвращаюсь' });
+    return;
+  }
+
+  const parsed = parseAppDwell(rawId);
+  if (!parsed) return;
+  const { app, runStart } = parsed;
+
+  if (action === 'work') {
+    deps.distractionEvalStore?.recordFeedback(app, runStart, 'work');
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '✓ Ок, помечу как работу — больше не дёргаю по этому окну.',
+    });
+    return;
+  }
+
+  if (action === 'snooze') {
+    const snoozeMin = deps.distractionSnoozeMin ?? DEFAULT_DISTRACTION_SNOOZE_MIN;
+    const snoozeUntil = Date.now() + snoozeMin * MINUTE_MS;
+    deps.distractionEvalStore?.recordFeedback(app, runStart, 'snooze', snoozeUntil);
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: `😴 Молчу ${snoozeMin}м.`,
+    });
+    return;
+  }
 }
 
 const DRAFT_MAX_TOKENS = 1024;
