@@ -480,7 +480,10 @@ function parseAppDwell(rawId: string): { app: string; runStart: number } | null 
   if (lastColon < 0) return null;
   const runStart = Number(rawId.slice(lastColon + 1));
   const app = rawId.slice(0, lastColon);
-  if (!app || !Number.isInteger(runStart)) return null;
+  // runStart is an epoch-ms timestamp; reject 0 (which Number('') yields for a
+  // trailing-empty id) and negatives so a malformed customId can't slip
+  // through the integer check.
+  if (!app || !Number.isInteger(runStart) || runStart <= 0) return null;
   return { app, runStart };
 }
 

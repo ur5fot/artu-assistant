@@ -494,15 +494,22 @@ exactly one alert per blind streak.
 5. `WINDOW_LOGGER_BLIND_ALERT_AFTER` (10 — consecutive blind ticks before the
    self-diagnostics warning + Discord ping; range 1–2880).
 
-**Known limitations (iter 1):**
+**Known limitations** (apply to both `contextSwitch` and the iter-2
+`distractionPullback` handler):
 
 - **Screen-lock false positive** — macOS reports the last-focused app as
   active even while the screen is locked, so a sleeping laptop with Chrome in
-  front looks like "deep work on Chrome". A screen-lock detector is deferred to
-  iter 1.5.
+  front looks like "deep work on Chrome". A screen-lock detector is not yet
+  implemented.
 - **Read-in-browser false positive** — reading docs in a browser for a few
   minutes can read as a switch away from coding; threshold tuning covers this
   in practice.
+- **Daily judge-call cap** — once `DISTRACTION_DAILY_LLM_CAP` is reached the
+  filter goes quiet for the rest of the day (cost guard, silent — no ping, no
+  error).
+- **Long app names drop buttons** — an app name long enough to push a button
+  customId past Discord's 100-char limit drops the "work"/"snooze" buttons,
+  leaving only the ack.
 - macOS only — Linux / Docker silently see nothing.
 
 ---

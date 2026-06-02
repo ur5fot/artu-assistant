@@ -1167,6 +1167,18 @@ export async function startDiscordBot(
               });
               return;
             }
+            if (event.components) {
+              // Plain-text nudge that still carries interactive buttons (e.g.
+              // distractionPullback). sendReply can't attach components, so
+              // send directly. The nudge content is short — no 2000-char split
+              // needed here.
+              await (dm as unknown as DMChannel).send({
+                content: body,
+                components: buildComponentsFromData(event.components as ComponentData[]),
+                allowedMentions: { parse: [] },
+              });
+              return;
+            }
             await sendReply(dm as unknown as DMChannel, body);
           })
           .then(() => {

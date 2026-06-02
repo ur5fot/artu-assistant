@@ -1385,6 +1385,67 @@ describe('cognition_publish handling', () => {
     expect(markPublished).toHaveBeenCalledWith(99, expect.any(Number));
     await stop();
   });
+
+  it('cognition_publish with components but no embed → buttons still attached (distraction nudge)', async () => {
+    const client = makeFakeClient();
+    const bus = new EventEmitter();
+    const dmSend = vi.fn().mockResolvedValue(undefined);
+    const fetchUser = vi.fn().mockResolvedValue({ createDM: vi.fn().mockResolvedValue({ send: dmSend }) });
+    (client as any).users = { fetch: fetchUser };
+    const markPublished = vi.fn();
+
+    const { stop } = await startDiscordBot({
+      token: 'test', whitelist: new Set(['123']),
+      runChatRequest: vi.fn(),
+      db: makeFakeDb() as any, historyLimit: 10, saveMessage: vi.fn(),
+      memoryService: null, _client: client,
+      reminderBus: bus,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      permissionService: { hasPending: vi.fn(), resolveConfirm: vi.fn() } as any,
+      planReviewService: { hasPending: vi.fn(), resolveReview: vi.fn() } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]), revokePermissionRule: vi.fn(),
+      } as any,
+      cognitionService: {
+        register: vi.fn(), start: vi.fn(), stop: vi.fn(),
+        pause: vi.fn(), resume: vi.fn(),
+        status: vi.fn(), markPublished,
+      } as any,
+    });
+
+    bus.emit('push', {
+      type: 'cognition_publish',
+      runId: 77,
+      handler: 'distractionPullback',
+      content: '🧲 Ты ~25 мин в YouTube. Вернёшься?',
+      components: [
+        {
+          type: 'row',
+          buttons: [
+            { customId: 'distract:back:1700000000', label: 'Возвращаюсь', style: 'success' },
+            { customId: 'distract:work:YouTube:1700000000', label: 'Это по работе', style: 'secondary' },
+            { customId: 'distract:snooze:YouTube:1700000000', label: 'Отстань на 60м', style: 'danger' },
+          ],
+        },
+      ],
+    });
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+
+    expect(dmSend).toHaveBeenCalledTimes(1);
+    const arg = dmSend.mock.calls[0]![0];
+    expect(typeof arg).toBe('object');
+    expect(arg.content).toContain('Вернёшься?');
+    expect(arg.components).toBeDefined();
+    expect(arg.components).toHaveLength(1);
+    const buttons = arg.components[0].toJSON().components;
+    expect(buttons).toHaveLength(3);
+    expect(buttons[0].custom_id).toBe('distract:back:1700000000');
+    expect(buttons[2].custom_id).toBe('distract:snooze:YouTube:1700000000');
+    expect(markPublished).toHaveBeenCalledWith(77, expect.any(Number));
+    await stop();
+  });
 });
 
 describe('multi-turn coalescing', () => {
