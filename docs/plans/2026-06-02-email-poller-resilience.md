@@ -87,10 +87,10 @@
 
 ### Task 6: Verify acceptance criteria
 
-- [ ] проверить: `'error'` больше не роняет воркер; per-account падение в логах; счётчик + единичный алерт; imap2-сценарий самовосстановления (success чистит last_error+счётчик)
-- [ ] прогнать полный unit-набор (`packages/server`)
-- [ ] линтер — все вопросы исправить
-- [ ] покрытие новых/изменённых модулей по стандарту проекта
+- [x] проверить: `'error'` больше не роняет воркер; per-account падение в логах; счётчик + единичный алерт; imap2-сценарий самовосстановления (success чистит last_error+счётчик) — покрыто тестами imap-client/poller/store, все зелёные
+- [x] прогнать полный unit-набор (`packages/server`) — 1447 passed (105 files)
+- [x] линтер — `tsc --noEmit -p packages/server` чистый (exit 0); eslint в проекте не настроен
+- [x] покрытие новых/изменённых модулей по стандарту проекта — imap-client.test.ts, multi-account-poller.test.ts, store.test.ts покрывают success+error пути
 
 ### Task 7: Документация
 
