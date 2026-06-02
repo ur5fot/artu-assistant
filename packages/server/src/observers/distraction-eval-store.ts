@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 
-export type DistractionVerdict = 'distracted' | 'break' | 'working' | 'error';
+export type DistractionVerdict = 'distracted' | 'break' | 'working' | 'unknown' | 'error';
 export type DistractionFeedback = 'back' | 'work' | 'snooze';
 
 export interface DistractionEvalRow {

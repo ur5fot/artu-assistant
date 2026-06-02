@@ -49,34 +49,34 @@
 
 ### Task 1: Browser-aware захват заголовка вкладки (`window-snapshot.ts`)
 
-- [ ] добавить `BROWSER_TITLE_SCRIPTS: Record<string,string>` — имя приложения → AppleScript активной вкладки: `Google Chrome` (`tell application "Google Chrome" to get title of active tab of front window`), `Safari` (`tell application "Safari" to get name of current tab of front window`)
-- [ ] в `getActive()`: Call 1 — System Events (frontApp + generic title, как сейчас); если `frontApp` ∈ map → Call 2 (отдельный `execFile` с браузерным скриптом); итоговый `window_title` = непустой Call 2, иначе generic из Call 1 (фолбэк); для не-браузеров Call 2 не делать
-- [ ] обработка Call 2 error (нет Automation-привилегии / нет окна): не падать, фолбэк на generic; **один раз** залогировать подсказку (латч), формат как у window-logger blind (`System Settings → Privacy & Security → Automation`)
-- [ ] не менять `WindowSnapshot`/`parseSnapshot`; сохранить timeout/`err→null` семантику
-- [ ] тесты (мок execFile): не-браузер → один System Events путь; браузер с непустым tab-title → берём его; браузер, Call 2 пусто → фолбэк на generic; Call 2 error → фолбэк + подсказка залогирована ровно один раз
-- [ ] прогнать тесты — зелёные перед Task 2
+- [x] добавить `BROWSER_TITLE_SCRIPTS: Record<string,string>` — имя приложения → AppleScript активной вкладки: `Google Chrome` (`tell application "Google Chrome" to get title of active tab of front window`), `Safari` (`tell application "Safari" to get name of current tab of front window`)
+- [x] в `getActive()`: Call 1 — System Events (frontApp + generic title, как сейчас); если `frontApp` ∈ map → Call 2 (отдельный `execFile` с браузерным скриптом); итоговый `window_title` = непустой Call 2, иначе generic из Call 1 (фолбэк); для не-браузеров Call 2 не делать
+- [x] обработка Call 2 error (нет Automation-привилегии / нет окна): не падать, фолбэк на generic; **один раз** залогировать подсказку (латч), формат как у window-logger blind (`System Settings → Privacy & Security → Automation`)
+- [x] не менять `WindowSnapshot`/`parseSnapshot`; сохранить timeout/`err→null` семантику
+- [x] тесты (мок execFile): не-браузер → один System Events путь; браузер с непустым tab-title → берём его; браузер, Call 2 пусто → фолбэк на generic; Call 2 error → фолбэк + подсказка залогирована ровно один раз
+- [x] прогнать тесты — зелёные перед Task 2
 
 ### Task 2: Вердикт `unknown` у судьи + no-nudge в хэндлере
 
-- [ ] `distractionPullback.judge.ts`: `JudgeVerdict` += `'unknown'`; `VERDICT_TOOL` enum += `'unknown'` (+ описание); `isValidVerdict` принимает `'unknown'`
-- [ ] `SYSTEM_PROMPT`: +инструкция «если заголовки пустые/неинформативные и не можешь понять, чем занят юзер — верни `unknown` (лучше, чем гадать `distracted`)»
-- [ ] `distractionPullback.ts`: убедиться, что `unknown` идёт в no-publish ветку (только `distracted && conf>=cutoff` публикует), `recordEval(verdict='unknown')`; правка только если где-то есть явный switch/проверка по вердикту
-- [ ] тесты judge: `unknown` проходит `isValidVerdict`; `judgeDistraction` возвращает `unknown` при таком tool-ответе; `buildJudgePrompt` содержит инструкцию про unknown
-- [ ] тесты handler: `unknown` → skip + eval записан, НЕ publish; `distracted`+conf≥cutoff → по-прежнему publish (регресс)
-- [ ] прогнать тесты — зелёные перед Task 3
+- [x] `distractionPullback.judge.ts`: `JudgeVerdict` += `'unknown'`; `VERDICT_TOOL` enum += `'unknown'` (+ описание); `isValidVerdict` принимает `'unknown'`
+- [x] `SYSTEM_PROMPT`: +инструкция «если заголовки пустые/неинформативные и не можешь понять, чем занят юзер — верни `unknown` (лучше, чем гадать `distracted`)»
+- [x] `distractionPullback.ts`: убедиться, что `unknown` идёт в no-publish ветку (только `distracted && conf>=cutoff` публикует), `recordEval(verdict='unknown')`; правка только если где-то есть явный switch/проверка по вердикту — логика не требовала правок (гейт уже `distracted && conf>=cutoff`); добавлен `'unknown'` в `DistractionVerdict` (eval-store) для типизации
+- [x] тесты judge: `unknown` проходит `isValidVerdict`; `judgeDistraction` возвращает `unknown` при таком tool-ответе; `buildJudgePrompt` содержит инструкцию про unknown
+- [x] тесты handler: `unknown` → skip + eval записан, НЕ publish; `distracted`+conf≥cutoff → по-прежнему publish (регресс)
+- [x] прогнать тесты — зелёные перед Task 3
 
 ### Task 3: Verify acceptance criteria
 
-- [ ] проверить: браузерный заголовок берётся (Chrome/Safari), фолбэк работает, permission-fail не роняет; `unknown` → нет пинга
-- [ ] прогнать полный unit-набор (`packages/server`)
-- [ ] typecheck (`tsc --noEmit`) — чисто
-- [ ] линтер — все вопросы исправить
-- [ ] покрытие новых/изменённых модулей по стандарту проекта
+- [x] проверить: браузерный заголовок берётся (Chrome/Safari), фолбэк работает, permission-fail не роняет; `unknown` → нет пинга (покрыто unit-тестами Task 1/2: window-snapshot 19 тестов — браузер/фолбэк/permission-ветки; handler-тесты — unknown без публикации; живая проверка на Mac — ручной Post-Completion шаг)
+- [x] прогнать полный unit-набор (`packages/server`) — 1463/1463 зелёные
+- [x] typecheck (`tsc --noEmit`) — чисто
+- [x] линтер — eslint-конфига в репо нет; статическая проверка = `tsc --noEmit`, чисто
+- [x] покрытие новых/изменённых модулей по стандарту проекта — тесты на window-snapshot, judge, handler зелёные
 
 ### Task 4: Документация
 
-- [ ] обновить секцию Digital Observer / distraction в `README.md` и `AGENTS.md`: window-snapshot теперь берёт заголовок вкладки браузера (Chrome/Safari), и для этого нужна **отдельная Automation-привилегия** на браузер (помимо System Events); без неё — тихий фолбэк на пустой заголовок
-- [ ] зафиксировать в доках вердикт `unknown` (судья молчит при отсутствии сигнала)
+- [x] обновить секцию Digital Observer / distraction в `README.md` и `AGENTS.md`: window-snapshot теперь берёт заголовок вкладки браузера (Chrome/Safari), и для этого нужна **отдельная Automation-привилегия** на браузер (помимо System Events); без неё — тихий фолбэк на пустой заголовок
+- [x] зафиксировать в доках вердикт `unknown` (судья молчит при отсутствии сигнала)
 
 ## Technical Details
 

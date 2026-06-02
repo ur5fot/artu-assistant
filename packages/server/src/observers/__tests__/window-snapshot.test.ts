@@ -29,6 +29,23 @@ function setupError(err: unknown) {
   );
 }
 
+// Route Call 1 (System Events) vs Call 2 (browser dictionary) by script body.
+// `browser` may be a string (stdout) or an Error (Call 2 failure).
+function setupBrowser(systemEventsStdout: string, browser: string | Error) {
+  mockExecFile.mockImplementation(
+    (_cmd: string, args: string[], _opts: unknown, cb: (e: unknown, o?: string, s?: string) => void) => {
+      const script = args[1];
+      if (script.includes('System Events')) {
+        queueMicrotask(() => cb(null, systemEventsStdout, ''));
+      } else if (browser instanceof Error) {
+        queueMicrotask(() => cb(browser));
+      } else {
+        queueMicrotask(() => cb(null, browser, ''));
+      }
+    },
+  );
+}
+
 describe('parseSnapshot', () => {
   it('parses well-formed stdout into app + title', () => {
     expect(parseSnapshot('Chrome|||Inbox - Gmail\n')).toEqual({
@@ -131,5 +148,84 @@ describe('createOsascriptProvider.getActive', () => {
     await provider.getActive();
     const opts = mockExecFile.mock.calls[0][2] as { timeout: number };
     expect(opts.timeout).toBe(5000);
+  });
+});
+
+describe('createOsascriptProvider.getActive — browser-aware tab title', () => {
+  it('non-browser app makes a single System Events call (no Call 2)', async () => {
+    setupStdout('Finder|||Documents\n');
+    const provider = createOsascriptProvider();
+    expect(await provider.getActive()).toEqual({
+      app_name: 'Finder',
+      window_title: 'Documents',
+    });
+    expect(mockExecFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('browser with non-empty tab title prefers Call 2 over generic title', async () => {
+    setupBrowser('Google Chrome|||generic window\n', '«Уроки для Пети» - Google Chrome\n');
+    const provider = createOsascriptProvider();
+    expect(await provider.getActive()).toEqual({
+      app_name: 'Google Chrome',
+      window_title: '«Уроки для Пети» - Google Chrome',
+    });
+    expect(mockExecFile).toHaveBeenCalledTimes(2);
+  });
+
+  it('Safari tab title is queried via its own dictionary', async () => {
+    setupBrowser('Safari|||\n', 'Apple\n');
+    const provider = createOsascriptProvider();
+    expect(await provider.getActive()).toEqual({
+      app_name: 'Safari',
+      window_title: 'Apple',
+    });
+    const call2Script = mockExecFile.mock.calls[1][1][1] as string;
+    expect(call2Script).toContain('Safari');
+  });
+
+  it('browser with empty Call 2 result falls back to generic title', async () => {
+    setupBrowser('Google Chrome|||generic window\n', '\n');
+    const provider = createOsascriptProvider();
+    expect(await provider.getActive()).toEqual({
+      app_name: 'Google Chrome',
+      window_title: 'generic window',
+    });
+  });
+
+  it('browser with empty generic title AND failed Call 2 yields an empty window_title', async () => {
+    // The core scenario this feature targets: long Chrome dwell, System Events
+    // returns a blank title, and Automation is denied. The snapshot must stay
+    // a valid object with window_title='' (blank signal → judge returns unknown),
+    // not null.
+    const err = Object.assign(new Error('not authorised'), { code: 1 });
+    setupBrowser('Google Chrome|||\n', err);
+    const warn = vi.fn();
+    const provider = createOsascriptProvider({ warn });
+    expect(await provider.getActive()).toEqual({
+      app_name: 'Google Chrome',
+      window_title: '',
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('Call 2 error falls back to generic and logs the hint exactly once', async () => {
+    const err = Object.assign(new Error('not authorised'), { code: 1 });
+    setupBrowser('Google Chrome|||generic window\n', err);
+    const warn = vi.fn();
+    const provider = createOsascriptProvider({ warn });
+
+    expect(await provider.getActive()).toEqual({
+      app_name: 'Google Chrome',
+      window_title: 'generic window',
+    });
+    // Second tick: still failing, but the hint must not repeat (latch).
+    expect(await provider.getActive()).toEqual({
+      app_name: 'Google Chrome',
+      window_title: 'generic window',
+    });
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('Automation');
+    expect(warn.mock.calls[0][0]).toContain('Google Chrome');
   });
 });

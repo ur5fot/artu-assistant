@@ -68,6 +68,12 @@ describe('buildJudgePrompt', () => {
     const { user } = buildJudgePrompt([], CURRENT);
     expect(user).toContain('(пусто)');
   });
+
+  it('instructs the judge to return unknown on empty/uninformative titles', () => {
+    const { system } = buildJudgePrompt(TIMELINE, CURRENT);
+    expect(system).toContain('unknown');
+    expect(system).toContain('лучше промолчать, чем гадать');
+  });
 });
 
 describe('judgeDistraction', () => {
@@ -95,6 +101,28 @@ describe('judgeDistraction', () => {
     const callArgs = (create.mock.calls as any[])[0][0] as any;
     expect(callArgs.tool_choice).toEqual({ type: 'tool', name: 'report_verdict' });
     expect(callArgs.model).toBe('claude-haiku-4-5');
+  });
+
+  it('accepts an unknown verdict (judge stays silent on empty signal)', async () => {
+    const { anthropic } = fakeAnthropic(
+      makeToolUseResponse({
+        verdict: 'unknown',
+        confidence: 10,
+        reason: 'заголовки пустые',
+        work_summary: '',
+      }),
+    );
+    const result = await judgeDistraction(
+      { anthropic: anthropic as any, model: 'm', signal: notAborted },
+      TIMELINE,
+      CURRENT,
+    );
+    expect(result).toEqual({
+      verdict: 'unknown',
+      confidence: 10,
+      reason: 'заголовки пустые',
+      work_summary: '',
+    });
   });
 
   it('clamps and rounds out-of-range confidence', async () => {
