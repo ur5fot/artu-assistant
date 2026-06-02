@@ -117,7 +117,12 @@ describe('judgeDistraction', () => {
       TIMELINE,
       CURRENT,
     );
-    expect(result.verdict).toBe('unknown');
+    expect(result).toEqual({
+      verdict: 'unknown',
+      confidence: 10,
+      reason: 'заголовки пустые',
+      work_summary: '',
+    });
   });
 
   it('clamps and rounds out-of-range confidence', async () => {

@@ -192,6 +192,22 @@ describe('createOsascriptProvider.getActive — browser-aware tab title', () => 
     });
   });
 
+  it('browser with empty generic title AND failed Call 2 yields an empty window_title', async () => {
+    // The core scenario this feature targets: long Chrome dwell, System Events
+    // returns a blank title, and Automation is denied. The snapshot must stay
+    // a valid object with window_title='' (blank signal → judge returns unknown),
+    // not null.
+    const err = Object.assign(new Error('not authorised'), { code: 1 });
+    setupBrowser('Google Chrome|||\n', err);
+    const warn = vi.fn();
+    const provider = createOsascriptProvider({ warn });
+    expect(await provider.getActive()).toEqual({
+      app_name: 'Google Chrome',
+      window_title: '',
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
   it('Call 2 error falls back to generic and logs the hint exactly once', async () => {
     const err = Object.assign(new Error('not authorised'), { code: 1 });
     setupBrowser('Google Chrome|||generic window\n', err);

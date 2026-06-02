@@ -197,9 +197,11 @@ describe('createDistractionHandler.run', () => {
   });
 
   it('skips on an unknown verdict, recording the eval and never publishing', async () => {
+    // High confidence on purpose: `unknown` must never ping regardless of
+    // confidence (the gate is verdict==='distracted' && conf>=cutoff).
     const judge = vi.fn<DistractionJudge>(async () => ({
       verdict: 'unknown',
-      confidence: 0,
+      confidence: 95,
       reason: 'заголовки пустые',
       work_summary: '',
     }));
