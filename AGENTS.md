@@ -11,7 +11,7 @@ Localhost-first. Один чат — один собеседник. Он дел�
 - **AI:** Anthropic Claude API (claude-sonnet-4-6-20250514) с tool_use
 - **DB:** SQLite (better-sqlite3) — история, память, аудит
 - **Search:** SearXNG (self-hosted, Docker)
-- **PII:** Microsoft Presidio (Python microservice) — Phase 2
+- **PII:** Microsoft Presidio (Python microservice) — Phase 2; *frozen* (opt-in via the `pii` compose profile)
 - **TTS/STT:** Web Speech API (браузер) — Phase 3
 - **Tools:** модульные, каждый tool — отдельный npm package с единым интерфейсом
 - **Тесты:** Vitest (unit + integration)
@@ -399,7 +399,7 @@ Presidio analyzer is built from a custom Docker image in `presidio/` with spaCy 
 - `presidio/Dockerfile` — base image version and spaCy model versions
 - `presidio/multilang.yaml` — NLP engine configuration loaded by Presidio at startup
 
-First `docker compose up` takes longer because the analyzer image builds locally (~3-5 min).
+Presidio is **frozen** behind the `pii` compose profile (PII disabled by default), so a plain `docker compose up -d` starts only SearXNG. Enable it with `docker compose --profile pii up -d` — that first run builds the analyzer image locally (~3-5 min). To use it, also set `PII_MODE` to `optional`/`required`.
 
 ### Memory System
 

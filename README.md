@@ -55,7 +55,7 @@ or act**. Some target moments:
   `packages/tool-*/`
 - SQLite (better-sqlite3) for chat history, audit log, memory
 - Permission system: `auto` / `confirm` / `forbidden` levels with UI dialog
-- PII gateway via Microsoft Presidio (en/ru/uk recognizers, Docker)
+- PII gateway via Microsoft Presidio (en/ru/uk recognizers, Docker) — **frozen by default**, opt-in via the `pii` compose profile
 - Self-hosted SearXNG for web search
 
 ### Self-modification (Phase 3)
@@ -195,7 +195,7 @@ following the use-case-first principle:
 - **Local LLM:** Ollama (qwen2.5:7b + mxbai-embed-large)
 - **DB:** SQLite (better-sqlite3 + sqlite-vec)
 - **Search:** SearXNG (Docker)
-- **PII:** Microsoft Presidio (Docker, en/ru/uk via custom image)
+- **PII:** Microsoft Presidio (Docker, en/ru/uk via custom image) — *frozen* (opt-in: `docker compose --profile pii up -d`)
 - **Tests:** Vitest
 
 ---
@@ -207,7 +207,7 @@ git clone https://github.com/ur5fot/artu-assistant
 cd artu-assistant
 npm install
 cp .env.example .env   # at minimum: ANTHROPIC_API_KEY
-docker compose up -d   # SearXNG + Presidio (~3-5 min first time, builds Presidio image)
+docker compose up -d   # SearXNG only (Presidio is frozen — see PII section to enable)
 npm run dev            # tsx watch, server only (web client is frozen)
 ```
 
@@ -263,7 +263,7 @@ curl localhost:3004/api/health            # "R2 online"
   hardcoded node path). It requires **node ≥20** on that PATH (the `node --import tsx`
   exec needs it); the wrapper aborts with a clear error rather than crashlooping
   on a stale system node, so set your nvm `default` alias to ≥20. The wrapper also does a
-  best-effort `docker compose up -d` (for code-task tools; never fatal).
+  best-effort `docker compose up -d` (brings up SearXNG; Presidio is frozen behind the `pii` profile; never fatal).
 
 **⚠️ Don't run it alongside `npm run dev`** — both bind port **3004**. The
 wrapper refuses to start if 3004 is already held, so stop the dev server first

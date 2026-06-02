@@ -6,8 +6,10 @@
 # has already sourced the user profile (nvm → node on PATH). Responsibilities:
 #   1. cd into the repo root (resolved from this script's location).
 #   2. Make sure `node` is reachable.
-#   3. Best-effort `docker compose up -d` (code-task tools need it; must not
-#      block startup if Docker is down).
+#   3. Best-effort `docker compose up -d` — starts SearXNG (the web_search
+#      backend). Presidio is frozen behind the "pii" compose profile and is NOT
+#      started here (PII is disabled by default). Never blocks startup if Docker
+#      is down.
 #   4. Refuse to start if the worker port is already taken (likely `npm run dev`),
 #      to avoid two workers fighting over the port.
 #   5. exec the supervisor via tsx so deploys (git pull master) are picked up
@@ -77,8 +79,9 @@ else
   log "warning: 'lsof' not found; cannot verify port ${WORKER_PORT} is free — starting anyway"
 fi
 
-# Best-effort Docker bring-up. Never fatal: code-task tools want it, but the
-# supervisor and worker run fine without it.
+# Best-effort Docker bring-up — starts SearXNG (the web_search backend).
+# Presidio is frozen behind the "pii" profile, so this brings up SearXNG only.
+# Never fatal: the supervisor and worker run fine without Docker.
 if command -v docker >/dev/null 2>&1; then
   log "bringing up docker compose services (best-effort)"
   docker compose up -d || log "warning: 'docker compose up -d' failed; continuing"
