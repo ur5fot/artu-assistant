@@ -106,12 +106,12 @@
 
 ### Task 6: Конфиг + регистрация + гашение старого contextSwitch
 
-- [ ] в `index.ts` (блок 803-867) прочитать новые env через `envInt` (по спеке §6: `DISTRACTION_DWELL_MIN`, `_WORK_LOOKBACK_MIN`, `_JUDGE_LOOKBACK_MIN`, `_DEDUPE_H`, `_REEVAL_MIN`, `_CONFIDENCE_PCT`, `_SNOOZE_MIN`, `_DAILY_LLM_CAP`) + `DISTRACTION_JUDGE_MODEL` (string, default `claude-haiku-4-5`)
-- [ ] зарегистрировать `createDistractionHandler({ store: windowStore, evalStore, anthropic: client.anthropic, ... })` под гейтом `DISTRACTION_ENABLED === 'true' && isDarwin && discordReady`; создать `distractionEvalStore` и передать в бота
-- [ ] обернуть существующую регистрацию `createContextSwitchHandler` в новый флаг `CONTEXT_SWITCH_ENABLED === 'true'` (default false); поллер `window-logger` остаётся под `WINDOW_LOGGER_ENABLED` без изменений
-- [ ] обновить `.env.example`: новые `DISTRACTION_*` + `CONTEXT_SWITCH_ENABLED` с дефолтами и комментариями
-- [ ] написать/обновить тесты на гейтинг регистрации, если есть инфраструктура; иначе зафиксировать ручную проверку в Post-Completion
-- [ ] прогнать тесты — зелёные перед Task 7
+- [x] в `index.ts` (блок 803-867) прочитать новые env через `envInt` (по спеке §6: `DISTRACTION_DWELL_MIN`, `_WORK_LOOKBACK_MIN`, `_JUDGE_LOOKBACK_MIN`, `_DEDUPE_H`, `_REEVAL_MIN`, `_CONFIDENCE_PCT`, `_SNOOZE_MIN`, `_DAILY_LLM_CAP`) + `DISTRACTION_JUDGE_MODEL` (string, default `claude-haiku-4-5`)
+- [x] зарегистрировать `createDistractionHandler({ store: windowStore, evalStore, anthropic: client.anthropic, ... })` под гейтом `DISTRACTION_ENABLED === 'true' && isDarwin && discordReady`; создать `distractionEvalStore` (hoisted рядом с `windowStore`) и передать в бота (`distractionEvalStore` + `distractionSnoozeMin`)
+- [x] обернуть существующую регистрацию `createContextSwitchHandler` в новый флаг `CONTEXT_SWITCH_ENABLED === 'true'` (default false); поллер `window-logger` остаётся под `WINDOW_LOGGER_ENABLED` без изменений
+- [x] обновить `.env.example`: новые `DISTRACTION_*` + `CONTEXT_SWITCH_ENABLED` с дефолтами и комментариями
+- [x] тесты на гейтинг регистрации (skipped — нет инфраструктуры для top-level boot-wiring в index.ts; ручная проверка зафиксирована в Post-Completion)
+- [x] прогнать тесты — зелёные перед Task 7 (1427 passed, tsc --noEmit clean)
 
 ### Task 7: Verify acceptance criteria
 
