@@ -332,24 +332,28 @@ export async function runPollTick(params: TickParams): Promise<void> {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[emails] poll failed for ${acc.id}:`, msg);
         params.store.setAccountError(acc.id, msg, params.now);
-        // Blind-account alert: fire once when the failure streak hits the
-        // threshold. `=== blindAlertAfter` (not `>=`) plus the `blind_alerted`
-        // latch means exactly one alert per blind episode; the success paths
-        // reset both counters, so a recovered-then-re-blinded account alerts
-        // again. Skipped entirely when the alert isn't wired or disabled.
+        // Blind-account alert: fire once the failure streak reaches the
+        // threshold. The `blind_alerted` latch is what guarantees exactly one
+        // alert per blind episode; `>=` (rather than `===`) makes the trigger
+        // robust if the counter is already past the threshold on first check
+        // (e.g. an operator lowers blindAlertAfter mid-outage and restarts).
+        // The success paths reset both counters, so a recovered-then-re-blinded
+        // account alerts again. Skipped when the alert isn't wired or disabled.
         const threshold = params.blindAlertAfter;
         if (params.onAccountBlind && threshold != null && threshold > 0) {
           const state = params.store.getAccountErrorState(acc.id);
           if (
             state &&
-            state.consecutive_errors === threshold &&
+            state.consecutive_errors >= threshold &&
             state.blind_alerted === 0
           ) {
             params.store.markBlindAlerted(acc.id);
             params.onAccountBlind({
               account: acc.id,
               consecutive: state.consecutive_errors,
-              lastError: state.last_error ?? msg,
+              // `msg` is the error just written by setAccountError above, so it
+              // equals the persisted last_error — use it directly.
+              lastError: msg,
             });
           }
         }

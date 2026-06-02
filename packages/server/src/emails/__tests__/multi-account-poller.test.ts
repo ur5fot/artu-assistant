@@ -107,6 +107,9 @@ describe('runPollTick', () => {
     // Failure is visible in stdout (not just swallowed into the DB), and the
     // healthy account keeps polling (Promise.all per-account isolation).
     expect(err).toHaveBeenCalledWith('[emails] poll failed for a:', 'socket-boom');
+    // Exactly one error log — the healthy account `b` must not have produced
+    // its own failure path, pinning the per-account isolation claim.
+    expect(err).toHaveBeenCalledTimes(1);
     expect(store.getAccountError('a')?.message).toContain('socket-boom');
     expect(store.getLastSeenUid('b')).toBe(7);
     err.mockRestore();
@@ -1066,5 +1069,14 @@ describe('runPollTick — onAccountBlind alert', () => {
     });
     expect(store.getAccountErrorState('a')?.consecutive_errors).toBe(1);
     errSpy.mockRestore();
+  });
+
+  it('blindAlertAfter <= 0 disables the alert while the streak still climbs', async () => {
+    // The `threshold > 0` guard means a non-positive blindAlertAfter turns the
+    // feature off even with onAccountBlind wired — the error counter must still
+    // increment so visibility/self-heal are unaffected.
+    const { store, onAccountBlind } = await failTicks(5, { blindAlertAfter: 0 });
+    expect(onAccountBlind).not.toHaveBeenCalled();
+    expect(store.getAccountErrorState('a')?.consecutive_errors).toBe(5);
   });
 });

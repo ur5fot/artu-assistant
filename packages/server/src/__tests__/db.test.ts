@@ -22,6 +22,59 @@ describe('email tables', () => {
     );
   });
 
+  it('migrates a pre-existing email_account_state: adds consecutive_errors/blind_alerted defaulting to 0 on existing rows', async () => {
+    // The deployed DB already has email_account_state from before these columns
+    // existed, so the ALTER ... ADD COLUMN NOT NULL DEFAULT 0 migration path
+    // (not the CREATE TABLE path) is what actually runs in production. Seed the
+    // old schema with a row, then let initDb run the migration over it.
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const { default: Database } = await import('better-sqlite3');
+    const tmp = path.join(
+      os.tmpdir(),
+      `r2-db-email-migrate-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`,
+    );
+    try {
+      // Old schema: no consecutive_errors / blind_alerted (and no uid_validity).
+      const seed = new Database(tmp);
+      seed.exec(`
+        CREATE TABLE email_account_state (
+          account_id TEXT PRIMARY KEY,
+          last_seen_uid INTEGER NOT NULL DEFAULT 0,
+          last_poll_at INTEGER,
+          last_error TEXT
+        )
+      `);
+      seed
+        .prepare('INSERT INTO email_account_state (account_id, last_seen_uid) VALUES (?, ?)')
+        .run('legacy', 42);
+      seed.close();
+
+      initDb(tmp);
+      const cols = getDb()
+        .prepare("PRAGMA table_info('email_account_state')")
+        .all() as Array<{ name: string }>;
+      const names = cols.map((c) => c.name);
+      expect(names).toContain('consecutive_errors');
+      expect(names).toContain('blind_alerted');
+
+      // The pre-existing row survives and the new columns default to 0.
+      const row = getDb()
+        .prepare(
+          'SELECT last_seen_uid, consecutive_errors, blind_alerted FROM email_account_state WHERE account_id = ?',
+        )
+        .get('legacy') as { last_seen_uid: number; consecutive_errors: number; blind_alerted: number };
+      expect(row).toEqual({ last_seen_uid: 42, consecutive_errors: 0, blind_alerted: 0 });
+    } finally {
+      closeDb();
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      for (const ext of ['-wal', '-shm']) {
+        if (fs.existsSync(tmp + ext)) fs.unlinkSync(tmp + ext);
+      }
+    }
+  });
+
   it('creates email_pending with expected columns', () => {
     const cols = getDb()
       .prepare("PRAGMA table_info('email_pending')")
