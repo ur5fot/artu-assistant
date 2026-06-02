@@ -17,13 +17,16 @@ function mkRow(id: number, importance: number, delivered = false): EmailPendingR
   };
 }
 
-function mkStore(rows: EmailPendingRow[]): EmailStoreLike {
+type AcctState = { last_poll_at: number | null; last_error: string | null; consecutive_errors: number };
+
+function mkStore(rows: EmailPendingRow[], states: Record<string, AcctState> = {}): EmailStoreLike {
   return {
     fetchInWindow: vi.fn((_h: number, _l: number, _now: number) => rows),
     findByPendingId: vi.fn((id: number) => rows.find((r) => r.id === id) ?? null),
     fetchPendingUndelivered: vi.fn((_l: number) => rows),
     countPendingUndelivered: vi.fn(() => rows.length),
     countHandledSince: vi.fn((_s: number) => 0),
+    getAccountState: vi.fn((id: string) => states[id] ?? null),
   };
 }
 
@@ -31,6 +34,7 @@ function mkImap(overrides: Partial<ImapClientLike> = {}): ImapClientLike {
   return {
     fetchFullBody: vi.fn(),
     getAccount: vi.fn(() => ({ id: 'a', host: 'h', port: 993, user: 'u', password: 'p', tls: true })),
+    listAccounts: vi.fn(() => []),
     ...overrides,
   };
 }
@@ -105,6 +109,43 @@ describe('emails_list tool', () => {
 });
 
 describe('emails_status tool', () => {
+  const acctA = { id: 'imap1', host: 'h', port: 993, user: 'ur5fot@gmail.com', password: 'p', tls: true };
+  const acctB = { id: 'imap2', host: 'h', port: 993, user: 'wagvpered@gmail.com', password: 'p', tls: true };
+
+  it('reports ALL configured accounts (with health), even those with no pending mail', async () => {
+    // Only imap1 has stored mail; imap2 has none — both must still be reported.
+    const store = mkStore([mkRow(1, 5)], {
+      imap1: { last_poll_at: 1000, last_error: null, consecutive_errors: 0 },
+      imap2: { last_poll_at: 900, last_error: null, consecutive_errors: 0 },
+    });
+    const tools = createTool({ emailStore: store, imapClient: mkImap({ listAccounts: () => [acctA, acctB] }) });
+    const status = tools.find((t) => t.name === 'emails_status')!;
+    const res = await status.handler({});
+    expect(res.success).toBe(true);
+    const data = res.data as Record<string, unknown>;
+    expect(data.accounts_count).toBe(2);
+    const accounts = data.accounts as Array<Record<string, unknown>>;
+    expect(accounts.map((a) => a.address)).toEqual(['ur5fot@gmail.com', 'wagvpered@gmail.com']);
+    expect(accounts.every((a) => a.healthy === true)).toBe(true);
+    // Never leak the IMAP password into the tool result.
+    expect(JSON.stringify(accounts)).not.toContain('password');
+  });
+
+  it('marks an account unhealthy when it has a last_error', async () => {
+    const store = mkStore([], {
+      imap2: { last_poll_at: 500, last_error: 'Failed to establish connection in required time', consecutive_errors: 3 },
+    });
+    const tools = createTool({ emailStore: store, imapClient: mkImap({ listAccounts: () => [acctB] }) });
+    const status = tools.find((t) => t.name === 'emails_status')!;
+    const res = await status.handler({});
+    const accounts = (res.data as Record<string, unknown>).accounts as Array<Record<string, unknown>>;
+    expect(accounts[0]).toMatchObject({
+      address: 'wagvpered@gmail.com',
+      healthy: false,
+      consecutive_errors: 3,
+    });
+  });
+
   it('returns awaiting list (any age) plus awaiting_count and handled_last_7d', async () => {
     const store = mkStore([mkRow(1, 5), mkRow(2, 4)]);
     vi.mocked(store.countHandledSince).mockReturnValue(7);

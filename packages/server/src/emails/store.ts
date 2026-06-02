@@ -22,6 +22,14 @@ export interface EmailStore {
   getAccountErrorState(
     accountId: string,
   ): { consecutive_errors: number; blind_alerted: number; last_error: string | null } | null;
+  /** Per-account state for status reporting (the `emails_status` accounts list):
+   *  last poll time, last error, consecutive-error streak. Null when no row
+   *  exists yet. Unlike `getAccountError` this returns `last_poll_at` even for a
+   *  healthy account (last_error null), so "which mailboxes are connected + are
+   *  they healthy" can be answered without depending on whether mail arrived. */
+  getAccountState(
+    accountId: string,
+  ): { last_poll_at: number | null; last_error: string | null; consecutive_errors: number } | null;
   /** Latch the blind alert for this account so it does not re-fire every tick.
    *  Cleared back to 0 by the success paths (updateLastSeenUid /
    *  setLastSeenAndValidity / clearAccountError). */
@@ -147,6 +155,21 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
         consecutive_errors: row.consecutive_errors,
         blind_alerted: row.blind_alerted,
         last_error: row.last_error,
+      };
+    },
+    getAccountState(accountId) {
+      const row = db
+        .prepare(
+          'SELECT last_poll_at, last_error, consecutive_errors FROM email_account_state WHERE account_id = ?',
+        )
+        .get(accountId) as
+        | { last_poll_at: number | null; last_error: string | null; consecutive_errors: number }
+        | undefined;
+      if (!row) return null;
+      return {
+        last_poll_at: row.last_poll_at,
+        last_error: row.last_error,
+        consecutive_errors: row.consecutive_errors,
       };
     },
     markBlindAlerted(accountId) {

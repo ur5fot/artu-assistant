@@ -328,6 +328,7 @@ const imapClientForTool = emailEnabled
       fetchNewMessages,
       fetchFullBody,
       getAccount: (id: string) => imapAccounts.find((a) => a.id === id) ?? null,
+      listAccounts: () => imapAccounts,
     }
   : null;
 

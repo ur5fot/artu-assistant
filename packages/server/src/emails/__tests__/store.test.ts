@@ -5,6 +5,29 @@ import { createEmailStore } from '../store.js';
 beforeEach(() => initDb(':memory:'));
 
 describe('createEmailStore', () => {
+  it('getAccountState returns null for an account with no row', () => {
+    const store = createEmailStore({ db: getDb() });
+    expect(store.getAccountState('missing')).toBeNull();
+  });
+
+  it('getAccountState reports poll time, error and streak (and clears on success)', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setAccountError('a', 'boom', 500);
+    expect(store.getAccountState('a')).toMatchObject({
+      last_poll_at: 500,
+      last_error: 'boom',
+      consecutive_errors: 1,
+    });
+    // A successful poll clears the error but keeps last_poll_at — so a healthy
+    // (even quiet) account is still reportable with its last check time.
+    store.updateLastSeenUid('a', 10, 1200);
+    expect(store.getAccountState('a')).toMatchObject({
+      last_poll_at: 1200,
+      last_error: null,
+      consecutive_errors: 0,
+    });
+  });
+
   it('getLastSeenUid returns 0 for unknown account', () => {
     const store = createEmailStore({ db: getDb() });
     expect(store.getLastSeenUid('missing')).toBe(0);

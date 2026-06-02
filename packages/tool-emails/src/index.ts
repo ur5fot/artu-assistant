@@ -66,8 +66,9 @@ function createEmailsStatusTool(deps: Deps): ToolDefinition {
     description:
       'Статус почты для проверок и сводок («чек», «что по почте», «всё ли разобрано», статусный обзор). ' +
       'Возвращает { awaiting: письма, ждущие разбора (непросмотренные — без срочного пинга и без дайджеста — ЛЮБОГО возраста, по важности), ' +
-      'awaiting_count: всего таких, handled_last_7d: сколько важных уже отправлено тебе (срочный пинг или дайджест) за 7 дней }. ' +
-      'Используй ЭТО для статуса/«чек»; emails_list — только для явного просмотра писем за период.',
+      'awaiting_count: всего таких, handled_last_7d: сколько важных уже отправлено тебе (срочный пинг или дайджест) за 7 дней, ' +
+      'accounts: список ВСЕХ подключённых ящиков [{id, address, healthy, last_poll_at, last_error, consecutive_errors}], accounts_count: сколько ящиков подключено }. ' +
+      'Используй ЭТО для статуса/«чек» И для вопросов «сколько/какие почты подключены» (бери accounts, не угадывай); emails_list — только для явного просмотра писем за период.',
     permissionLevel: 'auto',
     provider: 'all',
     parameters: {
@@ -81,13 +82,30 @@ function createEmailsStatusTool(deps: Deps): ToolDefinition {
         return { success: false, error: 'Email integration is not enabled on this server' };
       }
       const limit = clampInt(params.limit, 10, 1, 50);
-      const awaiting = deps.emailStore.fetchPendingUndelivered(limit);
+      const store = deps.emailStore;
+      const awaiting = store.fetchPendingUndelivered(limit);
+      // All configured mailboxes + their health, so "how many / which mailboxes
+      // are connected" is answered from config (not from whichever accounts
+      // happen to have stored mail). Address only — never the password.
+      const accounts = (deps.imapClient?.listAccounts() ?? []).map((a) => {
+        const st = store.getAccountState(a.id);
+        return {
+          id: a.id,
+          address: a.user,
+          healthy: !st?.last_error,
+          last_poll_at: st?.last_poll_at ?? null,
+          last_error: st?.last_error ?? null,
+          consecutive_errors: st?.consecutive_errors ?? 0,
+        };
+      });
       return {
         success: true,
         data: {
           awaiting: awaiting.map(toListItem),
-          awaiting_count: deps.emailStore.countPendingUndelivered(),
-          handled_last_7d: deps.emailStore.countHandledSince(Date.now() - SEVEN_DAYS_MS),
+          awaiting_count: store.countPendingUndelivered(),
+          handled_last_7d: store.countHandledSince(Date.now() - SEVEN_DAYS_MS),
+          accounts,
+          accounts_count: accounts.length,
         },
       };
     },

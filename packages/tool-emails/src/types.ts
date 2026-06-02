@@ -39,9 +39,17 @@ export interface EmailStoreLike {
   countPendingUndelivered(): number;
   countHandledSince(sinceMs: number): number;
   findByPendingId(id: number): EmailPendingRow | null;
+  // Per-account health for the emails_status `accounts` list. Null when the
+  // account has no state row yet (configured but not polled).
+  getAccountState(
+    accountId: string,
+  ): { last_poll_at: number | null; last_error: string | null; consecutive_errors: number } | null;
 }
 
 export interface ImapClientLike {
   fetchFullBody(account: ImapAccount, uid: number): Promise<FullMessage>;
   getAccount(id: string): ImapAccount | null;
+  // All configured IMAP accounts, so emails_status can report which/how many
+  // mailboxes are connected — independent of whether any mail is stored yet.
+  listAccounts(): ImapAccount[];
 }
