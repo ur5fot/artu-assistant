@@ -461,11 +461,15 @@ nudges you out of it. Two-stage, cost-aware:
    (catching a fast localhost→YouTube swap).
 2. **AI judge by titles** (`judgeDistraction`, haiku) runs only on a candidate.
    It reads the recent app+title timeline and rules `distracted` / `break` /
-   `working` with a confidence score. Work vs. leisure *inside the same app*
-   (a YouTube tutorial on your stack = `working`; an IDE never triggers) is
-   decided here, from the titles. R2 pings only on a confident `distracted`
-   (≥ `DISTRACTION_CONFIDENCE_PCT`). A judge error is silent — never a false
-   ping.
+   `working` / `unknown` with a confidence score. Work vs. leisure *inside the
+   same app* (a YouTube tutorial on your stack = `working`; an IDE never
+   triggers) is decided here, from the titles. When the titles are empty or
+   uninformative and the judge genuinely can't tell what you're doing, it
+   returns `unknown` and stays silent — better than guessing `distracted` on
+   a blank signal (this killed a false "~104 min in Chrome, undefined activity"
+   ping on long Chrome dwells). R2 pings only on a confident `distracted`
+   (≥ `DISTRACTION_CONFIDENCE_PCT`); `break` / `working` / `unknown` never ping.
+   A judge error is silent — never a false ping.
 
 The nudge DM carries three buttons: **Возвращаюсь** (ack), **Это по работе**
 (records `work` feedback, mutes re-evaluation of that dwell), **Отстань**
@@ -491,7 +495,13 @@ exactly one alert per blind streak.
 2. On the first poll, macOS prompts: *"R2 (or node) wants to send events to
    System Events"* → click **Allow**. If no prompt appears, grant it manually
    in **System Settings → Privacy & Security → Automation → R2 / node →
-   System Events**.
+   System Events**. For a browser front window (Chrome/Safari) the snapshot
+   takes the **active tab's title** via a native browser AppleScript — that
+   needs a **separate** Automation grant per browser (System Settings →
+   Privacy & Security → Automation → R2 / node → Google Chrome / Safari).
+   Without it, the tab title stays empty (silent fallback to the generic window
+   title; the hint is logged once like the blind-observer notice), and the
+   judge tends to return `unknown` on those blank dwells.
 3. Turn on the proactive pullback: `DISTRACTION_ENABLED=true` (gated on flag +
    macOS + a live Discord bot). Tune the judge via env vars (all in
    `.env.example`): `DISTRACTION_DWELL_MIN` (25 — min minutes in one app before a

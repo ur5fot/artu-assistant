@@ -75,8 +75,8 @@
 
 ### Task 4: Документация
 
-- [ ] обновить секцию Digital Observer / distraction в `README.md` и `AGENTS.md`: window-snapshot теперь берёт заголовок вкладки браузера (Chrome/Safari), и для этого нужна **отдельная Automation-привилегия** на браузер (помимо System Events); без неё — тихий фолбэк на пустой заголовок
-- [ ] зафиксировать в доках вердикт `unknown` (судья молчит при отсутствии сигнала)
+- [x] обновить секцию Digital Observer / distraction в `README.md` и `AGENTS.md`: window-snapshot теперь берёт заголовок вкладки браузера (Chrome/Safari), и для этого нужна **отдельная Automation-привилегия** на браузер (помимо System Events); без неё — тихий фолбэк на пустой заголовок
+- [x] зафиксировать в доках вердикт `unknown` (судья молчит при отсутствии сигнала)
 
 ## Technical Details
 
