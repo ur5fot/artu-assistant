@@ -8,6 +8,7 @@ import {
   gatherData,
   hasUserActivitySince,
   hasUserActivityInLastHour,
+  hasWindowActivitySince,
   isSameLocalDate,
   getLocalCivilEpoch,
   getLastBriefPublishAt,
@@ -43,22 +44,27 @@ export function createMorningBriefHandler(deps: Deps): Handler {
 
       // Branch A — morning window: fire at/after 06:00 local with any activity
       // since 06:00 today. DST-aware civil time avoids drift on transition days.
+      // Activity = a chat message OR a window session starting (user sat down at
+      // the Mac) — earliest-wins. Chat is checked first so a real message
+      // short-circuits the extra window query.
       const sixAmLocal = getLocalCivilEpoch(state.now, TZ, 0, ACTIVITY_START_HOUR);
       if (
         state.now >= sixAmLocal &&
-        hasUserActivitySince(ctx.db, sixAmLocal, state.now)
+        (hasUserActivitySince(ctx.db, sixAmLocal, state.now) ||
+          hasWindowActivitySince(ctx.db, sixAmLocal, state.now))
       ) {
         return true;
       }
 
-      // Branch B — gap-return: catch the user's first message after a gap of
-      // GAP_MODE_THRESHOLD or more local days. Last-hour activity gate avoids
-      // firing on a stale message.
+      // Branch B — gap-return: catch the user's first activity after a gap of
+      // GAP_MODE_THRESHOLD or more local days. Last-hour gate (chat OR window
+      // session start) avoids firing on stale activity; chat checked first.
       const lastPublishAt = getLastBriefPublishAt(ctx.db);
       const gapDays = computeGapDays(lastPublishAt, state.now, TZ);
       if (
         gapDays >= GAP_MODE_THRESHOLD &&
-        hasUserActivityInLastHour(ctx.db, state.now)
+        (hasUserActivityInLastHour(ctx.db, state.now) ||
+          hasWindowActivitySince(ctx.db, state.now - 3600_000, state.now))
       ) {
         return true;
       }

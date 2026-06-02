@@ -5,6 +5,7 @@ import {
   isSameLocalDate,
   hasUserActivitySince,
   hasUserActivityInLastHour,
+  hasWindowActivitySince,
   gatherData,
   composePrompt,
   getLastBriefPublishAt,
@@ -155,6 +156,65 @@ describe('hasUserActivitySince', () => {
       )
       .run(`m-${ts}`, ts);
     expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
+  });
+});
+
+describe('hasWindowActivitySince', () => {
+  const since = Date.UTC(2026, 3, 18, 3, 0, 0); // 06:00 Kyiv 18th
+  const now = since + 12 * 3600_000; // 18:00 Kyiv 18th
+
+  const insertSession = (
+    appName: string,
+    startedAt: number,
+    lastSeenAt = startedAt,
+  ): void => {
+    getDb()
+      .prepare(
+        'INSERT INTO window_history (app_name, window_title, started_at, last_seen_at) VALUES (?, ?, ?, ?)',
+      )
+      .run(appName, 'title', startedAt, lastSeenAt);
+  };
+
+  it('returns false on empty table', () => {
+    expect(hasWindowActivitySince(getDb(), since, now)).toBe(false);
+  });
+
+  it('returns true when a real-app session started at or after the boundary', () => {
+    insertSession('Safari', since + 60_000);
+    expect(hasWindowActivitySince(getDb(), since, now)).toBe(true);
+  });
+
+  it('returns true when a session started exactly at the boundary', () => {
+    insertSession('Code', since);
+    expect(hasWindowActivitySince(getDb(), since, now)).toBe(true);
+  });
+
+  it('returns false for a session left from the night (started before boundary) even if last_seen_at is recent', () => {
+    // Key "left on overnight" case: started yesterday, still frontmost now.
+    // We key on started_at, so this must NOT count as sitting-down activity.
+    insertSession('Code', since - 6 * 3600_000, now);
+    expect(hasWindowActivitySince(getDb(), since, now)).toBe(false);
+  });
+
+  it('returns false when the only session after the boundary is loginwindow (lock screen)', () => {
+    insertSession('loginwindow', since + 60_000);
+    expect(hasWindowActivitySince(getDb(), since, now)).toBe(false);
+  });
+
+  it('returns false when the only session after the boundary is ScreenSaverEngine', () => {
+    insertSession('ScreenSaverEngine', since + 60_000);
+    expect(hasWindowActivitySince(getDb(), since, now)).toBe(false);
+  });
+
+  it('returns true when a real session coexists with idle-app sessions after the boundary', () => {
+    insertSession('loginwindow', since + 60_000);
+    insertSession('Safari', since + 120_000);
+    expect(hasWindowActivitySince(getDb(), since, now)).toBe(true);
+  });
+
+  it('ignores future-dated sessions beyond now (clock skew)', () => {
+    insertSession('Safari', now + 3600_000);
+    expect(hasWindowActivitySince(getDb(), since, now)).toBe(false);
   });
 });
 

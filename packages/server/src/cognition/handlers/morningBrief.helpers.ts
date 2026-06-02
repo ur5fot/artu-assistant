@@ -73,6 +73,33 @@ export function hasUserActivityInLastHour(
   return row !== undefined;
 }
 
+// Frontmost macOS apps that mean "Mac is idle / locked", not real interaction:
+// `loginwindow` is foreground while the screen is locked, `ScreenSaverEngine`
+// while the screensaver runs. A window session starting on one of these isn't
+// the user sitting down to work, so it must not trigger the morning brief.
+const IDLE_APP_NAMES = ['loginwindow', 'ScreenSaverEngine'];
+
+// True if a window session *started* in [since, now]. We key on `started_at`
+// (the instant the user actually switched/opened a window), not `last_seen_at`:
+// `last_seen_at` keeps bumping while a window stays frontmost overnight, so it
+// would falsely report "activity at 06:00" for a Mac left on. Upper bound
+// `started_at <= now` guards against any clock-skewed future-dated session
+// spoofing recent activity. Idle frontmost apps (lock screen / screensaver) are
+// excluded so locking the Mac doesn't count as sitting down to work.
+export function hasWindowActivitySince(
+  db: Database.Database,
+  since: number,
+  now: number,
+): boolean {
+  const placeholders = IDLE_APP_NAMES.map(() => '?').join(',');
+  const row = db
+    .prepare(
+      `SELECT 1 FROM window_history WHERE started_at >= ? AND started_at <= ? AND app_name NOT IN (${placeholders}) LIMIT 1`,
+    )
+    .get(since, now, ...IDLE_APP_NAMES);
+  return row !== undefined;
+}
+
 export function getLastBriefPublishAt(db: Database.Database): number | null {
   const row = db
     .prepare(

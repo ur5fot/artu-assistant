@@ -375,6 +375,12 @@ export function initDb(dbPath?: string): void {
     CREATE INDEX IF NOT EXISTS idx_window_history_app_last_seen
       ON window_history(app_name, last_seen_at DESC)
   `);
+  // Serves morningBrief's hasWindowActivitySince range scan on started_at
+  // (session-start signal), independent of last_seen_at.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_window_history_started
+      ON window_history(started_at)
+  `);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS context_pings (
