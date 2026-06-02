@@ -67,11 +67,11 @@
 
 ### Task 3: Verify acceptance criteria
 
-- [ ] проверить: браузерный заголовок берётся (Chrome/Safari), фолбэк работает, permission-fail не роняет; `unknown` → нет пинга
-- [ ] прогнать полный unit-набор (`packages/server`)
-- [ ] typecheck (`tsc --noEmit`) — чисто
-- [ ] линтер — все вопросы исправить
-- [ ] покрытие новых/изменённых модулей по стандарту проекта
+- [x] проверить: браузерный заголовок берётся (Chrome/Safari), фолбэк работает, permission-fail не роняет; `unknown` → нет пинга (покрыто unit-тестами Task 1/2: window-snapshot 19 тестов — браузер/фолбэк/permission-ветки; handler-тесты — unknown без публикации; живая проверка на Mac — ручной Post-Completion шаг)
+- [x] прогнать полный unit-набор (`packages/server`) — 1463/1463 зелёные
+- [x] typecheck (`tsc --noEmit`) — чисто
+- [x] линтер — eslint-конфига в репо нет; статическая проверка = `tsc --noEmit`, чисто
+- [x] покрытие новых/изменённых модулей по стандарту проекта — тесты на window-snapshot, judge, handler зелёные
 
 ### Task 4: Документация
 
