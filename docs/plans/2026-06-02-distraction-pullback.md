@@ -89,11 +89,11 @@
 
 ### Task 4: Обработчик `distractionPullback`
 
-- [ ] создать `packages/server/src/cognition/handlers/distractionPullback.ts` → `createDistractionHandler(deps): Handler`; `deps` = `{ store, evalStore, anthropic, model, dwellMin, workLookbackMin, judgeLookbackMin, dedupeH, reevalMin, confidencePct, dailyCap }` (+ инъектируемый `judge` для тестов)
-- [ ] `trigger(state)` = `shouldEvaluateDistraction(...) !== null`
-- [ ] `run(ctx)`: defensive re-check; собрать timeline через `store.findRecentRows(firedAt - judgeLookbackMin)` + current; вызвать judge; `distracted && confidence >= confidencePct` → `{ publish, content, components, onPublished: recordEval(pinged=true) }`; иначе `recordEval(verdict)` + `{ skip }`; ошибка judge → `recordEval('error')` + `{ skip }` (никогда не publish на ошибке)
-- [ ] написать тесты обработчика (замоканные `judge` + store): distracted+высокая → publish + pinged записан; distracted+низкая → skip; break/working → skip + eval записан; judge кинул → skip, eval='error', не publish; trigger дергает фильтр
-- [ ] прогнать тесты — зелёные перед Task 5
+- [x] создать `packages/server/src/cognition/handlers/distractionPullback.ts` → `createDistractionHandler(deps): Handler`; `deps` = `{ store, evalStore, anthropic, model, dwellMin, workLookbackMin, judgeLookbackMin, dedupeH, reevalMin, confidencePct, dailyCap }` (+ инъектируемый `judge` для тестов)
+- [x] `trigger(state)` = `shouldEvaluateDistraction(...) !== null`
+- [x] `run(ctx)`: defensive re-check; собрать timeline через `store.findRecentRows(firedAt - judgeLookbackMin)` + current; вызвать judge; `distracted && confidence >= confidencePct` → `{ publish, content, components, onPublished: recordEval(pinged=true) }`; иначе `recordEval(verdict)` + `{ skip }`; ошибка judge → `recordEval('error')` + `{ skip }` (никогда не publish на ошибке)
+- [x] написать тесты обработчика (замоканные `judge` + store): distracted+высокая → publish + pinged записан; distracted+низкая → skip; break/working → skip + eval записан; judge кинул → skip, eval='error', не publish; trigger дергает фильтр
+- [x] прогнать тесты — зелёные перед Task 5
 
 ### Task 5: Пинг — embed/components + обработчики кнопок
 
