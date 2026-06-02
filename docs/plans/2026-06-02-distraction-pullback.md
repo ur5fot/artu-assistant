@@ -74,10 +74,10 @@
 
 ### Task 2: Чистый фильтр `shouldEvaluateDistraction`
 
-- [ ] создать `packages/server/src/observers/distraction-detector.ts` с `shouldEvaluateDistraction(params): DistractionCandidate | null` (по образцу `detectContextSwitch`): app-level `run` по `current.app_name`, `runStart`, `dwell = now - runStart`; условия §2.1–2.7 спеки (idle-отсев, `dwell >= DWELL_MIN`, предшествующая non-idle сессия другого `app_name` перед `runStart`, снуз, dedup по app, ключ dwell `(app, runStart)` + re-eval по росту dwell или смене title, дневной потолок)
-- [ ] параметры: пороги из вызывающего кода (`dwellMin, workLookbackMin, dedupeH, reevalMin, dailyCap`), `store` (window history) + `evalStore`
-- [ ] написать тесты (зеркало `context-switch-detector.test.ts`): happy path; not-long-enough; нет предшествующего другого приложения; снуз активен; dedup по app; dwell уже отработан (verdict=working); re-eval после роста dwell; **re-eval при смене title внутри app-run**; **app-run коалесит смену title (череда YouTube-роликов = один dwell)**; дневной потолок
-- [ ] прогнать тесты — зелёные перед Task 3
+- [x] создать `packages/server/src/observers/distraction-detector.ts` с `shouldEvaluateDistraction(params): DistractionCandidate | null` (по образцу `detectContextSwitch`): app-level `run` по `current.app_name`, `runStart`, `dwell = now - runStart`; условия §2.1–2.7 спеки (idle-отсев, `dwell >= DWELL_MIN`, предшествующая non-idle сессия другого `app_name` перед `runStart`, снуз, dedup по app, ключ dwell `(app, runStart)` + re-eval по росту dwell или смене title, дневной потолок)
+- [x] параметры: пороги из вызывающего кода (`dwellMin, workLookbackMin, dedupeH, reevalMin, dailyCap`), `store` (window history) + `evalStore`
+- [x] написать тесты (зеркало `context-switch-detector.test.ts`): happy path; not-long-enough; нет предшествующего другого приложения; снуз активен; dedup по app; dwell уже отработан (verdict=working); re-eval после роста dwell; **re-eval при смене title внутри app-run**; **app-run коалесит смену title (череда YouTube-роликов = один dwell)**; дневной потолок
+- [x] прогнать тесты — зелёные перед Task 3
 
 ### Task 3: Судья — `buildJudgePrompt` + вызов LLM
 
