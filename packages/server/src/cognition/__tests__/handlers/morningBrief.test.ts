@@ -290,6 +290,100 @@ describe('createMorningBriefHandler', () => {
       // because now (15:00) > 06:00 and activity (10 min ago) falls after 06:00.
       expect(res).toBe(true);
     });
+
+    function insertWindow(
+      appName: string,
+      startedAt: number,
+      lastSeenAt = startedAt,
+    ): void {
+      getDb()
+        .prepare(
+          'INSERT INTO window_history (app_name, window_title, started_at, last_seen_at) VALUES (?, ?, ?, ?)',
+        )
+        .run(appName, 'untitled', startedAt, lastSeenAt);
+    }
+
+    it('Branch A: fires on window activity after 06:00 without any chat message', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 18, 6, 0, 0); // 09:00 Kyiv 18th
+      insertWindow('Code', Date.UTC(2026, 3, 18, 4, 0, 0)); // session start 07:00 Kyiv
+      const res = await h.trigger(
+        { now, lastFiredAt: null, lastResult: null },
+        { db: getDb() },
+      );
+      expect(res).toBe(true);
+    });
+
+    it('Branch A: does not fire when the only session after 06:00 is an idle app (loginwindow)', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 18, 6, 0, 0);
+      insertWindow('loginwindow', Date.UTC(2026, 3, 18, 4, 0, 0));
+      const res = await h.trigger(
+        { now, lastFiredAt: null, lastResult: null },
+        { db: getDb() },
+      );
+      expect(res).toBe(false);
+    });
+
+    it('Branch A: does not fire before 06:00 even with window activity', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      // 2026-04-18 02:00 Kyiv = 2026-04-17 23:00 UTC
+      const now = Date.UTC(2026, 3, 17, 23, 0, 0);
+      insertWindow('Code', now - 10 * 60_000);
+      const res = await h.trigger(
+        { now, lastFiredAt: null, lastResult: null },
+        { db: getDb() },
+      );
+      expect(res).toBe(false);
+    });
+
+    it('Branch A: publishedToday guard blocks a repeat after a window-driven fire', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 18, 9, 0, 0); // 12:00 Kyiv 18th
+      const lastFiredAt = Date.UTC(2026, 3, 18, 4, 0, 0); // 07:00 same day Kyiv
+      insertWindow('Code', Date.UTC(2026, 3, 18, 5, 0, 0)); // session start 08:00 Kyiv
+      const res = await h.trigger(
+        {
+          now,
+          lastFiredAt,
+          lastResult: { publish: true, content: 'window-driven brief' },
+        },
+        { db: getDb() },
+      );
+      expect(res).toBe(false);
+    });
+
+    it('Branch B: gap-return fires on window activity in the last hour with gapDays >= 2', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 22, 12, 0, 0); // 15:00 Kyiv 22nd
+      getDb()
+        .prepare(
+          'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+        )
+        .run('morningBrief', Date.UTC(2026, 3, 19, 3, 0, 0), 10, 'publish'); // 3 days ago
+      // No chat message at all — only a window session that started 20 min ago.
+      insertWindow('Code', now - 20 * 60_000);
+      const res = await h.trigger(
+        { now, lastFiredAt: null, lastResult: null },
+        { db: getDb() },
+      );
+      expect(res).toBe(true);
+    });
   });
 
   describe('run', () => {

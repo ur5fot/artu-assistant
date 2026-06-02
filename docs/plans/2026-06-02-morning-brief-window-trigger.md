@@ -45,12 +45,12 @@
 - [x] `npm test -w @r2/server` — зелёный перед Task 2
 
 ### Task 2: OR-комбинация в обеих ветках триггера
-- [ ] в `morningBrief.ts` импортировать `hasWindowActivitySince`
-- [ ] ветка A: `state.now >= sixAmLocal && (hasUserActivitySince(ctx.db, sixAmLocal, state.now) || hasWindowActivitySince(ctx.db, sixAmLocal, state.now))` (chat первым — короткое замыкание)
-- [ ] ветка B: `gapDays >= GAP_MODE_THRESHOLD && (hasUserActivityInLastHour(ctx.db, state.now) || hasWindowActivitySince(ctx.db, state.now - 3600_000, state.now))`
-- [ ] trigger-тесты: ветка A стреляет на оконной активности **без** chat-сообщения; **не** стреляет если единственная сессия после 06:00 — `loginwindow`; **не** стреляет до 06:00 при наличии оконной активности
-- [ ] trigger-тесты: guard `publishedToday` блокирует повтор после оконного срабатывания; ветка B стреляет на оконной активности за последний час при `gapDays >= 2`
-- [ ] `npm test -w @r2/server` — зелёный перед Task 3
+- [x] в `morningBrief.ts` импортировать `hasWindowActivitySince`
+- [x] ветка A: `state.now >= sixAmLocal && (hasUserActivitySince(ctx.db, sixAmLocal, state.now) || hasWindowActivitySince(ctx.db, sixAmLocal, state.now))` (chat первым — короткое замыкание)
+- [x] ветка B: `gapDays >= GAP_MODE_THRESHOLD && (hasUserActivityInLastHour(ctx.db, state.now) || hasWindowActivitySince(ctx.db, state.now - 3600_000, state.now))`
+- [x] trigger-тесты: ветка A стреляет на оконной активности **без** chat-сообщения; **не** стреляет если единственная сессия после 06:00 — `loginwindow`; **не** стреляет до 06:00 при наличии оконной активности
+- [x] trigger-тесты: guard `publishedToday` блокирует повтор после оконного срабатывания; ветка B стреляет на оконной активности за последний час при `gapDays >= 2`
+- [x] `npm test -w @r2/server` — зелёный перед Task 3
 
 ### Task 3: Verify acceptance + финализация
 - [ ] сверить с Overview/spec: оба сигнала работают earliest-wins в обеих ветках, idle-app отсев работает, порог 06:00 и guard не сломаны
