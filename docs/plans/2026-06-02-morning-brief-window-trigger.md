@@ -53,10 +53,10 @@
 - [x] `npm test -w @r2/server` — зелёный перед Task 3
 
 ### Task 3: Verify acceptance + финализация
-- [ ] сверить с Overview/spec: оба сигнала работают earliest-wins в обеих ветках, idle-app отсев работает, порог 06:00 и guard не сломаны
-- [ ] `npm test -w @r2/server` — полный прогон зелёный
-- [ ] `npm run build -w @r2/server` — typecheck без ошибок
-- [ ] (опц.) обновить README/AGENTS.md если описывают условие триггера morningBrief
+- [x] сверить с Overview/spec: оба сигнала работают earliest-wins в обеих ветках, idle-app отсев работает, порог 06:00 и guard не сломаны
+- [x] `npm test -w @r2/server` — полный прогон зелёный (1369 passed)
+- [x] `npm run build -w @r2/server` — typecheck без ошибок
+- [x] (опц.) обновить README/AGENTS.md если описывают условие триггера morningBrief — AGENTS.md:623 обновлён (earliest-wins chat|window в обеих ветках); README только про контент брифа, триггер не описывает
 
 ## Technical Details
 - `IDLE_APP_NAMES` placeholders: `IDLE_APP_NAMES.map(() => '?').join(',')`, параметры `...IDLE_APP_NAMES` после `since, now`.
