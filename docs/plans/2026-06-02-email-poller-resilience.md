@@ -79,11 +79,11 @@
 
 ### Task 5: Проводка в `index.ts` (конфиг + алерт в Discord)
 
-- [ ] `index.ts` (emails-блок): `const blindAlertAfter = envInt(process.env.EMAIL_ACCOUNT_BLIND_ALERT_AFTER, 3, 1, 100)`; передать в `startEmailPoller`
-- [ ] передать `onAccountBlind`, который (по образцу window-logger `onBlind`) эмитит `reminderBus.emit('push',{type:'cognition_publish',runId:-1,handler:'emails',content:\`⚠️ Почта …: не поллится ${N} тиков подряд — ${lastError}\`})`; гейт на живой Discord (иначе только лог)
-- [ ] `.env.example`: добавить `EMAIL_ACCOUNT_BLIND_ALERT_AFTER=3` с комментарием
-- [ ] тест/проверка проводки, если есть инфраструктура; иначе — ручная проверка в Post-Completion
-- [ ] прогнать тесты — зелёные перед Task 6
+- [x] `index.ts` (emails-блок): `const emailBlindAlertAfter = envInt(process.env.EMAIL_ACCOUNT_BLIND_ALERT_AFTER, 3, 1, 100)`; передан в `startEmailPoller`
+- [x] передан `onAccountBlind`, который (по образцу window-logger `onBlind`) эмитит `reminderBus.emit('push',{type:'cognition_publish',runId:-1,handler:'email-poller',content:\`⚠️ Почта …: не поллится N тиков подряд — ${lastError}\`})`; гейт на живой Discord (`discordBot === null` → только `console.warn`)
+- [x] `.env.example`: добавлен `EMAIL_ACCOUNT_BLIND_ALERT_AFTER=3` с комментарием
+- [x] проверка проводки: индекс не покрыт unit-инфраструктурой → верифицировано через `tsc --noEmit` (lazy-ссылка на `discordBot` компилируется) + существующие poller-тесты `onAccountBlind` (Task 4); ручная проверка в Post-Completion
+- [x] прогнать тесты — зелёные перед Task 6 (1447 passed)
 
 ### Task 6: Verify acceptance criteria
 

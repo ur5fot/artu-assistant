@@ -315,6 +315,10 @@ const emailFeedbackIgnoreHours = envInt(process.env.EMAIL_FEEDBACK_IGNORE_HOURS,
 const emailFeedbackSuppressAfter = envInt(process.env.EMAIL_FEEDBACK_SUPPRESS_AFTER, 3, 1, 20);
 const emailFeedbackSuppressTtlDays = envInt(process.env.EMAIL_FEEDBACK_SUPPRESS_TTL_DAYS, 7, 1, 90);
 const emailFeedbackMaxRepoll = envInt(process.env.EMAIL_FEEDBACK_MAX_REPOLL, 50, 1, 500);
+// After this many consecutive failed ticks an account is "blind" and we alert
+// once (latched until the next successful poll clears the streak). Default 3 ×
+// the 5-min interval ≈ 15 min of silence before escalating.
+const emailBlindAlertAfter = envInt(process.env.EMAIL_ACCOUNT_BLIND_ALERT_AFTER, 3, 1, 100);
 // When the feature is disabled, hand `null` to tool-emails so `emails_list` /
 // `emails_get` return a clear "not enabled" error instead of empty data or
 // references to stale accounts.
@@ -634,6 +638,29 @@ if (emailEnabled) {
         runId: -1,
         handler: 'email-poller',
         content: `⚠️ [emails] UIDVALIDITY сброс для ${account}: ${previous} → ${current}. Ящик пересоздан провайдером — watermark сброшен на текущий maxUid (backlog пропущен), ингест продолжится со следующего нового письма.`,
+      });
+    },
+    // Blind-account escalation: after `blindAlertAfter` consecutive failed ticks
+    // an account is stuck (R2 sees only the healthy mailbox). Alert once per
+    // blind episode; the poller latches via `blind_alerted` and a successful
+    // poll resets the streak so a recovered-then-re-blinded account alerts again.
+    blindAlertAfter: emailBlindAlertAfter,
+    onAccountBlind: ({ account, consecutive, lastError }) => {
+      console.warn(
+        `[emails] account BLIND: ${account} failed ${consecutive} consecutive ticks; last error: ${lastError}`,
+      );
+      // Only escalate to Discord when the bot is actually live (nobody consumes
+      // cognition_publish otherwise — the warning above is the durable record).
+      // The poller starts before the Discord bot, but a blind alert fires only
+      // after several failed ticks, by which point the bot is up if it will be.
+      if (discordBot === null) return;
+      // Sentinel runId: -1 — see the onUidValidityReset note above. Reuses the
+      // existing cognition_publish → Discord DM render path.
+      reminderBus.emit('push', {
+        type: 'cognition_publish',
+        runId: -1,
+        handler: 'email-poller',
+        content: `⚠️ Почта ${account}: не поллится ${consecutive} тиков подряд — ${lastError}. Похоже, ящик ослеп (R2 видит только второй аккаунт). Проверь IMAP-доступ/пароль.`,
       });
     },
     scorer: (msgs) =>
