@@ -405,6 +405,29 @@ describe('createMorningBriefHandler', () => {
       );
       expect(res).toBe(false);
     });
+
+    it('Branch B: fires on a window session started exactly an hour ago', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 22, 1, 0, 0); // 04:00 Kyiv 22nd — before 06:00 so Branch A cannot fire
+      getDb()
+        .prepare(
+          'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+        )
+        .run('morningBrief', Date.UTC(2026, 3, 19, 3, 0, 0), 10, 'publish'); // 3 days ago
+      // Session started at exactly the lower bound (`now - 3600_000`). The
+      // helper uses `started_at >= since`, so this must fire. Together with the
+      // 70-min "does not fire" case this pins the gate to exactly one hour — a
+      // bound regression to e.g. 30 min would slip past both 20/70-min tests.
+      insertWindow('Code', now - 3600_000);
+      const res = await h.trigger(
+        { now, lastFiredAt: null, lastResult: null },
+        { db: getDb() },
+      );
+      expect(res).toBe(true);
+    });
   });
 
   describe('run', () => {
