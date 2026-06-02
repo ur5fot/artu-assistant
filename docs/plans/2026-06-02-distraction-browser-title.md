@@ -49,12 +49,12 @@
 
 ### Task 1: Browser-aware захват заголовка вкладки (`window-snapshot.ts`)
 
-- [ ] добавить `BROWSER_TITLE_SCRIPTS: Record<string,string>` — имя приложения → AppleScript активной вкладки: `Google Chrome` (`tell application "Google Chrome" to get title of active tab of front window`), `Safari` (`tell application "Safari" to get name of current tab of front window`)
-- [ ] в `getActive()`: Call 1 — System Events (frontApp + generic title, как сейчас); если `frontApp` ∈ map → Call 2 (отдельный `execFile` с браузерным скриптом); итоговый `window_title` = непустой Call 2, иначе generic из Call 1 (фолбэк); для не-браузеров Call 2 не делать
-- [ ] обработка Call 2 error (нет Automation-привилегии / нет окна): не падать, фолбэк на generic; **один раз** залогировать подсказку (латч), формат как у window-logger blind (`System Settings → Privacy & Security → Automation`)
-- [ ] не менять `WindowSnapshot`/`parseSnapshot`; сохранить timeout/`err→null` семантику
-- [ ] тесты (мок execFile): не-браузер → один System Events путь; браузер с непустым tab-title → берём его; браузер, Call 2 пусто → фолбэк на generic; Call 2 error → фолбэк + подсказка залогирована ровно один раз
-- [ ] прогнать тесты — зелёные перед Task 2
+- [x] добавить `BROWSER_TITLE_SCRIPTS: Record<string,string>` — имя приложения → AppleScript активной вкладки: `Google Chrome` (`tell application "Google Chrome" to get title of active tab of front window`), `Safari` (`tell application "Safari" to get name of current tab of front window`)
+- [x] в `getActive()`: Call 1 — System Events (frontApp + generic title, как сейчас); если `frontApp` ∈ map → Call 2 (отдельный `execFile` с браузерным скриптом); итоговый `window_title` = непустой Call 2, иначе generic из Call 1 (фолбэк); для не-браузеров Call 2 не делать
+- [x] обработка Call 2 error (нет Automation-привилегии / нет окна): не падать, фолбэк на generic; **один раз** залогировать подсказку (латч), формат как у window-logger blind (`System Settings → Privacy & Security → Automation`)
+- [x] не менять `WindowSnapshot`/`parseSnapshot`; сохранить timeout/`err→null` семантику
+- [x] тесты (мок execFile): не-браузер → один System Events путь; браузер с непустым tab-title → берём его; браузер, Call 2 пусто → фолбэк на generic; Call 2 error → фолбэк + подсказка залогирована ровно один раз
+- [x] прогнать тесты — зелёные перед Task 2
 
 ### Task 2: Вердикт `unknown` у судьи + no-nudge в хэндлере
 
