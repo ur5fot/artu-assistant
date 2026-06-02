@@ -384,6 +384,27 @@ describe('createMorningBriefHandler', () => {
       );
       expect(res).toBe(true);
     });
+
+    it('Branch B: does not fire when the only window session started over an hour ago', async () => {
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: fakeAnthropic('ok') as any,
+      });
+      const now = Date.UTC(2026, 3, 22, 1, 0, 0); // 04:00 Kyiv 22nd — before 06:00 so Branch A cannot fire
+      getDb()
+        .prepare(
+          'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
+        )
+        .run('morningBrief', Date.UTC(2026, 3, 19, 3, 0, 0), 10, 'publish'); // 3 days ago
+      // Window session started 70 min ago — outside the last-hour gate, so the
+      // gap-return window path must NOT fire (pins the `now - 3600_000` bound).
+      insertWindow('Code', now - 70 * 60_000);
+      const res = await h.trigger(
+        { now, lastFiredAt: null, lastResult: null },
+        { db: getDb() },
+      );
+      expect(res).toBe(false);
+    });
   });
 
   describe('run', () => {

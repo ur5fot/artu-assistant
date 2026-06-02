@@ -77,9 +77,9 @@ export function hasUserActivityInLastHour(
 // `loginwindow` is foreground while the screen is locked, `ScreenSaverEngine`
 // while the screensaver runs. A window session starting on one of these isn't
 // the user sitting down to work, so it must not trigger the morning brief.
-export const IDLE_APP_NAMES = ['loginwindow', 'ScreenSaverEngine'];
+const IDLE_APP_NAMES = ['loginwindow', 'ScreenSaverEngine'];
 
-// True if a window session *started* in (since, now]. We key on `started_at`
+// True if a window session *started* in [since, now]. We key on `started_at`
 // (the instant the user actually switched/opened a window), not `last_seen_at`:
 // `last_seen_at` keeps bumping while a window stays frontmost overnight, so it
 // would falsely report "activity at 06:00" for a Mac left on. Upper bound
