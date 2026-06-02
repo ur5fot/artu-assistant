@@ -66,11 +66,11 @@
 
 ### Task 1: Таблица `distraction_evals` + store
 
-- [ ] в `db.ts` добавить `db.exec` с `CREATE TABLE IF NOT EXISTS distraction_evals` (поля по спеке §4: `id, app_name, dwell_started_at, window_title, evaluated_at, eval_dwell_ms, verdict, confidence, pinged, feedback, snooze_until`) + индексы `idx_distraction_dwell (app_name, dwell_started_at)`, `idx_distraction_evaluated_at (evaluated_at DESC)`
-- [ ] создать `packages/server/src/observers/distraction-eval-store.ts` с `createDistractionEvalStore({ db })`: `findLatestEvalForDwell(app, dwellStart)`, `findRecentPing(app, since)`, `countEvalsSince(since)`, `activeSnoozeUntil(now)`, `recordEval(input)`, `recordFeedback(app, dwellStart, feedback, snoozeUntil?)`
-- [ ] написать тесты store: record+findLatest, dedup (`findRecentPing`), `countEvalsSince`, `activeSnoozeUntil` (active/expired), `recordFeedback` (work + snooze)
-- [ ] написать тесты edge: пустая таблица → null/0; снуз в прошлом → не активен
-- [ ] прогнать тесты — зелёные перед Task 2
+- [x] в `db.ts` добавить `db.exec` с `CREATE TABLE IF NOT EXISTS distraction_evals` (поля по спеке §4: `id, app_name, dwell_started_at, window_title, evaluated_at, eval_dwell_ms, verdict, confidence, pinged, feedback, snooze_until`) + индексы `idx_distraction_dwell (app_name, dwell_started_at)`, `idx_distraction_evaluated_at (evaluated_at DESC)`
+- [x] создать `packages/server/src/observers/distraction-eval-store.ts` с `createDistractionEvalStore({ db })`: `findLatestEvalForDwell(app, dwellStart)`, `findRecentPing(app, since)`, `countEvalsSince(since)`, `activeSnoozeUntil(now)`, `recordEval(input)`, `recordFeedback(app, dwellStart, feedback, snoozeUntil?)`
+- [x] написать тесты store: record+findLatest, dedup (`findRecentPing`), `countEvalsSince`, `activeSnoozeUntil` (active/expired), `recordFeedback` (work + snooze)
+- [x] написать тесты edge: пустая таблица → null/0; снуз в прошлом → не активен
+- [x] прогнать тесты — зелёные перед Task 2
 
 ### Task 2: Чистый фильтр `shouldEvaluateDistraction`
 
