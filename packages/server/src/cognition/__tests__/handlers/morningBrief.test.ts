@@ -370,7 +370,7 @@ describe('createMorningBriefHandler', () => {
         piiProxy: fakeProxy(),
         anthropic: fakeAnthropic('ok') as any,
       });
-      const now = Date.UTC(2026, 3, 22, 12, 0, 0); // 15:00 Kyiv 22nd
+      const now = Date.UTC(2026, 3, 22, 1, 0, 0); // 04:00 Kyiv 22nd — before 06:00 so Branch A cannot mask Branch B
       getDb()
         .prepare(
           'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
