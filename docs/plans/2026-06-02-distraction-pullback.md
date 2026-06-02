@@ -123,8 +123,8 @@
 
 ### Task 8: Документация
 
-- [ ] обновить секцию Digital Observer в `README.md` (новое поведение pullback, env-флаги, что старый restore выключен по дефолту)
-- [ ] обновить `AGENTS.md`, если появились новые паттерны/команды
+- [x] обновить секцию Digital Observer в `README.md` (новое поведение pullback, env-флаги, что старый restore выключен по дефолту)
+- [x] обновить `AGENTS.md`, если появились новые паттерны/команды (добавлен entry `distractionPullback`, помечен `contextSwitch` как off-by-default/superseded)
 
 ## Technical Details
 

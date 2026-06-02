@@ -103,7 +103,9 @@ Closing the gap between Claude Code (the harness) and R2:
   - `emailDigest` — registered when email watcher is enabled.
   - `emailUrgent` — immediate Discord ping for `importance=5` emails, gated on
     `EMAIL_URGENT_ENABLED=true` and suppressed during quiet hours.
-  - `contextSwitch` — macOS Digital Observer (Pain #2 iter 1); see the
+  - `distractionPullback` — macOS Digital Observer (Pain #2 iter 2); proactively
+    pings you mid-distraction. `contextSwitch` (iter 1, passive restore) is now
+    off by default. See the
     [Digital Observer](#digital-observer-pain-2--macos-only) section.
   - `pulseHandler` — demo / placeholder.
 - **Discord channel** — DM-only, whitelist-gated. The only active channel today.
@@ -424,8 +426,35 @@ fires, R2 proactively DMs you a `🔁 Restore context?` embed.
 never appear in the default embed. A `Show titles` button reveals the list as
 an **ephemeral** message visible only to you.
 
-**This iteration is observation only** — it detects and notifies. Actual
-restore (reopening tabs / files / cwd) is a later iteration.
+**Iter 1 is observation only** — it detects and notifies. Actual restore
+(reopening tabs / files / cwd) never shipped; the handler is now superseded
+(see below) and off by default.
+
+**Proactive pullback (iter 2).** The passive "restore on return" model only
+helped *after* you'd already snapped out of a distraction. Iter 2 replaces it
+with `distractionPullback`, which catches the distraction **in the moment** and
+nudges you out of it. Two-stage, cost-aware:
+
+1. **Cheap app-level filter** (`shouldEvaluateDistraction`, pure) runs on every
+   tick over `window_history`: it coalesces consecutive titles into one
+   app-level *dwell* (a string of YouTube videos = one dwell, not a reset per
+   clip), and only flags a candidate when the dwell exceeds
+   `DISTRACTION_DWELL_MIN`, was preceded by a real work session in another app,
+   isn't snoozed/deduped, and is under the daily cap. A dwell is re-judged only
+   when it grows by `DISTRACTION_REEVAL_MIN` **or** the window title flips
+   (catching a fast localhost→YouTube swap).
+2. **AI judge by titles** (`judgeDistraction`, haiku) runs only on a candidate.
+   It reads the recent app+title timeline and rules `distracted` / `break` /
+   `working` with a confidence score. Work vs. leisure *inside the same app*
+   (a YouTube tutorial on your stack = `working`; an IDE never triggers) is
+   decided here, from the titles. R2 pings only on a confident `distracted`
+   (≥ `DISTRACTION_CONFIDENCE_PCT`). A judge error is silent — never a false
+   ping.
+
+The nudge DM carries three buttons: **Возвращаюсь** (ack), **Это по работе**
+(records `work` feedback, mutes re-evaluation of that dwell), **Отстань**
+(snoozes all pullbacks for `DISTRACTION_SNOOZE_MIN`). Verdicts, pings, feedback
+and snoozes are persisted in `distraction_evals` for dedup and the daily cap.
 
 **Self-diagnostics (iter 1.5).** The poller can go silently blind — after a
 sleep/wake macOS often revokes Automation access and `osascript` starts
@@ -447,10 +476,22 @@ exactly one alert per blind streak.
    System Events"* → click **Allow**. If no prompt appears, grant it manually
    in **System Settings → Privacy & Security → Automation → R2 / node →
    System Events**.
-3. Tune detection via env vars (all in `.env.example`):
-   `CONTEXT_SWITCH_LONG_SESSION_MIN` (30), `CONTEXT_SWITCH_GAP_MIN` (5),
-   `CONTEXT_SWITCH_STABLE_NEW_MIN` (5), `CONTEXT_SWITCH_DEDUPE_WINDOW_H` (8),
-   `WINDOW_LOGGER_BLIND_ALERT_AFTER` (10 — consecutive blind ticks before the
+3. Turn on the proactive pullback: `DISTRACTION_ENABLED=true` (gated on flag +
+   macOS + a live Discord bot). Tune the judge via env vars (all in
+   `.env.example`): `DISTRACTION_DWELL_MIN` (25 — min minutes in one app before a
+   ping), `DISTRACTION_WORK_LOOKBACK_MIN` (120), `DISTRACTION_JUDGE_LOOKBACK_MIN`
+   (60 — timeline window fed to the judge), `DISTRACTION_DEDUPE_H` (3),
+   `DISTRACTION_REEVAL_MIN` (30), `DISTRACTION_CONFIDENCE_PCT` (70 — min judge
+   confidence to ping), `DISTRACTION_SNOOZE_MIN` (60 — "Отстань" mute window),
+   `DISTRACTION_DAILY_LLM_CAP` (40 — max judge calls/day),
+   `DISTRACTION_JUDGE_MODEL` (`claude-haiku-4-5`).
+4. **Old restore handler is off by default.** The iter-1 `contextSwitch`
+   (passive "restore on return") stays in the codebase but silent; set
+   `CONTEXT_SWITCH_ENABLED=true` to re-enable it alongside the pullback. Its
+   tuning vars (`CONTEXT_SWITCH_LONG_SESSION_MIN` 30, `CONTEXT_SWITCH_GAP_MIN`
+   5, `CONTEXT_SWITCH_STABLE_NEW_MIN` 5, `CONTEXT_SWITCH_DEDUPE_WINDOW_H` 8)
+   only apply when it's enabled.
+5. `WINDOW_LOGGER_BLIND_ALERT_AFTER` (10 — consecutive blind ticks before the
    self-diagnostics warning + Discord ping; range 1–2880).
 
 **Known limitations (iter 1):**
