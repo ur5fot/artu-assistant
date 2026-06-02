@@ -353,14 +353,29 @@ export async function runPollTick(params: TickParams): Promise<void> {
             state.consecutive_errors >= threshold &&
             state.blind_alerted === 0
           ) {
-            params.store.markBlindAlerted(acc.id);
-            params.onAccountBlind({
-              account: acc.id,
-              consecutive: state.consecutive_errors,
-              // `msg` is the error just written by setAccountError above, so it
-              // equals the persisted last_error — use it directly.
-              lastError: msg,
-            });
+            // Dispatch first, latch only on success. `onAccountBlind` emits onto
+            // an EventEmitter (reminderBus), where a synchronous listener failure
+            // propagates back here. If we latched before dispatch, a throwing hook
+            // would mark the account alerted while delivering nothing, and the
+            // exception would escape this per-account catch into the tick crash
+            // handler. Instead, swallow+log hook failures so one bad alert can't
+            // sink the poll tick; an undelivered alert stays un-latched and retries
+            // next tick (still blind → same branch fires again).
+            try {
+              params.onAccountBlind({
+                account: acc.id,
+                consecutive: state.consecutive_errors,
+                // `msg` is the error just written by setAccountError above, so it
+                // equals the persisted last_error — use it directly.
+                lastError: msg,
+              });
+              params.store.markBlindAlerted(acc.id);
+            } catch (alertErr) {
+              console.error(
+                `[emails] blind alert hook failed for ${acc.id}:`,
+                alertErr instanceof Error ? alertErr.message : String(alertErr),
+              );
+            }
           }
         }
       }

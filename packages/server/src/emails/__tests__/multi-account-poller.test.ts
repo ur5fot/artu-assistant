@@ -1112,4 +1112,40 @@ describe('runPollTick — onAccountBlind alert', () => {
     expect(onAccountBlind).not.toHaveBeenCalled();
     expect(store.getAccountErrorState('a')?.consecutive_errors).toBe(5);
   });
+
+  it('a throwing alert hook does not crash the tick or latch the account, and retries next tick', async () => {
+    // onAccountBlind dispatches onto an EventEmitter where a listener can throw
+    // synchronously. Such a failure must not escape the per-account catch (no
+    // tick crash) and must not latch blind_alerted — so the alert retries while
+    // the account stays blind. First tick throws, second succeeds.
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    const fetcher = vi.fn(async () => { throw new Error('socket-boom'); });
+    const scorer = vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 5 })));
+    const onAccountBlind = vi.fn()
+      .mockImplementationOnce(() => { throw new Error('bus-listener-boom'); });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // Tick 1: streak hits threshold (1), hook throws → must not reject.
+    await expect(
+      runPollTick({
+        accounts: [accA], store, fetcher, scorer,
+        maxUidProbe: noProbe, validityProbe: noValidity,
+        blindAlertAfter: 1, onAccountBlind, now: 1000,
+      }),
+    ).resolves.toBeUndefined();
+    expect(onAccountBlind).toHaveBeenCalledTimes(1);
+    // Not latched: the failed dispatch left blind_alerted clear.
+    expect(store.getAccountErrorState('a')?.blind_alerted).toBe(0);
+
+    // Tick 2: still blind, hook retried and now succeeds → latched.
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer,
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      blindAlertAfter: 1, onAccountBlind, now: 1001,
+    });
+    expect(onAccountBlind).toHaveBeenCalledTimes(2);
+    expect(store.getAccountErrorState('a')?.blind_alerted).toBe(1);
+    errSpy.mockRestore();
+  });
 });
