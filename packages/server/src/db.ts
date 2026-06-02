@@ -396,6 +396,35 @@ export function initDb(dbPath?: string): void {
       ON context_pings(away_app, pinged_at DESC)
   `);
 
+  // distractionPullback: one row per AI evaluation of a "stuck" dwell. A dwell
+  // is keyed by (app_name, dwell_started_at = runStart); window_title +
+  // eval_dwell_ms let the filter decide whether to re-evaluate (title flip /
+  // dwell growth). pinged marks the rows that turned into a Discord ping;
+  // feedback/snooze_until capture the button responses.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS distraction_evals (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      app_name         TEXT    NOT NULL,
+      dwell_started_at INTEGER NOT NULL,
+      window_title     TEXT,
+      evaluated_at     INTEGER NOT NULL,
+      eval_dwell_ms    INTEGER NOT NULL,
+      verdict          TEXT    NOT NULL,
+      confidence       INTEGER,
+      pinged           INTEGER NOT NULL DEFAULT 0,
+      feedback         TEXT,
+      snooze_until     INTEGER
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_distraction_dwell
+      ON distraction_evals (app_name, dwell_started_at)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_distraction_evaluated_at
+      ON distraction_evals (evaluated_at DESC)
+  `);
+
   // Migration: add importance / forgotten columns to memory_facts if missing.
   // SQLite can't do IF NOT EXISTS for columns, so we gate on PRAGMA table_info.
   const factCols = db.prepare('PRAGMA table_info(memory_facts)').all() as Array<{ name: string }>;

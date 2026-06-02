@@ -293,6 +293,14 @@ export interface WindowRestoreEvent {
 // lost. Mirrors the overflow guard in buildPermissionsListReply.
 const CUSTOM_ID_LIMIT = 100;
 
+// Length budgets for the distraction nudge body. Discord caps a message at 2000
+// chars; bot.ts also prefixes "💭 _from distractionPullback_\n" (~30 chars), so
+// keep a comfortable margin. The per-field caps keep the line readable while the
+// overall cap is a hard backstop.
+const NUDGE_TITLE_MAX = 150;
+const NUDGE_WORK_MAX = 400;
+const NUDGE_CONTENT_MAX = 1900;
+
 export function buildWindowRestoreEmbed(
   event: WindowRestoreEvent,
   durationMin: number,
@@ -324,6 +332,60 @@ export function buildWindowRestoreEmbed(
     },
     components,
   };
+}
+
+// Plain-data shape consumed by the distraction handler / bot.ts. The handler
+// composes this from the judge's verdict (app, current title, dwell length,
+// work summary) plus the dwell key (runStart) and the configured snooze window.
+export interface DistractionNudgeEvent {
+  app: string;
+  title: string;
+  dwellMin: number;
+  workSummary: string;
+  /** = runStart — the dwell key the button handlers write feedback against. */
+  runStart: number;
+  /** Snooze window in minutes — rendered into the "Отстань на Nм" label. */
+  snoozeMin: number;
+}
+
+// Builds the proactive pullback ping: a short "you've been stuck N min" line +
+// three buttons (back / it's-work / snooze). Mirrors buildWindowRestoreEmbed's
+// custom_id overflow guard — the `work`/`snooze` ids embed the app name
+// verbatim (the feedback lookup matches it exactly via recordFeedback), so for
+// a pathologically long app name those buttons are dropped rather than letting
+// setCustomId throw and fail the whole publish; the "Возвращаюсь" ack (no app
+// in its id) and the text always survive.
+export function buildDistractionNudge(event: DistractionNudgeEvent): {
+  content: string;
+  components: ComponentData[];
+} {
+  // Clamp the free-text parts (window title can be arbitrarily long; work
+  // summary comes from the LLM judge) so the body never approaches Discord's
+  // 2000-char message cap. An over-limit send would throw, and because the
+  // nudge carries components it's sent directly (not via the splitter) — a
+  // throw there skips onPublished, so the eval is never recorded and the filter
+  // re-wakes the judge every tick. The final cap is a backstop for a long app.
+  const titlePart = event.title ? `: ${truncateWithEllipsis(event.title, NUDGE_TITLE_MAX)}` : '';
+  const workPart = event.workSummary
+    ? ` До этого: ${truncateWithEllipsis(event.workSummary, NUDGE_WORK_MAX)}.`
+    : '';
+  const content = truncateWithEllipsis(
+    `🧲 Ты ~${event.dwellMin} мин в ${event.app}${titlePart}.${workPart} Вернёшься?`,
+    NUDGE_CONTENT_MAX,
+  );
+
+  const workId = `distract:work:${event.app}:${event.runStart}`;
+  const snoozeId = `distract:snooze:${event.app}:${event.runStart}`;
+  const buttons: ComponentData['buttons'] = [
+    { customId: `distract:back:${event.runStart}`, label: 'Возвращаюсь', style: 'success' },
+  ];
+  if (workId.length <= CUSTOM_ID_LIMIT) {
+    buttons.push({ customId: workId, label: 'Это по работе', style: 'secondary' });
+  }
+  if (snoozeId.length <= CUSTOM_ID_LIMIT) {
+    buttons.push({ customId: snoozeId, label: `Отстань на ${event.snoozeMin}м`, style: 'danger' });
+  }
+  return { content, components: [{ type: 'row', buttons }] };
 }
 
 export interface PermissionsListReply {

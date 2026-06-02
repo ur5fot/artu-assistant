@@ -41,6 +41,7 @@ import type { ImapAccount } from '../../emails/types.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { PiiProxy } from '../../pii/proxy.js';
 import type { WindowHistoryStore } from '../../observers/window-history-store.js';
+import type { DistractionEvalStore } from '../../observers/distraction-eval-store.js';
 import { SLASH_COMMAND_DEFINITIONS } from './slash-commands.js';
 
 export interface DiscordBotDeps {
@@ -118,6 +119,11 @@ export interface DiscordBotDeps {
   /** Window history — read by the `window:show` button to reveal session titles
    *  (privacy-by-default). Without it the "Show titles" button is inert. */
   windowHistoryStore?: WindowHistoryStore;
+  /** Distraction evals — written by the `distract:*` pullback buttons. Without
+   *  it those buttons still ack but record no feedback. */
+  distractionEvalStore?: DistractionEvalStore;
+  /** Snooze window (minutes) applied by the `distract:snooze` button. */
+  distractionSnoozeMin?: number;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -323,6 +329,8 @@ export async function startDiscordBot(
         emailSuppressionStore: deps.emailSuppressionStore,
         piiProxy: deps.piiProxy,
         windowHistoryStore: deps.windowHistoryStore,
+        distractionEvalStore: deps.distractionEvalStore,
+        distractionSnoozeMin: deps.distractionSnoozeMin,
       });
     } catch (err) {
       console.error('[discord] interaction error:', err instanceof Error ? err.message : err);
@@ -1155,6 +1163,20 @@ export async function startDiscordBot(
                 // Cognition handlers compose `content` from LLM output (e.g.
                 // morningBrief, draft replies). Block @everyone / role pings
                 // even though the channel is a 1:1 DM — defense in depth.
+                allowedMentions: { parse: [] },
+              });
+              return;
+            }
+            if (event.components) {
+              // Plain-text nudge that still carries interactive buttons (e.g.
+              // distractionPullback). sendReply can't attach components, so
+              // send directly. buildDistractionNudge clamps the content well
+              // under Discord's 2000-char cap (and the prefix added here fits
+              // the margin), so no splitter is needed — and a clamp there is
+              // what keeps this send from throwing and skipping onPublished.
+              await (dm as unknown as DMChannel).send({
+                content: body,
+                components: buildComponentsFromData(event.components as ComponentData[]),
                 allowedMentions: { parse: [] },
               });
               return;

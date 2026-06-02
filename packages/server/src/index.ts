@@ -67,6 +67,8 @@ import { createContextPingStore } from './observers/context-switch-detector.js';
 import { createOsascriptProvider } from './observers/window-snapshot.js';
 import { startWindowLogger } from './observers/window-logger.js';
 import { createContextSwitchHandler } from './cognition/handlers/contextSwitch.js';
+import { createDistractionEvalStore } from './observers/distraction-eval-store.js';
+import { createDistractionHandler } from './cognition/handlers/distractionPullback.js';
 import { envInt } from './env-utils.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -594,6 +596,13 @@ let stopWindowLogger: (() => void) | null = null;
 // *write* to it stay gated on the feature flag below, so a disabled feature
 // still produces no rows and no buttons — the store just sits idle.
 const windowStore = createWindowHistoryStore({ db: getDb() });
+// Distraction-pullback eval store — hoisted like windowStore so the Discord bot
+// (constructed below, before the Digital Observer block) can hand it to the
+// distract:* button handlers. Cheap prepared statements over an always-migrated
+// table; stays idle until the handler is gated on. snoozeMin is read here too
+// because both the bot (button reply text) and the handler (nudge button) need it.
+const distractionEvalStore = createDistractionEvalStore({ db: getDb() });
+const distractionSnoozeMin = envInt(process.env.DISTRACTION_SNOOZE_MIN, 60, 5, 480);
 
 // Polling runs independently of Discord. email_pending feeds on-demand tools
 // (emails_list/emails_get) as well as the digest handler; gating it on the
@@ -733,6 +742,11 @@ if (discordToken) {
       // ephemeral. Passed unconditionally — when the feature is off no pings
       // (and thus no buttons) are ever created, so the store is never queried.
       windowHistoryStore: windowStore,
+      // distract:* button feedback (back/work/snooze) writes here. Passed
+      // unconditionally for the same reason as windowHistoryStore — no pings and
+      // thus no buttons when the feature is off, so the store is never touched.
+      distractionEvalStore,
+      distractionSnoozeMin,
       requestTimeoutMs: (() => {
         const n = Number(process.env.DISCORD_REQUEST_TIMEOUT_MS);
         return Number.isFinite(n) && n > 0 ? n : 300_000;
@@ -808,6 +822,10 @@ if (discordToken) {
   const windowFlag = process.env.WINDOW_LOGGER_ENABLED === 'true';
   const isDarwin = process.platform === 'darwin';
   const discordReady = discordBot !== null;
+  // Old "restore when you come back" handler — gated behind its own flag
+  // (default false) so it stays silent unless explicitly re-enabled. The
+  // proactive distractionPullback handler (registered below) supersedes it.
+  const contextSwitchFlag = process.env.CONTEXT_SWITCH_ENABLED === 'true';
   const windowIntervalMs = envInt(process.env.WINDOW_LOGGER_INTERVAL_MS, 30_000, 5_000, 300_000);
   const longSessionMin = envInt(process.env.CONTEXT_SWITCH_LONG_SESSION_MIN, 30, 10, 240);
   const switchGapMin = envInt(process.env.CONTEXT_SWITCH_GAP_MIN, 5, 1, 60);
@@ -846,22 +864,65 @@ if (discordToken) {
       onRecover: ({ blindFor }) =>
         console.warn(`[window-logger] recovered after ${blindFor} blind ticks; sampling resumed.`),
     });
-    cognitionService.register(
-      createContextSwitchHandler({
-        store: windowStore,
-        pingStore,
-        longSessionMin,
-        switchGapMin,
-        stableNewMin,
-        dedupeWindowH,
-      }),
-    );
+    if (contextSwitchFlag) {
+      cognitionService.register(
+        createContextSwitchHandler({
+          store: windowStore,
+          pingStore,
+          longSessionMin,
+          switchGapMin,
+          stableNewMin,
+          dedupeWindowH,
+        }),
+      );
+      console.log('[context-switch] handler registered');
+    } else {
+      console.log('[context-switch] handler disabled (CONTEXT_SWITCH_ENABLED unset)');
+    }
     console.log(
       `[window-logger] started (interval=${Math.round(windowIntervalMs / 1000)}s, blind-alert=${blindAlertAfter})`,
     );
   } else {
     console.log(
       `[window-logger] disabled (flag=${windowFlag}, darwin=${isDarwin}, discord=${discordReady})`,
+    );
+  }
+}
+
+// Distraction-pullback (Pain #2 iter 2) — proactive "catch the залип in the
+// moment" handler. Same three gates as the window poller: feature flag, darwin,
+// live Discord (it publishes a nudge via the cognition bus). Reads window_history
+// (populated by the poller above, gated on WINDOW_LOGGER_ENABLED) so both flags
+// must be on for it to see data — logged separately so a misconfig is visible.
+{
+  const distractionFlag = process.env.DISTRACTION_ENABLED === 'true';
+  const isDarwin = process.platform === 'darwin';
+  const discordReady = discordBot !== null;
+  if (distractionFlag && isDarwin && discordReady) {
+    cognitionService.register(
+      createDistractionHandler({
+        store: windowStore,
+        evalStore: distractionEvalStore,
+        anthropic: client.anthropic,
+        model: process.env.DISTRACTION_JUDGE_MODEL || 'claude-haiku-4-5',
+        dwellMin: envInt(process.env.DISTRACTION_DWELL_MIN, 25, 5, 240),
+        workLookbackMin: envInt(process.env.DISTRACTION_WORK_LOOKBACK_MIN, 120, 10, 480),
+        judgeLookbackMin: envInt(process.env.DISTRACTION_JUDGE_LOOKBACK_MIN, 60, 10, 480),
+        dedupeH: envInt(process.env.DISTRACTION_DEDUPE_H, 3, 1, 168),
+        reevalMin: envInt(process.env.DISTRACTION_REEVAL_MIN, 30, 5, 240),
+        confidencePct: envInt(process.env.DISTRACTION_CONFIDENCE_PCT, 70, 0, 100),
+        dailyCap: envInt(process.env.DISTRACTION_DAILY_LLM_CAP, 40, 1, 1000),
+        // Reject a stale "last good" window row (logger went blind/stopped) once
+        // it's older than 3 poll intervals — re-read the interval env the window
+        // poller block uses so the two stay in lockstep without shared scope.
+        freshnessMs: envInt(process.env.WINDOW_LOGGER_INTERVAL_MS, 30_000, 5_000, 300_000) * 3,
+        snoozeMin: distractionSnoozeMin,
+      }),
+    );
+    console.log('[distraction] pullback handler registered');
+  } else {
+    console.log(
+      `[distraction] disabled (flag=${distractionFlag}, darwin=${isDarwin}, discord=${discordReady})`,
     );
   }
 }
