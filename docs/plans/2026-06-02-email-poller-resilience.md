@@ -50,11 +50,11 @@
 
 ### Task 1: `'error'`-листенер в `withClient` (root fix краша)
 
-- [ ] в `imap-client.ts` `withClient`: сразу после `new Ctor({...})` повесить `client.on('error', (e) => { socketError = … })` — захват сокет-ошибки, чтобы unhandled `'error'` не ронял процесс; операция реджектит сама и идёт в per-account catch
-- [ ] убедиться, что `finally { logout() }` и ранний `'error'` не приводят к uncaught (листенер покрывает teardown)
-- [ ] тест (`__setImapFlowCtor`): стаб, чей `connect()` реджектит **и** emit-ит `'error'` (ETIMEOUT) → `withClient` бросает, **нет uncaught**
-- [ ] тест: стаб emit-ит `'error'` **после** успешной операции (idle/после logout) → процесс жив, результат возвращён
-- [ ] прогнать тесты — зелёные перед Task 2
+- [x] в `imap-client.ts` `withClient`: сразу после `new Ctor({...})` повесить `client.on('error', …)` — захват сокет-ошибки, чтобы unhandled `'error'` не ронял процесс; операция реджектит сама и идёт в per-account catch (гард `typeof client.on === 'function'` для стаб-клиентов)
+- [x] убедиться, что `finally { logout() }` и ранний `'error'` не приводят к uncaught (листенер покрывает teardown)
+- [x] тест (`__setImapFlowCtor`): стаб, чей `connect()` реджектит **и** emit-ит `'error'` (ETIMEOUT) → `withClient` бросает, **нет uncaught**
+- [x] тест: стаб emit-ит `'error'` **после** успешной операции (idle/после logout) → процесс жив, результат возвращён
+- [x] прогнать тесты — зелёные перед Task 2
 
 ### Task 2: Видимый stdout-лог per-account падения
 
