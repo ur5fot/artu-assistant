@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { initDb, getDb } from '../../db.js';
 import { createEmailStore } from '../store.js';
 import { createEmailFeedbackStore } from '../feedback-store.js';
-import { runPollTick, type FlagFetcher, type FeedbackResolution } from '../multi-account-poller.js';
+import { runPollTick, type FlagFetcher, type FeedbackResolution, type MessageFetcher } from '../multi-account-poller.js';
 import type { ImapAccount, NewMessage } from '../types.js';
 
 beforeEach(() => {
@@ -79,6 +79,40 @@ describe('runPollTick', () => {
     expect(store.getAccountError('a')?.message).toContain('imap-down');
     expect(store.getLastSeenUid('b')).toBe(7);
     expect(store.countPendingUndelivered()).toBe(1);
+  });
+
+  it('logs per-account failure to stderr alongside setAccountError', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    store.updateLastSeenUid('b', 1, 100);
+    const fetcher = vi.fn(async (acc: ImapAccount) => {
+      if (acc.id === 'a') throw new Error('socket-boom');
+      return [msg(7)];
+    });
+    const scorer = vi.fn(async (ms: NewMessage[]) =>
+      ms.map((m) => ({ uid: m.uid, importance: 5 })),
+    );
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await runPollTick({
+      accounts: [accA, accB],
+      store,
+      fetcher,
+      scorer,
+      maxUidProbe: noProbe,
+      validityProbe: noValidity,
+      now: 6000,
+    });
+
+    // Failure is visible in stdout (not just swallowed into the DB), and the
+    // healthy account keeps polling (Promise.all per-account isolation).
+    expect(err).toHaveBeenCalledWith('[emails] poll failed for a:', 'socket-boom');
+    // Exactly one error log — the healthy account `b` must not have produced
+    // its own failure path, pinning the per-account isolation claim.
+    expect(err).toHaveBeenCalledTimes(1);
+    expect(store.getAccountError('a')?.message).toContain('socket-boom');
+    expect(store.getLastSeenUid('b')).toBe(7);
+    err.mockRestore();
   });
 
   it('does NOT update last_seen_uid when scorer throws', async () => {
@@ -950,5 +984,168 @@ describe('runPollTick — implicit-feedback resolution', () => {
 
     expect(store.getLastSeenUid('a')).toBe(150); // new mail processed
     expect(outcomeOf(getDb(), id).outcome).toBe('replied'); // and feedback resolved
+  });
+});
+
+describe('runPollTick — onAccountBlind alert', () => {
+  // Run `count` ticks that all fail for account `a`, returning the store and the
+  // alert spy so tests can assert call counts/args.
+  async function failTicks(
+    count: number,
+    opts: { blindAlertAfter?: number; onAccountBlind?: ReturnType<typeof vi.fn> } = {},
+  ) {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100); // bypass first-tick branch
+    const fetcher = vi.fn(async () => { throw new Error('socket-boom'); });
+    const scorer = vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 5 })));
+    const onAccountBlind = opts.onAccountBlind ?? vi.fn();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (let i = 0; i < count; i++) {
+      await runPollTick({
+        accounts: [accA], store, fetcher, scorer,
+        maxUidProbe: noProbe, validityProbe: noValidity,
+        blindAlertAfter: opts.blindAlertAfter ?? 3,
+        onAccountBlind,
+        now: 1000 + i,
+      });
+    }
+    errSpy.mockRestore();
+    return { store, onAccountBlind, fetcher };
+  }
+
+  it('does NOT fire before the threshold', async () => {
+    const { onAccountBlind } = await failTicks(2, { blindAlertAfter: 3 });
+    expect(onAccountBlind).not.toHaveBeenCalled();
+  });
+
+  it('fires exactly once at the threshold with account/streak/lastError', async () => {
+    const { onAccountBlind } = await failTicks(3, { blindAlertAfter: 3 });
+    expect(onAccountBlind).toHaveBeenCalledTimes(1);
+    expect(onAccountBlind).toHaveBeenCalledWith({
+      account: 'a',
+      consecutive: 3,
+      lastError: 'socket-boom',
+    });
+  });
+
+  it('does NOT re-fire on further failures past the threshold', async () => {
+    const { onAccountBlind } = await failTicks(6, { blindAlertAfter: 3 });
+    expect(onAccountBlind).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-fires after a successful tick resets the streak', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    const onAccountBlind = vi.fn();
+    const scorer = vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 2 })));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const run = (fetcher: MessageFetcher, now: number) =>
+      runPollTick({
+        accounts: [accA], store, fetcher, scorer,
+        maxUidProbe: noProbe, validityProbe: noValidity,
+        blindAlertAfter: 2, onAccountBlind, now,
+      });
+    const fail: MessageFetcher = async () => { throw new Error('down'); };
+    const ok: MessageFetcher = async () => [msg(5)];
+
+    await run(fail, 1); await run(fail, 2); // hits threshold → alert #1
+    expect(onAccountBlind).toHaveBeenCalledTimes(1);
+    await run(ok, 3); // success clears consecutive_errors + blind_alerted
+    await run(fail, 4); await run(fail, 5); // blind again → alert #2
+    expect(onAccountBlind).toHaveBeenCalledTimes(2);
+    errSpy.mockRestore();
+  });
+
+  it('a successful poll with NO new mail clears the streak and re-arms the alert', async () => {
+    // Regression: the no-new-mail path returns without calling updateLastSeenUid /
+    // setLastSeenAndValidity, so it must clear the error state itself — otherwise a
+    // recovered-but-quiet mailbox keeps a stale last_error + latched blind_alerted
+    // and never alerts on a later, distinct blind spell.
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    const onAccountBlind = vi.fn();
+    const scorer = vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 2 })));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const run = (fetcher: MessageFetcher, now: number) =>
+      runPollTick({
+        accounts: [accA], store, fetcher, scorer,
+        maxUidProbe: noProbe, validityProbe: noValidity,
+        blindAlertAfter: 2, onAccountBlind, now,
+      });
+    const fail: MessageFetcher = async () => { throw new Error('down'); };
+    const okQuiet: MessageFetcher = async () => []; // connected, but no new mail
+
+    await run(fail, 1); await run(fail, 2); // hits threshold → alert #1
+    expect(onAccountBlind).toHaveBeenCalledTimes(1);
+
+    await run(okQuiet, 3); // recovery tick with no new mail
+    expect(store.getAccountErrorState('a')).toEqual({
+      consecutive_errors: 0, blind_alerted: 0, last_error: null,
+    });
+    expect(store.getAccountError('a')).toBeNull(); // stale last_error cleared
+
+    await run(fail, 4); await run(fail, 5); // blind again → alert #2 (re-armed)
+    expect(onAccountBlind).toHaveBeenCalledTimes(2);
+    errSpy.mockRestore();
+  });
+
+  it('is skipped when no onAccountBlind is wired (no throw)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    const fetcher = vi.fn(async () => { throw new Error('boom'); });
+    const scorer = vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 5 })));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer,
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      blindAlertAfter: 1, now: 1,
+    });
+    expect(store.getAccountErrorState('a')?.consecutive_errors).toBe(1);
+    errSpy.mockRestore();
+  });
+
+  it('blindAlertAfter <= 0 disables the alert while the streak still climbs', async () => {
+    // The `threshold > 0` guard means a non-positive blindAlertAfter turns the
+    // feature off even with onAccountBlind wired — the error counter must still
+    // increment so visibility/self-heal are unaffected.
+    const { store, onAccountBlind } = await failTicks(5, { blindAlertAfter: 0 });
+    expect(onAccountBlind).not.toHaveBeenCalled();
+    expect(store.getAccountErrorState('a')?.consecutive_errors).toBe(5);
+  });
+
+  it('a throwing alert hook does not crash the tick or latch the account, and retries next tick', async () => {
+    // onAccountBlind dispatches onto an EventEmitter where a listener can throw
+    // synchronously. Such a failure must not escape the per-account catch (no
+    // tick crash) and must not latch blind_alerted — so the alert retries while
+    // the account stays blind. First tick throws, second succeeds.
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    const fetcher = vi.fn(async () => { throw new Error('socket-boom'); });
+    const scorer = vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 5 })));
+    const onAccountBlind = vi.fn()
+      .mockImplementationOnce(() => { throw new Error('bus-listener-boom'); });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // Tick 1: streak hits threshold (1), hook throws → must not reject.
+    await expect(
+      runPollTick({
+        accounts: [accA], store, fetcher, scorer,
+        maxUidProbe: noProbe, validityProbe: noValidity,
+        blindAlertAfter: 1, onAccountBlind, now: 1000,
+      }),
+    ).resolves.toBeUndefined();
+    expect(onAccountBlind).toHaveBeenCalledTimes(1);
+    // Not latched: the failed dispatch left blind_alerted clear.
+    expect(store.getAccountErrorState('a')?.blind_alerted).toBe(0);
+
+    // Tick 2: still blind, hook retried and now succeeds → latched.
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer,
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      blindAlertAfter: 1, onAccountBlind, now: 1001,
+    });
+    expect(onAccountBlind).toHaveBeenCalledTimes(2);
+    expect(store.getAccountErrorState('a')?.blind_alerted).toBe(1);
+    errSpy.mockRestore();
   });
 });

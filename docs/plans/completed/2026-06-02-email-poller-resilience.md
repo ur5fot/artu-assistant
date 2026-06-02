@@ -50,52 +50,52 @@
 
 ### Task 1: `'error'`-листенер в `withClient` (root fix краша)
 
-- [ ] в `imap-client.ts` `withClient`: сразу после `new Ctor({...})` повесить `client.on('error', (e) => { socketError = … })` — захват сокет-ошибки, чтобы unhandled `'error'` не ронял процесс; операция реджектит сама и идёт в per-account catch
-- [ ] убедиться, что `finally { logout() }` и ранний `'error'` не приводят к uncaught (листенер покрывает teardown)
-- [ ] тест (`__setImapFlowCtor`): стаб, чей `connect()` реджектит **и** emit-ит `'error'` (ETIMEOUT) → `withClient` бросает, **нет uncaught**
-- [ ] тест: стаб emit-ит `'error'` **после** успешной операции (idle/после logout) → процесс жив, результат возвращён
-- [ ] прогнать тесты — зелёные перед Task 2
+- [x] в `imap-client.ts` `withClient`: сразу после `new Ctor({...})` повесить `client.on('error', …)` — захват сокет-ошибки, чтобы unhandled `'error'` не ронял процесс; операция реджектит сама и идёт в per-account catch (гард `typeof client.on === 'function'` для стаб-клиентов)
+- [x] убедиться, что `finally { logout() }` и ранний `'error'` не приводят к uncaught (листенер покрывает teardown)
+- [x] тест (`__setImapFlowCtor`): стаб, чей `connect()` реджектит **и** emit-ит `'error'` (ETIMEOUT) → `withClient` бросает, **нет uncaught**
+- [x] тест: стаб emit-ит `'error'` **после** успешной операции (idle/после logout) → процесс жив, результат возвращён
+- [x] прогнать тесты — зелёные перед Task 2
 
 ### Task 2: Видимый stdout-лог per-account падения
 
-- [ ] в `multi-account-poller.ts` catch (323-326): добавить `console.error(\`[emails] poll failed for ${acc.id}:\`, msg)` рядом с `setAccountError`
-- [ ] тест: per-account throw → `setAccountError` вызван **и** `console.error` (spy) с id аккаунта; второй аккаунт продолжает (Promise.all-изоляция)
-- [ ] прогнать тесты — зелёные перед Task 3
+- [x] в `multi-account-poller.ts` catch (323-326): добавить `console.error(\`[emails] poll failed for ${acc.id}:\`, msg)` рядом с `setAccountError`
+- [x] тест: per-account throw → `setAccountError` вызван **и** `console.error` (spy) с id аккаунта; второй аккаунт продолжает (Promise.all-изоляция)
+- [x] прогнать тесты — зелёные перед Task 3
 
 ### Task 3: Счётчик `consecutive_errors` в store + миграция
 
-- [ ] `db.ts`: `ALTER TABLE email_account_state ADD COLUMN consecutive_errors INTEGER NOT NULL DEFAULT 0` и `ADD COLUMN blind_alerted INTEGER NOT NULL DEFAULT 0` (идемпотентно, как `uid_validity`)
-- [ ] `store.ts`: `setAccountError` → `consecutive_errors = consecutive_errors + 1`; `updateLastSeenUid` и `setLastSeenAndValidity` → `consecutive_errors = 0, blind_alerted = 0`
-- [ ] `store.ts`: добавить `getAccountErrorState(accountId): { consecutive_errors, blind_alerted, last_error } | null` и `markBlindAlerted(accountId)` (ставит `blind_alerted = 1`)
-- [ ] тесты store: инкремент при error; обнуление обоими success-методами; getter возвращает актуальное; `markBlindAlerted` выставляет флаг
-- [ ] прогнать тесты — зелёные перед Task 4
+- [x] `db.ts`: `ALTER TABLE email_account_state ADD COLUMN consecutive_errors INTEGER NOT NULL DEFAULT 0` и `ADD COLUMN blind_alerted INTEGER NOT NULL DEFAULT 0` (идемпотентно, как `uid_validity`)
+- [x] `store.ts`: `setAccountError` → `consecutive_errors = consecutive_errors + 1`; `updateLastSeenUid` и `setLastSeenAndValidity` → `consecutive_errors = 0, blind_alerted = 0`
+- [x] `store.ts`: добавить `getAccountErrorState(accountId): { consecutive_errors, blind_alerted, last_error } | null` и `markBlindAlerted(accountId)` (ставит `blind_alerted = 1`)
+- [x] тесты store: инкремент при error; обнуление обоими success-методами; getter возвращает актуальное; `markBlindAlerted` выставляет флаг
+- [x] прогнать тесты — зелёные перед Task 4
 
 ### Task 4: Колбэк `onAccountBlind` в поллере
 
-- [ ] `multi-account-poller.ts`: в `TickParams`/`StartParams` добавить `blindAlertAfter: number` и опц. `onAccountBlind?: (info:{account,consecutive,lastError}) => void`
-- [ ] в per-account catch после `setAccountError`: прочитать `getAccountErrorState(acc.id)`; если `consecutive_errors === blindAlertAfter` и `blind_alerted === 0` → вызвать `onAccountBlind(...)` и `markBlindAlerted(acc.id)`
-- [ ] тесты: алерт вызван **ровно раз** при достижении порога; не вызван до порога; не повторяется после; после success-сброса может сработать снова
-- [ ] прогнать тесты — зелёные перед Task 5
+- [x] `multi-account-poller.ts`: в `TickParams`/`StartParams` добавить `blindAlertAfter: number` и опц. `onAccountBlind?: (info:{account,consecutive,lastError}) => void`
+- [x] в per-account catch после `setAccountError`: прочитать `getAccountErrorState(acc.id)`; если `consecutive_errors === blindAlertAfter` и `blind_alerted === 0` → вызвать `onAccountBlind(...)` и `markBlindAlerted(acc.id)`
+- [x] тесты: алерт вызван **ровно раз** при достижении порога; не вызван до порога; не повторяется после; после success-сброса может сработать снова
+- [x] прогнать тесты — зелёные перед Task 5
 
 ### Task 5: Проводка в `index.ts` (конфиг + алерт в Discord)
 
-- [ ] `index.ts` (emails-блок): `const blindAlertAfter = envInt(process.env.EMAIL_ACCOUNT_BLIND_ALERT_AFTER, 3, 1, 100)`; передать в `startEmailPoller`
-- [ ] передать `onAccountBlind`, который (по образцу window-logger `onBlind`) эмитит `reminderBus.emit('push',{type:'cognition_publish',runId:-1,handler:'emails',content:\`⚠️ Почта …: не поллится ${N} тиков подряд — ${lastError}\`})`; гейт на живой Discord (иначе только лог)
-- [ ] `.env.example`: добавить `EMAIL_ACCOUNT_BLIND_ALERT_AFTER=3` с комментарием
-- [ ] тест/проверка проводки, если есть инфраструктура; иначе — ручная проверка в Post-Completion
-- [ ] прогнать тесты — зелёные перед Task 6
+- [x] `index.ts` (emails-блок): `const emailBlindAlertAfter = envInt(process.env.EMAIL_ACCOUNT_BLIND_ALERT_AFTER, 3, 1, 100)`; передан в `startEmailPoller`
+- [x] передан `onAccountBlind`, который (по образцу window-logger `onBlind`) эмитит `reminderBus.emit('push',{type:'cognition_publish',runId:-1,handler:'email-poller',content:\`⚠️ Почта …: не поллится N тиков подряд — ${lastError}\`})`; гейт на живой Discord (`discordBot === null` → только `console.warn`)
+- [x] `.env.example`: добавлен `EMAIL_ACCOUNT_BLIND_ALERT_AFTER=3` с комментарием
+- [x] проверка проводки: индекс не покрыт unit-инфраструктурой → верифицировано через `tsc --noEmit` (lazy-ссылка на `discordBot` компилируется) + существующие poller-тесты `onAccountBlind` (Task 4); ручная проверка в Post-Completion
+- [x] прогнать тесты — зелёные перед Task 6 (1447 passed)
 
 ### Task 6: Verify acceptance criteria
 
-- [ ] проверить: `'error'` больше не роняет воркер; per-account падение в логах; счётчик + единичный алерт; imap2-сценарий самовосстановления (success чистит last_error+счётчик)
-- [ ] прогнать полный unit-набор (`packages/server`)
-- [ ] линтер — все вопросы исправить
-- [ ] покрытие новых/изменённых модулей по стандарту проекта
+- [x] проверить: `'error'` больше не роняет воркер; per-account падение в логах; счётчик + единичный алерт; imap2-сценарий самовосстановления (success чистит last_error+счётчик) — покрыто тестами imap-client/poller/store, все зелёные
+- [x] прогнать полный unit-набор (`packages/server`) — 1447 passed (105 files)
+- [x] линтер — `tsc --noEmit -p packages/server` чистый (exit 0); eslint в проекте не настроен
+- [x] покрытие новых/изменённых модулей по стандарту проекта — imap-client.test.ts, multi-account-poller.test.ts, store.test.ts покрывают success+error пути
 
 ### Task 7: Документация
 
-- [ ] обновить секцию email-watcher в `README.md` (устойчивость к обрывам, `EMAIL_ACCOUNT_BLIND_ALERT_AFTER`)
-- [ ] `AGENTS.md`, если появились новые паттерны
+- [x] обновить секцию email-watcher в `README.md` (устойчивость к обрывам, `EMAIL_ACCOUNT_BLIND_ALERT_AFTER`)
+- [x] `AGENTS.md`, если появились новые паттерны (новый bullet в email-секции + env-var в `.env`-блоке)
 
 ## Technical Details
 

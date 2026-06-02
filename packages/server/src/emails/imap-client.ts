@@ -76,6 +76,16 @@ async function withClient<T>(account: ImapAccount, fn: (client: any) => Promise<
     logger: false,
     socketTimeout: SOCKET_TIMEOUT_MS,
   });
+  // ImapFlow extends EventEmitter; a transient socket 'error' (ETIMEOUT/
+  // ECONNRESET — common with Gmail under a burst of concurrent connects)
+  // emitted OUTSIDE the awaited op (idle/teardown) becomes an UNHANDLED 'error'
+  // and crashes the whole worker (Node default behavior). Capturing it here
+  // keeps the process alive: the awaited op rejects on its own and routes
+  // through runPollTick's per-account catch → setAccountError → retry next tick.
+  // A late 'error' after a successful op is harmless — the next tick reconnects.
+  if (typeof client.on === 'function') {
+    client.on('error', () => { /* swallow: see comment above */ });
+  }
   try {
     await client.connect();
     await client.mailboxOpen('INBOX');

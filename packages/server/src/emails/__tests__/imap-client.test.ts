@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 import type { ImapAccount } from '../types.js';
 import {
   fetchNewMessages,
@@ -44,6 +45,57 @@ function makeClientStub(options: {
     });
   };
 }
+
+describe('withClient socket-error resilience', () => {
+  // A bare EventEmitter would crash the process on emit('error') with no
+  // listener attached (Node default). These stubs emit 'error' to prove the
+  // listener withClient attaches captures it instead of taking down the worker.
+  it('does not crash on a socket error emitted during a failing connect()', async () => {
+    class Stub extends EventEmitter {
+      async connect() {
+        // Mirror imapflow: the socket fires 'error' and connect() rejects.
+        this.emit('error', new Error('ETIMEOUT'));
+        throw new Error('Failed to establish connection in required time');
+      }
+      async mailboxOpen() {}
+      async logout() {}
+      async search() { return []; }
+    }
+    __setImapFlowCtor(Stub as any);
+    // No unhandled 'error' is thrown; the op rejects normally for the caller.
+    await expect(getMaxUid(account)).rejects.toThrow(/required time/);
+  });
+
+  it('survives a socket error emitted after a successful operation and still returns the result', async () => {
+    class Stub extends EventEmitter {
+      async connect() {}
+      async mailboxOpen() {}
+      async search() { return [1, 2, 7]; }
+      async logout() {
+        // Late teardown blip — common idle/logout ETIMEOUT. Must not crash and
+        // must not discard the already-computed result.
+        this.emit('error', new Error('ECONNRESET'));
+      }
+    }
+    __setImapFlowCtor(Stub as any);
+    await expect(getMaxUid(account)).resolves.toBe(7);
+  });
+
+  it('attaches an error listener so an idle socket error has a handler', async () => {
+    let listenerCount = 0;
+    class Stub extends EventEmitter {
+      async connect() {
+        listenerCount = this.listenerCount('error');
+      }
+      async mailboxOpen() {}
+      async search() { return []; }
+      async logout() {}
+    }
+    __setImapFlowCtor(Stub as any);
+    await getMaxUid(account);
+    expect(listenerCount).toBeGreaterThan(0);
+  });
+});
 
 describe('fetchNewMessages', () => {
   it('returns empty when nothing above sinceUid', async () => {

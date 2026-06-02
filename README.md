@@ -366,6 +366,22 @@ DM — ingest resumes from the next new email. There is **no new env-var**: a
 needed (the alert fires exactly once per reset because the next tick sees the
 stored value match).
 
+**Resilience to IMAP drops.** A transient socket `error` from ImapFlow
+(`ETIMEOUT` / `ECONNRESET`) used to crash the poll worker — an unhandled `'error'`
+event is a hard process exit in Node, so the tick never finished and the account
+stuck with `last_error` (R2 then saw only the other mailbox). The fix attaches an
+`'error'` listener to every ImapFlow client, turning the socket failure into a
+normal rejection that flows into the per-account catch → `setAccountError` → retry
+on the next tick. Each per-account failure is logged to stderr (`[emails] poll
+failed for <id>: …`) so drops are visible. Consecutive failures are counted in
+`email_account_state.consecutive_errors`; the first successful poll clears
+`last_error` and resets the counter, so a recovered account self-heals with no
+manual step. When an account stays blind for `EMAIL_ACCOUNT_BLIND_ALERT_AFTER`
+ticks in a row (default `3`, ≈15 min at the 5-min interval; range 1–100), R2 fires
+a **single** Discord alert (gated on a live bot — otherwise `console.warn` only)
+and marks the account `blind_alerted` so it doesn't repeat; the alert can fire
+again only after a successful poll resets the flag.
+
 Urgent emails (`importance=5`) ping immediately when `EMAIL_URGENT_ENABLED=true`
 (suppressed during quiet hours; one ping per cognition tick).
 

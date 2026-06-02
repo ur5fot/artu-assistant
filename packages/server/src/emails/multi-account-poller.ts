@@ -56,6 +56,14 @@ interface TickParams {
   feedback?: FeedbackResolution;
   // Optional alert hook (like `onBlind`): fired once per UIDVALIDITY reset.
   onUidValidityReset?: (info: { account: string; previous: number; current: number }) => void;
+  // After this many consecutive failed ticks an account is "blind" and
+  // `onAccountBlind` fires once (latched via `blind_alerted` until the next
+  // success clears the streak). Optional: omitted (or <= 0) disables the alert
+  // entirely — the error is still recorded and logged, just never escalated.
+  blindAlertAfter?: number;
+  // Optional alert hook: fired exactly once when an account crosses
+  // `blindAlertAfter` consecutive failures, until a successful tick resets it.
+  onAccountBlind?: (info: { account: string; consecutive: number; lastError: string }) => void;
 }
 
 const DEFAULT_FETCH_LIMIT = 50;
@@ -285,8 +293,14 @@ export async function runPollTick(params: TickParams): Promise<void> {
 
         const msgs = await params.fetcher(acc, sinceUid, fetchLimit);
         if (msgs.length === 0) {
-          // No new mail, but unresolved feedback rows may still need a flag
-          // re-poll (the user could have opened/replied since the ping).
+          // A connection that fetched (even with no new mail) is a successful
+          // poll, so clear any error streak/blind latch here — the watermark
+          // update paths (updateLastSeenUid / setLastSeenAndValidity) that
+          // normally reset it are skipped on this no-new-mail branch, and a
+          // recovered mailbox is most often quiet on its recovery tick.
+          params.store.clearAccountError(acc.id, params.now);
+          // Unresolved feedback rows may still need a flag re-poll (the user
+          // could have opened/replied since the ping).
           await resolveAccountFeedback(acc, params.feedback, params.now);
           return;
         }
@@ -322,7 +336,48 @@ export async function runPollTick(params: TickParams): Promise<void> {
         await resolveAccountFeedback(acc, params.feedback, params.now);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[emails] poll failed for ${acc.id}:`, msg);
         params.store.setAccountError(acc.id, msg, params.now);
+        // Blind-account alert: fire once the failure streak reaches the
+        // threshold. The `blind_alerted` latch is what guarantees exactly one
+        // alert per blind episode; `>=` (rather than `===`) makes the trigger
+        // robust if the counter is already past the threshold on first check
+        // (e.g. an operator lowers blindAlertAfter mid-outage and restarts).
+        // The success paths reset both counters, so a recovered-then-re-blinded
+        // account alerts again. Skipped when the alert isn't wired or disabled.
+        const threshold = params.blindAlertAfter;
+        if (params.onAccountBlind && threshold != null && threshold > 0) {
+          const state = params.store.getAccountErrorState(acc.id);
+          if (
+            state &&
+            state.consecutive_errors >= threshold &&
+            state.blind_alerted === 0
+          ) {
+            // Dispatch first, latch only on success. `onAccountBlind` emits onto
+            // an EventEmitter (reminderBus), where a synchronous listener failure
+            // propagates back here. If we latched before dispatch, a throwing hook
+            // would mark the account alerted while delivering nothing, and the
+            // exception would escape this per-account catch into the tick crash
+            // handler. Instead, swallow+log hook failures so one bad alert can't
+            // sink the poll tick; an undelivered alert stays un-latched and retries
+            // next tick (still blind → same branch fires again).
+            try {
+              params.onAccountBlind({
+                account: acc.id,
+                consecutive: state.consecutive_errors,
+                // `msg` is the error just written by setAccountError above, so it
+                // equals the persisted last_error — use it directly.
+                lastError: msg,
+              });
+              params.store.markBlindAlerted(acc.id);
+            } catch (alertErr) {
+              console.error(
+                `[emails] blind alert hook failed for ${acc.id}:`,
+                alertErr instanceof Error ? alertErr.message : String(alertErr),
+              );
+            }
+          }
+        }
       }
     }),
   );
