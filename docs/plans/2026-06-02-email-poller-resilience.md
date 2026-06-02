@@ -72,10 +72,10 @@
 
 ### Task 4: Колбэк `onAccountBlind` в поллере
 
-- [ ] `multi-account-poller.ts`: в `TickParams`/`StartParams` добавить `blindAlertAfter: number` и опц. `onAccountBlind?: (info:{account,consecutive,lastError}) => void`
-- [ ] в per-account catch после `setAccountError`: прочитать `getAccountErrorState(acc.id)`; если `consecutive_errors === blindAlertAfter` и `blind_alerted === 0` → вызвать `onAccountBlind(...)` и `markBlindAlerted(acc.id)`
-- [ ] тесты: алерт вызван **ровно раз** при достижении порога; не вызван до порога; не повторяется после; после success-сброса может сработать снова
-- [ ] прогнать тесты — зелёные перед Task 5
+- [x] `multi-account-poller.ts`: в `TickParams`/`StartParams` добавить `blindAlertAfter: number` и опц. `onAccountBlind?: (info:{account,consecutive,lastError}) => void`
+- [x] в per-account catch после `setAccountError`: прочитать `getAccountErrorState(acc.id)`; если `consecutive_errors === blindAlertAfter` и `blind_alerted === 0` → вызвать `onAccountBlind(...)` и `markBlindAlerted(acc.id)`
+- [x] тесты: алерт вызван **ровно раз** при достижении порога; не вызван до порога; не повторяется после; после success-сброса может сработать снова
+- [x] прогнать тесты — зелёные перед Task 5
 
 ### Task 5: Проводка в `index.ts` (конфиг + алерт в Discord)
 

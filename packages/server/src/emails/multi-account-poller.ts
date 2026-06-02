@@ -56,6 +56,14 @@ interface TickParams {
   feedback?: FeedbackResolution;
   // Optional alert hook (like `onBlind`): fired once per UIDVALIDITY reset.
   onUidValidityReset?: (info: { account: string; previous: number; current: number }) => void;
+  // After this many consecutive failed ticks an account is "blind" and
+  // `onAccountBlind` fires once (latched via `blind_alerted` until the next
+  // success clears the streak). Optional: omitted (or <= 0) disables the alert
+  // entirely — the error is still recorded and logged, just never escalated.
+  blindAlertAfter?: number;
+  // Optional alert hook: fired exactly once when an account crosses
+  // `blindAlertAfter` consecutive failures, until a successful tick resets it.
+  onAccountBlind?: (info: { account: string; consecutive: number; lastError: string }) => void;
 }
 
 const DEFAULT_FETCH_LIMIT = 50;
@@ -324,6 +332,27 @@ export async function runPollTick(params: TickParams): Promise<void> {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[emails] poll failed for ${acc.id}:`, msg);
         params.store.setAccountError(acc.id, msg, params.now);
+        // Blind-account alert: fire once when the failure streak hits the
+        // threshold. `=== blindAlertAfter` (not `>=`) plus the `blind_alerted`
+        // latch means exactly one alert per blind episode; the success paths
+        // reset both counters, so a recovered-then-re-blinded account alerts
+        // again. Skipped entirely when the alert isn't wired or disabled.
+        const threshold = params.blindAlertAfter;
+        if (params.onAccountBlind && threshold != null && threshold > 0) {
+          const state = params.store.getAccountErrorState(acc.id);
+          if (
+            state &&
+            state.consecutive_errors === threshold &&
+            state.blind_alerted === 0
+          ) {
+            params.store.markBlindAlerted(acc.id);
+            params.onAccountBlind({
+              account: acc.id,
+              consecutive: state.consecutive_errors,
+              lastError: state.last_error ?? msg,
+            });
+          }
+        }
       }
     }),
   );
