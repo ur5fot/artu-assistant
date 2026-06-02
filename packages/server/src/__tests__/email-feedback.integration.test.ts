@@ -163,8 +163,18 @@ describe('email implicit feedback — integration', () => {
     // A new urgent email from the same sender is demoted (-1 → falls into the
     // digest) by the existing findActiveMatch check, no new code path.
     const row4 = insertPending({ message_uid: 200, received_at: pollNow + 1_000 });
+    // trigger() short-circuits in quiet hours (22:00+ Kyiv) BEFORE it can drain
+    // and suppress, so its `now` must be a fixed daytime hour — pollNow is
+    // realnow+25h, whose hour-of-day drifts into the quiet window whenever the
+    // suite runs in the evening/night, making this assertion wall-clock flaky.
+    // Pin pollNow's date to 10:00 UTC (12:00–13:00 Kyiv): never quiet, and still
+    // after the rule's creation and inside its 7-day TTL so findActiveMatch
+    // matches. Kept separate from pollNow, which must stay realnow-relative for
+    // the feedback (pinged_at + ignoreHours) resolution above.
+    const triggerNow = new Date(pollNow);
+    triggerNow.setUTCHours(10, 0, 0, 0);
     const triggered = await handler.trigger(
-      { now: pollNow, lastFiredAt: null, lastResult: null },
+      { now: triggerNow.getTime(), lastFiredAt: null, lastResult: null },
       { db: getDb() },
     );
     expect(triggered).toBe(false);
