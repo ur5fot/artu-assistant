@@ -115,11 +115,11 @@
 
 ### Task 7: Verify acceptance criteria
 
-- [ ] проверить, что все требования Overview/спеки реализованы (фильтр, судья, кнопки, дедуп/снуз/потолок, гашение старого)
-- [ ] проверить edge: title-флип внутри Chrome, коалесинг YouTube, ошибка LLM = молчание, потолок = лог
-- [ ] прогнать полный unit-набор
-- [ ] прогнать линтер — все вопросы исправить
-- [ ] проверить покрытие новых модулей (стандарт проекта)
+- [x] проверить, что все требования Overview/спеки реализованы (фильтр `distraction-detector.ts`, судья `distractionPullback.judge.ts`, кнопки `embeds.distraction`+`interactions.distraction`, дедуп/снуз/потолок в store+detector, гашение старого через `CONTEXT_SWITCH_ENABLED`/`DISTRACTION_ENABLED` гейты в `index.ts`)
+- [x] проверить edge: все четыре покрыты явными зелёными тестами — title-флип («re-evaluates immediately on a title flip inside the same app-run»), коалесинг YouTube («coalesces a string of titles into one app-run dwell»), ошибка LLM = молчание («never publishes when the judge throws»), потолок («returns null when the daily LLM cap is reached»)
+- [x] прогнать полный unit-набор — 1427 passed (105 файлов)
+- [x] прогнать линтер — `tsc --noEmit` чистый (lint-гейт проекта; отдельного ESLint нет)
+- [x] проверить покрытие новых модулей (стандарт проекта) — coverage-тулинг (`@vitest/coverage-v8`) не установлен; стандарт репо = тест-файл на модуль, у всех 6 новых модулей есть выделенный `__tests__` с success+edge
 
 ### Task 8: Документация
 
