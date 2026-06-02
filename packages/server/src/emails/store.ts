@@ -15,6 +15,17 @@ export interface EmailStore {
   setLastSeenAndValidity(accountId: string, uid: number, uidValidity: number, now: number): void;
   setAccountError(accountId: string, message: string, now: number): void;
   getAccountError(accountId: string): { message: string; at: number } | null;
+  /** Error-tracking counters for the "account went blind" alert. Returns null
+   *  when no row exists for the account yet. `consecutive_errors` counts failed
+   *  ticks since the last success; `blind_alerted` (0/1) latches whether the
+   *  blind alert has already fired for the current blind episode. */
+  getAccountErrorState(
+    accountId: string,
+  ): { consecutive_errors: number; blind_alerted: number; last_error: string | null } | null;
+  /** Latch the blind alert for this account so it does not re-fire every tick.
+   *  Cleared back to 0 by the success paths (updateLastSeenUid /
+   *  setLastSeenAndValidity). */
+  markBlindAlerted(accountId: string): void;
 
   insertPending(row: Omit<EmailPendingRow, 'id' | 'delivered_at' | 'urgent_pinged_at'>): void;
   countPendingUndelivered(): number;
@@ -70,7 +81,9 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
         ON CONFLICT(account_id) DO UPDATE SET
           last_seen_uid = excluded.last_seen_uid,
           last_poll_at = excluded.last_poll_at,
-          last_error = NULL
+          last_error = NULL,
+          consecutive_errors = 0,
+          blind_alerted = 0
       `).run(accountId, uid, now);
     },
     getUidValidity(accountId) {
@@ -87,16 +100,22 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
           last_seen_uid = excluded.last_seen_uid,
           uid_validity = excluded.uid_validity,
           last_poll_at = excluded.last_poll_at,
-          last_error = NULL
+          last_error = NULL,
+          consecutive_errors = 0,
+          blind_alerted = 0
       `).run(accountId, uid, uidValidity, now);
     },
     setAccountError(accountId, message, now) {
+      // On a brand-new row the failed tick is the first error (count 1); on an
+      // existing row bump the running streak so the poller can detect when an
+      // account has been blind for `blindAlertAfter` ticks in a row.
       db.prepare(`
-        INSERT INTO email_account_state (account_id, last_seen_uid, last_poll_at, last_error)
-        VALUES (?, 0, ?, ?)
+        INSERT INTO email_account_state (account_id, last_seen_uid, last_poll_at, last_error, consecutive_errors)
+        VALUES (?, 0, ?, ?, 1)
         ON CONFLICT(account_id) DO UPDATE SET
           last_poll_at = excluded.last_poll_at,
-          last_error = excluded.last_error
+          last_error = excluded.last_error,
+          consecutive_errors = consecutive_errors + 1
       `).run(accountId, now, message);
     },
     getAccountError(accountId) {
@@ -105,6 +124,26 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
         .get(accountId) as { last_error: string | null; last_poll_at: number | null } | undefined;
       if (!row || !row.last_error) return null;
       return { message: row.last_error, at: row.last_poll_at ?? 0 };
+    },
+    getAccountErrorState(accountId) {
+      const row = db
+        .prepare(
+          'SELECT consecutive_errors, blind_alerted, last_error FROM email_account_state WHERE account_id = ?',
+        )
+        .get(accountId) as
+        | { consecutive_errors: number; blind_alerted: number; last_error: string | null }
+        | undefined;
+      if (!row) return null;
+      return {
+        consecutive_errors: row.consecutive_errors,
+        blind_alerted: row.blind_alerted,
+        last_error: row.last_error,
+      };
+    },
+    markBlindAlerted(accountId) {
+      db.prepare(
+        'UPDATE email_account_state SET blind_alerted = 1 WHERE account_id = ?',
+      ).run(accountId);
     },
     insertPending(row) {
       db.prepare(`

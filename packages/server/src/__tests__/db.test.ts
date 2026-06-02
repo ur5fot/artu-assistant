@@ -17,7 +17,8 @@ describe('email tables', () => {
       .all() as Array<{ name: string }>;
     const names = cols.map((c) => c.name).sort();
     expect(names).toEqual(
-      ['account_id', 'last_error', 'last_poll_at', 'last_seen_uid', 'uid_validity'].sort(),
+      ['account_id', 'last_error', 'last_poll_at', 'last_seen_uid', 'uid_validity',
+       'consecutive_errors', 'blind_alerted'].sort(),
     );
   });
 

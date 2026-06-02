@@ -64,11 +64,11 @@
 
 ### Task 3: Счётчик `consecutive_errors` в store + миграция
 
-- [ ] `db.ts`: `ALTER TABLE email_account_state ADD COLUMN consecutive_errors INTEGER NOT NULL DEFAULT 0` и `ADD COLUMN blind_alerted INTEGER NOT NULL DEFAULT 0` (идемпотентно, как `uid_validity`)
-- [ ] `store.ts`: `setAccountError` → `consecutive_errors = consecutive_errors + 1`; `updateLastSeenUid` и `setLastSeenAndValidity` → `consecutive_errors = 0, blind_alerted = 0`
-- [ ] `store.ts`: добавить `getAccountErrorState(accountId): { consecutive_errors, blind_alerted, last_error } | null` и `markBlindAlerted(accountId)` (ставит `blind_alerted = 1`)
-- [ ] тесты store: инкремент при error; обнуление обоими success-методами; getter возвращает актуальное; `markBlindAlerted` выставляет флаг
-- [ ] прогнать тесты — зелёные перед Task 4
+- [x] `db.ts`: `ALTER TABLE email_account_state ADD COLUMN consecutive_errors INTEGER NOT NULL DEFAULT 0` и `ADD COLUMN blind_alerted INTEGER NOT NULL DEFAULT 0` (идемпотентно, как `uid_validity`)
+- [x] `store.ts`: `setAccountError` → `consecutive_errors = consecutive_errors + 1`; `updateLastSeenUid` и `setLastSeenAndValidity` → `consecutive_errors = 0, blind_alerted = 0`
+- [x] `store.ts`: добавить `getAccountErrorState(accountId): { consecutive_errors, blind_alerted, last_error } | null` и `markBlindAlerted(accountId)` (ставит `blind_alerted = 1`)
+- [x] тесты store: инкремент при error; обнуление обоими success-методами; getter возвращает актуальное; `markBlindAlerted` выставляет флаг
+- [x] прогнать тесты — зелёные перед Task 4
 
 ### Task 4: Колбэк `onAccountBlind` в поллере
 

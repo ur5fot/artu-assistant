@@ -137,6 +137,62 @@ describe('createEmailStore', () => {
     expect(err).toEqual({ message: 'auth failed', at: 2000 });
   });
 
+  it('setAccountError increments consecutive_errors on each failed tick', () => {
+    const store = createEmailStore({ db: getDb() });
+    expect(store.getAccountErrorState('a')).toBeNull();
+    store.setAccountError('a', 'boom', 1000);
+    expect(store.getAccountErrorState('a')).toEqual({
+      consecutive_errors: 1, blind_alerted: 0, last_error: 'boom',
+    });
+    store.setAccountError('a', 'boom again', 2000);
+    expect(store.getAccountErrorState('a')).toEqual({
+      consecutive_errors: 2, blind_alerted: 0, last_error: 'boom again',
+    });
+  });
+
+  it('updateLastSeenUid resets consecutive_errors and blind_alerted', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setAccountError('a', 'boom', 1000);
+    store.setAccountError('a', 'boom', 2000);
+    store.markBlindAlerted('a');
+    expect(store.getAccountErrorState('a')).toEqual({
+      consecutive_errors: 2, blind_alerted: 1, last_error: 'boom',
+    });
+    store.updateLastSeenUid('a', 42, 3000);
+    expect(store.getAccountErrorState('a')).toEqual({
+      consecutive_errors: 0, blind_alerted: 0, last_error: null,
+    });
+  });
+
+  it('setLastSeenAndValidity resets consecutive_errors and blind_alerted', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setAccountError('a', 'boom', 1000);
+    store.setAccountError('a', 'boom', 2000);
+    store.markBlindAlerted('a');
+    store.setLastSeenAndValidity('a', 7, 111, 3000);
+    expect(store.getAccountErrorState('a')).toEqual({
+      consecutive_errors: 0, blind_alerted: 0, last_error: null,
+    });
+  });
+
+  it('markBlindAlerted latches the blind_alerted flag', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.setAccountError('a', 'boom', 1000);
+    expect(store.getAccountErrorState('a')?.blind_alerted).toBe(0);
+    store.markBlindAlerted('a');
+    expect(store.getAccountErrorState('a')?.blind_alerted).toBe(1);
+    // Subsequent errors keep the latch set and keep counting.
+    store.setAccountError('a', 'boom', 2000);
+    expect(store.getAccountErrorState('a')).toEqual({
+      consecutive_errors: 2, blind_alerted: 1, last_error: 'boom',
+    });
+  });
+
+  it('getAccountErrorState returns null for an unknown account', () => {
+    const store = createEmailStore({ db: getDb() });
+    expect(store.getAccountErrorState('missing')).toBeNull();
+  });
+
   it('findByPendingId returns the row or null', () => {
     const store = createEmailStore({ db: getDb() });
     store.insertPending({

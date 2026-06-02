@@ -211,7 +211,9 @@ export function initDb(dbPath?: string): void {
       last_seen_uid INTEGER NOT NULL DEFAULT 0,
       last_poll_at INTEGER,
       last_error TEXT,
-      uid_validity INTEGER
+      uid_validity INTEGER,
+      consecutive_errors INTEGER NOT NULL DEFAULT 0,
+      blind_alerted INTEGER NOT NULL DEFAULT 0
     )
   `);
 
@@ -224,6 +226,17 @@ export function initDb(dbPath?: string): void {
     .all() as Array<{ name: string }>;
   if (!emailStateCols.some((c) => c.name === 'uid_validity')) {
     db.exec(`ALTER TABLE email_account_state ADD COLUMN uid_validity INTEGER`);
+  }
+
+  // Migration: add `consecutive_errors` + `blind_alerted` if missing. The
+  // poller bumps `consecutive_errors` on each failed tick and resets it on the
+  // first success; `blind_alerted` latches a single "account went blind" alert
+  // so it fires once per blind episode (cleared again on the next success).
+  if (!emailStateCols.some((c) => c.name === 'consecutive_errors')) {
+    db.exec(`ALTER TABLE email_account_state ADD COLUMN consecutive_errors INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!emailStateCols.some((c) => c.name === 'blind_alerted')) {
+    db.exec(`ALTER TABLE email_account_state ADD COLUMN blind_alerted INTEGER NOT NULL DEFAULT 0`);
   }
 
   db.exec(`
