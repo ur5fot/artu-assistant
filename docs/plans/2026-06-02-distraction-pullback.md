@@ -81,11 +81,11 @@
 
 ### Task 3: Судья — `buildJudgePrompt` + вызов LLM
 
-- [ ] в новом `packages/server/src/cognition/handlers/distractionPullback.judge.ts`: чистая `buildJudgePrompt(timeline, current)` — таймлайн `{app,title,durationMin}[]` (most-recent-first, по строкам (app,title)) + текущий залипон → system+user строки (по спеке §3: «работа vs досуг внутри одного приложения решается по заголовкам»)
-- [ ] `judgeDistraction({ anthropic, model, signal }, timeline, current)` — один `anthropic.messages.create` с forced-tool `report_verdict` (`verdict: distracted|break|working`, `confidence: 0..100`, `reason`, `work_summary`); распарсить tool_use, вернуть структуру
-- [ ] написать тесты `buildJudgePrompt` (стабильный снапшот промпта)
-- [ ] написать тесты `judgeDistraction` с замоканным `anthropic.messages.create`: валидный tool-ответ → структура; невалидный/нет tool_use → бросок/`error` (для обработки в Task 4)
-- [ ] прогнать тесты — зелёные перед Task 4
+- [x] в новом `packages/server/src/cognition/handlers/distractionPullback.judge.ts`: чистая `buildJudgePrompt(timeline, current)` — таймлайн `{app,title,durationMin}[]` (most-recent-first, по строкам (app,title)) + текущий залипон → system+user строки (по спеке §3: «работа vs досуг внутри одного приложения решается по заголовкам»)
+- [x] `judgeDistraction({ anthropic, model, signal }, timeline, current)` — один `anthropic.messages.create` с forced-tool `report_verdict` (`verdict: distracted|break|working`, `confidence: 0..100`, `reason`, `work_summary`); распарсить tool_use, вернуть структуру
+- [x] написать тесты `buildJudgePrompt` (стабильный снапшот промпта)
+- [x] написать тесты `judgeDistraction` с замоканным `anthropic.messages.create`: валидный tool-ответ → структура; невалидный/нет tool_use → бросок/`error` (для обработки в Task 4)
+- [x] прогнать тесты — зелёные перед Task 4
 
 ### Task 4: Обработчик `distractionPullback`
 
