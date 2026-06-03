@@ -523,6 +523,22 @@ describe('createEmailStore', () => {
     expect(store.fetchAwaitingForAccount('acc1', 2)).toHaveLength(2);
   });
 
+  it('fetchAwaitingForAccount pages with offset (oldest-first, stable order)', () => {
+    const store = createEmailStore({ db: getDb() });
+    for (let uid = 1; uid <= 5; uid++) {
+      store.insertPending({
+        account_id: 'acc1', message_uid: uid, from_addr: 'x', subject: 's',
+        snippet: 'x', importance: 4, received_at: uid * 1000, added_at: uid * 1000,
+      });
+    }
+    // Page 1 (offset 0) = oldest two; page 2 (offset 2) = next two; etc.
+    expect(store.fetchAwaitingForAccount('acc1', 2, 0).map((r) => r.message_uid)).toEqual([1, 2]);
+    expect(store.fetchAwaitingForAccount('acc1', 2, 2).map((r) => r.message_uid)).toEqual([3, 4]);
+    expect(store.fetchAwaitingForAccount('acc1', 2, 4).map((r) => r.message_uid)).toEqual([5]);
+    // Offset past the end → empty page (the sync wraps to 0 on this).
+    expect(store.fetchAwaitingForAccount('acc1', 2, 6)).toHaveLength(0);
+  });
+
   it('countPendingFromSender matches across display-name variants of the same address', () => {
     // Same underlying address, three different headers a mail client might
     // emit. countPendingFromSender must count all three regardless of which

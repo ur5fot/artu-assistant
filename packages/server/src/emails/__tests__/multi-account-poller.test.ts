@@ -1278,6 +1278,42 @@ describe('runPollTick — \\Seen sync (auto-clear awaiting queue)', () => {
     expect(store.getLastSeenUid('a')).toBe(150); // new mail processed
     expect(isDelivered(getDb(), id)).toBe(true); // and the awaiting row cleared
   });
+
+  it('pages through a backlog larger than the cap across ticks (no mid-queue starvation)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    // 60 awaiting rows (uid 1..60, received_at ascending). The oldest 50 stay
+    // unread/in-INBOX forever; uid 55 is the one the user actually handled in
+    // Gmail. With a fixed oldest-50 window it would be starved indefinitely.
+    for (let uid = 1; uid <= 60; uid++) {
+      seedAwaiting(getDb(), { accountId: 'a', uid, receivedAt: uid });
+    }
+    const handledUid = 55;
+    const flagFetcher = vi.fn<FlagFetcher>(async (_acc, uids) =>
+      // Everything stays unread except the message the user handled, which has
+      // left INBOX (absent from the successful fetch → dismissed).
+      uids.filter((u) => u !== handledUid).map((u) => ({ uid: u, seen: false, answered: false })),
+    );
+    // Persistent cursor shared across ticks, exactly as startEmailPoller wires it.
+    const seenSyncCursors = new Map<string, number>();
+    const base = {
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      flagFetcher, seenSyncCursors,
+    };
+
+    // Tick 1 checks uid 1..50 — uid 55 is beyond the window, still awaiting.
+    await runPollTick({ ...base, now: 2000 });
+    const id55 = getDb()
+      .prepare('SELECT id FROM email_pending WHERE message_uid = 55')
+      .get() as { id: number };
+    expect(isDelivered(getDb(), id55.id)).toBe(false);
+
+    // Tick 2 pages forward to uid 51..60 — uid 55 is now re-checked and cleared.
+    await runPollTick({ ...base, now: 3000 });
+    expect(isDelivered(getDb(), id55.id)).toBe(true);
+  });
 });
 
 describe('runPollTick — onAccountBlind alert', () => {

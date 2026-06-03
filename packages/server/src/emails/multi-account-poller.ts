@@ -60,6 +60,14 @@ interface TickParams {
   // is always-on wiring (no config flag): absent only when no flag fetcher is
   // available (e.g. tests, or email disabled) → the sync pass is skipped.
   flagFetcher?: FlagFetcher;
+  // Per-account paging cursor (offset into the awaiting set) for the `\Seen`
+  // sync, so a backlog larger than SEEN_SYNC_CAP is covered across successive
+  // ticks instead of re-checking only the oldest cap forever (which would
+  // permanently strand mid-queue rows the user has since handled in Gmail).
+  // Owned by startEmailPoller's closure and passed in unchanged each tick.
+  // Absent (single-shot / most tests) → the sync always starts at offset 0, so
+  // a one-tick call still checks the oldest cap exactly as before.
+  seenSyncCursors?: Map<string, number>;
   // Optional alert hook (like `onBlind`): fired once per UIDVALIDITY reset.
   onUidValidityReset?: (info: { account: string; previous: number; current: number }) => void;
   // After this many consecutive failed ticks an account is "blind" and
@@ -198,8 +206,10 @@ async function resolveAccountFeedback(
 }
 
 // Cap on awaiting rows re-polled per tick for the `\Seen` sync (IMAP-cost
-// guard). A huge backlog can't blow up one tick's flag fetch — oldest awaiting
-// mail is re-checked first (fetchAwaitingForAccount orders by received_at ASC).
+// guard). A huge backlog can't blow up one tick's flag fetch. The sync pages
+// through the awaiting set across ticks via a per-account cursor (see
+// syncSeenStatus) so a backlog larger than the cap is fully covered over
+// successive ticks rather than re-checking only the oldest window forever.
 const SEEN_SYNC_CAP = 50;
 
 // Per-account `\Seen` sync: re-check IMAP flags for the awaiting (queue-visible,
@@ -222,8 +232,23 @@ async function syncSeenStatus(
   const flagFetcher = params.flagFetcher;
   if (!flagFetcher) return;
   try {
-    const rows = params.store.fetchAwaitingForAccount(account.id, SEEN_SYNC_CAP);
-    if (rows.length === 0) return;
+    const cursors = params.seenSyncCursors;
+    // Page through the awaiting backlog across ticks: start where the last tick
+    // left off so rows beyond the first cap aren't starved. Without a cursor
+    // (single-shot / tests) offset stays 0 → oldest cap, unchanged behaviour.
+    let offset = cursors?.get(account.id) ?? 0;
+    let rows = params.store.fetchAwaitingForAccount(account.id, SEEN_SYNC_CAP, offset);
+    // The awaiting set shrinks as rows get dismissed/delivered, so a cursor from
+    // an earlier (larger) backlog can land past the end. Wrap to the oldest this
+    // same tick rather than wasting a tick on an empty page.
+    if (rows.length === 0 && offset > 0) {
+      offset = 0;
+      rows = params.store.fetchAwaitingForAccount(account.id, SEEN_SYNC_CAP, 0);
+    }
+    if (rows.length === 0) {
+      cursors?.set(account.id, 0);
+      return;
+    }
 
     const flags = await flagFetcher(account, rows.map((r) => r.message_uid));
     // `null` = a hard fetch failure (connection/timeout/server NO|BAD). It
@@ -245,6 +270,17 @@ async function syncSeenStatus(
       }
     }
     if (handled.length > 0) params.store.markDelivered(handled, params.now);
+
+    // Advance the paging cursor. A full page (== cap) means more awaiting rows
+    // may lie beyond it → page forward next tick; a short page means we reached
+    // the end → wrap to the oldest. The rows we just dismissed leave the awaiting
+    // set, so the rows after the window shift down by `handled.length`; subtract
+    // it so we resume exactly where we left off instead of skipping that many.
+    if (cursors) {
+      const next =
+        rows.length < SEEN_SYNC_CAP ? 0 : Math.max(0, offset + SEEN_SYNC_CAP - handled.length);
+      cursors.set(account.id, next);
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[emails] \\Seen sync failed for ${account.id}:`, msg);
@@ -455,13 +491,18 @@ export function startEmailPoller(params: StartParams): () => void {
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
+  // Persistent per-account paging cursor for the `\Seen` sync, living for the
+  // life of the poller so successive ticks page through the whole awaiting
+  // backlog instead of re-checking only the oldest cap every tick.
+  const seenSyncCursors = new Map<string, number>();
+
   // Self-scheduling loop: the next tick is only queued once the current one
   // resolves. setInterval would fire concurrently when a tick runs longer
   // than intervalMs (slow IMAP / LLM), doubling cost and racing on state.
   const runOnce = async () => {
     if (stopped) return;
     try {
-      await runPollTick({ ...params, now: Date.now() });
+      await runPollTick({ ...params, now: Date.now(), seenSyncCursors });
     } catch (err) {
       console.error('[emails] poll tick crashed:', err instanceof Error ? err.message : err);
     }
