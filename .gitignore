@@ -20,3 +20,6 @@ progress-*.txt
 
 # Tailscale-issued HTTPS certs for dev (never commit private keys)
 .tailnet-cert/
+
+# Stray pnpm lockfile — this repo uses npm workspaces (package-lock.json)
+pnpm-lock.yaml

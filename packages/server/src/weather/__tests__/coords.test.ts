@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getDb, initDb } from '../../db.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { getDb, initDb, closeDb } from '../../db.js';
 import { resolveCoords } from '../coords.js';
 import type { GeocodeResult } from '../types.js';
 
 beforeEach(() => initDb(':memory:'));
+afterEach(() => closeDb());
 
 const NOW = Date.UTC(2026, 5, 3, 8, 0);
 

@@ -454,7 +454,7 @@ turns it on. Three surfaces:
   unknown city returns an explicit error (never a silent substitution of a
   nearby place). Returns a structured 3-day forecast plus a short RU summary.
 - **Proactive `weatherAlert` handler.** Fires a Discord ping on a sharp change —
-  temp swing (⚠️), incoming rain (🌧), frost (🥶), storm-wind/thunder — one ping
+  temp swing (🌡️), incoming rain (🌧), frost (🥶), storm-wind/thunder (⚠️) — one ping
   per event (deduped), suppressed during quiet hours. Gated on
   `WEATHER_ALERT_ENABLED=true` plus resolvable coordinates and a live Discord bot.
 
