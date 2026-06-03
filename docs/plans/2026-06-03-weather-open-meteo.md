@@ -103,10 +103,10 @@ JSON по координатам). Плюс: 3-дневный прогноз в 
 
 ### Task 9: Verify acceptance criteria
 
-- [ ] проверить: бриф берёт 3-дн погоду по координатам; tool `weather` (свои/чужой город); алерт ловит резкую смену, дедуп, тихие часы; Open-Meteo-ошибка не роняет
-- [ ] полный unit-набор (`packages/server` + `packages/tool-weather`)
-- [ ] typecheck (`tsc --noEmit`) — чисто
-- [ ] линтер — исправить; покрытие новых модулей по стандарту
+- [x] проверить: бриф берёт 3-дн погоду по координатам; tool `weather` (свои/чужой город); алерт ловит резкую смену, дедуп, тихие часы; Open-Meteo-ошибка не роняет — все 4 критерия покрыты зелёными тестами (morningBrief.helpers/open-meteo/coords; tool-weather/index; weatherAlert/detect/alert-store; open-meteo throw + gatherData try→null + weatherAlert fetch→skip)
+- [x] полный unit-набор (`packages/server` + `packages/tool-weather`) — 1525 + 7 зелёные
+- [x] typecheck (`tsc --noEmit`) — чисто (server + tool-weather, exit 0)
+- [x] линтер — отдельный ESLint в репо не настроен; `tsc --noEmit` — гейт типов/линта, чисто; покрытие новых модулей (weather/*, tool-weather, weatherAlert) тестами по стандарту
 
 ### Task 10: Документация
 
