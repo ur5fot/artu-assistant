@@ -80,10 +80,10 @@ JSON по координатам). Плюс: 3-дневный прогноз в 
 
 ### Task 6: Таблица `weather_alerts` + стор
 
-- [ ] `db.ts`: `CREATE TABLE IF NOT EXISTS weather_alerts (id INTEGER PK AUTOINCREMENT, event_key TEXT NOT NULL, alerted_at INTEGER NOT NULL)` + индекс `(event_key, alerted_at DESC)`
-- [ ] `weather/alert-store.ts` `createWeatherAlertStore({db})`: `recordAlert(key,at)`, `findRecentAlert(key,since)`, `lastCheckAt()`/`setLastCheckAt(at)` (мета: одно-строчная или max(alerted_at))
-- [ ] тесты стора: record+find в окне/вне окна, dedupe, lastCheckAt round-trip
-- [ ] прогнать тесты — зелёные перед Task 7
+- [x] `db.ts`: `CREATE TABLE IF NOT EXISTS weather_alerts (id INTEGER PK AUTOINCREMENT, event_key TEXT NOT NULL, alerted_at INTEGER NOT NULL)` + индекс `(event_key, alerted_at DESC)` + `weather_meta` (KV) для lastCheckAt
+- [x] `weather/alert-store.ts` `createWeatherAlertStore({db})`: `recordAlert(key,at)`, `findRecentAlert(key,since)`, `lastCheckAt()`/`setLastCheckAt(at)` (мета — одно-строчная через `weather_meta` upsert)
+- [x] тесты стора: record+find в окне/вне окна, dedupe, lastCheckAt round-trip
+- [x] прогнать тесты — зелёные перед Task 7 (8 тестов + typecheck + 1516 server-тестов зелёные)
 
 ### Task 7: Хэндлер `weatherAlert`
 

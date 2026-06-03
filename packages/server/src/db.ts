@@ -438,6 +438,28 @@ export function initDb(dbPath?: string): void {
       ON distraction_evals (evaluated_at DESC)
   `);
 
+  // weatherAlert: one row per published alert, keyed by event_key (type+date).
+  // findRecentAlert(key, since) drives per-event dedup so the same swing/frost/
+  // storm isn't pinged twice within the dedupe window. weather_meta holds the
+  // single-row lastCheckAt state used to throttle the handler's run.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS weather_alerts (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_key  TEXT    NOT NULL,
+      alerted_at INTEGER NOT NULL
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_weather_alerts_key_at
+      ON weather_alerts (event_key, alerted_at DESC)
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS weather_meta (
+      key   TEXT PRIMARY KEY,
+      value INTEGER NOT NULL
+    )
+  `);
+
   // Migration: add importance / forgotten columns to memory_facts if missing.
   // SQLite can't do IF NOT EXISTS for columns, so we gate on PRAGMA table_info.
   const factCols = db.prepare('PRAGMA table_info(memory_facts)').all() as Array<{ name: string }>;
