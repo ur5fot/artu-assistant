@@ -73,10 +73,10 @@ JSON по координатам). Плюс: 3-дневный прогноз в 
 
 ### Task 5: Пакет `@r2/tool-weather`
 
-- [ ] создать `packages/tool-weather/` по образцу tool-emails (package.json, tsconfig, src/index.ts, src/types.ts) + добавить в npm workspace
-- [ ] tool `weather` `{location?}`, permission `auto`: без location → `resolveUserCoords` → forecast; с location → `weatherClient.geocode`→forecast; вернуть структурный 3-дн + RU-сводку. `WeatherClientLike` дублируется в пакете
-- [ ] тесты (`packages/tool-weather/src/__tests__`): без location (мок coords); с location (мок geocode); ошибка клиента → `{success:false,error}`; пустой геокод → понятная ошибка
-- [ ] прогнать тесты — зелёные перед Task 6
+- [x] создать `packages/tool-weather/` по образцу tool-emails (package.json, tsconfig, src/index.ts, src/types.ts) + добавить в npm workspace (`packages/*` уже покрывает)
+- [x] tool `weather` `{location?}`, permission `auto`: без location → `resolveUserCoords` → forecast; с location → `weatherClient.geocode`→forecast; вернуть структурный 3-дн + RU-сводку. `WeatherClientLike` дублируется в пакете
+- [x] тесты (`packages/tool-weather/src/__tests__`): без location (мок coords); с location (мок geocode); ошибка клиента → `{success:false,error}`; пустой геокод → понятная ошибка
+- [x] прогнать тесты — зелёные перед Task 6 (7 тестов + typecheck чисто)
 
 ### Task 6: Таблица `weather_alerts` + стор
 
