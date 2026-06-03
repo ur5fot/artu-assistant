@@ -245,17 +245,18 @@ describe('emails_get tool', () => {
     expect(res.error).toMatch(/not found/i);
   });
 
-  it('rejects invalid ids (0, negative, non-numeric, missing)', async () => {
+  it('rejects invalid ids (no coercion: bool/array/float/string/0/neg/missing)', async () => {
     const tools = createTool({
       emailStore: mkStore([mkRow(5, 5)]),
       imapClient: mkImap(),
     });
     const get = tools.find((t) => t.name === 'emails_get')!;
 
-    for (const bad of [0, -1, 'abc', NaN, undefined] as unknown[]) {
+    // true→1, [7]→7, '5'→5 must NOT coerce into a valid id.
+    for (const bad of [0, -1, 'abc', '5', NaN, 1.5, true, false, [7], {}, null, undefined] as unknown[]) {
       const res = await get.handler(bad === undefined ? {} : { id: bad });
       expect(res.success).toBe(false);
-      expect(res.error).toMatch(/positive number/i);
+      expect(res.error).toMatch(/positive integer/i);
     }
   });
 
@@ -346,15 +347,16 @@ describe('emails_dismiss tool', () => {
     expect(res.error).toMatch(/not found/i);
   });
 
-  it('rejects invalid ids (0, negative, non-numeric, missing)', async () => {
+  it('rejects invalid ids without coercion (bool/array/float/string never dismiss)', async () => {
     const store = mkStore([mkRow(7, 5)]);
     const tools = createTool({ emailStore: store, imapClient: mkImap() });
     const dismiss = tools.find((t) => t.name === 'emails_dismiss')!;
 
-    for (const bad of [0, -1, 'abc', NaN, undefined] as unknown[]) {
+    // Critical: true→1, [7]→7 must NOT silently dismiss a real email under this auto tool.
+    for (const bad of [0, -1, 'abc', '7', NaN, 1.5, true, false, [7], {}, null, undefined] as unknown[]) {
       const res = await dismiss.handler(bad === undefined ? {} : { id: bad });
       expect(res.success).toBe(false);
-      expect(res.error).toMatch(/positive number/i);
+      expect(res.error).toMatch(/positive integer/i);
     }
     expect(store.markDelivered).not.toHaveBeenCalled();
   });

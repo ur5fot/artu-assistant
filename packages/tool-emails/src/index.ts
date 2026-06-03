@@ -27,6 +27,14 @@ function clampInt(value: unknown, fallback: number, min: number, max: number): n
   return Math.min(Math.max(base, min), max);
 }
 
+// Tool args come straight from the model (no JSON-schema validation upstream),
+// so `id` may be any JSON type. Require a real positive integer — never coerce.
+// `Number(true)===1` / `Number([7])===7` must NOT pass: under an `auto` tool that
+// silently dismisses/fetches the wrong email.
+function parsePositiveId(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null;
+}
+
 function createEmailsListTool(deps: Deps): ToolDefinition {
   return {
     name: 'emails_list',
@@ -132,9 +140,9 @@ function createEmailsGetTool(deps: Deps): ToolDefinition {
       if (!deps.emailStore || !deps.imapClient) {
         return { success: false, error: 'Email integration is not enabled on this server' };
       }
-      const id = Number(params.id);
-      if (!Number.isFinite(id) || id <= 0) {
-        return { success: false, error: 'id must be a positive number' };
+      const id = parsePositiveId(params.id);
+      if (id === null) {
+        return { success: false, error: 'id must be a positive integer' };
       }
       const row = deps.emailStore.findByPendingId(id);
       if (!row) return { success: false, error: `Email with id=${id} not found` };
@@ -181,9 +189,9 @@ function createEmailsDismissTool(deps: Deps): ToolDefinition {
       if (!deps.emailStore) {
         return { success: false, error: 'Email integration is not enabled on this server' };
       }
-      const id = Number(params.id);
-      if (!Number.isFinite(id) || id <= 0) {
-        return { success: false, error: 'id must be a positive number' };
+      const id = parsePositiveId(params.id);
+      if (id === null) {
+        return { success: false, error: 'id must be a positive integer' };
       }
       const row = deps.emailStore.findByPendingId(id);
       if (!row) return { success: false, error: `Email with id=${id} not found` };
