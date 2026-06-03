@@ -474,6 +474,55 @@ describe('createEmailStore', () => {
     expect(undelivered.map((r) => r.subject).sort()).toEqual(['fresh', 'suppressed']);
   });
 
+  it('fetchAwaitingForAccount returns only this account\'s awaiting rows, with uid', () => {
+    const store = createEmailStore({ db: getDb() });
+    // acc1: two awaiting rows
+    store.insertPending({
+      account_id: 'acc1', message_uid: 10, from_addr: 'x', subject: 'a1-older',
+      snippet: 'x', importance: 4, received_at: 1000, added_at: 1000,
+    });
+    store.insertPending({
+      account_id: 'acc1', message_uid: 11, from_addr: 'x', subject: 'a1-newer',
+      snippet: 'x', importance: 4, received_at: 2000, added_at: 2000,
+    });
+    // acc2: one awaiting row — must not leak into acc1's fetch
+    store.insertPending({
+      account_id: 'acc2', message_uid: 20, from_addr: 'x', subject: 'a2',
+      snippet: 'x', importance: 4, received_at: 1500, added_at: 1500,
+    });
+    const rows = store.fetchAwaitingForAccount('acc1', 50);
+    // ordered by received_at ASC, only acc1, carries message_uid
+    expect(rows.map((r) => r.message_uid)).toEqual([10, 11]);
+    expect(rows.every((r) => r.account_id === 'acc1')).toBe(true);
+  });
+
+  it('fetchAwaitingForAccount excludes delivered and real-urgent-pinged rows but keeps suppressed (-1)', () => {
+    const store = createEmailStore({ db: getDb() });
+    for (const [uid, subject] of [[1, 'delivered'], [2, 'pinged'], [3, 'suppressed'], [4, 'awaiting']] as const) {
+      store.insertPending({
+        account_id: 'acc1', message_uid: uid, from_addr: 'x', subject,
+        snippet: 'x', importance: 5, received_at: uid * 1000, added_at: uid * 1000,
+      });
+    }
+    const byUid = new Map(store.fetchPendingUndelivered(50).map((r) => [r.message_uid, r.id]));
+    store.markDelivered([byUid.get(1)!], 9000); // delivered → excluded
+    store.markUrgentPinged(byUid.get(2)!, 9000); // real ping (>0) → excluded
+    store.markUrgentPinged(byUid.get(3)!, -1); // suppressed sentinel → still awaiting
+    const rows = store.fetchAwaitingForAccount('acc1', 50);
+    expect(rows.map((r) => r.message_uid).sort()).toEqual([3, 4]);
+  });
+
+  it('fetchAwaitingForAccount honours the limit', () => {
+    const store = createEmailStore({ db: getDb() });
+    for (let uid = 1; uid <= 5; uid++) {
+      store.insertPending({
+        account_id: 'acc1', message_uid: uid, from_addr: 'x', subject: 's',
+        snippet: 'x', importance: 4, received_at: uid * 1000, added_at: uid * 1000,
+      });
+    }
+    expect(store.fetchAwaitingForAccount('acc1', 2)).toHaveLength(2);
+  });
+
   it('countPendingFromSender matches across display-name variants of the same address', () => {
     // Same underlying address, three different headers a mail client might
     // emit. countPendingFromSender must count all three regardless of which

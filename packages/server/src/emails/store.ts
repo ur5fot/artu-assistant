@@ -47,6 +47,13 @@ export interface EmailStore {
   insertPending(row: Omit<EmailPendingRow, 'id' | 'delivered_at' | 'urgent_pinged_at'>): void;
   countPendingUndelivered(): number;
   fetchPendingUndelivered(limit: number): EmailPendingRow[];
+  /** Awaiting (queue-visible) rows for a single account, oldest first, capped at
+   *  `limit`. Same predicate as the digest's awaiting set — `delivered_at IS NULL
+   *  AND (urgent_pinged_at IS NULL OR urgent_pinged_at < 0)` — but scoped to one
+   *  account so the per-account `\Seen` sync can fetch the message UIDs it needs
+   *  to re-check against Gmail. Suppressed (-1) rows stay in scope (still queued);
+   *  delivered + real-urgent-pinged rows are excluded (already handled/surfaced). */
+  fetchAwaitingForAccount(accountId: string, limit: number): EmailPendingRow[];
   fetchInWindow(sinceHours: number, limit: number, now: number): EmailPendingRow[];
   /** Count of `email_pending` rows surfaced to the user since `sinceMs` — either
    *  urgent-pinged (positive `urgent_pinged_at`; the `-1` suppression sentinel is
@@ -226,6 +233,19 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
         ORDER BY importance DESC, received_at DESC
         LIMIT ?
       `).all(limit) as EmailPendingRow[];
+    },
+    fetchAwaitingForAccount(accountId, limit) {
+      // Same NULL-or-`< 0` awaiting rule as fetchPendingUndelivered, scoped to one
+      // account and ordered oldest-first so the seen-sync re-checks the longest
+      // waiting mail first when the cap bites.
+      return db.prepare(`
+        SELECT * FROM email_pending
+        WHERE account_id = ?
+          AND delivered_at IS NULL
+          AND (urgent_pinged_at IS NULL OR urgent_pinged_at < 0)
+        ORDER BY received_at ASC
+        LIMIT ?
+      `).all(accountId, limit) as EmailPendingRow[];
     },
     fetchInWindow(sinceHours, limit, now) {
       const cutoff = now - sinceHours * 3600_000;
