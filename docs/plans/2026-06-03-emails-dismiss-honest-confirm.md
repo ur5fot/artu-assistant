@@ -80,11 +80,14 @@ Fix both:
 - [x] run `npm test` — must pass before next task
 
 ### Task 3: Verify acceptance & build
-- [ ] verify: "разобрал это письмо" → `emails_dismiss` removes it from `awaiting`; next email-check
+- [x] verify: "разобрал это письмо" → `emails_dismiss` removes it from `awaiting`; next email-check
       shows "всё разобрано"; "подтверди" for an external action → honest "сделай вручную", no fake
-- [ ] run full test suite (`npm test`) — all green
-- [ ] run `npm run build` (tsc) in `packages/server` and build of `packages/tool-emails` — no type errors
-- [ ] confirm additive only (no schema change; reuses `markDelivered`)
+      (covered by unit tests: tool-emails dismiss removes from fetchPendingUndelivered; prompts.test
+      asserts both prompts contain `emails_dismiss` + honesty keyword "вручну")
+- [x] run full test suite (`npm test`) — all green (229 files, 2845 tests passed)
+- [x] run `npm run build` (tsc) in `packages/server` and build of `packages/tool-emails` — no type errors
+      (server `tsc` clean; tool-emails `tsc --noEmit` clean)
+- [x] confirm additive only (no schema change; reuses `markDelivered`)
 
 ## Technical Details
 - `emails_dismiss` reuses `store.markDelivered([id], now)` → `delivered_at` set → row excluded from
