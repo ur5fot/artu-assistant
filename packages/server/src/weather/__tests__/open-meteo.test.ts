@@ -97,6 +97,20 @@ describe('fetchForecast', () => {
     expect(fc.days[0].precipProbMax).toBe(0);
   });
 
+  it('coerces a missing daily temp to NaN (not a fabricated 0° frost)', async () => {
+    const body = {
+      ...FORECAST_BODY,
+      daily: {
+        ...FORECAST_BODY.daily,
+        temperature_2m_min: [12.1, null, 2.4],
+      },
+    };
+    mockFetch.mockResolvedValueOnce(okJson(body));
+
+    const fc = await fetchForecast(50.0, 36.25, 'Europe/Kyiv', 3);
+    expect(Number.isNaN(fc.days[1].tempMin)).toBe(true);
+  });
+
   it('throws on non-2xx response', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}) });
     await expect(fetchForecast(50, 36, 'Europe/Kyiv')).rejects.toThrow(/503/);
@@ -128,7 +142,7 @@ describe('geocode', () => {
       }),
     );
 
-    const hit = await geocode('Калиновка');
+    const hit = await geocode('Калиновка', { country: 'UA' });
     expect(hit).toEqual({
       lat: 50.05,
       lon: 36.3,
@@ -140,6 +154,16 @@ describe('geocode', () => {
     expect(url).toContain('countryCode=UA');
     expect(url).toContain('language=ru');
     expect(url).toContain('count=1');
+  });
+
+  it('omits the country filter when none is given (resolves any city)', async () => {
+    mockFetch.mockResolvedValueOnce(
+      okJson({ results: [{ latitude: 52.52, longitude: 13.4, name: 'Berlin' }] }),
+    );
+    const hit = await geocode('Berlin');
+    expect(hit?.name).toBe('Berlin');
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).not.toContain('countryCode');
   });
 
   it('returns null when there are no results', async () => {
@@ -208,6 +232,19 @@ describe('formatBriefOutlook', () => {
       hours: [],
     };
     expect(formatBriefOutlook(fc)).toContain('2026-06-06: ясно');
+  });
+
+  it('shows "темп. н/д" for a day with missing (NaN) temps', () => {
+    const fc: Forecast = {
+      lat: 0,
+      lon: 0,
+      tz: 'Europe/Kyiv',
+      days: [
+        { date: '2026-06-03', tempMax: NaN, tempMin: NaN, precipProbMax: 0, weatherCode: 1, windMax: 0 },
+      ],
+      hours: [],
+    };
+    expect(formatBriefOutlook(fc)).toBe('Сегодня: преимущественно ясно, темп. н/д');
   });
 
   it('returns a fallback when there are no days', () => {

@@ -61,6 +61,17 @@ function intradayEvent(now: number): WeatherEvent {
   };
 }
 
+// Frost dated tomorrow (2026-06-05 00:00 Kyiv = 2026-06-04T21:00Z), relative to
+// a same-day (2026-06-04) `now` → daysAhead === 1, the evening pre-announce branch.
+function tomorrowEvent(): WeatherEvent {
+  return {
+    type: 'frost',
+    when: Date.UTC(2026, 5, 4, 21, 0),
+    key: 'frost+2026-06-05',
+    message: 'Заморозок: 2026-06-05 ночью до -2°',
+  };
+}
+
 const ctx = (firedAt: number) => ({ firedAt }) as never;
 
 describe('createWeatherAlertHandler', () => {
@@ -133,6 +144,29 @@ describe('createWeatherAlertHandler', () => {
       );
       const res = await h.run(ctx(NOON));
       expect(res).toMatchObject({ publish: true });
+    });
+
+    it('pre-announces a tomorrow event in the evening (hour >= 18)', async () => {
+      const store = fakeStore();
+      const evening = Date.UTC(2026, 5, 4, 16, 0); // 19:00 Kyiv, awake
+      const h = createWeatherAlertHandler(
+        baseDeps({ store, detect: () => [tomorrowEvent()] }),
+      );
+      const res = await h.run(ctx(evening));
+      expect(res).toMatchObject({ publish: true });
+      if (!('publish' in res)) throw new Error('expected publish');
+      expect(res.content).toBe('🥶 Заморозок: 2026-06-05 ночью до -2°');
+    });
+
+    it('holds a tomorrow event before the evening window (hour < 18)', async () => {
+      const store = fakeStore();
+      // NOON is 12:00 Kyiv on 2026-06-04 → daysAhead 1 but before EVENING_HOUR.
+      const h = createWeatherAlertHandler(
+        baseDeps({ store, detect: () => [tomorrowEvent()] }),
+      );
+      const res = await h.run(ctx(NOON));
+      expect(res).toMatchObject({ skip: true });
+      expect(store.alerts).toHaveLength(0);
     });
 
     it('skips events outside the lead window', async () => {

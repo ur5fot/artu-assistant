@@ -634,12 +634,15 @@ let weatherAlertStore: WeatherAlertStore | null = null;
 if (weatherEnabled) {
   morningBriefWeather = {
     resolveCoords: (db, city) =>
-      resolveCoords(db, city, (name) => geocode(name), { override: weatherOverride }),
+      resolveCoords(db, city, (name) => geocode(name, { country: 'UA' }), {
+        override: weatherOverride,
+      }),
     fetchForecast: (lat, lon, tz) => fetchForecast(lat, lon, tz),
   };
   weatherClientForTool = {
     tz: weatherTz,
     fetchForecast: (lat, lon, tz, days) => fetchForecast(lat, lon, tz, days),
+    // Unpinned: the on-demand tool resolves any city worldwide (README contract).
     geocode: (name) => geocode(name),
     formatBriefOutlook,
     wmoToRu,
@@ -647,7 +650,9 @@ if (weatherEnabled) {
   resolveUserCoordsForTool = async () => {
     const city = readUserCity();
     if (city) {
-      return resolveCoords(getDb(), city, (name) => geocode(name), { override: weatherOverride });
+      return resolveCoords(getDb(), city, (name) => geocode(name, { country: 'UA' }), {
+        override: weatherOverride,
+      });
     }
     // No city stored but coordinates pinned via env → still answer.
     if (weatherOverride) {
@@ -1060,7 +1065,7 @@ if (discordToken) {
     try {
       const city = readUserCity();
       if (city) {
-        coords = await resolveCoords(getDb(), city, (name) => geocode(name), {
+        coords = await resolveCoords(getDb(), city, (name) => geocode(name, { country: 'UA' }), {
           override: weatherOverride,
         });
       } else if (weatherOverride) {

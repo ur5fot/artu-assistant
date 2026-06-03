@@ -148,6 +148,13 @@ describe('detectWeatherChanges — frost', () => {
     const f = fc({ days: [day('2026-06-03'), day('2026-06-04', { tempMin: 2 })] });
     expect(detectWeatherChanges(f, NOW).some((e) => e.type === 'frost')).toBe(false);
   });
+
+  it('does not flag frost from a missing (NaN) tempMin', () => {
+    // A partial Open-Meteo payload parses missing temps to NaN, not 0 — NaN must
+    // not satisfy `tempMin <= 0` and fire a spurious frost ping.
+    const f = fc({ days: [day('2026-06-03'), day('2026-06-04', { tempMin: NaN })] });
+    expect(detectWeatherChanges(f, NOW).some((e) => e.type === 'frost')).toBe(false);
+  });
 });
 
 describe('detectWeatherChanges — storm / wind', () => {
@@ -194,5 +201,37 @@ describe('detectWeatherChanges — quiescence & keys', () => {
     expect(a).toEqual(b);
     expect(a).toContain('temp-swing+2026-06-04');
     expect(a).toContain('frost+2026-06-04');
+  });
+});
+
+describe('detectWeatherChanges — zoned `when` resolution (non-UTC)', () => {
+  // Europe/Kyiv in June is EEST (UTC+3), so local midnight 2026-06-04T00:00
+  // resolves to 2026-06-03T21:00Z. This exercises the offset math that the
+  // UTC-framed tests above no-op away.
+  it('resolves a daily event to the correct UTC epoch under a +3 offset', () => {
+    const f = fc({
+      tz: 'Europe/Kyiv',
+      days: [
+        day('2026-06-03', { tempMax: 20 }),
+        day('2026-06-04', { tempMax: 10, tempMin: -2 }),
+      ],
+    });
+    const frost = detectWeatherChanges(f, NOW).find((e) => e.type === 'frost');
+    expect(frost).toBeDefined();
+    expect(frost!.when).toBe(Date.UTC(2026, 5, 3, 21, 0));
+  });
+
+  it('resolves an intraday event to the correct UTC epoch under a +3 offset', () => {
+    const f = fc({
+      tz: 'Europe/Kyiv',
+      days: [day('2026-06-03')],
+      hours: [
+        hour('2026-06-03T10:00', { precipProb: 0 }), // 07:00Z — at/just before NOW
+        hour('2026-06-03T14:00', { precipProb: 80, weatherCode: 61 }), // 11:00Z
+      ],
+    });
+    const rain = detectWeatherChanges(f, NOW).find((e) => e.type === 'precip');
+    expect(rain).toBeDefined();
+    expect(rain!.when).toBe(Date.UTC(2026, 5, 3, 11, 0));
   });
 });

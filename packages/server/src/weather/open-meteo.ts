@@ -112,8 +112,8 @@ function parseForecast(
   }
   const days: DayForecast[] = d.time.map((date, i) => ({
     date,
-    tempMax: num(d.temperature_2m_max?.[i]),
-    tempMin: num(d.temperature_2m_min?.[i]),
+    tempMax: temp(d.temperature_2m_max?.[i]),
+    tempMin: temp(d.temperature_2m_min?.[i]),
     precipProbMax: num(d.precipitation_probability_max?.[i]),
     weatherCode: num(d.weathercode?.[i]),
     windMax: num(d.wind_speed_10m_max?.[i]),
@@ -135,6 +135,16 @@ function num(v: number | null | undefined): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
+/**
+ * Temperature coercion: missing/non-finite → `NaN`, never a fabricated `0`.
+ * A real `0` would otherwise satisfy frost detection (`tempMin <= 0`) and fire a
+ * spurious alert on a partial payload. `NaN` fails every comparison instead, so
+ * detection and the brief outlook skip it safely.
+ */
+function temp(v: number | null | undefined): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : NaN;
+}
+
 interface GeocodeResponse {
   results?: Array<{
     latitude: number;
@@ -147,19 +157,23 @@ interface GeocodeResponse {
 /**
  * Geocode a place name via Open-Meteo. Returns the top match or `null` when
  * nothing is found. Throws on timeout / non-2xx.
+ *
+ * `opts.country` (ISO-2) biases results to one country — used to disambiguate
+ * the user's small home village. Omit it (the on-demand `weather` tool does) to
+ * resolve any city worldwide.
  */
 export async function geocode(
   name: string,
   opts: { country?: string; lang?: string } = {},
 ): Promise<GeocodeResult | null> {
-  const { country = 'UA', lang = 'ru' } = opts;
+  const { country, lang = 'ru' } = opts;
   const params = new URLSearchParams({
     name,
     count: '1',
     language: lang,
-    countryCode: country,
     format: 'json',
   });
+  if (country) params.set('countryCode', country);
 
   const res = await fetch(`${GEOCODE_URL}?${params.toString()}`, {
     signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -188,7 +202,9 @@ export function formatBriefOutlook(forecast: Forecast): string {
       const label = DAY_LABELS[i] ?? day.date;
       const lo = Math.round(day.tempMin);
       const hi = Math.round(day.tempMax);
-      let line = `${label}: ${wmoToRu(day.weatherCode)}, ${lo}–${hi}°`;
+      const temps =
+        Number.isFinite(lo) && Number.isFinite(hi) ? `${lo}–${hi}°` : 'темп. н/д';
+      let line = `${label}: ${wmoToRu(day.weatherCode)}, ${temps}`;
       if (day.precipProbMax >= 50) {
         line += ` (осадки ${day.precipProbMax}%)`;
       }
