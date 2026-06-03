@@ -101,12 +101,12 @@ queries.
 - [x] no new test needed (string only); run tool-weather tests to confirm green
 
 ### Task 4: Verify acceptance criteria
-- [ ] home query (`'Калиновка'` / no-arg) → override coords (Златополь 49.37646, 36.21848)
-- [ ] other-city query still geocodes and forecasts correctly
-- [ ] unknown city → explicit error, never another city
-- [ ] `pnpm --filter @r2/tool-weather test` green (was 7, now more)
-- [ ] `pnpm --filter @r2/tool-weather typecheck` clean
-- [ ] full server test suite (1544) still green; root typecheck clean
+- [x] home query (`'Калиновка'` / no-arg) → override coords (Златополь 49.37646, 36.21848) (covered by unit tests, green)
+- [x] other-city query still geocodes and forecasts correctly (covered by unit tests, green)
+- [x] unknown city → explicit error, never another city (covered by unit tests, green)
+- [x] `pnpm --filter @r2/tool-weather test` green (was 7, now 19)
+- [x] `pnpm --filter @r2/tool-weather typecheck` clean
+- [x] full server test suite (1544) still green; root typecheck clean
 
 ### Task 5: Docs
 - [ ] update README / AGENTS weather section to note that home-city `location`
