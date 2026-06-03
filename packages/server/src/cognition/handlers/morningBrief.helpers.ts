@@ -162,10 +162,20 @@ export interface BriefData {
 // plumbing here) so the morning brief stays decoupled from the Open-Meteo
 // client; `index.ts` constructs the closures under `WEATHER_ENABLED`.
 export interface BriefWeatherDeps {
-  /** Resolve+cache coordinates for `city` (geocode-on-first-use). */
-  resolveCoords: (db: Database.Database, city: string) => Promise<Coords | null>;
-  /** Fetch a 3-day forecast for the resolved coordinates. */
-  fetchForecast: (lat: number, lon: number, tz: string) => Promise<Forecast>;
+  /**
+   * Resolve+cache coordinates for `city` (geocode-on-first-use). `city` is
+   * `null` when no `user.city`/`user.location` fact is stored — the resolver
+   * still returns the `WEATHER_LAT`/`WEATHER_LON` override coords if pinned, so
+   * the override stays authoritative for the brief just like the alert + tool.
+   */
+  resolveCoords: (db: Database.Database, city: string | null) => Promise<Coords | null>;
+  /**
+   * Fetch a 3-day forecast for the resolved coordinates. The forecast timezone
+   * (Open-Meteo day-bucketing) is the provider's own `WEATHER_TZ` config, NOT
+   * the brief's civil/display tz — so the brief, the on-demand tool, and the
+   * alert handler all bucket the outlook in the same configured timezone.
+   */
+  fetchForecast: (lat: number, lon: number) => Promise<Forecast>;
 }
 
 export interface PreviousPeriodBundle {
@@ -509,15 +519,19 @@ export async function gatherData(
   const previousPeriod = gatherPreviousPeriod(db, safeFrom, previousPeriodTo, now);
 
   // Deterministic forecast fetch (not an LLM tool call): resolve coordinates
-  // for the city, then pull a 3-day outlook. Any failure (no city, geocode
-  // miss, Open-Meteo down) collapses to null so the brief still composes —
-  // composePrompt renders "погода недоступна".
+  // for the city, then pull a 3-day outlook. `city` may be null — the resolver
+  // still honors the WEATHER_LAT/LON override so a pinned-coords-only setup gets
+  // a forecast (the override is authoritative across all three surfaces). Any
+  // failure (no city + no override, geocode miss, Open-Meteo down) collapses to
+  // null so the brief still composes — composePrompt renders "погода недоступна".
   let weather: Forecast | null = null;
-  if (weatherDeps && city) {
+  if (weatherDeps) {
     try {
       const coords = await weatherDeps.resolveCoords(db, city);
       if (coords) {
-        weather = await weatherDeps.fetchForecast(coords.lat, coords.lon, tz);
+        // No `tz` passed: the forecast timezone is the provider's WEATHER_TZ
+        // config, not the brief's civil tz (see BriefWeatherDeps.fetchForecast).
+        weather = await weatherDeps.fetchForecast(coords.lat, coords.lon);
       }
     } catch {
       weather = null;

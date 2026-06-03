@@ -648,9 +648,27 @@ if (weatherEnabled) {
     return null;
   };
   morningBriefWeather = {
-    resolveCoords: (db, city) =>
-      resolveCoords(db, city, geocodeHome, { override: weatherOverride }),
-    fetchForecast: (lat, lon, tz) => fetchForecast(lat, lon, tz),
+    // city may be null (no user.city/user.location fact). resolveCoords needs a
+    // name to geocode, so when there's no city fall back to the env override
+    // directly — same "pinned coords still answer" path as resolveUserCoords, so
+    // the override stays authoritative for the brief too.
+    resolveCoords: (db, city) => {
+      if (city) {
+        return resolveCoords(db, city, geocodeHome, { override: weatherOverride });
+      }
+      if (weatherOverride) {
+        return Promise.resolve({
+          city: 'сохранённые координаты',
+          lat: weatherOverride.lat,
+          lon: weatherOverride.lon,
+        });
+      }
+      return Promise.resolve(null);
+    },
+    // Pin the configured forecast tz (WEATHER_TZ) so the brief buckets the
+    // outlook the same way the on-demand tool and alert handler do — the
+    // brief's civil/display TZ is a separate concern handled in gatherData.
+    fetchForecast: (lat, lon) => fetchForecast(lat, lon, weatherTz),
   };
   weatherClientForTool = {
     tz: weatherTz,

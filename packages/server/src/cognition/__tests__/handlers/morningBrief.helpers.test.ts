@@ -1185,31 +1185,52 @@ describe('gatherData weather', () => {
     const db = getDb();
     insertCity(db, 'Харьков', now);
     const forecast = sampleForecast();
-    const calls: Array<[number, number, string]> = [];
+    const calls: Array<[number, number]> = [];
     const weatherDeps: BriefWeatherDeps = {
-      resolveCoords: async (_db, city) => ({ city, lat: 50, lon: 36 }),
-      fetchForecast: async (lat, lon, tz) => {
-        calls.push([lat, lon, tz]);
+      resolveCoords: async (_db, city) => ({ city: city ?? '?', lat: 50, lon: 36 }),
+      fetchForecast: async (lat, lon) => {
+        calls.push([lat, lon]);
         return forecast;
       },
     };
     const data = await gatherData(db, now, TZ, weatherDeps);
     expect(data.weather).toEqual(forecast);
-    expect(calls).toEqual([[50, 36, TZ]]);
+    expect(calls).toEqual([[50, 36]]);
   });
 
-  it('weather is null when no city is stored (resolveCoords not called)', async () => {
-    let called = false;
+  it('weather is null when no city is stored and resolver returns null (no override)', async () => {
+    const seen: Array<string | null> = [];
     const weatherDeps: BriefWeatherDeps = {
-      resolveCoords: async () => {
-        called = true;
+      resolveCoords: async (_db, city) => {
+        seen.push(city);
         return null;
       },
       fetchForecast: async () => sampleForecast(),
     };
     const data = await gatherData(getDb(), now, TZ, weatherDeps);
     expect(data.weather).toBeNull();
-    expect(called).toBe(false);
+    // resolver IS consulted with city=null so a pinned WEATHER_LAT/LON override
+    // can still supply coords (here it returns null → no override configured).
+    expect(seen).toEqual([null]);
+  });
+
+  it('attaches forecast with no city when the resolver supplies override coords', async () => {
+    // Mirrors the WEATHER_LAT/LON-only setup: no user.city fact, but the
+    // override-aware resolver returns pinned coords, so the brief still forecasts
+    // (override authoritative across brief + alert + tool).
+    const forecast = sampleForecast();
+    const calls: Array<[number, number]> = [];
+    const weatherDeps: BriefWeatherDeps = {
+      resolveCoords: async (_db, city) =>
+        city === null ? { city: 'сохранённые координаты', lat: 49.37, lon: 36.21 } : null,
+      fetchForecast: async (lat, lon) => {
+        calls.push([lat, lon]);
+        return forecast;
+      },
+    };
+    const data = await gatherData(getDb(), now, TZ, weatherDeps);
+    expect(data.weather).toEqual(forecast);
+    expect(calls).toEqual([[49.37, 36.21]]);
   });
 
   it('weather is null when coordinates cannot be resolved', async () => {
@@ -1227,7 +1248,7 @@ describe('gatherData weather', () => {
     const db = getDb();
     insertCity(db, 'Харьков', now);
     const weatherDeps: BriefWeatherDeps = {
-      resolveCoords: async (_db, city) => ({ city, lat: 50, lon: 36 }),
+      resolveCoords: async (_db, city) => ({ city: city ?? '?', lat: 50, lon: 36 }),
       fetchForecast: async () => {
         throw new Error('network');
       },
