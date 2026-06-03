@@ -133,6 +133,8 @@ describe('discoverTools', () => {
         fetchFullBody: async () => { throw new Error(); },
         getAccount: () => null,
       },
+      weatherClient: null,
+      resolveUserCoords: null,
     }, packagesDir);
 
     expect(registry.get('emails_list')).toBeTruthy();
@@ -259,6 +261,8 @@ describe('discoverTools with factory support', () => {
       reminderStore: null,
       emailStore: null,
       imapClient: null,
+      weatherClient: null,
+      resolveUserCoords: null,
     };
     await discoverTools(registry, deps, tmpDir);
 

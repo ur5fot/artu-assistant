@@ -94,12 +94,12 @@ JSON по координатам). Плюс: 3-дневный прогноз в 
 
 ### Task 8: Конфиг + регистрация/инъекция (`index.ts`)
 
-- [ ] env через `envInt`/строки: `WEATHER_ENABLED`, `WEATHER_ALERT_ENABLED`, `WEATHER_TEMP_SWING_C`(8), `_PRECIP_PROB_PCT`(60), `_LEAD_HOURS`(6), `_CHECK_INTERVAL_H`(3), `_ALERT_DEDUPE_H`(12), `_QUIET_START`(22)/`_END`(8), `WEATHER_LAT`/`WEATHER_LON`(opt), `WEATHER_TZ`(Europe/Kyiv)
-- [ ] под `WEATHER_ENABLED`: сконструировать weather-client + `resolveCoords`-замыкание; прокинуть в morningBrief deps и в `tool-weather` (как `imapClientForTool`)
-- [ ] под `WEATHER_ALERT_ENABLED && coords && discordReady`: зарегистрировать `createWeatherAlertHandler` в cognitionService
-- [ ] `.env.example`: новые `WEATHER_*` с комментариями
-- [ ] тесты гейтинга, если есть инфраструктура; иначе — ручная проверка в Post-Completion
-- [ ] прогнать тесты — зелёные перед Task 9
+- [x] env через `envInt`/строки: `WEATHER_ENABLED`, `WEATHER_ALERT_ENABLED`, `WEATHER_TEMP_SWING_C`(8), `_PRECIP_PROB_PCT`(60), `_LEAD_HOURS`(6), `_CHECK_INTERVAL_H`(3), `_ALERT_DEDUPE_H`(12), `_QUIET_START`(22)/`_END`(8), `WEATHER_LAT`/`WEATHER_LON`(opt), `WEATHER_TZ`(Europe/Kyiv)
+- [x] под `WEATHER_ENABLED`: сконструировать weather-client + `resolveCoords`-замыкание; прокинуть в morningBrief deps и в `tool-weather` (как `imapClientForTool`)
+- [x] под `WEATHER_ALERT_ENABLED && coords && discordReady`: зарегистрировать `createWeatherAlertHandler` в cognitionService (coords резолвятся один раз на старте; гейт логирует discord/coords)
+- [x] `.env.example`: новые `WEATHER_*` с комментариями
+- [x] тесты гейтинга (skipped — нет инфраструктуры: `index.ts` — bootstrap-энтрипойнт со сайд-эффектами на импорте, как emailUrgent/distraction-гейты; ручная проверка в Post-Completion. registry-тесты обновлены под новые ToolDeps-поля)
+- [x] прогнать тесты — зелёные перед Task 9 (1525 server + 7 tool-weather, typecheck обоих чисто)
 
 ### Task 9: Verify acceptance criteria
 

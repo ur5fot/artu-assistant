@@ -9,6 +9,7 @@ import type { MemoryService } from '../memory/service.js';
 import type { ReminderStore } from '../reminders/store.js';
 import type { EmailStore } from '../emails/store.js';
 import type { ImapAccount, NewMessage, FullMessage } from '../emails/types.js';
+import type { Coords, Forecast, GeocodeResult } from '../weather/types.js';
 
 export type { ToolDefinition, ToolContext, PlanReviewResponse } from '@r2/shared';
 
@@ -17,6 +18,20 @@ export interface ImapClient {
   fetchFullBody: (account: ImapAccount, uid: number) => Promise<FullMessage>;
   getAccount: (id: string) => ImapAccount | null;
 }
+
+// Minimal Open-Meteo client surface handed to @r2/tool-weather. Structurally
+// compatible with that package's local `WeatherClientLike`; defined here (not
+// imported) so the server never depends on a tool package's types.
+export interface WeatherClientForTool {
+  tz: string;
+  fetchForecast: (lat: number, lon: number, tz: string, days?: number) => Promise<Forecast>;
+  geocode: (name: string) => Promise<GeocodeResult | null>;
+  formatBriefOutlook: (forecast: Forecast) => string;
+  wmoToRu: (code: number) => string;
+}
+
+/** Resolve the user's cached coordinates (geocode-on-first-use). */
+export type ResolveUserCoordsFn = () => Promise<Coords | null>;
 
 export function toClaudeTool(tool: SharedToolDefinition) {
   return {
@@ -46,6 +61,10 @@ export interface ToolDeps {
   reminderStore: ReminderStore | null;
   emailStore: EmailStore | null;
   imapClient: ImapClient | null;
+  // Injected under WEATHER_ENABLED; null → the `weather` tool reports the
+  // integration is not enabled.
+  weatherClient: WeatherClientForTool | null;
+  resolveUserCoords: ResolveUserCoordsFn | null;
 }
 
 export type ToolFactory = (deps: ToolDeps) => SharedToolDefinition | SharedToolDefinition[];

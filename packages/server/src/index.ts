@@ -69,6 +69,13 @@ import { startWindowLogger } from './observers/window-logger.js';
 import { createContextSwitchHandler } from './cognition/handlers/contextSwitch.js';
 import { createDistractionEvalStore } from './observers/distraction-eval-store.js';
 import { createDistractionHandler } from './cognition/handlers/distractionPullback.js';
+import { fetchForecast, geocode, formatBriefOutlook, wmoToRu } from './weather/open-meteo.js';
+import { resolveCoords } from './weather/coords.js';
+import { createWeatherAlertStore, type WeatherAlertStore } from './weather/alert-store.js';
+import { createWeatherAlertHandler } from './cognition/handlers/weatherAlert.js';
+import type { BriefWeatherDeps } from './cognition/handlers/morningBrief.helpers.js';
+import type { WeatherClientForTool, ResolveUserCoordsFn } from './tools/base.js';
+import type { Coords } from './weather/types.js';
 import { envInt } from './env-utils.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -577,6 +584,81 @@ const runLoopFn = (params: {
     currentUserMessageTimestamp: params.currentUserMessageTimestamp,
   });
 
+// ---- Weather (Open-Meteo) — bootstrap ----
+// Constructed before discoverTools so the `weather` tool and morningBrief can
+// share the same client + coordinate-resolver closures. Everything is gated on
+// WEATHER_ENABLED; when off, all weather deps stay null (zero behaviour change:
+// the tool reports "not enabled", the brief renders "погода недоступна", no
+// alert handler is registered).
+const weatherEnabled = process.env.WEATHER_ENABLED === 'true';
+const weatherTz = process.env.WEATHER_TZ || 'Europe/Kyiv';
+// Manual coordinate override — pins exact lat/lon when Open-Meteo doesn't know
+// a small village (see Post-Completion). Both must be finite to take effect.
+const weatherLatRaw = Number(process.env.WEATHER_LAT);
+const weatherLonRaw = Number(process.env.WEATHER_LON);
+const weatherOverride =
+  process.env.WEATHER_LAT !== undefined &&
+  process.env.WEATHER_LON !== undefined &&
+  Number.isFinite(weatherLatRaw) &&
+  Number.isFinite(weatherLonRaw)
+    ? { lat: weatherLatRaw, lon: weatherLonRaw }
+    : undefined;
+// Detection + alert knobs (out-of-range → default via envInt).
+const weatherTempSwingC = envInt(process.env.WEATHER_TEMP_SWING_C, 8, 1, 30);
+const weatherPrecipProbPct = envInt(process.env.WEATHER_PRECIP_PROB_PCT, 60, 0, 100);
+const weatherLeadHours = envInt(process.env.WEATHER_LEAD_HOURS, 6, 1, 48);
+const weatherCheckIntervalH = envInt(process.env.WEATHER_CHECK_INTERVAL_H, 3, 1, 24);
+const weatherAlertDedupeH = envInt(process.env.WEATHER_ALERT_DEDUPE_H, 12, 1, 168);
+const weatherQuietStart = envInt(process.env.WEATHER_QUIET_START, 22, 0, 23);
+const weatherQuietEnd = envInt(process.env.WEATHER_QUIET_END, 8, 0, 23);
+
+// Lookup the user's city the same way morningBrief.gatherData does — bypass the
+// freshness window since location rarely gets re-mentioned but weather needs it.
+function readUserCity(): string | null {
+  const row = getDb()
+    .prepare(
+      "SELECT value FROM memory_facts WHERE key IN ('user.city','user.location') AND superseded_by IS NULL AND forgotten = 0 ORDER BY key = 'user.city' DESC, last_mentioned_at DESC LIMIT 1",
+    )
+    .get() as { value: string } | undefined;
+  return row?.value ?? null;
+}
+
+let morningBriefWeather: BriefWeatherDeps | null = null;
+let weatherClientForTool: WeatherClientForTool | null = null;
+let resolveUserCoordsForTool: ResolveUserCoordsFn | null = null;
+let weatherAlertStore: WeatherAlertStore | null = null;
+if (weatherEnabled) {
+  morningBriefWeather = {
+    resolveCoords: (db, city) =>
+      resolveCoords(db, city, (name) => geocode(name), { override: weatherOverride }),
+    fetchForecast: (lat, lon, tz) => fetchForecast(lat, lon, tz),
+  };
+  weatherClientForTool = {
+    tz: weatherTz,
+    fetchForecast: (lat, lon, tz, days) => fetchForecast(lat, lon, tz, days),
+    geocode: (name) => geocode(name),
+    formatBriefOutlook,
+    wmoToRu,
+  };
+  resolveUserCoordsForTool = async () => {
+    const city = readUserCity();
+    if (city) {
+      return resolveCoords(getDb(), city, (name) => geocode(name), { override: weatherOverride });
+    }
+    // No city stored but coordinates pinned via env → still answer.
+    if (weatherOverride) {
+      return { city: 'сохранённые координаты', lat: weatherOverride.lat, lon: weatherOverride.lon };
+    }
+    return null;
+  };
+  weatherAlertStore = createWeatherAlertStore({ db: getDb() });
+  console.log(
+    `[weather] enabled (tz=${weatherTz}${weatherOverride ? ', override coords' : ''})`,
+  );
+} else {
+  console.log('[weather] disabled (WEATHER_ENABLED not true)');
+}
+
 // Now discover tools with deps (fills registry in-place)
 await discoverTools(registry, {
   runLoop: runLoopFn,
@@ -587,6 +669,8 @@ await discoverTools(registry, {
   reminderStore,
   emailStore: emailStoreForTool,
   imapClient: imapClientForTool,
+  weatherClient: weatherClientForTool,
+  resolveUserCoords: resolveUserCoordsForTool,
 });
 
 // Email poller lifecycle handles (hoisted so SIGTERM can clean them up).
@@ -791,6 +875,9 @@ if (discordToken) {
         anthropic: client.anthropic,
         ollama: ollamaForRouter,
         webSearchTool,
+        // Open-Meteo forecast for the brief (null when WEATHER_ENABLED unset →
+        // brief renders "погода недоступна" and falls back to web_search prose).
+        weather: morningBriefWeather,
       }),
     );
 
@@ -952,6 +1039,59 @@ if (discordToken) {
     console.log(
       `[distraction] disabled (flag=${distractionFlag}, darwin=${isDarwin}, discord=${discordReady})`,
     );
+  }
+}
+
+// weatherAlert (proactive change alert). Three gates: WEATHER_ALERT_ENABLED,
+// resolvable coordinates (city stored or WEATHER_LAT/LON override), and a live
+// Discord bot — it publishes the nudge via the cognition bus and there is
+// nobody else to consume it (mirror emailUrgent). Coords are resolved once at
+// startup so the per-tick `trigger` stays cheap (no network). Requires
+// WEATHER_ENABLED (weatherAlertStore is null otherwise).
+{
+  const alertFlag = process.env.WEATHER_ALERT_ENABLED === 'true';
+  const discordReady = discordBot !== null;
+  if (weatherEnabled && alertFlag && discordReady && weatherAlertStore) {
+    let coords: Coords | null = null;
+    try {
+      const city = readUserCity();
+      if (city) {
+        coords = await resolveCoords(getDb(), city, (name) => geocode(name), {
+          override: weatherOverride,
+        });
+      } else if (weatherOverride) {
+        coords = { city: 'сохранённые координаты', lat: weatherOverride.lat, lon: weatherOverride.lon };
+      }
+    } catch (err) {
+      console.warn(
+        '[weatherAlert] coordinate resolution failed:',
+        err instanceof Error ? err.message : err,
+      );
+    }
+    if (coords) {
+      cognitionService.register(
+        createWeatherAlertHandler({
+          store: weatherAlertStore,
+          coords,
+          tz: weatherTz,
+          checkIntervalH: weatherCheckIntervalH,
+          dedupeH: weatherAlertDedupeH,
+          leadHours: weatherLeadHours,
+          quietStart: weatherQuietStart,
+          quietEnd: weatherQuietEnd,
+          thresholds: {
+            tempSwingC: weatherTempSwingC,
+            precipProbPct: weatherPrecipProbPct,
+            leadHours: weatherLeadHours,
+          },
+        }),
+      );
+      console.log(`[weatherAlert] handler registered (coords=${coords.lat},${coords.lon})`);
+    } else {
+      console.log('[weatherAlert] disabled (no resolvable coordinates — set city or WEATHER_LAT/LON)');
+    }
+  } else if (weatherEnabled && alertFlag) {
+    console.log(`[weatherAlert] disabled (discord=${discordReady})`);
   }
 }
 
