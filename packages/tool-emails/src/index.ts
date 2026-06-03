@@ -187,6 +187,16 @@ function createEmailsDismissTool(deps: Deps): ToolDefinition {
       }
       const row = deps.emailStore.findByPendingId(id);
       if (!row) return { success: false, error: `Email with id=${id} not found` };
+      // Honest confirmation: only report a real dismissal when the row was
+      // actually in the awaiting queue. Same predicate as countPendingUndelivered
+      // (delivered_at IS NULL AND urgent_pinged_at NULL-or-sentinel). An
+      // already-delivered or positively urgent-pinged row is already out of the
+      // queue, so markDelivered would be a no-op — saying "dismissed" would lie.
+      const wasAwaiting =
+        row.delivered_at === null && (row.urgent_pinged_at === null || row.urgent_pinged_at < 0);
+      if (!wasAwaiting) {
+        return { success: true, data: { id, dismissed: false, already_handled: true } };
+      }
       deps.emailStore.markDelivered([id], Date.now());
       return { success: true, data: { id, dismissed: true } };
     },

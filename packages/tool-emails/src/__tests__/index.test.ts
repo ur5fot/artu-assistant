@@ -2,7 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import { createTool } from '../index.js';
 import type { EmailStoreLike, ImapClientLike, EmailPendingRow } from '../types.js';
 
-function mkRow(id: number, importance: number, delivered = false): EmailPendingRow {
+function mkRow(
+  id: number,
+  importance: number,
+  delivered = false,
+  urgentPinged: number | null = null,
+): EmailPendingRow {
   return {
     id,
     account_id: 'a',
@@ -14,6 +19,7 @@ function mkRow(id: number, importance: number, delivered = false): EmailPendingR
     received_at: 1000 + id,
     added_at: 1000 + id,
     delivered_at: delivered ? 2000 : null,
+    urgent_pinged_at: urgentPinged,
   };
 }
 
@@ -27,9 +33,10 @@ function mkStore(rows: EmailPendingRow[], states: Record<string, AcctState> = {}
     countPendingUndelivered: vi.fn(() => rows.length),
     countHandledSince: vi.fn((_s: number) => 0),
     markDelivered: vi.fn((ids: number[], now: number) => {
+      // Mirror the real store: only rows with delivered_at IS NULL are updated.
       for (const id of ids) {
         const r = rows.find((row) => row.id === id);
-        if (r) r.delivered_at = now;
+        if (r && r.delivered_at === null) r.delivered_at = now;
       }
     }),
     getAccountState: vi.fn((id: string) => states[id] ?? null),
@@ -292,6 +299,43 @@ describe('emails_dismiss tool', () => {
     expect(store.markDelivered).toHaveBeenCalledWith([7], expect.any(Number));
     // Dismissed row is now delivered → excluded from awaiting.
     expect(rows.find((r) => r.id === 7)!.delivered_at).not.toBeNull();
+  });
+
+  it('reports already_handled (not dismissed) for an already-delivered row', async () => {
+    const rows = [mkRow(7, 5, true)]; // delivered_at set → out of awaiting
+    const store = mkStore(rows);
+    const tools = createTool({ emailStore: store, imapClient: mkImap() });
+    const dismiss = tools.find((t) => t.name === 'emails_dismiss')!;
+
+    const res = await dismiss.handler({ id: 7 });
+    expect(res.success).toBe(true);
+    expect(res.data).toMatchObject({ id: 7, dismissed: false, already_handled: true });
+    // No write — honest confirmation must not claim a no-op as a dismissal.
+    expect(store.markDelivered).not.toHaveBeenCalled();
+  });
+
+  it('reports already_handled for a positively urgent-pinged row', async () => {
+    const rows = [mkRow(7, 5, false, 1500)]; // urgent_pinged_at > 0 → out of awaiting
+    const store = mkStore(rows);
+    const tools = createTool({ emailStore: store, imapClient: mkImap() });
+    const dismiss = tools.find((t) => t.name === 'emails_dismiss')!;
+
+    const res = await dismiss.handler({ id: 7 });
+    expect(res.success).toBe(true);
+    expect(res.data).toMatchObject({ id: 7, dismissed: false, already_handled: true });
+    expect(store.markDelivered).not.toHaveBeenCalled();
+  });
+
+  it('dismisses a suppressed-sentinel row that is still awaiting', async () => {
+    const rows = [mkRow(7, 5, false, -1)]; // sentinel -1 → still in awaiting
+    const store = mkStore(rows);
+    const tools = createTool({ emailStore: store, imapClient: mkImap() });
+    const dismiss = tools.find((t) => t.name === 'emails_dismiss')!;
+
+    const res = await dismiss.handler({ id: 7 });
+    expect(res.success).toBe(true);
+    expect(res.data).toMatchObject({ id: 7, dismissed: true });
+    expect(store.markDelivered).toHaveBeenCalledWith([7], expect.any(Number));
   });
 
   it('returns error when id unknown', async () => {
