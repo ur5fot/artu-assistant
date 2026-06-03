@@ -249,6 +249,19 @@ describe('formatBriefOutlook', () => {
     expect(formatBriefOutlook(fc)).toBe('Сегодня: преимущественно ясно, темп. н/д');
   });
 
+  it('shows "темп. н/д" when only one of the day temps is NaN', () => {
+    const fc: Forecast = {
+      lat: 0,
+      lon: 0,
+      tz: 'Europe/Kyiv',
+      days: [
+        { date: '2026-06-03', tempMax: NaN, tempMin: 3, precipProbMax: 0, weatherCode: 1, windMax: 0 },
+      ],
+      hours: [],
+    };
+    expect(formatBriefOutlook(fc)).toBe('Сегодня: преимущественно ясно, темп. н/д');
+  });
+
   it('returns a fallback when there are no days', () => {
     const fc: Forecast = { lat: 0, lon: 0, tz: 'Europe/Kyiv', days: [], hours: [] };
     expect(formatBriefOutlook(fc)).toBe('погода недоступна');

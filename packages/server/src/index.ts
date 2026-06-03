@@ -1105,7 +1105,6 @@ if (discordToken) {
           thresholds: {
             tempSwingC: weatherTempSwingC,
             precipProbPct: weatherPrecipProbPct,
-            leadHours: weatherLeadHours,
           },
         }),
       );

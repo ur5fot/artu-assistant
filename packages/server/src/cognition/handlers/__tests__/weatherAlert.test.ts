@@ -200,6 +200,20 @@ describe('createWeatherAlertHandler', () => {
       expect(store.alerts).toHaveLength(0);
     });
 
+    it('skips a today event whose time has already passed', async () => {
+      const store = fakeStore();
+      const pastEvent: WeatherEvent = {
+        type: 'frost',
+        when: NOON - 2 * HOUR, // earlier today → daysAhead 0 but when < now
+        key: 'frost+2026-06-04',
+        message: 'Заморозок',
+      };
+      const h = createWeatherAlertHandler(baseDeps({ store, detect: () => [pastEvent] }));
+      const res = await h.run(ctx(NOON));
+      expect(res).toMatchObject({ skip: true });
+      expect(store.alerts).toHaveLength(0);
+    });
+
     it('joins multiple fresh events into one message and records each', async () => {
       const store = fakeStore();
       const events: WeatherEvent[] = [

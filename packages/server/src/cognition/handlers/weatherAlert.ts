@@ -98,7 +98,9 @@ export function createWeatherAlertHandler(deps: WeatherAlertDeps): Handler {
         return { skip: true, reason: `fetch failed: ${message}` };
       }
 
-      const events = detect(forecast, ctx.firedAt, deps.thresholds ?? {});
+      // `leadHours` is the single source of truth (deps.leadHours): forward it
+      // into the detector's look-ahead so the two paths can't silently drift.
+      const events = detect(forecast, ctx.firedAt, { ...deps.thresholds, leadHours: deps.leadHours });
       const dedupeSince = ctx.firedAt - deps.dedupeH * HOUR_MS;
       const fresh = events.filter(
         (e) =>
