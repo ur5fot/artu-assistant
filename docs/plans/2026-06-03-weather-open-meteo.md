@@ -53,9 +53,9 @@ JSON по координатам). Плюс: 3-дневный прогноз в 
 
 ### Task 2: `detectWeatherChanges` (чистая детекция)
 
-- [ ] `weather/detect.ts`: `detectWeatherChanges(forecast, now, thresholds)` → `Event[] { type, when, key, message }`: скачок t° (Δmax ≥ tempSwingC), приход осадков (сухо→prob≥precipProbPct в hourly lead-окне / daily завтра), заморозок (tmin≤0 впереди), гроза/сильный ветер (weathercode/wind). `key=type+дата` для дедупа
-- [ ] тесты: каждый тип события (есть/нет), «без изменений» → [], стабильные ключи, lead-окно учитывается
-- [ ] прогнать тесты — зелёные перед Task 3
+- [x] `weather/detect.ts`: `detectWeatherChanges(forecast, now, thresholds)` → `Event[] { type, when, key, message }`: скачок t° (Δmax ≥ tempSwingC), приход осадков (сухо→prob≥precipProbPct в hourly lead-окне / daily завтра), заморозок (tmin≤0 впереди), гроза/сильный ветер (weathercode/wind). `key=type+дата` для дедупа
+- [x] тесты: каждый тип события (есть/нет), «без изменений» → [], стабильные ключи, lead-окно учитывается
+- [x] прогнать тесты — зелёные перед Task 3
 
 ### Task 3: Координаты (`weather/coords.ts` `resolveCoords`)
 
