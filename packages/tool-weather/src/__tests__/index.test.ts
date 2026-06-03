@@ -180,6 +180,29 @@ describe('weather tool — with location (geocode)', () => {
     expect(weatherClient.fetchForecast).toHaveBeenCalledWith(49.9, 36.9, 'Europe/Kyiv');
   });
 
+  it('still geocodes a different city when the home probe throws (best-effort)', async () => {
+    const weatherClient = mkClient({
+      geocode: vi.fn(async (): Promise<GeocodeResult | null> => ({
+        lat: 50.45,
+        lon: 30.52,
+        name: 'Киев',
+        admin1: 'Киев',
+      })),
+    });
+    // Home resolver may network-geocode the village and fail; a request for a
+    // DIFFERENT city must not inherit that error.
+    const resolveUserCoords = vi.fn(async (): Promise<Coords | null> => {
+      throw new Error('home geocode down');
+    });
+    const tool = getTool({ weatherClient, resolveUserCoords });
+
+    const res = await tool.handler({ location: 'Киев' });
+    expect(res.success).toBe(true);
+    expect(resolveUserCoords).toHaveBeenCalledOnce();
+    expect(weatherClient.geocode).toHaveBeenCalledWith('Киев');
+    expect(weatherClient.fetchForecast).toHaveBeenCalledWith(50.45, 30.52, 'Europe/Kyiv');
+  });
+
   it('falls back to geocoding the name when no resolver is wired (legacy)', async () => {
     const weatherClient = mkClient();
     const tool = getTool({ weatherClient, resolveUserCoords: null });

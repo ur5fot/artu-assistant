@@ -53,12 +53,17 @@ export function wmoToRu(code: number): string {
   return WMO_RU[code] ?? `код ${code}`;
 }
 
+// Open-Meteo's canonical forecast variable is `weather_code` (snake_case, per the
+// current docs); the legacy alias `weathercode` is still served for now. Request
+// the canonical name and parse both so a future drop of the alias can't silently
+// zero out weather codes.
 interface ForecastResponse {
   daily?: {
     time?: string[];
     temperature_2m_max?: number[];
     temperature_2m_min?: number[];
     precipitation_probability_max?: Array<number | null>;
+    weather_code?: number[];
     weathercode?: number[];
     wind_speed_10m_max?: number[];
   };
@@ -66,6 +71,7 @@ interface ForecastResponse {
     time?: string[];
     temperature_2m?: number[];
     precipitation_probability?: Array<number | null>;
+    weather_code?: number[];
     weathercode?: number[];
     wind_speed_10m?: number[];
   };
@@ -87,8 +93,8 @@ export async function fetchForecast(
     timezone: tz,
     forecast_days: String(days),
     daily:
-      'temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode,wind_speed_10m_max',
-    hourly: 'temperature_2m,precipitation_probability,weathercode,wind_speed_10m',
+      'temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,wind_speed_10m_max',
+    hourly: 'temperature_2m,precipitation_probability,weather_code,wind_speed_10m',
   });
 
   const res = await fetch(`${FORECAST_URL}?${params.toString()}`, {
@@ -116,7 +122,7 @@ function parseForecast(
     tempMax: temp(d.temperature_2m_max?.[i]),
     tempMin: temp(d.temperature_2m_min?.[i]),
     precipProbMax: num(d.precipitation_probability_max?.[i]),
-    weatherCode: num(d.weathercode?.[i]),
+    weatherCode: num(d.weather_code?.[i] ?? d.weathercode?.[i]),
     windMax: num(d.wind_speed_10m_max?.[i]),
   }));
 
@@ -125,7 +131,7 @@ function parseForecast(
     time,
     temp: num(h?.temperature_2m?.[i]),
     precipProb: num(h?.precipitation_probability?.[i]),
-    weatherCode: num(h?.weathercode?.[i]),
+    weatherCode: num(h?.weather_code?.[i] ?? h?.weathercode?.[i]),
     wind: num(h?.wind_speed_10m?.[i]),
   }));
 

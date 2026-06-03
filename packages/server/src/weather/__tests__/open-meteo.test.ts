@@ -81,8 +81,25 @@ describe('fetchForecast', () => {
     expect(url).toContain('forecast_days=3');
     expect(url).toContain('temperature_2m_max');
     expect(url).toContain('precipitation_probability');
+    // Canonical Open-Meteo variable name (snake_case), not the legacy alias.
+    expect(url).toContain('weather_code');
+    expect(url).not.toContain('weathercode');
     const opts = mockFetch.mock.calls[0][1];
     expect(opts.signal).toBeDefined();
+  });
+
+  it('parses the canonical weather_code field from the response', async () => {
+    const body = {
+      ...FORECAST_BODY,
+      daily: { ...FORECAST_BODY.daily, weathercode: undefined, weather_code: [2, 95, 0] },
+      hourly: { ...FORECAST_BODY.hourly, weathercode: undefined, weather_code: [3, 45] },
+    };
+    mockFetch.mockResolvedValueOnce(okJson(body));
+
+    const fc = await fetchForecast(50.0, 36.25, 'Europe/Kyiv', 3);
+
+    expect(fc.days.map((d) => d.weatherCode)).toEqual([2, 95, 0]);
+    expect(fc.hours.map((h) => h.weatherCode)).toEqual([3, 45]);
   });
 
   it('coerces null precip-probability to 0', async () => {
