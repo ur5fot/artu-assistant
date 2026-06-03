@@ -71,6 +71,26 @@ describe('prompts overlay integration', () => {
     });
   });
 
+  describe('email-check routing rule', () => {
+    beforeEach(() => {
+      mockedGetOverlay.mockReturnValue(null);
+    });
+
+    it('getSystemPrompt routes email checks to emails_status', () => {
+      const out = getSystemPrompt();
+      expect(out).toContain('emails_status');
+      expect(out).toContain('awaiting_count');
+      expect(out).toContain('accounts_count');
+    });
+
+    it('getLocalSystemPrompt routes email checks to emails_status', () => {
+      const out = getLocalSystemPrompt();
+      expect(out).toContain('emails_status');
+      expect(out).toContain('awaiting_count');
+      expect(out).toContain('accounts_count');
+    });
+  });
+
   describe('multi-turn coalescing rule', () => {
     beforeEach(() => {
       mockedGetOverlay.mockReturnValue(null);
