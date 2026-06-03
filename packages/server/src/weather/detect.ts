@@ -111,10 +111,20 @@ export function detectWeatherChanges(
     });
   }
 
-  // 4. Thunderstorm / strong wind — every qualifying day, for the same reason as
-  //    frost: an in-progress storm today must not mask tomorrow's.
+  // 4. Thunderstorm / strong wind. Prefer an intraday hourly hit within the lead
+  //    window today: daily rows only carry midnight, which the handler's lead
+  //    window treats as past, so a same-day storm would otherwise never fire.
+  //    For future days, emit one daily event each (pre-announced the evening
+  //    before) — like frost, an in-progress storm today must not mask tomorrow's.
+  const intradayStorm = detectIntradayStorm(hours, now, tz, leadHours, windMaxKmh);
+  const intradayStormDate = intradayStorm?.key.slice('storm+'.length) ?? null;
+  if (intradayStorm) {
+    events.push(intradayStorm);
+  }
   for (const stormDay of days.filter(
-    (d) => THUNDER.has(d.weatherCode) || d.windMax >= windMaxKmh,
+    (d) =>
+      (THUNDER.has(d.weatherCode) || d.windMax >= windMaxKmh) &&
+      d.date !== intradayStormDate,
   )) {
     const thunder = THUNDER.has(stormDay.weatherCode);
     events.push({
@@ -171,6 +181,41 @@ function detectIntradayPrecip(
       firstWet.hour.precipProb
     }%)`,
   };
+}
+
+/**
+ * Intraday storm detection: the first upcoming hour within the next `leadHours`
+ * whose weathercode is a thunderstorm or whose wind reaches `windMaxKmh`.
+ * Returns null when no qualifying hour falls in the window (or no hourly data).
+ */
+function detectIntradayStorm(
+  hours: HourForecast[],
+  now: number,
+  tz: string,
+  leadHours: number,
+  windMaxKmh: number,
+): WeatherEvent | null {
+  if (hours.length === 0) return null;
+  const windowEnd = now + leadHours * HOUR_MS;
+
+  for (const h of hours) {
+    const at = parseZoned(h.time, tz);
+    if (at <= now) continue;
+    if (at > windowEnd) break;
+    const thunder = THUNDER.has(h.weatherCode);
+    if (!thunder && h.wind < windMaxKmh) continue;
+    const inHours = Math.max(1, Math.round((at - now) / HOUR_MS));
+    const date = h.time.slice(0, 10);
+    return {
+      type: 'storm',
+      when: at,
+      key: `storm+${date}`,
+      message: thunder
+        ? `Через ~${inHours}ч гроза (${wmoToRu(h.weatherCode)})`
+        : `Через ~${inHours}ч сильный ветер, до ${Math.round(h.wind)} км/ч`,
+    };
+  }
+  return null;
 }
 
 /** Epoch ms for the start of a local calendar day (`YYYY-MM-DD`) in `tz`. */

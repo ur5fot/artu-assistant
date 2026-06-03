@@ -32,6 +32,7 @@ const FORECAST_BODY = {
     temperature_2m: [13.0, 12.5],
     precipitation_probability: [5, 10],
     weathercode: [1, 2],
+    wind_speed_10m: [8.0, 9.0],
   },
 };
 
@@ -63,6 +64,7 @@ describe('fetchForecast', () => {
       temp: 13.0,
       precipProb: 5,
       weatherCode: 1,
+      wind: 8.0,
     });
   });
 

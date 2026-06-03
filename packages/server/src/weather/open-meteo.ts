@@ -67,6 +67,7 @@ interface ForecastResponse {
     temperature_2m?: number[];
     precipitation_probability?: Array<number | null>;
     weathercode?: number[];
+    wind_speed_10m?: number[];
   };
 }
 
@@ -87,7 +88,7 @@ export async function fetchForecast(
     forecast_days: String(days),
     daily:
       'temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode,wind_speed_10m_max',
-    hourly: 'temperature_2m,precipitation_probability,weathercode',
+    hourly: 'temperature_2m,precipitation_probability,weathercode,wind_speed_10m',
   });
 
   const res = await fetch(`${FORECAST_URL}?${params.toString()}`, {
@@ -125,6 +126,7 @@ function parseForecast(
     temp: num(h?.temperature_2m?.[i]),
     precipProb: num(h?.precipitation_probability?.[i]),
     weatherCode: num(h?.weathercode?.[i]),
+    wind: num(h?.wind_speed_10m?.[i]),
   }));
 
   return { lat, lon, tz, days, hours };

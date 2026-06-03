@@ -18,7 +18,7 @@ function day(date: string, o: Partial<DayForecast> = {}): DayForecast {
 }
 
 function hour(time: string, o: Partial<HourForecast> = {}): HourForecast {
-  return { time, temp: 15, precipProb: 0, weatherCode: 1, ...o };
+  return { time, temp: 15, precipProb: 0, weatherCode: 1, wind: 10, ...o };
 }
 
 function fc(o: Partial<Forecast> = {}): Forecast {
@@ -206,6 +206,72 @@ describe('detectWeatherChanges — storm / wind', () => {
       .filter((e) => e.type === 'storm')
       .map((e) => e.key);
     expect(stormKeys).toEqual(['storm+2026-06-03', 'storm+2026-06-04']);
+  });
+
+  it('flags a same-day thunderstorm from an hourly hit in the lead window', () => {
+    // Daily-only storm events carry midnight `when`, which the handler's lead
+    // window treats as past — so a storm later today must come from hourly.
+    const f = fc({
+      days: [day('2026-06-03', { weatherCode: 95 })],
+      hours: [
+        hour('2026-06-03T08:00', { weatherCode: 1 }),
+        hour('2026-06-03T11:00', { weatherCode: 95 }),
+      ],
+    });
+    const storm = detectWeatherChanges(f, NOW).find((e) => e.type === 'storm');
+    expect(storm).toBeDefined();
+    expect(storm!.when).toBe(Date.UTC(2026, 5, 3, 11, 0));
+    expect(storm!.key).toBe('storm+2026-06-03');
+    expect(storm!.message).toContain('Через ~3ч гроза');
+  });
+
+  it('flags same-day strong wind from an hourly hit', () => {
+    const f = fc({
+      hours: [
+        hour('2026-06-03T08:00', { wind: 20 }),
+        hour('2026-06-03T10:00', { wind: 65 }),
+      ],
+    });
+    const storm = detectWeatherChanges(f, NOW).find((e) => e.type === 'storm');
+    expect(storm).toBeDefined();
+    expect(storm!.message).toContain('сильный ветер');
+    expect(storm!.message).toContain('65 км/ч');
+  });
+
+  it('does not duplicate today when an hourly hit already covers it', () => {
+    // Both daily (today) and hourly (today) show a storm — only the intraday
+    // event should survive for today; tomorrow still gets its daily event.
+    const f = fc({
+      days: [
+        day('2026-06-03', { weatherCode: 95 }),
+        day('2026-06-04', { weatherCode: 96 }),
+      ],
+      hours: [
+        hour('2026-06-03T08:00', { weatherCode: 1 }),
+        hour('2026-06-03T12:00', { weatherCode: 95 }),
+      ],
+    });
+    const storms = detectWeatherChanges(f, NOW).filter((e) => e.type === 'storm');
+    expect(storms.map((e) => e.key)).toEqual(['storm+2026-06-03', 'storm+2026-06-04']);
+    expect(storms[0].when).toBe(Date.UTC(2026, 5, 3, 12, 0));
+    expect(storms[0].message).toContain('Через ~4ч');
+  });
+
+  it('ignores an hourly storm outside the lead window (falls back to daily)', () => {
+    // Storm at 23:00 today, lead 6h from 08:00 → not yet within window. The
+    // daily today event (midnight) is emitted instead; the handler drops it now
+    // and re-checks on the next tick when 23:00 enters the window.
+    const f = fc({
+      days: [day('2026-06-03', { weatherCode: 95 })],
+      hours: [
+        hour('2026-06-03T08:00', { weatherCode: 1 }),
+        hour('2026-06-03T23:00', { weatherCode: 95 }),
+      ],
+    });
+    const storm = detectWeatherChanges(f, NOW).find((e) => e.type === 'storm');
+    expect(storm).toBeDefined();
+    expect(storm!.when).toBe(Date.UTC(2026, 5, 3, 0, 0));
+    expect(storm!.message).toContain('Гроза: 2026-06-03');
   });
 });
 

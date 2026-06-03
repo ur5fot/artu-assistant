@@ -22,6 +22,8 @@ export interface HourForecast {
   /** Precipitation probability for the hour, 0–100. */
   precipProb: number;
   weatherCode: number;
+  /** Wind speed for the hour (km/h). */
+  wind: number;
 }
 
 /** Parsed Open-Meteo forecast for a single location. */
