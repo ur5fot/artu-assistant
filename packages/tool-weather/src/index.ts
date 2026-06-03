@@ -21,6 +21,24 @@ interface Deps {
   resolveUserCoords: ResolveUserCoordsFn | null;
 }
 
+/** Normalize a place name for comparison: trim, lowercase, first comma-segment. */
+function normalizePlace(value: string): string {
+  return value.trim().toLowerCase().split(',')[0].trim();
+}
+
+/**
+ * Conservative home-city match: true only when `input` and `homeCity` share the
+ * same normalized first comma-segment. Exact equality (no substring match), so
+ * `'Калиновка'` matches `'Калиновка, Харьковская область'` but `'Киев'` never
+ * matches home. Empty/invalid input never matches.
+ */
+export function isSamePlace(input: string, homeCity: string): boolean {
+  const a = normalizePlace(input);
+  const b = normalizePlace(homeCity);
+  if (!a || !b) return false;
+  return a === b;
+}
+
 /** Structural per-day projection (raw numbers + RU weather description). */
 function toDayData(client: WeatherClientLike, forecast: Forecast) {
   return forecast.days.map((d) => ({

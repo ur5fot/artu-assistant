@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createTool } from '../index.js';
+import { createTool, isSamePlace } from '../index.js';
 import type {
   Coords,
   Forecast,
@@ -44,6 +44,45 @@ const userCoords = (): ResolveUserCoordsFn =>
 function getTool(deps: Parameters<typeof createTool>[0]) {
   return createTool(deps).find((t) => t.name === 'weather')!;
 }
+
+describe('isSamePlace — home-city matcher', () => {
+  it('matches exact normalized equality', () => {
+    expect(isSamePlace('Калиновка', 'Калиновка')).toBe(true);
+  });
+
+  it('is case-insensitive', () => {
+    expect(isSamePlace('калиновка', 'КАЛИНОВКА')).toBe(true);
+  });
+
+  it('matches when home has an oblast suffix (first segment only)', () => {
+    expect(isSamePlace('Калиновка', 'Калиновка, Харьковская область, Украина')).toBe(true);
+  });
+
+  it('matches when input has an oblast suffix', () => {
+    expect(isSamePlace('Калиновка, Харьковская область', 'Калиновка')).toBe(true);
+  });
+
+  it('ignores surrounding whitespace', () => {
+    expect(isSamePlace('  Калиновка  ', 'Калиновка')).toBe(true);
+  });
+
+  it('does not match a different city', () => {
+    expect(isSamePlace('Киев', 'Калиновка')).toBe(false);
+  });
+
+  it('does not substring-match', () => {
+    expect(isSamePlace('Кали', 'Калиновка')).toBe(false);
+  });
+
+  it('returns false on empty input', () => {
+    expect(isSamePlace('', 'Калиновка')).toBe(false);
+    expect(isSamePlace('   ', 'Калиновка')).toBe(false);
+  });
+
+  it('returns false on empty home city', () => {
+    expect(isSamePlace('Калиновка', '')).toBe(false);
+  });
+});
 
 describe('weather tool — no location (user coords)', () => {
   it('resolves user coords and returns structural 3-day forecast + RU summary', async () => {
