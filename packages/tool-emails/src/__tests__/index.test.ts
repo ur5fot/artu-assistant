@@ -26,6 +26,12 @@ function mkStore(rows: EmailPendingRow[], states: Record<string, AcctState> = {}
     fetchPendingUndelivered: vi.fn((_l: number) => rows),
     countPendingUndelivered: vi.fn(() => rows.length),
     countHandledSince: vi.fn((_s: number) => 0),
+    markDelivered: vi.fn((ids: number[], now: number) => {
+      for (const id of ids) {
+        const r = rows.find((row) => row.id === id);
+        if (r) r.delivered_at = now;
+      }
+    }),
     getAccountState: vi.fn((id: string) => states[id] ?? null),
   };
 }
@@ -270,5 +276,50 @@ describe('emails_get tool', () => {
     const res = await get.handler({ id: 5 });
     expect(res.success).toBe(false);
     expect(res.error).toContain('boom');
+  });
+});
+
+describe('emails_dismiss tool', () => {
+  it('marks the email delivered so it leaves the awaiting queue', async () => {
+    const rows = [mkRow(7, 5), mkRow(8, 4)];
+    const store = mkStore(rows);
+    const tools = createTool({ emailStore: store, imapClient: mkImap() });
+    const dismiss = tools.find((t) => t.name === 'emails_dismiss')!;
+
+    const res = await dismiss.handler({ id: 7 });
+    expect(res.success).toBe(true);
+    expect(res.data).toMatchObject({ id: 7, dismissed: true });
+    expect(store.markDelivered).toHaveBeenCalledWith([7], expect.any(Number));
+    // Dismissed row is now delivered → excluded from awaiting.
+    expect(rows.find((r) => r.id === 7)!.delivered_at).not.toBeNull();
+  });
+
+  it('returns error when id unknown', async () => {
+    const tools = createTool({ emailStore: mkStore([]), imapClient: mkImap() });
+    const dismiss = tools.find((t) => t.name === 'emails_dismiss')!;
+    const res = await dismiss.handler({ id: 999 });
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/not found/i);
+  });
+
+  it('rejects invalid ids (0, negative, non-numeric, missing)', async () => {
+    const store = mkStore([mkRow(7, 5)]);
+    const tools = createTool({ emailStore: store, imapClient: mkImap() });
+    const dismiss = tools.find((t) => t.name === 'emails_dismiss')!;
+
+    for (const bad of [0, -1, 'abc', NaN, undefined] as unknown[]) {
+      const res = await dismiss.handler(bad === undefined ? {} : { id: bad });
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/positive number/i);
+    }
+    expect(store.markDelivered).not.toHaveBeenCalled();
+  });
+
+  it('returns error when emailStore is null', async () => {
+    const tools = createTool({ emailStore: null, imapClient: mkImap() });
+    const dismiss = tools.find((t) => t.name === 'emails_dismiss')!;
+    const res = await dismiss.handler({ id: 7 });
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/email/i);
   });
 });

@@ -161,8 +161,45 @@ function createEmailsGetTool(deps: Deps): ToolDefinition {
   };
 }
 
+function createEmailsDismissTool(deps: Deps): ToolDefinition {
+  return {
+    name: 'emails_dismiss',
+    description:
+      'Пометить письмо разобранным — убрать из очереди awaiting, когда юзер говорит «разобрал / убери / закрой это письмо». ' +
+      'Берёт id из emails_status (awaiting) или emails_list. Письмо не удаляется, остаётся видимым в emails_list за период; ' +
+      'просто исчезает из ждущих разбора.',
+    permissionLevel: 'auto',
+    provider: 'all',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'number', description: 'id записи из emails_status/emails_list' },
+      },
+      required: ['id'],
+    },
+    async handler(params: Record<string, unknown>): Promise<ToolResult> {
+      if (!deps.emailStore) {
+        return { success: false, error: 'Email integration is not enabled on this server' };
+      }
+      const id = Number(params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return { success: false, error: 'id must be a positive number' };
+      }
+      const row = deps.emailStore.findByPendingId(id);
+      if (!row) return { success: false, error: `Email with id=${id} not found` };
+      deps.emailStore.markDelivered([id], Date.now());
+      return { success: true, data: { id, dismissed: true } };
+    },
+  };
+}
+
 export function createTool(deps: Deps): ToolDefinition[] {
-  return [createEmailsListTool(deps), createEmailsStatusTool(deps), createEmailsGetTool(deps)];
+  return [
+    createEmailsListTool(deps),
+    createEmailsStatusTool(deps),
+    createEmailsGetTool(deps),
+    createEmailsDismissTool(deps),
+  ];
 }
 
 export default createTool;

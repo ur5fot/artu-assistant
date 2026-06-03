@@ -39,6 +39,9 @@ export interface EmailStoreLike {
   countPendingUndelivered(): number;
   countHandledSince(sinceMs: number): number;
   findByPendingId(id: number): EmailPendingRow | null;
+  // Mark pending emails handled (sets delivered_at), removing them from the
+  // awaiting queue while keeping the rows. Used by emails_dismiss.
+  markDelivered(ids: number[], now: number): void;
   // Per-account health for the emails_status `accounts` list. Null when the
   // account has no state row yet (configured but not polled).
   getAccountState(
