@@ -3,6 +3,7 @@ import type { ToolDefinition } from '@r2/shared';
 import type { Handler } from '../types.js';
 import type { PiiProxy } from '../../pii/proxy.js';
 import type { OllamaClient } from '../../ai/ollama.js';
+import type { BriefWeatherDeps } from './morningBrief.helpers.js';
 import {
   composePrompt,
   gatherData,
@@ -25,10 +26,12 @@ interface Deps {
   anthropic: Anthropic;
   ollama?: OllamaClient | null;
   webSearchTool?: ToolDefinition | null;
+  // Injected under WEATHER_ENABLED; null → brief omits the forecast section.
+  weather?: BriefWeatherDeps | null;
 }
 
 export function createMorningBriefHandler(deps: Deps): Handler {
-  const { piiProxy, anthropic, ollama = null, webSearchTool = null } = deps;
+  const { piiProxy, anthropic, ollama = null, webSearchTool = null, weather = null } = deps;
   return {
     name: 'morningBrief',
     async trigger(state, ctx) {
@@ -73,7 +76,7 @@ export function createMorningBriefHandler(deps: Deps): Handler {
     },
     async run(ctx) {
       try {
-        const data = gatherData(ctx.db, ctx.firedAt, TZ);
+        const data = await gatherData(ctx.db, ctx.firedAt, TZ, weather);
         const prompt = composePrompt(data, TZ);
         const text = await callMorningBriefAI({
           piiProxy,

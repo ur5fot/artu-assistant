@@ -15,28 +15,50 @@ import {
   pluralizeDays,
 } from '../../handlers/morningBrief.helpers.js';
 import type {
+  BriefWeatherDeps,
   ChatRow,
   PreviousPeriodBundle,
 } from '../../handlers/morningBrief.helpers.js';
+import type { Forecast } from '../../../weather/types.js';
 
 const TZ = 'Europe/Kyiv';
+
+function sampleForecast(): Forecast {
+  return {
+    lat: 50,
+    lon: 36,
+    tz: TZ,
+    days: [
+      { date: '2026-04-18', tempMax: 12, tempMin: 3, precipProbMax: 10, weatherCode: 1, windMax: 8 },
+      { date: '2026-04-19', tempMax: 9, tempMin: 1, precipProbMax: 70, weatherCode: 63, windMax: 14 },
+      { date: '2026-04-20', tempMax: 6, tempMin: -2, precipProbMax: 80, weatherCode: 73, windMax: 20 },
+    ],
+    hours: [],
+  };
+}
+
+function insertCity(db: ReturnType<typeof getDb>, city: string, now: number): void {
+  db.prepare(
+    'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, NULL, 0)',
+  ).run('user.city', city, now, now);
+}
 
 beforeEach(() => initDb(':memory:'));
 
 describe('getLocalCivilEpoch', () => {
-  it('returns midnight of same local date as `now` (dayOffset=0, hour=0)', () => {
+  it('returns midnight of same local date as `now` (dayOffset=0, hour=0)', async () => {
     const now = Date.UTC(2026, 3, 18, 14, 30, 0);
     const startLocal = getLocalCivilEpoch(now, TZ);
     expect(new Date(startLocal).toISOString()).toBe('2026-04-17T21:00:00.000Z');
   });
 
-  it('handles pre-midnight UTC correctly (Kyiv ahead of UTC)', () => {
+  it('handles pre-midnight UTC correctly (Kyiv ahead of UTC)', async () => {
     const now = Date.UTC(2026, 3, 18, 23, 30, 0);
     const startLocal = getLocalCivilEpoch(now, TZ);
     expect(new Date(startLocal).toISOString()).toBe('2026-04-18T21:00:00.000Z');
   });
 
-  it('returns midnight on spring-forward DST day (Kyiv UTC+2 pre-transition)', () => {
+  it('returns midnight on spring-forward DST day (Kyiv UTC+2 pre-transition)', async () => {
     // 2026-03-29 is spring-forward in Europe/Kyiv (03:00 → 04:00 local).
     // `now` at 08:00 Kyiv = 05:00 UTC (post-transition, UTC+3).
     const now = Date.UTC(2026, 2, 29, 5, 0, 0);
@@ -45,7 +67,7 @@ describe('getLocalCivilEpoch', () => {
     expect(new Date(startLocal).toISOString()).toBe('2026-03-28T22:00:00.000Z');
   });
 
-  it('returns midnight on fall-back DST day (Kyiv UTC+3 pre-transition)', () => {
+  it('returns midnight on fall-back DST day (Kyiv UTC+3 pre-transition)', async () => {
     // 2026-10-25 is fall-back in Europe/Kyiv (04:00 → 03:00 local).
     // `now` at 10:00 Kyiv = 08:00 UTC (post-transition, UTC+2).
     const now = Date.UTC(2026, 9, 25, 8, 0, 0);
@@ -55,14 +77,14 @@ describe('getLocalCivilEpoch', () => {
   });
 
 
-  it('returns local 06:00 on a standard day', () => {
+  it('returns local 06:00 on a standard day', async () => {
     // now at 14:30 UTC → 17:30 Kyiv (UTC+3 summer). 06:00 Kyiv = 03:00 UTC.
     const now = Date.UTC(2026, 3, 18, 14, 30, 0);
     const six = getLocalCivilEpoch(now, TZ, 0, 6);
     expect(new Date(six).toISOString()).toBe('2026-04-18T03:00:00.000Z');
   });
 
-  it('returns civil 06:00 on spring-forward DST day (not midnight+6h)', () => {
+  it('returns civil 06:00 on spring-forward DST day (not midnight+6h)', async () => {
     // 2026-03-29: Kyiv 03:00→04:00 local. Civil 06:00 Kyiv = 03:00 UTC (post-
     // transition, UTC+3). Naive todayStart + 6h would give 04:00 UTC = 07:00
     // local. Verify we pick civil 06:00, not shifted.
@@ -74,7 +96,7 @@ describe('getLocalCivilEpoch', () => {
     expect(new Date(naive).toISOString()).toBe('2026-03-29T04:00:00.000Z');
   });
 
-  it('returns civil 06:00 on fall-back DST day', () => {
+  it('returns civil 06:00 on fall-back DST day', async () => {
     // 2026-10-25: Kyiv 04:00→03:00 local. Civil 06:00 Kyiv = 04:00 UTC (post-
     // transition, UTC+2). Naive midnight+6h would give 03:00 UTC = 05:00 local.
     const now = Date.UTC(2026, 9, 25, 8, 0, 0); // 10:00 Kyiv post-transition
@@ -84,7 +106,7 @@ describe('getLocalCivilEpoch', () => {
     expect(new Date(naive).toISOString()).toBe('2026-10-25T03:00:00.000Z');
   });
 
-  it('returns local midnight of day-after-tomorrow (dayOffset=2), DST-aware', () => {
+  it('returns local midnight of day-after-tomorrow (dayOffset=2), DST-aware', async () => {
     // now on 2026-03-28 (day before spring-forward). Day-after-tomorrow start =
     // midnight Kyiv 2026-03-30 = 21:00 UTC 2026-03-29 (UTC+3, post-DST).
     // Naive `todayStart + 48h` would be off by 1h.
@@ -97,13 +119,13 @@ describe('getLocalCivilEpoch', () => {
 });
 
 describe('isSameLocalDate', () => {
-  it('returns true for two timestamps on same local date', () => {
+  it('returns true for two timestamps on same local date', async () => {
     const a = Date.UTC(2026, 3, 18, 4, 0, 0);
     const b = Date.UTC(2026, 3, 18, 20, 0, 0);
     expect(isSameLocalDate(a, b, TZ)).toBe(true);
   });
 
-  it('returns false across local midnight even if within 24h', () => {
+  it('returns false across local midnight even if within 24h', async () => {
     const a = Date.UTC(2026, 3, 18, 20, 0, 0);
     const b = Date.UTC(2026, 3, 18, 22, 30, 0);
     expect(isSameLocalDate(a, b, TZ)).toBe(false);
@@ -114,11 +136,11 @@ describe('hasUserActivitySince', () => {
   const since = Date.UTC(2026, 3, 18, 3, 0, 0); // 06:00 Kyiv 18th
   const now = since + 12 * 3600_000; // 18:00 Kyiv 18th
 
-  it('returns false when chat_messages has no rows since the boundary', () => {
+  it('returns false when chat_messages has no rows since the boundary', async () => {
     expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
   });
 
-  it('returns true when at least one user message exists at or after the boundary', () => {
+  it('returns true when at least one user message exists at or after the boundary', async () => {
     const ts = since + 3600_000; // 07:00 Kyiv
     getDb()
       .prepare(
@@ -128,7 +150,7 @@ describe('hasUserActivitySince', () => {
     expect(hasUserActivitySince(getDb(), since, now)).toBe(true);
   });
 
-  it('ignores messages before the boundary (e.g. 03:00 local)', () => {
+  it('ignores messages before the boundary (e.g. 03:00 local)', async () => {
     const ts = since - 3 * 3600_000; // 03:00 Kyiv — before 06:00
     getDb()
       .prepare(
@@ -138,7 +160,7 @@ describe('hasUserActivitySince', () => {
     expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
   });
 
-  it('ignores assistant messages (only user role counts)', () => {
+  it('ignores assistant messages (only user role counts)', async () => {
     const ts = since + 3600_000;
     getDb()
       .prepare(
@@ -148,7 +170,7 @@ describe('hasUserActivitySince', () => {
     expect(hasUserActivitySince(getDb(), since, now)).toBe(false);
   });
 
-  it('ignores future-dated messages beyond now (client-spoofed timestamps)', () => {
+  it('ignores future-dated messages beyond now (client-spoofed timestamps)', async () => {
     const ts = now + 24 * 3600_000; // 1 day in the future
     getDb()
       .prepare(
@@ -175,44 +197,44 @@ describe('hasWindowActivitySince', () => {
       .run(appName, 'title', startedAt, lastSeenAt);
   };
 
-  it('returns false on empty table', () => {
+  it('returns false on empty table', async () => {
     expect(hasWindowActivitySince(getDb(), since, now)).toBe(false);
   });
 
-  it('returns true when a real-app session started at or after the boundary', () => {
+  it('returns true when a real-app session started at or after the boundary', async () => {
     insertSession('Safari', since + 60_000);
     expect(hasWindowActivitySince(getDb(), since, now)).toBe(true);
   });
 
-  it('returns true when a session started exactly at the boundary', () => {
+  it('returns true when a session started exactly at the boundary', async () => {
     insertSession('Code', since);
     expect(hasWindowActivitySince(getDb(), since, now)).toBe(true);
   });
 
-  it('returns false for a session left from the night (started before boundary) even if last_seen_at is recent', () => {
+  it('returns false for a session left from the night (started before boundary) even if last_seen_at is recent', async () => {
     // Key "left on overnight" case: started yesterday, still frontmost now.
     // We key on started_at, so this must NOT count as sitting-down activity.
     insertSession('Code', since - 6 * 3600_000, now);
     expect(hasWindowActivitySince(getDb(), since, now)).toBe(false);
   });
 
-  it('returns false when the only session after the boundary is loginwindow (lock screen)', () => {
+  it('returns false when the only session after the boundary is loginwindow (lock screen)', async () => {
     insertSession('loginwindow', since + 60_000);
     expect(hasWindowActivitySince(getDb(), since, now)).toBe(false);
   });
 
-  it('returns false when the only session after the boundary is ScreenSaverEngine', () => {
+  it('returns false when the only session after the boundary is ScreenSaverEngine', async () => {
     insertSession('ScreenSaverEngine', since + 60_000);
     expect(hasWindowActivitySince(getDb(), since, now)).toBe(false);
   });
 
-  it('returns true when a real session coexists with idle-app sessions after the boundary', () => {
+  it('returns true when a real session coexists with idle-app sessions after the boundary', async () => {
     insertSession('loginwindow', since + 60_000);
     insertSession('Safari', since + 120_000);
     expect(hasWindowActivitySince(getDb(), since, now)).toBe(true);
   });
 
-  it('ignores future-dated sessions beyond now (clock skew)', () => {
+  it('ignores future-dated sessions beyond now (clock skew)', async () => {
     insertSession('Safari', now + 3600_000);
     expect(hasWindowActivitySince(getDb(), since, now)).toBe(false);
   });
@@ -221,7 +243,7 @@ describe('hasWindowActivitySince', () => {
 describe('gatherData', () => {
   const now = Date.UTC(2026, 3, 18, 6, 0, 0); // 09:00 Kyiv 18th
 
-  it('returns reminders active=1 with next_fire_at_ms in today+tomorrow window', () => {
+  it('returns reminders active=1 with next_fire_at_ms in today+tomorrow window', async () => {
     const todayStart = Date.UTC(2026, 3, 17, 21, 0, 0); // 00:00 Kyiv 18th
     const dayAfterTomorrowStart = Date.UTC(2026, 3, 19, 21, 0, 0); // 00:00 Kyiv 20th
 
@@ -239,7 +261,7 @@ describe('gatherData', () => {
     insert.run('too far', dayAfterTomorrowStart + 3600_000, 1, now);
     insert.run('disabled in-window', todayStart + 4 * 3600_000, 0, now);
 
-    const data = gatherData(db, now, TZ);
+    const data = await gatherData(db, now, TZ);
     expect(data.reminders.map((r) => r.text).sort()).toEqual([
       'at lower bound',
       'in-window today',
@@ -247,40 +269,40 @@ describe('gatherData', () => {
     ]);
   });
 
-  it('returns empty arrays on fresh DB', () => {
-    const data = gatherData(getDb(), now, TZ);
+  it('returns empty arrays on fresh DB', async () => {
+    const data = await gatherData(getDb(), now, TZ);
     expect(data).toMatchObject({ reminders: [], notes: [], recentContext: [], city: null });
   });
 
-  it('returns city from user.city regardless of 14d freshness', () => {
+  it('returns city from user.city regardless of 14d freshness', async () => {
     const db = getDb();
     // 90 days old — far outside note freshness window.
     db.prepare(
       'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, NULL, 0)',
     ).run('user.city', 'Киев', now - 90 * 86400_000, now - 90 * 86400_000);
-    const data = gatherData(db, now, TZ);
+    const data = await gatherData(db, now, TZ);
     expect(data.city).toBe('Киев');
   });
 
-  it('falls back to user.location when user.city absent', () => {
+  it('falls back to user.location when user.city absent', async () => {
     const db = getDb();
     db.prepare(
       'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, NULL, 0)',
     ).run('user.location', 'Одеса', now, now);
-    expect(gatherData(db, now, TZ).city).toBe('Одеса');
+    expect((await gatherData(db, now, TZ)).city).toBe('Одеса');
   });
 
-  it('prefers user.city over user.location when both exist', () => {
+  it('prefers user.city over user.location when both exist', async () => {
     const db = getDb();
     const insert = db.prepare(
       'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, NULL, 0)',
     );
     insert.run('user.location', 'Одеса', now, now);
     insert.run('user.city', 'Киев', now - 1000, now - 1000);
-    expect(gatherData(db, now, TZ).city).toBe('Киев');
+    expect((await gatherData(db, now, TZ)).city).toBe('Киев');
   });
 
-  it('ignores superseded / forgotten city rows', () => {
+  it('ignores superseded / forgotten city rows', async () => {
     const db = getDb();
     const insert = db.prepare(
       'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, ?, ?)',
@@ -290,14 +312,14 @@ describe('gatherData', () => {
     const newer = insert.run('user.city', 'Киев', now, now, null, 0);
     insert.run('user.city', 'Львов', now - 1000, now - 1000, newer.lastInsertRowid, 0);
     insert.run('user.location', 'Харьков', now, now, null, 1); // forgotten
-    expect(gatherData(db, now, TZ).city).toBe('Киев');
+    expect((await gatherData(db, now, TZ)).city).toBe('Киев');
   });
 
-  it('returns null city when none stored', () => {
-    expect(gatherData(getDb(), now, TZ).city).toBeNull();
+  it('returns null city when none stored', async () => {
+    expect((await gatherData(getDb(), now, TZ)).city).toBeNull();
   });
 
-  it('returns active memory_facts with last_mentioned_at within 14d', () => {
+  it('returns active memory_facts with last_mentioned_at within 14d', async () => {
     const db = getDb();
     const insert = db.prepare(
       'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by) VALUES (?, ?, ?, ?, ?)',
@@ -312,7 +334,7 @@ describe('gatherData', () => {
       oldRes.lastInsertRowid,
     );
 
-    const data = gatherData(db, now, TZ);
+    const data = await gatherData(db, now, TZ);
     const keys = data.notes.map((n) => n.key).sort();
     expect(keys).toContain('user.activity');
     expect(keys).toContain('user.note.x');
@@ -321,7 +343,7 @@ describe('gatherData', () => {
     expect(keys).not.toContain('user.old');
   });
 
-  it('caps notes at 50 rows and truncates long values to 300 chars', () => {
+  it('caps notes at 50 rows and truncates long values to 300 chars', async () => {
     const db = getDb();
     const insert = db.prepare(
       'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by) VALUES (?, ?, ?, ?, NULL)',
@@ -331,14 +353,14 @@ describe('gatherData', () => {
     }
     insert.run('user.long', 'y'.repeat(1000), now, now);
 
-    const data = gatherData(db, now, TZ);
+    const data = await gatherData(db, now, TZ);
     expect(data.notes.length).toBeLessThanOrEqual(50);
     // Newest first — the long one at `now` wins ordering ties, so should be included.
     const longNote = data.notes.find((n) => n.key === 'user.long');
     expect(longNote?.value.length).toBe(300);
   });
 
-  it('excludes memory_facts marked forgotten=1', () => {
+  it('excludes memory_facts marked forgotten=1', async () => {
     const db = getDb();
     db.prepare(
       'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, NULL, ?)',
@@ -347,12 +369,12 @@ describe('gatherData', () => {
       'INSERT INTO memory_facts (key, value, created_at, last_mentioned_at, superseded_by, forgotten) VALUES (?, ?, ?, ?, NULL, ?)',
     ).run('user.forgotten', 'v', now, now, 1);
 
-    const keys = gatherData(db, now, TZ).notes.map((n) => n.key);
+    const keys = (await gatherData(db, now, TZ)).notes.map((n) => n.key);
     expect(keys).toContain('user.kept');
     expect(keys).not.toContain('user.forgotten');
   });
 
-  it('returns recent chat messages last 48h, max 30 newest first, content truncated to 500', () => {
+  it('returns recent chat messages last 48h, max 30 newest first, content truncated to 500', async () => {
     const db = getDb();
     const insert = db.prepare(
       "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES (?, 'user', ?, ?)",
@@ -363,7 +385,7 @@ describe('gatherData', () => {
     }
     insert.run('long-msg', 'x'.repeat(1000), now - 30_000);
 
-    const data = gatherData(db, now, TZ);
+    const data = await gatherData(db, now, TZ);
     expect(data.recentContext.length).toBe(30);
     // Newest first.
     for (let i = 0; i < data.recentContext.length - 1; i += 1) {
@@ -395,7 +417,7 @@ describe('composePrompt', () => {
     previousPeriodTo: 0,
   };
 
-  it('formats all sections when data present', () => {
+  it('formats all sections when data present', async () => {
     const prompt = composePrompt(
       {
         reminders: [
@@ -425,7 +447,7 @@ describe('composePrompt', () => {
     expect(prompt).toContain('Не пересказывай');
   });
 
-  it('shows "нет" for empty sections', () => {
+  it('shows "нет" for empty sections', async () => {
     const prompt = composePrompt(
       { reminders: [], notes: [], recentContext: [], city: null, ...recapDefaults },
       TZ,
@@ -435,7 +457,7 @@ describe('composePrompt', () => {
     expect(prompt).toMatch(/## Recent context \(48h\)\s+нет/);
   });
 
-  it('formats timestamps in the passed tz (no Z, no UTC)', () => {
+  it('formats timestamps in the passed tz (no Z, no UTC)', async () => {
     // 11:00 UTC on 2026-04-18 is 14:00 in Kyiv (UTC+3 summer).
     const prompt = composePrompt(
       {
@@ -457,7 +479,7 @@ describe('composePrompt', () => {
     expect(prompt).not.toContain('T11:00');
   });
 
-  it('includes user city in prompt header', () => {
+  it('includes user city in prompt header', async () => {
     const prompt = composePrompt(
       { reminders: [], notes: [], recentContext: [], city: 'Киев', ...recapDefaults },
       TZ,
@@ -465,7 +487,7 @@ describe('composePrompt', () => {
     expect(prompt).toContain('Киев');
   });
 
-  it('tells LLM city is not set when city is null', () => {
+  it('tells LLM city is not set when city is null', async () => {
     const prompt = composePrompt(
       { reminders: [], notes: [], recentContext: [], city: null, ...recapDefaults },
       TZ,
@@ -475,11 +497,11 @@ describe('composePrompt', () => {
 });
 
 describe('getLastBriefPublishAt', () => {
-  it('returns null when cognition_handler_runs is empty', () => {
+  it('returns null when cognition_handler_runs is empty', async () => {
     expect(getLastBriefPublishAt(getDb())).toBeNull();
   });
 
-  it('returns null when runs exist but none with publish outcome', () => {
+  it('returns null when runs exist but none with publish outcome', async () => {
     getDb()
       .prepare(
         'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
@@ -493,7 +515,7 @@ describe('getLastBriefPublishAt', () => {
     expect(getLastBriefPublishAt(getDb())).toBeNull();
   });
 
-  it('returns the most recent publish fired_at, ignoring other handlers', () => {
+  it('returns the most recent publish fired_at, ignoring other handlers', async () => {
     const rows: Array<[string, number, string]> = [
       ['morningBrief', 100, 'publish'],
       ['pulse', 500, 'publish'],
@@ -512,37 +534,37 @@ describe('getLastBriefPublishAt', () => {
 });
 
 describe('computeGapDays', () => {
-  it('returns 0 when lastPublishAt is null (first run)', () => {
+  it('returns 0 when lastPublishAt is null (first run)', async () => {
     const now = Date.UTC(2026, 3, 22, 9, 0, 0);
     expect(computeGapDays(null, now, TZ)).toBe(0);
   });
 
-  it('returns 0 when lastPublishAt is on same local date as now', () => {
+  it('returns 0 when lastPublishAt is on same local date as now', async () => {
     const lastPublish = Date.UTC(2026, 3, 22, 3, 0, 0); // 06:00 Kyiv 22nd
     const now = Date.UTC(2026, 3, 22, 15, 0, 0); // 18:00 Kyiv same day
     expect(computeGapDays(lastPublish, now, TZ)).toBe(0);
   });
 
-  it('returns 1 when lastPublishAt is yesterday local', () => {
+  it('returns 1 when lastPublishAt is yesterday local', async () => {
     const lastPublish = Date.UTC(2026, 3, 21, 3, 0, 0); // 06:00 Kyiv 21st
     const now = Date.UTC(2026, 3, 22, 9, 0, 0); // 12:00 Kyiv 22nd
     expect(computeGapDays(lastPublish, now, TZ)).toBe(1);
   });
 
-  it('returns 3 when last publish 3 local days ago', () => {
+  it('returns 3 when last publish 3 local days ago', async () => {
     const lastPublish = Date.UTC(2026, 3, 19, 3, 0, 0);
     const now = Date.UTC(2026, 3, 22, 9, 0, 0);
     expect(computeGapDays(lastPublish, now, TZ)).toBe(3);
   });
 
-  it('is DST-aware across spring-forward', () => {
+  it('is DST-aware across spring-forward', async () => {
     // Kyiv spring-forward 2026-03-29: 03:00→04:00. Measure 2-day gap crossing it.
     const lastPublish = Date.UTC(2026, 2, 28, 6, 0, 0); // 08:00 Kyiv 28th (pre-DST)
     const now = Date.UTC(2026, 2, 30, 6, 0, 0); // 09:00 Kyiv 30th (post-DST UTC+3)
     expect(computeGapDays(lastPublish, now, TZ)).toBe(2);
   });
 
-  it('reports true gap for absences > 365 days (no saturation)', () => {
+  it('reports true gap for absences > 365 days (no saturation)', async () => {
     const lastPublish = Date.UTC(2024, 3, 22, 3, 0, 0);
     const now = Date.UTC(2026, 3, 22, 9, 0, 0);
     // ~2 years in Kyiv TZ: 2024-04-22 → 2026-04-22 = 730 days.
@@ -551,11 +573,11 @@ describe('computeGapDays', () => {
 });
 
 describe('hasUserActivityInLastHour', () => {
-  it('returns false when no chat messages at all', () => {
+  it('returns false when no chat messages at all', async () => {
     expect(hasUserActivityInLastHour(getDb(), Date.now())).toBe(false);
   });
 
-  it('returns false when last user message is > 1 hour old', () => {
+  it('returns false when last user message is > 1 hour old', async () => {
     const now = Date.UTC(2026, 3, 22, 12, 0, 0);
     getDb()
       .prepare(
@@ -565,7 +587,7 @@ describe('hasUserActivityInLastHour', () => {
     expect(hasUserActivityInLastHour(getDb(), now)).toBe(false);
   });
 
-  it('returns true when user message within last hour', () => {
+  it('returns true when user message within last hour', async () => {
     const now = Date.UTC(2026, 3, 22, 12, 0, 0);
     getDb()
       .prepare(
@@ -575,7 +597,7 @@ describe('hasUserActivityInLastHour', () => {
     expect(hasUserActivityInLastHour(getDb(), now)).toBe(true);
   });
 
-  it('ignores assistant messages', () => {
+  it('ignores assistant messages', async () => {
     const now = Date.UTC(2026, 3, 22, 12, 0, 0);
     getDb()
       .prepare(
@@ -585,7 +607,7 @@ describe('hasUserActivityInLastHour', () => {
     expect(hasUserActivityInLastHour(getDb(), now)).toBe(false);
   });
 
-  it('ignores future-dated messages beyond now (client-spoofed timestamps)', () => {
+  it('ignores future-dated messages beyond now (client-spoofed timestamps)', async () => {
     const now = Date.UTC(2026, 3, 22, 12, 0, 0);
     getDb()
       .prepare(
@@ -597,7 +619,7 @@ describe('hasUserActivityInLastHour', () => {
 });
 
 describe('gatherPreviousPeriod', () => {
-  it('returns empty bundle when period is empty', () => {
+  it('returns empty bundle when period is empty', async () => {
     const bundle = gatherPreviousPeriod(getDb(), 1000, 2000);
     expect(bundle).toEqual({
       chat: [],
@@ -611,7 +633,7 @@ describe('gatherPreviousPeriod', () => {
     });
   });
 
-  it('collects chat messages in [from, to)', () => {
+  it('collects chat messages in [from, to)', async () => {
     const from = 1000;
     const to = 2000;
     const db = getDb();
@@ -631,7 +653,7 @@ describe('gatherPreviousPeriod', () => {
     expect(bundle.chat.map((r) => r.content)).toEqual(['inside', 'inside-2']);
   });
 
-  it('classifies memory_facts as created / updated / forgotten correctly', () => {
+  it('classifies memory_facts as created / updated / forgotten correctly', async () => {
     const db = getDb();
     const from = 1000;
     const to = 2000;
@@ -653,7 +675,7 @@ describe('gatherPreviousPeriod', () => {
     expect(bundle.memoryForgotten.map((r) => r.key)).toEqual(['k.forg']);
   });
 
-  it('does not double-list facts created and forgotten in the same period', () => {
+  it('does not double-list facts created and forgotten in the same period', async () => {
     const db = getDb();
     const from = 1000;
     const to = 2000;
@@ -667,7 +689,7 @@ describe('gatherPreviousPeriod', () => {
     expect(bundle.memoryForgotten).toEqual([]);
   });
 
-  it('excludes superseded rows from memoryUpdated when a fact was touched then revised in-period', () => {
+  it('excludes superseded rows from memoryUpdated when a fact was touched then revised in-period', async () => {
     const db = getDb();
     const from = 1000;
     const to = 2000;
@@ -694,7 +716,7 @@ describe('gatherPreviousPeriod', () => {
     expect(bundle.memoryUpdated).toEqual([]);
   });
 
-  it('excludes superseded rows from memoryCreated when the fact is revised in-period', () => {
+  it('excludes superseded rows from memoryCreated when the fact is revised in-period', async () => {
     const db = getDb();
     const from = 1000;
     const to = 2000;
@@ -719,7 +741,7 @@ describe('gatherPreviousPeriod', () => {
     expect(bundle.memoryCreated.map((r) => r.value)).toEqual(['new']);
   });
 
-  it('collects audit_log only for heavy tools', () => {
+  it('collects audit_log only for heavy tools', async () => {
     const db = getDb();
     const isoInside = '2026-04-22 10:00:00';
     db.prepare(
@@ -738,7 +760,7 @@ describe('gatherPreviousPeriod', () => {
     expect(names).not.toContain('web_search');
   });
 
-  it('excludes morningBrief from cognition runs', () => {
+  it('excludes morningBrief from cognition runs', async () => {
     const db = getDb();
     const from = 1000;
     const to = 2000;
@@ -752,7 +774,7 @@ describe('gatherPreviousPeriod', () => {
     expect(bundle.cognition.map((r) => r.handlerName)).toEqual(['pulse']);
   });
 
-  it('collects overdue active reminders within 30d lookback, excluding inactive', () => {
+  it('collects overdue active reminders within 30d lookback, excluding inactive', async () => {
     const db = getDb();
     const now = Date.UTC(2026, 3, 22, 12, 0, 0);
     const to = now;
@@ -773,7 +795,7 @@ describe('gatherPreviousPeriod', () => {
     expect(bundle.remindersOverdue.map((r) => r.text)).toEqual(['buy milk']);
   });
 
-  it('uses overdueCutoff instead of `to` for the overdue-reminders filter', () => {
+  it('uses overdueCutoff instead of `to` for the overdue-reminders filter', async () => {
     const db = getDb();
     const now = Date.UTC(2026, 3, 22, 6, 0, 0); // 09:00 Kyiv
     const todayStart = Date.UTC(2026, 3, 21, 21, 0, 0); // 00:00 Kyiv 22nd
@@ -791,7 +813,7 @@ describe('gatherPreviousPeriod', () => {
     expect(kept.remindersOverdue.map((r) => r.text)).toEqual(['take pills']);
   });
 
-  it('applies row-count caps per source', () => {
+  it('applies row-count caps per source', async () => {
     const db = getDb();
     const from = 1000;
     const to = 2000;
@@ -810,7 +832,7 @@ describe('gatherPreviousPeriod', () => {
 });
 
 describe('renderPreviousPeriod', () => {
-  it('includes "tail-only" marker when rendered body exceeds MAX_BUNDLE_CHARS', () => {
+  it('includes "tail-only" marker when rendered body exceeds MAX_BUNDLE_CHARS', async () => {
     const bigChat: ChatRow[] = [];
     for (let i = 0; i < 80; i++) {
       bigChat.push({
@@ -837,7 +859,7 @@ describe('renderPreviousPeriod', () => {
     expect(rendered.length).toBeLessThanOrEqual(12000);
   });
 
-  it('renders compact markdown with all non-empty sections', () => {
+  it('renders compact markdown with all non-empty sections', async () => {
     const rendered = renderPreviousPeriod(
       {
         chat: [{ role: 'user', ts: 1_700_000_000_000, content: 'hello' }],
@@ -856,7 +878,7 @@ describe('renderPreviousPeriod', () => {
     expect(rendered).not.toContain('### Tool runs');
   });
 
-  it('appends " (fail)" to failed audit rows and omits the marker for successful ones', () => {
+  it('appends " (fail)" to failed audit rows and omits the marker for successful ones', async () => {
     const rendered = renderPreviousPeriod(
       {
         chat: [],
@@ -878,7 +900,7 @@ describe('renderPreviousPeriod', () => {
     expect(rendered).toContain('eval_run (fail): nope');
   });
 
-  it('returns "активности не было" when every section is empty', () => {
+  it('returns "активности не было" when every section is empty', async () => {
     const rendered = renderPreviousPeriod(
       {
         chat: [],
@@ -897,7 +919,7 @@ describe('renderPreviousPeriod', () => {
 });
 
 describe('gatherData extended', () => {
-  it('includes previousPeriod bundle and gapDays=0 when last publish is today', () => {
+  it('includes previousPeriod bundle and gapDays=0 when last publish is today', async () => {
     const db = getDb();
     const now = Date.UTC(2026, 3, 22, 9, 0, 0); // 12:00 Kyiv
     db.prepare(
@@ -906,43 +928,43 @@ describe('gatherData extended', () => {
     // previousPeriod spans [lastPublish, todayStart) — on a same-day republish
     // the range collapses to empty (to <= from). Handler must still return a
     // well-formed bundle (all empty arrays), not throw.
-    const data = gatherData(db, now, TZ);
+    const data = await gatherData(db, now, TZ);
     expect(data.gapDays).toBe(0);
     expect(data.previousPeriod).toBeDefined();
     expect(data.previousPeriod.chat).toEqual([]);
   });
 
-  it('sets gapDays to 2 when last publish was 2 local days ago', () => {
+  it('sets gapDays to 2 when last publish was 2 local days ago', async () => {
     const db = getDb();
     const now = Date.UTC(2026, 3, 22, 9, 0, 0);
     db.prepare(
       'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
     ).run('morningBrief', Date.UTC(2026, 3, 20, 3, 0, 0), 10, 'publish', 'brief');
-    const data = gatherData(db, now, TZ);
+    const data = await gatherData(db, now, TZ);
     expect(data.gapDays).toBe(2);
   });
 
-  it('falls back to last 48h window when no prior publish exists', () => {
+  it('falls back to last 48h window when no prior publish exists', async () => {
     const db = getDb();
     const now = Date.UTC(2026, 3, 22, 9, 0, 0);
     db.prepare(
       "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('x', 'user', 'hi', ?)",
     ).run(now - 6 * 3600_000);
-    const data = gatherData(db, now, TZ);
+    const data = await gatherData(db, now, TZ);
     expect(data.gapDays).toBe(0);
     expect(data.previousPeriod.chat.length).toBe(1);
   });
 });
 
 describe('pluralizeDays', () => {
-  it('uses "день" for 1, 21, 31, 101', () => {
+  it('uses "день" for 1, 21, 31, 101', async () => {
     expect(pluralizeDays(1)).toBe('1 день');
     expect(pluralizeDays(21)).toBe('21 день');
     expect(pluralizeDays(31)).toBe('31 день');
     expect(pluralizeDays(101)).toBe('101 день');
   });
 
-  it('uses "дня" for 2-4, 22-24, 32-34', () => {
+  it('uses "дня" for 2-4, 22-24, 32-34', async () => {
     expect(pluralizeDays(2)).toBe('2 дня');
     expect(pluralizeDays(3)).toBe('3 дня');
     expect(pluralizeDays(4)).toBe('4 дня');
@@ -950,7 +972,7 @@ describe('pluralizeDays', () => {
     expect(pluralizeDays(34)).toBe('34 дня');
   });
 
-  it('uses "дней" for 0, 5-20, 25-30, 100', () => {
+  it('uses "дней" for 0, 5-20, 25-30, 100', async () => {
     expect(pluralizeDays(0)).toBe('0 дней');
     expect(pluralizeDays(5)).toBe('5 дней');
     expect(pluralizeDays(11)).toBe('11 дней');
@@ -963,7 +985,7 @@ describe('pluralizeDays', () => {
 });
 
 describe('renderPreviousPeriod tail-trim shape', () => {
-  it('starts with the marker and the kept tail begins at a line boundary', () => {
+  it('starts with the marker and the kept tail begins at a line boundary', async () => {
     const bigChat: ChatRow[] = [];
     for (let i = 0; i < 80; i++) {
       bigChat.push({
@@ -996,7 +1018,7 @@ describe('renderPreviousPeriod tail-trim shape', () => {
 });
 
 describe('gatherData gap-return window', () => {
-  it('previousPeriodTo equals now when gapDays >= 2 (today included)', () => {
+  it('previousPeriodTo equals now when gapDays >= 2 (today included)', async () => {
     const db = getDb();
     const now = Date.UTC(2026, 3, 22, 12, 0, 0); // 15:00 Kyiv
     db.prepare(
@@ -1006,20 +1028,20 @@ describe('gatherData gap-return window', () => {
     db.prepare(
       "INSERT INTO chat_messages (message_id, role, content, timestamp) VALUES ('return', 'user', 'я вернулся', ?)",
     ).run(now - 10 * 60_000);
-    const data = gatherData(db, now, TZ);
+    const data = await gatherData(db, now, TZ);
     expect(data.gapDays).toBeGreaterThanOrEqual(2);
     expect(data.previousPeriodTo).toBe(now);
     expect(data.previousPeriod.chat.map((r) => r.content)).toContain('я вернулся');
   });
 
-  it('previousPeriodTo equals todayStart for normal morning (gapDays < 2)', () => {
+  it('previousPeriodTo equals todayStart for normal morning (gapDays < 2)', async () => {
     const db = getDb();
     const now = Date.UTC(2026, 3, 22, 9, 0, 0); // 12:00 Kyiv
     const todayStart = getLocalCivilEpoch(now, TZ);
     db.prepare(
       'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content) VALUES (?, ?, ?, ?, ?)',
     ).run('morningBrief', Date.UTC(2026, 3, 21, 3, 0, 0), 10, 'publish', 'yesterday');
-    const data = gatherData(db, now, TZ);
+    const data = await gatherData(db, now, TZ);
     expect(data.gapDays).toBe(1);
     expect(data.previousPeriodTo).toBe(todayStart);
   });
@@ -1037,7 +1059,7 @@ describe('composePrompt with gap and previousPeriod', () => {
     remindersCreated: [],
   };
 
-  it('includes gap preamble when gapDays >= 2', () => {
+  it('includes gap preamble when gapDays >= 2', async () => {
     const p = composePrompt(
       {
         reminders: [],
@@ -1055,7 +1077,7 @@ describe('composePrompt with gap and previousPeriod', () => {
     expect(p).toContain('"Пока меня не было 3 дня');
   });
 
-  it('omits gap preamble when gapDays = 1 (one missed day handled by morning window)', () => {
+  it('omits gap preamble when gapDays = 1 (one missed day handled by morning window)', async () => {
     const p = composePrompt(
       {
         reminders: [],
@@ -1074,7 +1096,7 @@ describe('composePrompt with gap and previousPeriod', () => {
     expect(p).toContain('Что висит со вчера');
   });
 
-  it('uses Russian plural agreement for gap days (день / дня / дней)', () => {
+  it('uses Russian plural agreement for gap days (день / дня / дней)', async () => {
     const make = (gapDays: number): string =>
       composePrompt(
         {
@@ -1096,7 +1118,7 @@ describe('composePrompt with gap and previousPeriod', () => {
     expect(make(22)).toContain('не было 22 дня');
   });
 
-  it('omits gap preamble when gapDays = 0 and asks about висящее со вчера', () => {
+  it('omits gap preamble when gapDays = 0 and asks about висящее со вчера', async () => {
     const p = composePrompt(
       {
         reminders: [],
@@ -1114,7 +1136,7 @@ describe('composePrompt with gap and previousPeriod', () => {
     expect(p).toContain('Что висит со вчера');
   });
 
-  it('includes "Прошлый период" section with rendered bundle content', () => {
+  it('includes "Прошлый период" section with rendered bundle content', async () => {
     const p = composePrompt(
       {
         reminders: [],
@@ -1135,7 +1157,7 @@ describe('composePrompt with gap and previousPeriod', () => {
     expect(p).toContain('вопрос висит');
   });
 
-  it('instructs the LLM to analyze (висит / повторяется / упустил), not retell', () => {
+  it('instructs the LLM to analyze (висит / повторяется / упустил), not retell', async () => {
     const p = composePrompt(
       {
         reminders: [],
@@ -1153,5 +1175,141 @@ describe('composePrompt with gap and previousPeriod', () => {
     expect(p).toContain('что повторяется');
     expect(p).toContain('что упустил');
     expect(p).toContain('Не пересказывай');
+  });
+});
+
+describe('gatherData weather', () => {
+  const now = Date.UTC(2026, 3, 18, 6, 0, 0); // 09:00 Kyiv 18th
+
+  it('attaches forecast when city resolves and fetch succeeds', async () => {
+    const db = getDb();
+    insertCity(db, 'Харьков', now);
+    const forecast = sampleForecast();
+    const calls: Array<[number, number, string]> = [];
+    const weatherDeps: BriefWeatherDeps = {
+      resolveCoords: async (_db, city) => ({ city, lat: 50, lon: 36 }),
+      fetchForecast: async (lat, lon, tz) => {
+        calls.push([lat, lon, tz]);
+        return forecast;
+      },
+    };
+    const data = await gatherData(db, now, TZ, weatherDeps);
+    expect(data.weather).toEqual(forecast);
+    expect(calls).toEqual([[50, 36, TZ]]);
+  });
+
+  it('weather is null when no city is stored (resolveCoords not called)', async () => {
+    let called = false;
+    const weatherDeps: BriefWeatherDeps = {
+      resolveCoords: async () => {
+        called = true;
+        return null;
+      },
+      fetchForecast: async () => sampleForecast(),
+    };
+    const data = await gatherData(getDb(), now, TZ, weatherDeps);
+    expect(data.weather).toBeNull();
+    expect(called).toBe(false);
+  });
+
+  it('weather is null when coordinates cannot be resolved', async () => {
+    const db = getDb();
+    insertCity(db, 'Неизвестное село', now);
+    const weatherDeps: BriefWeatherDeps = {
+      resolveCoords: async () => null,
+      fetchForecast: async () => sampleForecast(),
+    };
+    const data = await gatherData(db, now, TZ, weatherDeps);
+    expect(data.weather).toBeNull();
+  });
+
+  it('weather is null when fetchForecast throws (Open-Meteo down)', async () => {
+    const db = getDb();
+    insertCity(db, 'Харьков', now);
+    const weatherDeps: BriefWeatherDeps = {
+      resolveCoords: async (_db, city) => ({ city, lat: 50, lon: 36 }),
+      fetchForecast: async () => {
+        throw new Error('network');
+      },
+    };
+    const data = await gatherData(db, now, TZ, weatherDeps);
+    expect(data.weather).toBeNull();
+  });
+
+  it('weather is null when no weather deps are injected (backward compat)', async () => {
+    const db = getDb();
+    insertCity(db, 'Харьков', now);
+    const data = await gatherData(db, now, TZ);
+    expect(data.weather).toBeNull();
+  });
+});
+
+describe('composePrompt weather section', () => {
+  const recapDefaults = {
+    gapDays: 0,
+    previousPeriod: {
+      chat: [],
+      memoryCreated: [],
+      memoryUpdated: [],
+      memoryForgotten: [],
+      audit: [],
+      cognition: [],
+      remindersOverdue: [],
+      remindersCreated: [],
+    },
+    previousPeriodFrom: 0,
+    previousPeriodTo: 0,
+  };
+
+  it('renders the 3-day outlook when weather is present', () => {
+    const prompt = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Харьков',
+        weather: sampleForecast(),
+        ...recapDefaults,
+      },
+      TZ,
+    );
+    expect(prompt).toContain('## Погода (3 дня)');
+    expect(prompt).toContain('Сегодня:');
+    expect(prompt).toContain('Завтра:');
+    expect(prompt).toContain('Послезавтра:');
+    expect(prompt).toContain('осадки 70%');
+    expect(prompt).not.toContain('погода недоступна');
+  });
+
+  it('shows "погода недоступна" when weather is null', () => {
+    const prompt = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: 'Харьков',
+        weather: null,
+        ...recapDefaults,
+      },
+      TZ,
+    );
+    expect(prompt).toContain('## Погода (3 дня)');
+    expect(prompt).toContain('погода недоступна');
+  });
+
+  it('does not ask the LLM to search weather in the city line', () => {
+    const prompt = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: null,
+        weather: null,
+        ...recapDefaults,
+      },
+      TZ,
+    );
+    expect(prompt).toContain('город не задан');
+    expect(prompt).not.toContain('погоду искать');
   });
 });

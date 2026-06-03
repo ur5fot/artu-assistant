@@ -1,4 +1,6 @@
 import type Database from 'better-sqlite3';
+import type { Coords, Forecast } from '../../weather/types.js';
+import { formatBriefOutlook } from '../../weather/open-meteo.js';
 
 function tzOffsetMs(ts: number, tz: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -151,6 +153,19 @@ export interface BriefData {
   previousPeriod: PreviousPeriodBundle;
   previousPeriodFrom: number;
   previousPeriodTo: number;
+  // 3-day forecast for the user's city, or null when weather is disabled /
+  // coordinates can't be resolved / Open-Meteo failed (degrade gracefully).
+  weather?: Forecast | null;
+}
+
+// Weather provider injected into `gatherData`. Kept narrow (no db-bound geocode
+// plumbing here) so the morning brief stays decoupled from the Open-Meteo
+// client; `index.ts` constructs the closures under `WEATHER_ENABLED`.
+export interface BriefWeatherDeps {
+  /** Resolve+cache coordinates for `city` (geocode-on-first-use). */
+  resolveCoords: (db: Database.Database, city: string) => Promise<Coords | null>;
+  /** Fetch a 3-day forecast for the resolved coordinates. */
+  fetchForecast: (lat: number, lon: number, tz: string) => Promise<Forecast>;
 }
 
 export interface PreviousPeriodBundle {
@@ -411,11 +426,12 @@ const RECENT_CONTEXT_HOURS = 48;
 const RECENT_CONTEXT_MAX_ROWS = 30;
 const CONTENT_TRUNCATE_CHARS = 500;
 
-export function gatherData(
+export async function gatherData(
   db: Database.Database,
   now: number,
   tz: string,
-): BriefData {
+  weatherDeps?: BriefWeatherDeps | null,
+): Promise<BriefData> {
   const todayStart = getLocalCivilEpoch(now, tz);
   // Exclusive upper bound at local midnight of day-after-tomorrow, DST-aware
   // (can't just add 48h — DST days are 23h/25h long).
@@ -492,6 +508,22 @@ export function gatherData(
   // currently overdue and must appear in the recap.
   const previousPeriod = gatherPreviousPeriod(db, safeFrom, previousPeriodTo, now);
 
+  // Deterministic forecast fetch (not an LLM tool call): resolve coordinates
+  // for the city, then pull a 3-day outlook. Any failure (no city, geocode
+  // miss, Open-Meteo down) collapses to null so the brief still composes —
+  // composePrompt renders "погода недоступна".
+  let weather: Forecast | null = null;
+  if (weatherDeps && city) {
+    try {
+      const coords = await weatherDeps.resolveCoords(db, city);
+      if (coords) {
+        weather = await weatherDeps.fetchForecast(coords.lat, coords.lon, tz);
+      }
+    } catch {
+      weather = null;
+    }
+  }
+
   return {
     reminders,
     notes,
@@ -501,6 +533,7 @@ export function gatherData(
     previousPeriod,
     previousPeriodFrom: safeFrom,
     previousPeriodTo,
+    weather,
   };
 }
 
@@ -530,9 +563,17 @@ function section(title: string, rows: string[]): string {
 export const GAP_MODE_THRESHOLD = 2;
 
 export function composePrompt(data: BriefData, tz: string): string {
+  // Weather is now supplied deterministically below (## Погода), so the city
+  // line no longer instructs the LLM to look it up via web_search.
   const cityLine = data.city
     ? `Город пользователя: ${data.city}.`
-    : 'Город пользователя: не задан — погоду искать не нужно, напиши "город не задан".';
+    : 'Город пользователя: не задан — напиши "город не задан".';
+
+  // 3-day outlook fetched in gatherData; null → degrade to "недоступна" instead
+  // of asking the model to search (web_search stays available for other needs).
+  const weatherSection = data.weather
+    ? `## Погода (3 дня)\n${formatBriefOutlook(data.weather)}`
+    : '## Погода (3 дня)\nпогода недоступна';
 
   const gapMode = data.gapDays >= GAP_MODE_THRESHOLD;
   const daysPhrase = pluralizeDays(data.gapDays);
@@ -575,6 +616,8 @@ export function composePrompt(data: BriefData, tz: string): string {
     gapPreamble,
     periodHeader,
     periodBody,
+    '',
+    weatherSection,
     '',
     '## Сегодня / завтра',
     todaySection,

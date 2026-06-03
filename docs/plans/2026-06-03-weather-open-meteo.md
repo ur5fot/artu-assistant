@@ -65,11 +65,11 @@ JSON по координатам). Плюс: 3-дневный прогноз в 
 
 ### Task 4: 3-дн погода в утреннем брифе
 
-- [ ] `morningBrief.helpers.ts` `gatherData`: `coords=resolveCoords(...)`; если есть → `weather=fetchForecast(...)` в try (ошибка→null); добавить `weather` в `BriefData`
-- [ ] `composePrompt`: секция «## Погода (3 дня)» из `formatBriefOutlook`+daily, если `weather`; иначе «погода недоступна»; cityLine больше не просит искать погоду
-- [ ] `morningBrief.ai.ts`/prompt: убрать инструкцию искать погоду через web_search (web_search остаётся для прочего)
-- [ ] тесты: `gatherData` кладёт weather (мок модуля); `composePrompt` содержит секцию; `weather=null` → «недоступна»; регресс morningBrief-тестов
-- [ ] прогнать тесты — зелёные перед Task 5
+- [x] `morningBrief.helpers.ts` `gatherData`: `coords=resolveCoords(...)`; если есть → `weather=fetchForecast(...)` в try (ошибка→null); добавить `weather` в `BriefData`
+- [x] `composePrompt`: секция «## Погода (3 дня)» из `formatBriefOutlook`+daily, если `weather`; иначе «погода недоступна»; cityLine больше не просит искать погоду
+- [x] `morningBrief.ai.ts`/prompt: убрать инструкцию искать погоду через web_search (web_search остаётся для прочего) — отдельной инструкции не было; cityLine очищен, web_search-тул сохранён для прочего
+- [x] тесты: `gatherData` кладёт weather (мок модуля); `composePrompt` содержит секцию; `weather=null` → «недоступна»; регресс morningBrief-тестов
+- [x] прогнать тесты — зелёные перед Task 5
 
 ### Task 5: Пакет `@r2/tool-weather`
 
