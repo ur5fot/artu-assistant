@@ -45,11 +45,11 @@ JSON по координатам). Плюс: 3-дневный прогноз в 
 
 ### Task 1: Open-Meteo клиент (`weather/open-meteo.ts`)
 
-- [ ] `fetchForecast(lat,lon,tz,days=3)` — GET forecast (daily: tmax/tmin/precip_prob_max/weathercode/wind_max; hourly: temp/precip_prob/weathercode), парс в `Forecast`; таймаут ~8с через `AbortSignal.timeout`, на ошибку throw
-- [ ] `geocode(name,{country='UA',lang='ru'})` → `{lat,lon,name,admin1}|null` (Open-Meteo geocoding, count=1)
-- [ ] `WMO_RU` map (weathercode→RU) + `formatBriefOutlook(forecast)` → короткий 3-дн RU обзор
-- [ ] тесты (мок `fetch`): парс forecast, geocode (матч/пусто), WMO→RU, formatBriefOutlook (снапшот), таймаут/HTTP-ошибка → throw
-- [ ] прогнать тесты — зелёные перед Task 2
+- [x] `fetchForecast(lat,lon,tz,days=3)` — GET forecast (daily: tmax/tmin/precip_prob_max/weathercode/wind_max; hourly: temp/precip_prob/weathercode), парс в `Forecast`; таймаут ~8с через `AbortSignal.timeout`, на ошибку throw
+- [x] `geocode(name,{country='UA',lang='ru'})` → `{lat,lon,name,admin1}|null` (Open-Meteo geocoding, count=1)
+- [x] `WMO_RU` map (weathercode→RU) + `formatBriefOutlook(forecast)` → короткий 3-дн RU обзор
+- [x] тесты (мок `fetch`): парс forecast, geocode (матч/пусто), WMO→RU, formatBriefOutlook (снапшот), таймаут/HTTP-ошибка → throw
+- [x] прогнать тесты — зелёные перед Task 2
 
 ### Task 2: `detectWeatherChanges` (чистая детекция)
 
