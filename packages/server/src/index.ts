@@ -593,12 +593,16 @@ const runLoopFn = (params: {
 const weatherEnabled = process.env.WEATHER_ENABLED === 'true';
 const weatherTz = process.env.WEATHER_TZ || 'Europe/Kyiv';
 // Manual coordinate override — pins exact lat/lon when Open-Meteo doesn't know
-// a small village (see Post-Completion). Both must be finite to take effect.
-const weatherLatRaw = Number(process.env.WEATHER_LAT);
-const weatherLonRaw = Number(process.env.WEATHER_LON);
+// a small village (see Post-Completion). Both must be present and finite to take
+// effect. Empty strings (WEATHER_LAT=) are the documented "off" form and must NOT
+// override — Number('') is 0, which is finite, so trim+reject empty before parsing.
+const weatherLatStr = (process.env.WEATHER_LAT ?? '').trim();
+const weatherLonStr = (process.env.WEATHER_LON ?? '').trim();
+const weatherLatRaw = Number(weatherLatStr);
+const weatherLonRaw = Number(weatherLonStr);
 const weatherOverride =
-  process.env.WEATHER_LAT !== undefined &&
-  process.env.WEATHER_LON !== undefined &&
+  weatherLatStr !== '' &&
+  weatherLonStr !== '' &&
   Number.isFinite(weatherLatRaw) &&
   Number.isFinite(weatherLonRaw)
     ? { lat: weatherLatRaw, lon: weatherLonRaw }
