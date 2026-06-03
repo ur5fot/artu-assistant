@@ -59,9 +59,9 @@ JSON по координатам). Плюс: 3-дневный прогноз в 
 
 ### Task 3: Координаты (`weather/coords.ts` `resolveCoords`)
 
-- [ ] `resolveCoords(db, city, geocodeFn)` — читает `user.coords` (JSON `{city,lat,lon}`) из `memory_facts`; если нет ИЛИ `coords.city!==city` → `geocode(city)` + сохранить; иначе вернуть готовые; null если геокод пуст. Override `WEATHER_LAT/LON` имеет приоритет
-- [ ] тесты: нет записи → геокод+сохранение; город сменился → перегеокод; совпал → без вызова geocode; геокод пуст → null; env-override
-- [ ] прогнать тесты — зелёные перед Task 4
+- [x] `resolveCoords(db, city, geocodeFn)` — читает `user.coords` (JSON `{city,lat,lon}`) из `memory_facts`; если нет ИЛИ `coords.city!==city` → `geocode(city)` + сохранить; иначе вернуть готовые; null если геокод пуст. Override `WEATHER_LAT/LON` имеет приоритет
+- [x] тесты: нет записи → геокод+сохранение; город сменился → перегеокод; совпал → без вызова geocode; геокод пуст → null; env-override
+- [x] прогнать тесты — зелёные перед Task 4
 
 ### Task 4: 3-дн погода в утреннем брифе
 
