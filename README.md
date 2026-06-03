@@ -433,6 +433,15 @@ rules are never touched. The boost direction, subject-pattern scoring, and a
 true reply-driven self-heal (an INBOX `\Answered` sweep) are deferred to a
 later iteration.
 
+The awaiting queue also **auto-clears from Gmail** (`\Seen` sync). On every poll
+tick R2 re-checks the IMAP flags of each awaiting (non-urgent) email and silently
+dismisses any you've already **read** (`\Seen`) or **moved out of INBOX**
+(archived/deleted/moved) — exactly as if you'd run `emails_dismiss`. So an email
+you handled in Gmail stops showing up on "проверь почту" / `emails_status` within
+one poll interval, with zero manual input. This is always-on (no env flag,
+independent of `EMAIL_FEEDBACK_ENABLED`); a hard IMAP fetch failure changes
+nothing that tick (safe bail), and sender feedback scoring stays urgent-only.
+
 ---
 
 ## Weather (Open-Meteo)

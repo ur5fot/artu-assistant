@@ -1032,7 +1032,73 @@ describe('runPollTick — \\Seen sync (auto-clear awaiting queue)', () => {
     });
 
     expect(isDelivered(getDb(), id)).toBe(true);
+    // delivered_at is stamped with params.now, not some other clock — the digest's
+    // countHandledSince windowing depends on this exact timestamp.
+    const row = getDb()
+      .prepare('SELECT delivered_at FROM email_pending WHERE id = ?')
+      .get(id) as { delivered_at: number };
+    expect(row.delivered_at).toBe(2000);
     expect(store.countPendingUndelivered()).toBe(0);
+  });
+
+  it('awaiting row replied (answered) but \\Seen=false → NOT dismissed (sync ignores answered)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    // The user replied from Gmail but the message stayed unread (\Seen unset).
+    // The \Seen sync deliberately ignores `answered` (that's the urgent-only
+    // feedback pass's job) — so this row stays in the awaiting queue.
+    const id = seedAwaiting(getDb(), { accountId: 'a', uid: 14 });
+    const flagFetcher = vi.fn<FlagFetcher>(async () => [{ uid: 14, seen: false, answered: true }]);
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, flagFetcher,
+    });
+
+    expect(isDelivered(getDb(), id)).toBe(false);
+    expect(store.countPendingUndelivered()).toBe(1);
+  });
+
+  it('no awaiting rows → flag fetcher never called (quiet tick, no wasted IMAP fetch)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store); // ongoing account, no awaiting rows seeded
+    const flagFetcher = vi.fn<FlagFetcher>(async () => []);
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, flagFetcher,
+    });
+
+    expect(flagFetcher).not.toHaveBeenCalled();
+  });
+
+  it('caps the per-tick re-check at 50 oldest awaiting rows (IMAP-cost guard)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    // Seed 60 awaiting rows with ascending received_at so the oldest are uid 1..50.
+    for (let uid = 1; uid <= 60; uid++) {
+      seedAwaiting(getDb(), { accountId: 'a', uid, receivedAt: uid });
+    }
+    let polledUids: number[] = [];
+    const flagFetcher = vi.fn<FlagFetcher>(async (_acc, uids) => {
+      polledUids = uids;
+      return uids.map((uid) => ({ uid, seen: false, answered: false }));
+    });
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, flagFetcher,
+    });
+
+    // Exactly 50 fetched, and they are the 50 oldest (received_at ASC = uid 1..50).
+    expect(polledUids.length).toBe(50);
+    expect(polledUids).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
   });
 
   it('awaiting row absent from a successful fetch (left INBOX) → auto-dismissed', async () => {
