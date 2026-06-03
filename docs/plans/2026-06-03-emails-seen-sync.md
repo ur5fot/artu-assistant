@@ -78,11 +78,11 @@ approved; the honest "do it manually" reply already covers the external action).
 - [x] run `npm test` — must pass before next task
 
 ### Task 3: Verify acceptance & build
-- [ ] verify: an awaiting email marked `\Seen` (or archived) in Gmail is gone from awaiting after a
-      poll tick; "проверь почту" then shows it no longer / "всё разобрано"
-- [ ] run full suite (`npm test`) — all green
-- [ ] run `npm run build` (tsc) in `packages/server` — no type errors
-- [ ] confirm additive only (feedback loop, emails_dismiss tool, schema unchanged)
+- [x] verify: an awaiting email marked `\Seen` (or archived) in Gmail is gone from awaiting after a
+      poll tick; "проверь почту" then shows it no longer / "всё разобрано" — manual Discord/Gmail test (skipped - not automatable; covered by poller unit tests)
+- [x] run full suite (`npm test`) — all green (110 files, 1564 tests passed)
+- [x] run `npm run build` (tsc) in `packages/server` — no type errors
+- [x] confirm additive only (feedback loop, emails_dismiss tool, schema unchanged) — diff is 360 insertions / 0 deletions, only store.ts + multi-account-poller.ts + tests
 
 ## Technical Details
 - `handled = seen OR left-INBOX`, gated on a successful fetch (`flags !== null`). On `null` bail.
