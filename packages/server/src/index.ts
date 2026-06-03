@@ -737,6 +737,11 @@ if (emailEnabled) {
     // (UIDVALIDITY change → UIDs restart low) is detected instead of silently
     // blinding the watcher to all new mail.
     validityProbe: getUidValidity,
+    // \Seen sync: every tick, re-check IMAP flags for awaiting (queue-visible,
+    // non-urgent-pinged) emails and auto-dismiss any the user already read or
+    // moved out of INBOX in Gmail — zero manual input, always-on (not gated on
+    // EMAIL_FEEDBACK_ENABLED). Same underlying fetch as the feedback re-poll.
+    flagFetcher: (acc, uids) => fetchFlagsForUids(acc, uids),
     onUidValidityReset: ({ account, previous, current }) => {
       console.warn(
         `[emails] UIDVALIDITY reset handled for ${account}: ${previous} → ${current}; watermark reset to current maxUid (backlog skipped).`,

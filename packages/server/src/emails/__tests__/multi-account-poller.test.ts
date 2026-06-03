@@ -987,6 +987,233 @@ describe('runPollTick — implicit-feedback resolution', () => {
   });
 });
 
+describe('runPollTick — \\Seen sync (auto-clear awaiting queue)', () => {
+  // Insert an awaiting (queue-visible, non-urgent-pinged, undelivered) pending
+  // row directly and return its id. Mirrors what the poller would have inserted
+  // for a noticed-but-not-urgent email.
+  function seedAwaiting(
+    db: ReturnType<typeof getDb>,
+    opts: { accountId: string; uid: number; receivedAt?: number },
+  ): number {
+    const info = db
+      .prepare(
+        `INSERT INTO email_pending
+         (account_id, message_uid, from_addr, subject, snippet, importance,
+          received_at, added_at)
+         VALUES (?, ?, 'x@x.com', 's', 'x', 3, ?, ?)`,
+      )
+      .run(opts.accountId, opts.uid, opts.receivedAt ?? opts.uid, opts.receivedAt ?? opts.uid);
+    return Number(info.lastInsertRowid);
+  }
+
+  function isDelivered(db: ReturnType<typeof getDb>, id: number): boolean {
+    const row = db
+      .prepare('SELECT delivered_at FROM email_pending WHERE id = ?')
+      .get(id) as { delivered_at: number | null };
+    return row.delivered_at != null;
+  }
+
+  // Ongoing account with no new mail so the tick goes straight to the sync pass.
+  function ongoing(store: ReturnType<typeof createEmailStore>) {
+    store.updateLastSeenUid('a', 100, 1);
+  }
+
+  it('awaiting row marked \\Seen in Gmail → auto-dismissed (leaves awaiting)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    const id = seedAwaiting(getDb(), { accountId: 'a', uid: 5 });
+    const flagFetcher = vi.fn<FlagFetcher>(async () => [{ uid: 5, seen: true, answered: false }]);
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, flagFetcher,
+    });
+
+    expect(isDelivered(getDb(), id)).toBe(true);
+    expect(store.countPendingUndelivered()).toBe(0);
+  });
+
+  it('awaiting row absent from a successful fetch (left INBOX) → auto-dismissed', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    const id = seedAwaiting(getDb(), { accountId: 'a', uid: 6 });
+    // Successful but empty fetch: the UID has left INBOX (archived/deleted/moved).
+    const flagFetcher = vi.fn<FlagFetcher>(async () => []);
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, flagFetcher,
+    });
+
+    expect(isDelivered(getDb(), id)).toBe(true);
+  });
+
+  it('awaiting row present but \\Seen=false → NOT dismissed (still in queue)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    const id = seedAwaiting(getDb(), { accountId: 'a', uid: 7 });
+    const flagFetcher = vi.fn<FlagFetcher>(async () => [{ uid: 7, seen: false, answered: false }]);
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, flagFetcher,
+    });
+
+    expect(isDelivered(getDb(), id)).toBe(false);
+    expect(store.countPendingUndelivered()).toBe(1);
+  });
+
+  it('hard fetch failure (null) → nothing dismissed (safe bail)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    const id = seedAwaiting(getDb(), { accountId: 'a', uid: 8 });
+    // null carries no evidence — an absent UID must NOT be read as "left INBOX".
+    const flagFetcher = vi.fn<FlagFetcher>(async () => null);
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, flagFetcher,
+    });
+
+    expect(isDelivered(getDb(), id)).toBe(false);
+  });
+
+  it('urgent-pinged and already-delivered rows are out of scope (untouched)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    // A real urgent-pinged row (positive ts) and an already-delivered row: both
+    // are excluded from the awaiting set, so the sync must never re-check them
+    // and the fetch must carry only the genuine awaiting UID.
+    const db = getDb();
+    const pinged = db
+      .prepare(
+        `INSERT INTO email_pending
+         (account_id, message_uid, from_addr, subject, snippet, importance,
+          received_at, added_at, urgent_pinged_at)
+         VALUES ('a', 20, 'x@x.com', 's', 'x', 5, 20, 20, 1500)`,
+      )
+      .run();
+    const delivered = db
+      .prepare(
+        `INSERT INTO email_pending
+         (account_id, message_uid, from_addr, subject, snippet, importance,
+          received_at, added_at, delivered_at)
+         VALUES ('a', 21, 'x@x.com', 's', 'x', 3, 21, 21, 1600)`,
+      )
+      .run();
+    const awaitingId = seedAwaiting(db, { accountId: 'a', uid: 22 });
+
+    let polledUids: number[] = [];
+    const flagFetcher = vi.fn<FlagFetcher>(async (_acc, uids) => {
+      polledUids = uids;
+      return uids.map((uid) => ({ uid, seen: true, answered: false }));
+    });
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, flagFetcher,
+    });
+
+    // Only the awaiting UID was re-checked; pinged/delivered rows weren't fetched.
+    expect(polledUids).toEqual([22]);
+    expect(isDelivered(db, awaitingId)).toBe(true);
+    // The urgent-pinged and delivered rows keep their original timestamps.
+    const pingedRow = db
+      .prepare('SELECT urgent_pinged_at, delivered_at FROM email_pending WHERE id = ?')
+      .get(Number(pinged.lastInsertRowid)) as { urgent_pinged_at: number; delivered_at: number | null };
+    expect(pingedRow.urgent_pinged_at).toBe(1500);
+    expect(pingedRow.delivered_at).toBeNull();
+    const deliveredRow = db
+      .prepare('SELECT delivered_at FROM email_pending WHERE id = ?')
+      .get(Number(delivered.lastInsertRowid)) as { delivered_at: number };
+    expect(deliveredRow.delivered_at).toBe(1600);
+  });
+
+  it('no flagFetcher wired → no sync, awaiting row untouched', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    const id = seedAwaiting(getDb(), { accountId: 'a', uid: 9 });
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, // no flagFetcher
+    });
+
+    expect(isDelivered(getDb(), id)).toBe(false);
+  });
+
+  it('only syncs the current account\'s awaiting UIDs', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 100, 1);
+    store.updateLastSeenUid('b', 100, 1);
+    seedAwaiting(getDb(), { accountId: 'a', uid: 11 });
+    seedAwaiting(getDb(), { accountId: 'b', uid: 22 });
+    const flagFetcher = vi.fn<FlagFetcher>(async (_acc, uids) =>
+      uids.map((uid) => ({ uid, seen: false, answered: false })),
+    );
+
+    await runPollTick({
+      accounts: [accA, accB], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, flagFetcher,
+    });
+
+    const calls = flagFetcher.mock.calls;
+    expect(calls.find((c) => c[0].id === 'a')?.[1]).toEqual([11]);
+    expect(calls.find((c) => c[0].id === 'b')?.[1]).toEqual([22]);
+  });
+
+  it('a throwing flag fetch is isolated: no account error, awaiting untouched', async () => {
+    const store = createEmailStore({ db: getDb() });
+    ongoing(store);
+    const id = seedAwaiting(getDb(), { accountId: 'a', uid: 12 });
+    const flagFetcher = vi.fn<FlagFetcher>(async () => { throw new Error('imap boom'); });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => []), scorer: vi.fn(async () => []),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, flagFetcher,
+    });
+
+    expect(store.getAccountError('a')).toBeNull();
+    expect(isDelivered(getDb(), id)).toBe(false);
+    errSpy.mockRestore();
+  });
+
+  it('also runs when new mail arrives in the same tick', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 100, 1);
+    const id = seedAwaiting(getDb(), { accountId: 'a', uid: 13 });
+    const flagFetcher = vi.fn<FlagFetcher>(async () => [{ uid: 13, seen: true, answered: false }]);
+
+    await runPollTick({
+      accounts: [accA], store,
+      fetcher: vi.fn(async () => [msg(150)]),
+      scorer: vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 5 }))),
+      maxUidProbe: noProbe, validityProbe: noValidity,
+      now: 2000, flagFetcher,
+    });
+
+    expect(store.getLastSeenUid('a')).toBe(150); // new mail processed
+    expect(isDelivered(getDb(), id)).toBe(true); // and the awaiting row cleared
+  });
+});
+
 describe('runPollTick — onAccountBlind alert', () => {
   // Run `count` ticks that all fail for account `a`, returning the store and the
   // alert spy so tests can assert call counts/args.

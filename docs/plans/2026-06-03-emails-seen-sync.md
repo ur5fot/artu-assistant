@@ -64,16 +64,18 @@ approved; the honest "do it manually" reply already covers the external action).
 - [x] run `npm test` — must pass before next task
 
 ### Task 2: Seen-sync pass in the poll tick
-- [ ] add `syncSeenStatus(account, params)` in `multi-account-poller.ts`: fetch
+- [x] add `syncSeenStatus(account, params)` in `multi-account-poller.ts`: fetch
       `fetchAwaitingForAccount(account.id, cap)`; if none → return; call `flagFetcher(account, uids)`;
       if `null` → return (safe bail); build a uid→flag map; for each awaiting row compute
       `handled = flag?.seen === true || (flags !== null && !flagMap.has(uid))` (read OR left INBOX);
       collect handled ids and call `store.markDelivered(ids, now)` once.
-- [ ] wire `syncSeenStatus` into `runPollTick` per account (use the existing `flagFetcher` + `store`
+- [x] wire `syncSeenStatus` into `runPollTick` per account (use the existing `flagFetcher` + `store`
       from tick params; add to params/ wiring in `index.ts` if needed). Guard: only run when a
-      `flagFetcher` is available.
-- [ ] write poller tests for the 5 cases in Testing Strategy
-- [ ] run `npm test` — must pass before next task
+      `flagFetcher` is available. (Added top-level `flagFetcher?` to TickParams — always-on, not gated
+      on EMAIL_FEEDBACK_ENABLED; runs in both the no-new-mail and normal branches.)
+- [x] write poller tests for the 5 cases in Testing Strategy (plus account-isolation, no-fetcher,
+      throwing-fetch, and same-tick-with-new-mail cases)
+- [x] run `npm test` — must pass before next task
 
 ### Task 3: Verify acceptance & build
 - [ ] verify: an awaiting email marked `\Seen` (or archived) in Gmail is gone from awaiting after a

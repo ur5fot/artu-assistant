@@ -54,6 +54,12 @@ interface TickParams {
   fetchLimit?: number;
   importanceCutoff?: number;
   feedback?: FeedbackResolution;
+  // Re-poll IMAP `\Seen` flags for the awaiting (queue-visible, non-urgent-pinged)
+  // rows so any email the user already read OR moved out of INBOX in Gmail is
+  // auto-dismissed from R2's queue (see syncSeenStatus). Unlike `feedback` this
+  // is always-on wiring (no config flag): absent only when no flag fetcher is
+  // available (e.g. tests, or email disabled) → the sync pass is skipped.
+  flagFetcher?: FlagFetcher;
   // Optional alert hook (like `onBlind`): fired once per UIDVALIDITY reset.
   onUidValidityReset?: (info: { account: string; previous: number; current: number }) => void;
   // After this many consecutive failed ticks an account is "blind" and
@@ -191,6 +197,60 @@ async function resolveAccountFeedback(
   }
 }
 
+// Cap on awaiting rows re-polled per tick for the `\Seen` sync (IMAP-cost
+// guard). A huge backlog can't blow up one tick's flag fetch — oldest awaiting
+// mail is re-checked first (fetchAwaitingForAccount orders by received_at ASC).
+const SEEN_SYNC_CAP = 50;
+
+// Per-account `\Seen` sync: re-check IMAP flags for the awaiting (queue-visible,
+// non-urgent-pinged, undelivered) emails and auto-dismiss (markDelivered) any
+// the user has already handled in Gmail — read (`\Seen`) OR moved out of INBOX
+// (absent from a SUCCESSFUL flag fetch → archived/deleted/moved). This makes
+// R2's awaiting queue track what the user actually did, with zero manual input.
+//
+// Distinct from resolveAccountFeedback above: that pass is urgent-ping-only and
+// records sender scoring; this one sweeps the awaiting (non-pinged) rows and
+// only calls markDelivered. No feedback signal is recorded for these auto-cleared
+// rows (out of scope by design — the feedback loop stays urgent-only).
+//
+// Best-effort, own try/catch so a flag-fetch failure is logged and never
+// escalates into the account's setAccountError path.
+async function syncSeenStatus(
+  account: ImapAccount,
+  params: TickParams,
+): Promise<void> {
+  const flagFetcher = params.flagFetcher;
+  if (!flagFetcher) return;
+  try {
+    const rows = params.store.fetchAwaitingForAccount(account.id, SEEN_SYNC_CAP);
+    if (rows.length === 0) return;
+
+    const flags = await flagFetcher(account, rows.map((r) => r.message_uid));
+    // `null` = a hard fetch failure (connection/timeout/server NO|BAD). It
+    // carries no evidence about any UID, so a row absent here must NOT be read
+    // as "left INBOX" and dismissed. Bail and change nothing this tick.
+    if (flags === null) return;
+    // A successful-but-empty `[]` means every UID has left INBOX — those rows
+    // ARE handled (the `!has` branch below dismisses them). Only `null` bails.
+    const flagByUid = new Map(flags.map((f) => [f.uid, f]));
+
+    const handled: number[] = [];
+    for (const row of rows) {
+      const f = flagByUid.get(row.message_uid);
+      // handled = read (`\Seen`) OR no longer in INBOX (absent from a
+      // successful fetch). Gated on `flags !== null` above, so absence is real
+      // evidence the message was archived/deleted/moved, not a failed fetch.
+      if (f?.seen === true || !flagByUid.has(row.message_uid)) {
+        handled.push(row.id);
+      }
+    }
+    if (handled.length > 0) params.store.markDelivered(handled, params.now);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[emails] \\Seen sync failed for ${account.id}:`, msg);
+  }
+}
+
 export async function runPollTick(params: TickParams): Promise<void> {
   const fetchLimit = params.fetchLimit ?? DEFAULT_FETCH_LIMIT;
   const cutoff = params.importanceCutoff ?? DEFAULT_CUTOFF;
@@ -302,6 +362,9 @@ export async function runPollTick(params: TickParams): Promise<void> {
           // Unresolved feedback rows may still need a flag re-poll (the user
           // could have opened/replied since the ping).
           await resolveAccountFeedback(acc, params.feedback, params.now);
+          // Awaiting rows the user has since read/archived in Gmail should leave
+          // the queue even on a quiet tick (no new mail ≠ nothing to sync).
+          await syncSeenStatus(acc, params);
           return;
         }
 
@@ -334,6 +397,7 @@ export async function runPollTick(params: TickParams): Promise<void> {
         }
 
         await resolveAccountFeedback(acc, params.feedback, params.now);
+        await syncSeenStatus(acc, params);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[emails] poll failed for ${acc.id}:`, msg);
