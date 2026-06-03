@@ -87,10 +87,10 @@ JSON по координатам). Плюс: 3-дневный прогноз в 
 
 ### Task 7: Хэндлер `weatherAlert`
 
-- [ ] `cognition/handlers/weatherAlert.ts` `createWeatherAlertHandler(deps)`: `trigger` — `now-lastCheckAt ≥ checkIntervalH` И не тихие часы (`quietStart..quietEnd`) И координаты есть (дёшево, без сети); `run` — `fetchForecast`→`detectWeatherChanges`→для новых событий (нет в `findRecentAlert` в окне dedupeH, `when` в lead-окне) publish (cognition_publish) + `recordAlert`; `setLastCheckAt`; ошибка fetch → `{skip}`
-- [ ] формат сообщения алерта (RU, ⚠️/🌧/🥶 по типу), один пинг на событие
-- [ ] тесты (мок модуля/стора/clock): trigger throttle/quiet/coords; run публикует новое событие один раз; дедуп повтора; держит событие в тихие часы; ошибка fetch → skip
-- [ ] прогнать тесты — зелёные перед Task 8
+- [x] `cognition/handlers/weatherAlert.ts` `createWeatherAlertHandler(deps)`: `trigger` — `now-lastCheckAt ≥ checkIntervalH` И не тихие часы (`quietStart..quietEnd`) И координаты есть (дёшево, без сети); `run` — `fetchForecast`→`detectWeatherChanges`→для новых событий (нет в `findRecentAlert` в окне dedupeH, `when` в lead-окне) publish (cognition_publish) + `recordAlert`; `setLastCheckAt`; ошибка fetch → `{skip}`
+- [x] формат сообщения алерта (RU, ⚠️/🌧/🥶 по типу), один пинг на событие
+- [x] тесты (мок модуля/стора/clock): trigger throttle/quiet/coords; run публикует новое событие один раз; дедуп повтора; держит событие в тихие часы; ошибка fetch → skip (9 тестов)
+- [x] прогнать тесты — зелёные перед Task 8 (9 новых + 1525 server-тестов зелёные, typecheck чисто)
 
 ### Task 8: Конфиг + регистрация/инъекция (`index.ts`)
 
