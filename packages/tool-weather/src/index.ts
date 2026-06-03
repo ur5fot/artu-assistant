@@ -72,8 +72,9 @@ function createWeatherTool(deps: Deps): ToolDefinition {
   return {
     name: 'weather',
     description:
-      'Прогноз погоды на 3 дня через Open-Meteo. Без параметров — погода в городе юзера ' +
-      '(по сохранённым координатам). С `location` — погода в указанном городе. ' +
+      'Прогноз погоды на 3 дня через Open-Meteo. Для погоды у юзера (его дом/город) — ' +
+      'НЕ передавай `location`: используются сохранённые координаты. `location` указывай ' +
+      'ТОЛЬКО для ДРУГОГО города, отличного от дома юзера. ' +
       'Используй когда юзер спрашивает «какая погода», «что там на улице», «погода в <город>», ' +
       '«брать ли зонт». Возвращает структурный прогноз (по дням) + готовую RU-сводку.',
     permissionLevel: 'auto',
@@ -83,14 +84,18 @@ function createWeatherTool(deps: Deps): ToolDefinition {
       properties: {
         location: {
           type: 'string',
-          description: 'Город/место (опционально). Без него — координаты юзера.',
+          description:
+            'Другой город, отличный от дома юзера (опционально). Для погоды у самого юзера ' +
+            'НЕ передавай — используются его координаты.',
         },
       },
     },
     command: {
       name: 'погода',
       description: 'Прогноз на 3 дня',
-      params: [{ name: 'location', required: false, description: 'Город (опц.)' }],
+      params: [
+        { name: 'location', required: false, description: 'Другой город (опц.); для своего — пусто' },
+      ],
     },
     async handler(params: Record<string, unknown>): Promise<ToolResult> {
       const { weatherClient, resolveUserCoords } = deps;

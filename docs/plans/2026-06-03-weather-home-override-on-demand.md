@@ -94,11 +94,11 @@ queries.
 - [x] run tool-weather tests — must pass before next task
 
 ### Task 3: Tighten the tool description
-- [ ] in the tool `description` (and `command.params[location].description`),
+- [x] in the tool `description` (and `command.params[location].description`),
       state: omit `location` for the user's own/home weather; pass `location`
       ONLY for a DIFFERENT city than home
-- [ ] verify no behavioral code depends on the old wording
-- [ ] no new test needed (string only); run tool-weather tests to confirm green
+- [x] verify no behavioral code depends on the old wording
+- [x] no new test needed (string only); run tool-weather tests to confirm green
 
 ### Task 4: Verify acceptance criteria
 - [ ] home query (`'Калиновка'` / no-arg) → override coords (Златополь 49.37646, 36.21848)
