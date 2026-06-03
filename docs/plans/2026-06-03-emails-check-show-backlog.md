@@ -69,12 +69,12 @@ agent will read `accounts_count` (=2) from `emails_status` instead of guessing.
 - [x] run `npm test` — must pass before next task
 
 ### Task 2: Verify acceptance criteria & build
-- [ ] verify the prompt instructs: email-check → `emails_status`; if `awaiting_count > 0` list the
+- [x] verify the prompt instructs: email-check → `emails_status`; if `awaiting_count > 0` list the
       awaiting mail of any age; never say "тихо"/"писем нет" while `awaiting_count > 0`; mailbox-count
       questions use `accounts`/`accounts_count`
-- [ ] run full server test suite (`npm test`) — all green
-- [ ] run `npm run build` (tsc) in `packages/server` — no type errors
-- [ ] confirm change is additive only (no behavior change to tools/DB)
+- [x] run full server test suite (`npm test`) — all green (1550 tests passed)
+- [x] run `npm run build` (tsc) in `packages/server` — no type errors
+- [x] confirm change is additive only (no behavior change to tools/DB)
 
 ## Technical Details
 
