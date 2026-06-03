@@ -131,23 +131,66 @@ describe('weather tool — no location (user coords)', () => {
 });
 
 describe('weather tool — with location (geocode)', () => {
-  it('geocodes the location and forecasts there', async () => {
+  it('geocodes a different city and forecasts there', async () => {
+    const weatherClient = mkClient({
+      geocode: vi.fn(async (): Promise<GeocodeResult | null> => ({
+        lat: 50.45,
+        lon: 30.52,
+        name: 'Киев',
+        admin1: 'Киев',
+      })),
+    });
+    const resolveUserCoords = userCoords();
+    const tool = getTool({ weatherClient, resolveUserCoords });
+
+    const res = await tool.handler({ location: '  Киев  ' });
+    expect(res.success).toBe(true);
+    // trimmed before geocoding; not the home city, so override coords NOT used
+    expect(weatherClient.geocode).toHaveBeenCalledWith('Киев');
+    expect(weatherClient.fetchForecast).toHaveBeenCalledWith(50.45, 30.52, 'Europe/Kyiv');
+
+    const data = res.data as Record<string, unknown>;
+    expect(data.location).toEqual({ name: 'Киев, Киев', lat: 50.45, lon: 30.52 });
+  });
+
+  it('uses override home coords when location is the home city (no geocode)', async () => {
     const weatherClient = mkClient();
     const resolveUserCoords = userCoords();
     const tool = getTool({ weatherClient, resolveUserCoords });
 
-    const res = await tool.handler({ location: '  Калиновка  ' });
+    const res = await tool.handler({ location: 'Калиновка' });
     expect(res.success).toBe(true);
-    // trimmed before geocoding; user-coords path skipped
-    expect(weatherClient.geocode).toHaveBeenCalledWith('Калиновка');
-    expect(resolveUserCoords).not.toHaveBeenCalled();
-    expect(weatherClient.fetchForecast).toHaveBeenCalledWith(49.1, 36.5, 'Europe/Kyiv');
+    // home-match short-circuit: override coords used, geocode NOT called
+    expect(resolveUserCoords).toHaveBeenCalledOnce();
+    expect(weatherClient.geocode).not.toHaveBeenCalled();
+    expect(weatherClient.fetchForecast).toHaveBeenCalledWith(49.9, 36.9, 'Europe/Kyiv');
 
     const data = res.data as Record<string, unknown>;
-    expect(data.location).toEqual({ name: 'Калиновка, Харьковская область', lat: 49.1, lon: 36.5 });
+    expect(data.location).toEqual({ name: 'Калиновка', lat: 49.9, lon: 36.9 });
   });
 
-  it('returns a clear error when geocode finds nothing', async () => {
+  it('matches home city case-insensitively / with oblast suffix', async () => {
+    const weatherClient = mkClient();
+    const resolveUserCoords = userCoords();
+    const tool = getTool({ weatherClient, resolveUserCoords });
+
+    const res = await tool.handler({ location: 'калиновка, Харьковская область' });
+    expect(res.success).toBe(true);
+    expect(weatherClient.geocode).not.toHaveBeenCalled();
+    expect(weatherClient.fetchForecast).toHaveBeenCalledWith(49.9, 36.9, 'Europe/Kyiv');
+  });
+
+  it('falls back to geocoding the name when no resolver is wired (legacy)', async () => {
+    const weatherClient = mkClient();
+    const tool = getTool({ weatherClient, resolveUserCoords: null });
+
+    const res = await tool.handler({ location: 'Калиновка' });
+    expect(res.success).toBe(true);
+    expect(weatherClient.geocode).toHaveBeenCalledWith('Калиновка');
+    expect(weatherClient.fetchForecast).toHaveBeenCalledWith(49.1, 36.5, 'Europe/Kyiv');
+  });
+
+  it('returns a clear error for an unknown city, never substituting another', async () => {
     const weatherClient = mkClient({ geocode: vi.fn(async () => null) });
     const tool = getTool({ weatherClient, resolveUserCoords: userCoords() });
     const res = await tool.handler({ location: 'Нетакогогорода' });

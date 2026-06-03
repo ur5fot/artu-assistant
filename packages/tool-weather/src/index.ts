@@ -102,6 +102,16 @@ function createWeatherTool(deps: Deps): ToolDefinition {
 
       try {
         if (rawLocation) {
+          // Home override is authoritative: if the requested location is the
+          // user's own city, use the resolved (override) coords instead of
+          // geocoding the name — Open-Meteo often can't geocode the village.
+          if (resolveUserCoords) {
+            const home: Coords | null = await resolveUserCoords();
+            if (home && isSamePlace(rawLocation, home.city)) {
+              const forecast = await weatherClient.fetchForecast(home.lat, home.lon, weatherClient.tz);
+              return forecastResult(weatherClient, home.city, forecast);
+            }
+          }
           const hit = await weatherClient.geocode(rawLocation);
           if (!hit) {
             return { success: false, error: `Не нашёл город «${rawLocation}»` };

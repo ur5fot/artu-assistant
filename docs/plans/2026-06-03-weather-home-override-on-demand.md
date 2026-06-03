@@ -80,18 +80,18 @@ queries.
 - [x] run tool-weather tests — must pass before next task
 
 ### Task 2: Short-circuit home location to override coords in the handler
-- [ ] in the `rawLocation` branch, before geocoding: if `resolveUserCoords` is
+- [x] in the `rawLocation` branch, before geocoding: if `resolveUserCoords` is
       wired, call it and, when the returned `coords.city` `isSamePlace` as
       `rawLocation`, use those coords (override) via `forecastResult(..., coords.city, forecast)`
-- [ ] otherwise geocode `rawLocation` as today; on null geocode keep the existing
+- [x] otherwise geocode `rawLocation` as today; on null geocode keep the existing
       explicit error (`Не нашёл город «…»`) — confirm there is NO silent fallback
-- [ ] ensure the no-location path is unchanged
-- [ ] update the existing test "geocodes the location and forecasts there" to use
+- [x] ensure the no-location path is unchanged
+- [x] update the existing test "geocodes the location and forecasts there" to use
       a non-home city (e.g. `'Киев'`) so it still asserts the geocode path
-- [ ] add test: home-city `location` → home/override coords, `geocode` NOT called
-- [ ] add test: unknown city → explicit error, no other-city substitution
-- [ ] add test: `resolveUserCoords: null` + home-looking `location` → geocode path (legacy)
-- [ ] run tool-weather tests — must pass before next task
+- [x] add test: home-city `location` → home/override coords, `geocode` NOT called
+- [x] add test: unknown city → explicit error, no other-city substitution
+- [x] add test: `resolveUserCoords: null` + home-looking `location` → geocode path (legacy)
+- [x] run tool-weather tests — must pass before next task
 
 ### Task 3: Tighten the tool description
 - [ ] in the tool `description` (and `command.params[location].description`),
