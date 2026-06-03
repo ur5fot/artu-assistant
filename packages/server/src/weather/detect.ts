@@ -98,9 +98,11 @@ export function detectWeatherChanges(
     });
   }
 
-  // 3. Frost — earliest upcoming day dropping to/below 0°.
-  const frostDay = days.find((d) => d.tempMin <= 0);
-  if (frostDay) {
+  // 3. Frost — every upcoming day dropping to/below 0°. Emit one event per
+  //    qualifying day (not just the earliest): the handler's lead window picks
+  //    the day to ping, so a frost already in progress today must not shadow
+  //    tomorrow's pre-announce. NaN tempMin (partial payload) never satisfies.
+  for (const frostDay of days.filter((d) => d.tempMin <= 0)) {
     events.push({
       type: 'frost',
       when: dayStart(frostDay.date, tz),
@@ -109,11 +111,11 @@ export function detectWeatherChanges(
     });
   }
 
-  // 4. Thunderstorm / strong wind — earliest qualifying day.
-  const stormDay = days.find(
+  // 4. Thunderstorm / strong wind — every qualifying day, for the same reason as
+  //    frost: an in-progress storm today must not mask tomorrow's.
+  for (const stormDay of days.filter(
     (d) => THUNDER.has(d.weatherCode) || d.windMax >= windMaxKmh,
-  );
-  if (stormDay) {
+  )) {
     const thunder = THUNDER.has(stormDay.weatherCode);
     events.push({
       type: 'storm',

@@ -632,11 +632,24 @@ let weatherClientForTool: WeatherClientForTool | null = null;
 let resolveUserCoordsForTool: ResolveUserCoordsFn | null = null;
 let weatherAlertStore: WeatherAlertStore | null = null;
 if (weatherEnabled) {
+  // Single home-city geocode closure (UA-biased) + resolver, shared by the
+  // brief, the on-demand tool, and the alert boot below — one definition so the
+  // `country: 'UA'` bias and the env override can't drift between copies.
+  const geocodeHome = (name: string) => geocode(name, { country: 'UA' });
+  const resolveUserCoords = async (): Promise<Coords | null> => {
+    const city = readUserCity();
+    if (city) {
+      return resolveCoords(getDb(), city, geocodeHome, { override: weatherOverride });
+    }
+    // No city stored but coordinates pinned via env → still answer.
+    if (weatherOverride) {
+      return { city: 'сохранённые координаты', lat: weatherOverride.lat, lon: weatherOverride.lon };
+    }
+    return null;
+  };
   morningBriefWeather = {
     resolveCoords: (db, city) =>
-      resolveCoords(db, city, (name) => geocode(name, { country: 'UA' }), {
-        override: weatherOverride,
-      }),
+      resolveCoords(db, city, geocodeHome, { override: weatherOverride }),
     fetchForecast: (lat, lon, tz) => fetchForecast(lat, lon, tz),
   };
   weatherClientForTool = {
@@ -647,19 +660,7 @@ if (weatherEnabled) {
     formatBriefOutlook,
     wmoToRu,
   };
-  resolveUserCoordsForTool = async () => {
-    const city = readUserCity();
-    if (city) {
-      return resolveCoords(getDb(), city, (name) => geocode(name, { country: 'UA' }), {
-        override: weatherOverride,
-      });
-    }
-    // No city stored but coordinates pinned via env → still answer.
-    if (weatherOverride) {
-      return { city: 'сохранённые координаты', lat: weatherOverride.lat, lon: weatherOverride.lon };
-    }
-    return null;
-  };
+  resolveUserCoordsForTool = resolveUserCoords;
   weatherAlertStore = createWeatherAlertStore({ db: getDb() });
   console.log(
     `[weather] enabled (tz=${weatherTz}${weatherOverride ? ', override coords' : ''})`,
@@ -1063,14 +1064,9 @@ if (discordToken) {
   if (weatherEnabled && alertFlag && discordReady && weatherAlertStore) {
     let coords: Coords | null = null;
     try {
-      const city = readUserCity();
-      if (city) {
-        coords = await resolveCoords(getDb(), city, (name) => geocode(name, { country: 'UA' }), {
-          override: weatherOverride,
-        });
-      } else if (weatherOverride) {
-        coords = { city: 'сохранённые координаты', lat: weatherOverride.lat, lon: weatherOverride.lon };
-      }
+      // Same resolver the on-demand tool uses (city → cached/geocoded coords,
+      // env override wins) — shared so the alert and tool can't diverge.
+      coords = (await resolveUserCoordsForTool?.()) ?? null;
     } catch (err) {
       console.warn(
         '[weatherAlert] coordinate resolution failed:',

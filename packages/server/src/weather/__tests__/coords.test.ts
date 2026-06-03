@@ -57,6 +57,25 @@ describe('resolveCoords', () => {
     expect(storedCoords()).toEqual({ city: 'Киев', lat: 50.4, lon: 30.5 });
   });
 
+  it('re-geocodes and rewrites when the cached coords JSON is corrupt', async () => {
+    // A malformed cached value must self-heal: readCoords swallows the parse
+    // error, resolveCoords falls through to geocode and rewrites a valid row.
+    getDb()
+      .prepare(
+        `INSERT INTO memory_facts
+           (key, value, created_at, last_mentioned_at, superseded_by, importance, forgotten)
+         VALUES ('user.coords', '{not json', ?, ?, NULL, 1, 0)`,
+      )
+      .run(NOW, NOW);
+
+    const geocode = vi.fn(async () => geocodeHit());
+    const coords = await resolveCoords(getDb(), 'Калиновка', geocode, { now: NOW });
+
+    expect(geocode).toHaveBeenCalledOnce();
+    expect(coords).toEqual({ city: 'Калиновка', lat: 49.7, lon: 36.3 });
+    expect(storedCoords()).toEqual({ city: 'Калиновка', lat: 49.7, lon: 36.3 });
+  });
+
   it('returns null when geocode finds nothing', async () => {
     const geocode = vi.fn(async () => null);
     const coords = await resolveCoords(getDb(), 'Нигде', geocode, { now: NOW });

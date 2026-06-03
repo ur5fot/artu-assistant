@@ -107,6 +107,23 @@ describe('createWeatherAlertHandler', () => {
         true,
       );
     });
+
+    it('returns true on first boot when the store has never been checked', async () => {
+      // Fresh store → lastCheckAt() is null; the throttle must not gate the very
+      // first check (boot is exactly when the handler should fire).
+      const h = createWeatherAlertHandler(baseDeps({ store: fakeStore() }));
+      expect(await h.trigger({ now: NOON, lastFiredAt: null, lastResult: null }, {} as never)).toBe(
+        true,
+      );
+    });
+
+    it('returns false during the morning quiet window (hour < quietEnd)', async () => {
+      const morning = Date.UTC(2026, 5, 4, 2, 0); // 05:00 Kyiv, before quietEnd=8
+      const h = createWeatherAlertHandler(baseDeps());
+      expect(
+        await h.trigger({ now: morning, lastFiredAt: null, lastResult: null }, {} as never),
+      ).toBe(false);
+    });
   });
 
   describe('run', () => {
@@ -181,6 +198,35 @@ describe('createWeatherAlertHandler', () => {
       const res = await h.run(ctx(NOON));
       expect(res).toMatchObject({ skip: true });
       expect(store.alerts).toHaveLength(0);
+    });
+
+    it('joins multiple fresh events into one message and records each', async () => {
+      const store = fakeStore();
+      const events: WeatherEvent[] = [
+        intradayEvent(NOON),
+        {
+          type: 'temp-swing',
+          when: NOON + 3 * HOUR,
+          key: 'temp-swing+2026-06-04',
+          message: 'Резко холоднее',
+        },
+      ];
+      const h = createWeatherAlertHandler(baseDeps({ store, detect: () => events }));
+      const res = await h.run(ctx(NOON));
+      if (!('publish' in res)) throw new Error('expected publish');
+      expect(res.content).toBe('🌧 Через ~2ч осадки (дождь, 80%)\n🌡️ Резко холоднее');
+      await res.onPublished?.();
+      expect(store.alerts.map((a) => a.key)).toEqual([
+        'precip+2026-06-04',
+        'temp-swing+2026-06-04',
+      ]);
+    });
+
+    it('skips with reason "no events" when the detector finds nothing', async () => {
+      const store = fakeStore();
+      const h = createWeatherAlertHandler(baseDeps({ store, detect: () => [] }));
+      const res = await h.run(ctx(NOON));
+      expect(res).toMatchObject({ skip: true, reason: 'no events' });
     });
 
     it('skips and advances the throttle when the fetch fails', async () => {

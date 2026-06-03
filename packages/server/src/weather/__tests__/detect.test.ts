@@ -155,6 +155,22 @@ describe('detectWeatherChanges — frost', () => {
     const f = fc({ days: [day('2026-06-03'), day('2026-06-04', { tempMin: NaN })] });
     expect(detectWeatherChanges(f, NOW).some((e) => e.type === 'frost')).toBe(false);
   });
+
+  it('emits a frost event per qualifying day so today does not mask tomorrow', () => {
+    // Today (2026-06-03) and tomorrow both sub-zero. The handler drops today's
+    // (its `when` is in the past) — but tomorrow's must still be produced, so a
+    // frost in progress today can never shadow tomorrow's pre-announce.
+    const f = fc({
+      days: [
+        day('2026-06-03', { tempMin: -1 }),
+        day('2026-06-04', { tempMin: -3 }),
+      ],
+    });
+    const frostKeys = detectWeatherChanges(f, NOW)
+      .filter((e) => e.type === 'frost')
+      .map((e) => e.key);
+    expect(frostKeys).toEqual(['frost+2026-06-03', 'frost+2026-06-04']);
+  });
 });
 
 describe('detectWeatherChanges — storm / wind', () => {
@@ -177,6 +193,19 @@ describe('detectWeatherChanges — storm / wind', () => {
   it('does not flag calm winds with no thunder', () => {
     const f = fc({ days: [day('2026-06-03', { windMax: 20, weatherCode: 3 })] });
     expect(detectWeatherChanges(f, NOW).some((e) => e.type === 'storm')).toBe(false);
+  });
+
+  it('emits a storm event per qualifying day so today does not mask tomorrow', () => {
+    const f = fc({
+      days: [
+        day('2026-06-03', { weatherCode: 95 }),
+        day('2026-06-04', { windMax: 60 }),
+      ],
+    });
+    const stormKeys = detectWeatherChanges(f, NOW)
+      .filter((e) => e.type === 'storm')
+      .map((e) => e.key);
+    expect(stormKeys).toEqual(['storm+2026-06-03', 'storm+2026-06-04']);
   });
 });
 
