@@ -97,10 +97,15 @@ Closing the gap between Claude Code (the harness) and R2:
 
 - **Cognition layer (5B)** — background "thinking" loop separate from the
   reactive request path. Handlers:
-  - `morningBrief` — summarizes yesterday + overnight emails via Claude (with
-    `web_search` injected for real weather lookup), publishes to Discord.
+  - `morningBrief` — summarizes yesterday + overnight emails via Claude,
+    publishes to Discord. When the weather feature is on it embeds a
+    deterministic 3-day Open-Meteo outlook (no longer a `web_search` lookup).
     Gap-return mode greets you back after multi-day absences with a recap.
   - `emailDigest` — registered when email watcher is enabled.
+  - `weatherAlert` — proactive Discord ping on a sharp weather change (temp
+    swing / incoming rain / frost / storm-wind), deduped per event and
+    suppressed during quiet hours. Gated on `WEATHER_ALERT_ENABLED=true`. See
+    the [Weather](#weather-open-meteo) section.
   - `emailUrgent` — immediate Discord ping for `importance=5` emails, gated on
     `EMAIL_URGENT_ENABLED=true` and suppressed during quiet hours.
   - `distractionPullback` — macOS Digital Observer (Pain #2 iter 2); proactively
@@ -195,6 +200,7 @@ following the use-case-first principle:
 - **Local LLM:** Ollama (qwen2.5:7b + mxbai-embed-large)
 - **DB:** SQLite (better-sqlite3 + sqlite-vec)
 - **Search:** SearXNG (Docker)
+- **Weather:** Open-Meteo (key-less HTTP, no SDK)
 - **PII:** Microsoft Presidio (Docker, en/ru/uk via custom image) — *frozen* (opt-in: `docker compose --profile pii up -d`)
 - **Tests:** Vitest
 
@@ -425,6 +431,50 @@ next post-TTL urgent ping keeps the sender from being re-suppressed. Manual 🙈
 rules are never touched. The boost direction, subject-pattern scoring, and a
 true reply-driven self-heal (an INBOX `\Answered` sweep) are deferred to a
 later iteration.
+
+---
+
+## Weather (Open-Meteo)
+
+Weather runs on [Open-Meteo](https://open-meteo.com) — key-less, a single JSON
+endpoint by coordinates — instead of scraping `web_search`. One reliable source
+replaces a flaky chain of search engines. Off by default; `WEATHER_ENABLED=true`
+turns it on. Three surfaces:
+
+- **3-day forecast in the morning brief.** When enabled, `morningBrief` embeds a
+  deterministic Russian 3-day outlook fetched directly in `gatherData` (not an
+  LLM tool-call). When disabled, the brief renders "погода недоступна". The
+  brief no longer asks Claude to `web_search` for weather.
+- **On-demand `weather` tool** (`@r2/tool-weather`, permission `auto`). With no
+  argument it forecasts your own location; pass a `location` to geocode and
+  forecast any city. Returns a structured 3-day forecast plus a short RU summary.
+- **Proactive `weatherAlert` handler.** Fires a Discord ping on a sharp change —
+  temp swing (⚠️), incoming rain (🌧), frost (🥶), storm-wind/thunder — one ping
+  per event (deduped), suppressed during quiet hours. Gated on
+  `WEATHER_ALERT_ENABLED=true` plus resolvable coordinates and a live Discord bot.
+
+**Coordinates.** Geocoded once from your stored `user.city` / `user.location`
+memory fact and cached in `memory_facts`; re-geocoded only if the city changes.
+Open-Meteo doesn't always know small villages — if it lands on the wrong place,
+pin exact coordinates with `WEATHER_LAT` / `WEATHER_LON` (both required), which
+take priority over geocoding.
+
+**Enable it:**
+
+1. Set `WEATHER_ENABLED=true` in `.env` (optionally `WEATHER_TZ`, default
+   `Europe/Kyiv`) and restart.
+2. For proactive alerts, also set `WEATHER_ALERT_ENABLED=true` (needs a live
+   Discord bot). Tune via env (all in `.env.example`): `WEATHER_TEMP_SWING_C`
+   (8 — day-over-day Δ°C that counts as a swing), `WEATHER_PRECIP_PROB_PCT`
+   (60 — precip probability % that reads as "rain coming"), `WEATHER_LEAD_HOURS`
+   (6 — intraday look-ahead), `WEATHER_CHECK_INTERVAL_H` (3 — min hours between
+   checks), `WEATHER_ALERT_DEDUPE_H` (12 — don't re-ping the same event),
+   `WEATHER_QUIET_START` (22) / `WEATHER_QUIET_END` (8 — no pings in that local
+   window).
+
+An Open-Meteo outage degrades gracefully: the brief falls back to "погода
+недоступна", the tool returns `{success:false,error}`, and the alert handler
+skips the tick — nothing crashes.
 
 ---
 

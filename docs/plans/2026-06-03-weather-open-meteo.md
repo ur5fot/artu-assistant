@@ -110,7 +110,7 @@ JSON по координатам). Плюс: 3-дневный прогноз в 
 
 ### Task 10: Документация
 
-- [ ] README/AGENTS: погода через Open-Meteo (3 дня + tool + алерт), env-флаги, что web_search для погоды больше не используется
+- [x] README/AGENTS: погода через Open-Meteo (3 дня + tool + алерт), env-флаги, что web_search для погоды больше не используется
 
 ## Technical Details
 
