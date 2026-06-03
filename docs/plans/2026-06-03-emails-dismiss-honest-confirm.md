@@ -69,15 +69,15 @@ Fix both:
 - [x] run `npm test` — must pass before next task
 
 ### Task 2: Extend EMAIL_RULES — dismiss routing + honest confirmations
-- [ ] in `packages/server/src/ai/prompts.ts`, extend `EMAIL_RULES` with:
+- [x] in `packages/server/src/ai/prompts.ts`, extend `EMAIL_RULES` with:
       (a) "розібрав / прибери / закрий цей лист" (and "підтверди" in the sense of «я розібрався,
       прибери») → call `emails_dismiss(id)`, then honestly "прибрав з черги";
       (b) the action the email itself REQUESTS (approve GitHub permission, оплата, відповідь) — у
       тебе НЕМАЄ tool'а її виконати: НЕ пиши "Підтверджено"/"зроблено"; скажи чесно "зроби вручну
       за посиланням, я можу лише прибрати лист з черги". Ніколи не вигадуй виконання зовнішньої дії.
-- [ ] update `prompts.test.ts`: assert both prompts contain `emails_dismiss` and the honesty rule
+- [x] update `prompts.test.ts`: assert both prompts contain `emails_dismiss` and the honesty rule
       (e.g. a keyword like "вручну" / "не вигадуй")
-- [ ] run `npm test` — must pass before next task
+- [x] run `npm test` — must pass before next task
 
 ### Task 3: Verify acceptance & build
 - [ ] verify: "разобрал это письмо" → `emails_dismiss` removes it from `awaiting`; next email-check

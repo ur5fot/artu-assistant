@@ -89,6 +89,20 @@ describe('prompts overlay integration', () => {
       expect(out).toContain('awaiting_count');
       expect(out).toContain('accounts_count');
     });
+
+    it('getSystemPrompt routes dismiss + forbids faked external actions', () => {
+      const out = getSystemPrompt();
+      expect(out).toContain('emails_dismiss');
+      expect(out).toContain('вручну');
+      expect(out).toContain('не вигадуй');
+    });
+
+    it('getLocalSystemPrompt routes dismiss + forbids faked external actions', () => {
+      const out = getLocalSystemPrompt();
+      expect(out).toContain('emails_dismiss');
+      expect(out).toContain('вручну');
+      expect(out).toContain('не вигадуй');
+    });
   });
 
   describe('multi-turn coalescing rule', () => {
