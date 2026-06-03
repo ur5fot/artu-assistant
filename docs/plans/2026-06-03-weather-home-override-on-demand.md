@@ -109,7 +109,7 @@ queries.
 - [x] full server test suite (1544) still green; root typecheck clean
 
 ### Task 5: Docs
-- [ ] update README / AGENTS weather section to note that home-city `location`
+- [x] update README / AGENTS weather section to note that home-city `location`
       resolves to the override coordinates (not geocoded)
 
 *Note: ralphex automatically moves completed plans to `docs/plans/completed/`*

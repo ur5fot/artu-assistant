@@ -446,8 +446,13 @@ turns it on. Three surfaces:
   LLM tool-call). When disabled, the brief renders "погода недоступна". The
   brief no longer asks Claude to `web_search` for weather.
 - **On-demand `weather` tool** (`@r2/tool-weather`, permission `auto`). With no
-  argument it forecasts your own location; pass a `location` to geocode and
-  forecast any city. Returns a structured 3-day forecast plus a short RU summary.
+  argument it forecasts your own location; pass a `location` to forecast a
+  different city. If `location` matches your home city it resolves to the
+  override coordinates (`WEATHER_LAT`/`WEATHER_LON`) instead of geocoding the
+  name — so "скажи погоду" returns your real home forecast even when the model
+  passes the home city. Genuinely different cities are still geocoded, and an
+  unknown city returns an explicit error (never a silent substitution of a
+  nearby place). Returns a structured 3-day forecast plus a short RU summary.
 - **Proactive `weatherAlert` handler.** Fires a Discord ping on a sharp change —
   temp swing (⚠️), incoming rain (🌧), frost (🥶), storm-wind/thunder — one ping
   per event (deduped), suppressed during quiet hours. Gated on
@@ -457,7 +462,10 @@ turns it on. Three surfaces:
 memory fact and cached in `memory_facts`; re-geocoded only if the city changes.
 Open-Meteo doesn't always know small villages — if it lands on the wrong place,
 pin exact coordinates with `WEATHER_LAT` / `WEATHER_LON` (both required), which
-take priority over geocoding.
+take priority over geocoding. The override is authoritative for your home across
+all three surfaces: the brief, the alert handler, and the on-demand tool (which
+short-circuits a home-city `location` to the override coordinates rather than
+geocoding the name).
 
 **Enable it:**
 
