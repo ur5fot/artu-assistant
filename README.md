@@ -91,7 +91,8 @@ Closing the gap between Claude Code (the harness) and R2:
   Urgent (`importance=5`) emails ping immediately as a Discord embed with a
   `Draft reply` button → full-thread context → Claude draft → SMTP send (same
   app password as IMAP). On-demand access via `@r2/tool-emails`
-  (`emails_list`, `emails_get`).
+  (`emails_list`, `emails_get`, `emails_status`, `emails_dismiss` — mark an
+  email handled / remove it from the awaiting queue).
 
 ### Cognition + channels (Phase 5)
 
