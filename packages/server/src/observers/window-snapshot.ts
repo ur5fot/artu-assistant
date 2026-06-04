@@ -21,9 +21,21 @@ const BROWSER_TITLE_SCRIPTS: Record<string, string> = {
   Safari: 'tell application "Safari" to get name of current tab of front window',
 };
 
+// frontApp name → AppleScript that returns the active-tab URL. Parallel to
+// BROWSER_TITLE_SCRIPTS (iter-3: action auto-close on browse). The URL is
+// query/fragment-stripped before it leaves this module (host+path only) — enough
+// to match an action's target_url without capturing tokens in query strings.
+const BROWSER_URL_SCRIPTS: Record<string, string> = {
+  'Google Chrome': 'tell application "Google Chrome" to get URL of active tab of front window',
+  Safari: 'tell application "Safari" to get URL of current tab of front window',
+};
+
 export interface WindowSnapshot {
   app_name: string;
   window_title: string;
+  /** Active-tab URL, host+path only (query/fragment stripped). Best-effort:
+   *  absent for non-browsers or when Automation privilege is denied. */
+  url?: string;
 }
 
 export interface WindowSnapshotProvider {
@@ -87,11 +99,44 @@ export function createOsascriptProvider(
           const tabTitle = tabRaw.trim();
           if (tabTitle) snap.window_title = tabTitle;
         }
+
+        // Call 3 — active-tab URL via the browser dictionary. Best-effort: a
+        // failure (no privilege) is silent (the title hint above already covered
+        // the once-per-browser warning). Stored host+path only (privacy).
+        const urlScript = BROWSER_URL_SCRIPTS[snap.app_name];
+        if (urlScript) {
+          const urlRaw = await runScript(urlScript);
+          if (urlRaw != null) {
+            const url = stripUrl(urlRaw.trim());
+            if (url) snap.url = url;
+          }
+        }
       }
 
       return snap;
     },
   };
+}
+
+/**
+ * Reduce a full URL to host+path (scheme dropped, query + fragment removed,
+ * leading `www.` stripped, trailing slash trimmed). Returns null for anything
+ * that isn't a parseable http(s) URL. Privacy: query strings can carry tokens,
+ * so they never reach the DB.
+ */
+export function stripUrl(raw: string): string | null {
+  if (!raw) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+  const host = parsed.hostname.replace(/^www\./, '');
+  if (!host) return null;
+  const path = parsed.pathname.replace(/\/+$/, '');
+  return host + path;
 }
 
 export function parseSnapshot(raw: string): WindowSnapshot | null {

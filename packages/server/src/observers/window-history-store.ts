@@ -7,6 +7,7 @@ export interface WindowHistoryRow {
   started_at: number;
   last_seen_at: number;
   sample_count: number;
+  url: string | null;
 }
 
 export type WindowSession = WindowHistoryRow;
@@ -15,10 +16,17 @@ export interface WindowSampleInput {
   app_name: string;
   window_title: string;
   sampled_at: number;
+  /** Active-tab URL (host+path), best-effort; absent for non-browsers. */
+  url?: string;
 }
 
 export interface SessionTitle {
   title: string;
+  last_seen_at: number;
+}
+
+export interface RecentUrl {
+  url: string;
   last_seen_at: number;
 }
 
@@ -28,6 +36,8 @@ export interface WindowHistoryStore {
   findCurrentSession(): WindowSession | null;
   findRecentRows(since: number, limit?: number): WindowSession[];
   listTitlesInSession(app: string, from: number, to: number): SessionTitle[];
+  /** Distinct visited URLs (non-null) with last_seen_at >= sinceMs, newest first. */
+  recentUrlsSince(sinceMs: number, limit?: number): RecentUrl[];
   purgeOlderThan(cutoff: number): number;
 }
 
@@ -35,22 +45,32 @@ export function createWindowHistoryStore(deps: { db: Database.Database }): Windo
   const { db } = deps;
 
   const selectLatest = db.prepare(
-    `SELECT id, app_name, window_title, started_at, last_seen_at, sample_count
+    `SELECT id, app_name, window_title, started_at, last_seen_at, sample_count, url
      FROM window_history ORDER BY id DESC LIMIT 1`,
   );
+  // COALESCE keeps the existing url when a later same-title sample has none, so
+  // a transient blank URL never wipes a captured one.
   const updateLatest = db.prepare(
     `UPDATE window_history
-     SET last_seen_at = ?, sample_count = sample_count + 1
+     SET last_seen_at = ?, sample_count = sample_count + 1, url = COALESCE(?, url)
      WHERE id = ?`,
   );
   const insertRow = db.prepare(
-    `INSERT INTO window_history (app_name, window_title, started_at, last_seen_at, sample_count)
-     VALUES (?, ?, ?, ?, 1)`,
+    `INSERT INTO window_history (app_name, window_title, started_at, last_seen_at, sample_count, url)
+     VALUES (?, ?, ?, ?, 1, ?)`,
   );
   const selectRecent = db.prepare(
-    `SELECT id, app_name, window_title, started_at, last_seen_at, sample_count
+    `SELECT id, app_name, window_title, started_at, last_seen_at, sample_count, url
      FROM window_history
      WHERE last_seen_at >= ?
+     ORDER BY last_seen_at DESC
+     LIMIT ?`,
+  );
+  const selectRecentUrls = db.prepare(
+    `SELECT url, MAX(last_seen_at) AS last_seen_at
+     FROM window_history
+     WHERE url IS NOT NULL AND last_seen_at >= ?
+     GROUP BY url
      ORDER BY last_seen_at DESC
      LIMIT ?`,
   );
@@ -73,7 +93,7 @@ export function createWindowHistoryStore(deps: { db: Database.Database }): Windo
         latest.app_name === sample.app_name &&
         latest.window_title === sample.window_title
       ) {
-        updateLatest.run(sample.sampled_at, latest.id);
+        updateLatest.run(sample.sampled_at, sample.url ?? null, latest.id);
         return;
       }
       insertRow.run(
@@ -81,6 +101,7 @@ export function createWindowHistoryStore(deps: { db: Database.Database }): Windo
         sample.window_title,
         sample.sampled_at,
         sample.sampled_at,
+        sample.url ?? null,
       );
     },
 
@@ -95,6 +116,10 @@ export function createWindowHistoryStore(deps: { db: Database.Database }): Windo
 
     listTitlesInSession(app, from, to) {
       return selectTitles.all(app, from, to) as SessionTitle[];
+    },
+
+    recentUrlsSince(sinceMs, limit = 500) {
+      return selectRecentUrls.all(sinceMs, limit) as RecentUrl[];
     },
 
     purgeOlderThan(cutoff) {

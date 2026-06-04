@@ -5,7 +5,7 @@ vi.mock('node:child_process', () => ({
 }));
 
 import { execFile } from 'node:child_process';
-import { createOsascriptProvider, parseSnapshot } from '../window-snapshot.js';
+import { createOsascriptProvider, parseSnapshot, stripUrl } from '../window-snapshot.js';
 
 const mockExecFile = execFile as unknown as ReturnType<typeof vi.fn>;
 
@@ -169,7 +169,8 @@ describe('createOsascriptProvider.getActive — browser-aware tab title', () => 
       app_name: 'Google Chrome',
       window_title: '«Уроки для Пети» - Google Chrome',
     });
-    expect(mockExecFile).toHaveBeenCalledTimes(2);
+    // Call 1 (System Events) + Call 2 (title) + Call 3 (URL).
+    expect(mockExecFile).toHaveBeenCalledTimes(3);
   });
 
   it('Safari tab title is queried via its own dictionary', async () => {
@@ -227,5 +228,97 @@ describe('createOsascriptProvider.getActive — browser-aware tab title', () => 
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][0]).toContain('Automation');
     expect(warn.mock.calls[0][0]).toContain('Google Chrome');
+  });
+});
+
+// Route Call 1 (System Events), Call 2 (title), Call 3 (URL) by script body.
+// `title`/`url` may each be a string (stdout) or an Error (call failure).
+function setupBrowserUrl(
+  systemEventsStdout: string,
+  title: string | Error,
+  url: string | Error,
+) {
+  mockExecFile.mockImplementation(
+    (_cmd: string, args: string[], _opts: unknown, cb: (e: unknown, o?: string, s?: string) => void) => {
+      const script = args[1] as string;
+      let outcome: string | Error;
+      if (script.includes('System Events')) outcome = systemEventsStdout;
+      else if (script.includes('URL')) outcome = url;
+      else outcome = title;
+      if (outcome instanceof Error) queueMicrotask(() => cb(outcome));
+      else queueMicrotask(() => cb(null, outcome, ''));
+    },
+  );
+}
+
+describe('stripUrl', () => {
+  it('drops scheme, query and fragment, keeps host+path', () => {
+    expect(stripUrl('https://example.com/foo/bar?token=secret#frag')).toBe('example.com/foo/bar');
+  });
+  it('strips leading www. and trailing slash', () => {
+    expect(stripUrl('https://www.example.com/foo/')).toBe('example.com/foo');
+  });
+  it('host-only URL yields bare host', () => {
+    expect(stripUrl('https://example.com/')).toBe('example.com');
+  });
+  it('returns null for non-http(s) schemes', () => {
+    expect(stripUrl('file:///Users/x/secret.txt')).toBeNull();
+    expect(stripUrl('chrome://settings')).toBeNull();
+  });
+  it('returns null for unparseable input', () => {
+    expect(stripUrl('not a url')).toBeNull();
+    expect(stripUrl('')).toBeNull();
+  });
+});
+
+describe('createOsascriptProvider.getActive — active-tab URL capture', () => {
+  it('captures the active-tab URL (Call 3), query/fragment stripped', async () => {
+    setupBrowserUrl(
+      'Google Chrome|||generic\n',
+      'My Page - Google Chrome\n',
+      'https://example.com/lessons/petya?ref=email#top\n',
+    );
+    const provider = createOsascriptProvider();
+    expect(await provider.getActive()).toEqual({
+      app_name: 'Google Chrome',
+      window_title: 'My Page - Google Chrome',
+      url: 'example.com/lessons/petya',
+    });
+    expect(mockExecFile).toHaveBeenCalledTimes(3);
+  });
+
+  it('Safari URL is queried via its own dictionary', async () => {
+    setupBrowserUrl('Safari|||\n', 'Apple\n', 'https://apple.com/mac\n');
+    const provider = createOsascriptProvider();
+    const snap = await provider.getActive();
+    expect(snap?.url).toBe('apple.com/mac');
+    const call3Script = mockExecFile.mock.calls[2][1][1] as string;
+    expect(call3Script).toContain('Safari');
+    expect(call3Script).toContain('URL');
+  });
+
+  it('non-browser app captures no url (no Call 3)', async () => {
+    setupStdout('Finder|||Documents\n');
+    const provider = createOsascriptProvider();
+    const snap = await provider.getActive();
+    expect(snap).toEqual({ app_name: 'Finder', window_title: 'Documents' });
+    expect(snap?.url).toBeUndefined();
+    expect(mockExecFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('URL fetch failure (no privilege) leaves url absent, title preserved', async () => {
+    const err = Object.assign(new Error('not authorised'), { code: 1 });
+    setupBrowserUrl('Google Chrome|||generic\n', 'My Page\n', err);
+    const provider = createOsascriptProvider();
+    const snap = await provider.getActive();
+    expect(snap).toEqual({ app_name: 'Google Chrome', window_title: 'My Page' });
+    expect(snap?.url).toBeUndefined();
+  });
+
+  it('non-http(s) active tab (e.g. chrome://) yields no url', async () => {
+    setupBrowserUrl('Google Chrome|||Settings\n', 'Settings\n', 'chrome://settings\n');
+    const provider = createOsascriptProvider();
+    const snap = await provider.getActive();
+    expect(snap?.url).toBeUndefined();
   });
 });

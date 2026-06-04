@@ -413,6 +413,13 @@ export function initDb(dbPath?: string): void {
       sample_count INTEGER NOT NULL DEFAULT 1
     )
   `);
+  // Migration: active-tab URL capture (iter-3, action auto-close on browse).
+  // Nullable + backward-safe: NULL = no browser URL captured (non-browser tick,
+  // or Automation privilege denied). Host+path only — query/fragment stripped.
+  const whCols = db.prepare("PRAGMA table_info(window_history)").all() as Array<{ name: string }>;
+  if (!whCols.some((c) => c.name === 'url')) {
+    db.exec(`ALTER TABLE window_history ADD COLUMN url TEXT`);
+  }
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_window_history_last_seen
       ON window_history(last_seen_at DESC)

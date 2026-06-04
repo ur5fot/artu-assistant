@@ -187,6 +187,83 @@ describe('createWindowHistoryStore', () => {
     });
   });
 
+  describe('url capture', () => {
+    it('persists and round-trips url on insert', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t = 1_700_000_000_000;
+      store.recordSample({ app_name: 'Chrome', window_title: 'Gmail', sampled_at: t, url: 'example.com/x' });
+      const row = getDb()
+        .prepare('SELECT url FROM window_history')
+        .get() as { url: string | null };
+      expect(row.url).toBe('example.com/x');
+    });
+
+    it('stores url as null when absent', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t = 1_700_000_000_000;
+      store.recordSample({ app_name: 'Finder', window_title: 'Docs', sampled_at: t });
+      const row = getDb().prepare('SELECT url FROM window_history').get() as { url: string | null };
+      expect(row.url).toBeNull();
+    });
+
+    it('a later same-title sample without url keeps the captured url (COALESCE)', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t = 1_700_000_000_000;
+      store.recordSample({ app_name: 'Chrome', window_title: 'Gmail', sampled_at: t, url: 'example.com/x' });
+      store.recordSample({ app_name: 'Chrome', window_title: 'Gmail', sampled_at: t + 30_000 });
+      const row = getDb().prepare('SELECT url, sample_count FROM window_history').get() as {
+        url: string | null; sample_count: number;
+      };
+      expect(row.url).toBe('example.com/x');
+      expect(row.sample_count).toBe(2);
+    });
+
+    describe('recentUrlsSince', () => {
+      it('returns distinct non-null urls with last_seen_at >= bound, newest first', () => {
+        const store = createWindowHistoryStore({ db: getDb() });
+        const t0 = 1_700_000_000_000;
+        store.recordSample({ app_name: 'Chrome', window_title: 'a', sampled_at: t0, url: 'a.com/1' });
+        store.recordSample({ app_name: 'Finder', window_title: 'd', sampled_at: t0 + 30_000 });
+        store.recordSample({ app_name: 'Chrome', window_title: 'b', sampled_at: t0 + 60_000, url: 'b.com/2' });
+
+        const urls = store.recentUrlsSince(t0 + 30_000);
+        expect(urls).toHaveLength(1);
+        expect(urls[0].url).toBe('b.com/2');
+        expect(urls[0].last_seen_at).toBe(t0 + 60_000);
+      });
+
+      it('collapses repeated url to its max last_seen_at', () => {
+        const store = createWindowHistoryStore({ db: getDb() });
+        const t0 = 1_700_000_000_000;
+        store.recordSample({ app_name: 'Chrome', window_title: 'a', sampled_at: t0, url: 'a.com/1' });
+        store.recordSample({ app_name: 'iTerm', window_title: 'z', sampled_at: t0 + 30_000 });
+        store.recordSample({ app_name: 'Chrome', window_title: 'a2', sampled_at: t0 + 60_000, url: 'a.com/1' });
+
+        const urls = store.recentUrlsSince(t0);
+        expect(urls).toHaveLength(1);
+        expect(urls[0]).toEqual({ url: 'a.com/1', last_seen_at: t0 + 60_000 });
+      });
+
+      it('respects the limit param', () => {
+        const store = createWindowHistoryStore({ db: getDb() });
+        const t0 = 1_700_000_000_000;
+        for (let i = 0; i < 4; i++) {
+          store.recordSample({ app_name: 'Chrome', window_title: `t${i}`, sampled_at: t0 + i * 60_000, url: `s${i}.com/p` });
+        }
+        const urls = store.recentUrlsSince(t0, 2);
+        expect(urls).toHaveLength(2);
+        expect(urls[0].url).toBe('s3.com/p');
+      });
+
+      it('returns empty array when no url rows match', () => {
+        const store = createWindowHistoryStore({ db: getDb() });
+        const t0 = 1_700_000_000_000;
+        store.recordSample({ app_name: 'Finder', window_title: 'd', sampled_at: t0 });
+        expect(store.recentUrlsSince(t0)).toEqual([]);
+      });
+    });
+  });
+
   describe('purgeOlderThan', () => {
     it('deletes rows with last_seen_at < cutoff', () => {
       const store = createWindowHistoryStore({ db: getDb() });
