@@ -106,9 +106,9 @@ Closing the gap between Claude Code (the harness) and R2:
     (confirm permissions, pay an invoice, reply somewhere) the brief lists it
     under "что висит" with a clickable link and attaches a one-tap **«✓ Готово»**
     button (up to 5); tapping it closes the action so it stops recurring in
-    later briefs. The brief stays plain text when nothing is open. (iter-2 of 3
-    — email auto-close shipped via `emailActionMatch`; activity/URL auto-close
-    is planned.)
+    later briefs. The brief stays plain text when nothing is open. (All three
+    auto-close paths shipped: the manual button, `emailActionMatch`, and
+    `actionActivityMatch`.)
   - `emailActionMatch` — auto-closes a pending action when a confirmation email
     arrives (payment received, access granted, request approved). Candidate
     `(action, email)` pairs are gated cheaply by sender-domain or subject-keyword
@@ -117,6 +117,15 @@ Closing the gap between Claude Code (the harness) and R2:
     **«↩ Вернуть»** button. Registered when the email watcher is enabled (no
     separate kill switch). Lookback over stored email is configurable via
     `EMAIL_ACTION_MATCH_LOOKBACK_H` (default 72; range 1–720).
+  - `actionActivityMatch` — auto-closes a pending action when you actually
+    visit the page it points to (macOS Digital Observer). A recently visited
+    URL (host + path-prefix on segment boundaries, requiring ≥2 path segments
+    so a bare domain can't over-match) is matched against each open action's
+    `target_url`; a match DMs a reversible **«↩ Вернуть»** notice and closes the
+    action. Deterministic (no LLM), respects the reopen latch, and only counts
+    visits made after the action started. Registered when the window logger is
+    enabled. Lookback via `ACTION_ACTIVITY_MATCH_LOOKBACK_H` (default 72; range
+    1–720).
   - `emailDigest` — registered when email watcher is enabled.
   - `weatherAlert` — proactive Discord ping on a sharp weather change (temp
     swing / incoming rain / frost / storm-wind), deduped per event and

@@ -58,6 +58,34 @@ describe('createActionActivityMatchHandler.trigger', () => {
     const state = { now: NOW + 1000, lastFiredAt: NOW, lastResult: { publish: true as const, content: 'x' } };
     expect(h.trigger(state, { db: getDb() })).toBe(false);
   });
+
+  it('stays retry-able after a skip — a no-match tick must not start a cooldown', () => {
+    const topicStore = createTopicStore({ db: getDb() });
+    const windowHistoryStore = createWindowHistoryStore({ db: getDb() });
+    mkAction(topicStore, { label: 'pr', action: 'review PR', url: 'https://github.com/org/repo/pull/9', finalizedAt: NOW });
+    const h = createActionActivityMatchHandler({ windowHistoryStore, topicStore, cooldownMs: 3600_000 });
+    const state = { now: NOW + 1000, lastFiredAt: NOW, lastResult: { skip: true as const, reason: 'no match' } };
+    expect(h.trigger(state, { db: getDb() })).toBe(true);
+  });
+
+  it('stays retry-able after an error — a transient Discord failure must not silence auto-close', () => {
+    const topicStore = createTopicStore({ db: getDb() });
+    const windowHistoryStore = createWindowHistoryStore({ db: getDb() });
+    mkAction(topicStore, { label: 'pr', action: 'review PR', url: 'https://github.com/org/repo/pull/9', finalizedAt: NOW });
+    const h = createActionActivityMatchHandler({ windowHistoryStore, topicStore, cooldownMs: 3600_000 });
+    const state = { now: NOW + 1000, lastFiredAt: NOW, lastResult: { error: true as const, message: 'boom' } };
+    expect(h.trigger(state, { db: getDb() })).toBe(true);
+  });
+
+  it('fires again once the post-publish cooldown has fully elapsed', () => {
+    const topicStore = createTopicStore({ db: getDb() });
+    const windowHistoryStore = createWindowHistoryStore({ db: getDb() });
+    mkAction(topicStore, { label: 'pr', action: 'review PR', url: 'https://github.com/org/repo/pull/9', finalizedAt: NOW });
+    const h = createActionActivityMatchHandler({ windowHistoryStore, topicStore, cooldownMs: 3600_000 });
+    // Exactly at the cooldown boundary: `< cooldownMs` is false, so eligible again.
+    const state = { now: NOW + 3600_000, lastFiredAt: NOW, lastResult: { publish: true as const, content: 'x' } };
+    expect(h.trigger(state, { db: getDb() })).toBe(true);
+  });
 });
 
 describe('createActionActivityMatchHandler.run', () => {
@@ -85,6 +113,58 @@ describe('createActionActivityMatchHandler.run', () => {
     expect(topicStore.getOpenActions()).toHaveLength(1);
     await result.onPublished?.();
     expect(topicStore.getOpenActions()).toHaveLength(0);
+  });
+
+  it('closes multiple actions in one tick (plural notice + every action dismissed)', async () => {
+    const topicStore = createTopicStore({ db: getDb() });
+    const windowHistoryStore = createWindowHistoryStore({ db: getDb() });
+    const prId = mkAction(topicStore, {
+      label: 'pr',
+      action: 'review PR',
+      url: 'https://github.com/org/repo/pull/9',
+      finalizedAt: NOW,
+    });
+    const docId = mkAction(topicStore, {
+      label: 'doc',
+      action: 'read doc',
+      url: 'https://docs.test/guide/intro',
+      finalizedAt: NOW,
+    });
+    mkVisit(windowHistoryStore, 'github.com/org/repo/pull/9', NOW - 3600_000);
+    mkVisit(windowHistoryStore, 'docs.test/guide/intro', NOW - 1800_000);
+
+    const h = createActionActivityMatchHandler({ windowHistoryStore, topicStore });
+    const result = await h.run(mkCtx(NOW));
+    if (!('publish' in result)) throw new Error('expected publish');
+    // Plural head + both action labels.
+    expect(result.content).toContain('Закрыл 2 задач');
+    expect(result.content).toContain('review PR');
+    expect(result.content).toContain('read doc');
+    const ids = result.components?.flatMap((r) => r.buttons.map((b) => b.customId)) ?? [];
+    expect(ids).toContain(`followup:reopen:${prId}`);
+    expect(ids).toContain(`followup:reopen:${docId}`);
+    // Both close only after the DM lands.
+    expect(topicStore.getOpenActions()).toHaveLength(2);
+    await result.onPublished?.();
+    expect(topicStore.getOpenActions()).toHaveLength(0);
+  });
+
+  it('returns {error} instead of throwing when the store read fails', async () => {
+    const topicStore = createTopicStore({ db: getDb() });
+    mkAction(topicStore, { label: 'pr', action: 'review PR', url: 'https://github.com/org/repo/pull/9', finalizedAt: NOW });
+    const throwingStore = {
+      recentUrlsSince() {
+        throw new Error('db locked');
+      },
+    } as unknown as ReturnType<typeof createWindowHistoryStore>;
+
+    const h = createActionActivityMatchHandler({ windowHistoryStore: throwingStore, topicStore });
+    const result = await h.run(mkCtx(NOW));
+    expect('error' in result && result.error).toBe(true);
+    if (!('error' in result)) throw new Error('expected error');
+    expect(result.message).toContain('db locked');
+    // The action is left open for the next tick.
+    expect(topicStore.getOpenActions()).toHaveLength(1);
   });
 
   it('does not close when the visit predates the action', async () => {

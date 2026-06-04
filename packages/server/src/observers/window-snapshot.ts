@@ -14,8 +14,8 @@ end tell`;
 // frontApp name → AppleScript that returns the active-tab title via the
 // browser's own dictionary (more reliable than System Events AX, which yields
 // "" for static pages / video / app-mode). Extensible: add Edge/Arc/Firefox as
-// one line each later. Title only — no URL (privacy; consistent with
-// titles-only design).
+// one line each later. The active-tab URL is captured separately via
+// BROWSER_URL_SCRIPTS and stripped to host+path before storage (see below).
 const BROWSER_TITLE_SCRIPTS: Record<string, string> = {
   'Google Chrome': 'tell application "Google Chrome" to get title of active tab of front window',
   Safari: 'tell application "Safari" to get name of current tab of front window',

@@ -218,6 +218,21 @@ describe('createWindowHistoryStore', () => {
       expect(row.sample_count).toBe(2);
     });
 
+    it('a later same-title sample with a new url overwrites the captured url (COALESCE non-null)', () => {
+      // COALESCE(?, url) keeps the old url only when the incoming url is null; a
+      // real new url replaces it. Pins this so a regression to preserve-old
+      // (which would leave matching using a stale url) is caught.
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t = 1_700_000_000_000;
+      store.recordSample({ app_name: 'Chrome', window_title: 'Gmail', sampled_at: t, url: 'example.com/1' });
+      store.recordSample({ app_name: 'Chrome', window_title: 'Gmail', sampled_at: t + 30_000, url: 'example.com/2' });
+      const row = getDb().prepare('SELECT url, sample_count FROM window_history').get() as {
+        url: string | null; sample_count: number;
+      };
+      expect(row.url).toBe('example.com/2');
+      expect(row.sample_count).toBe(2);
+    });
+
     describe('recentUrlsSince', () => {
       it('returns distinct non-null urls with last_seen_at >= bound, newest first', () => {
         const store = createWindowHistoryStore({ db: getDb() });
