@@ -59,6 +59,7 @@ import { startEmailPoller } from './emails/multi-account-poller.js';
 import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
 import { createEmailUrgentHandler } from './cognition/handlers/emailUrgent.js';
 import { createEmailActionMatchHandler } from './cognition/handlers/emailActionMatch.js';
+import { createActionActivityMatchHandler } from './cognition/handlers/actionActivityMatch.js';
 import { createDraftReplyService, type DraftState } from './services/draft-reply-service.js';
 import { MORNING_FALLBACK_HOUR } from './cognition/handlers/emailDigest.helpers.js';
 import { createTopicFinalizerHandler } from './topics/finalizer.js';
@@ -1049,6 +1050,19 @@ if (discordToken) {
     } else {
       console.log('[context-switch] handler disabled (CONTEXT_SWITCH_ENABLED unset)');
     }
+    // Auto-close pending actions when the owner actually visits the page the
+    // action points to (Pain #2 iter 3). Reads window_history URLs (captured by
+    // the poller above) and matches host+path against each open action's
+    // target_url; publishes a reversible "↩ Вернуть" notice via the cognition
+    // bus, so it lives here alongside the poller it depends on.
+    cognitionService.register(
+      createActionActivityMatchHandler({
+        windowHistoryStore: windowStore,
+        topicStore,
+        lookbackHours: envInt(process.env.ACTION_ACTIVITY_MATCH_LOOKBACK_H, 72, 1, 720),
+      }),
+    );
+    console.log('[action-activity-match] handler registered');
     console.log(
       `[window-logger] started (interval=${Math.round(windowIntervalMs / 1000)}s, blind-alert=${blindAlertAfter})`,
     );

@@ -67,18 +67,18 @@ unit tests mock the URL; the live grab is a manual/assisted post-deploy step.
 - [x] run `npm test` — must pass before next task
 
 ### Task 2: actionActivityMatch cognition handler
-- [ ] new `cognition/handlers/actionActivityMatch.ts`: `createActionActivityMatchHandler({
+- [x] new `cognition/handlers/actionActivityMatch.ts`: `createActionActivityMatchHandler({
       windowHistoryStore, topicStore, lookbackHours=72 })`.
-- [ ] `trigger`: true only if some open action has a `target_url` and is not `autoCloseBlocked`
+- [x] `trigger`: true only if some open action has a `target_url` and is not `autoCloseBlocked`
       (cheap; no heavy work in trigger). Short cooldown after a publish (mirror emailActionMatch).
-- [ ] `run`: for each eligible open action, normalize `target_url` → {host, path}; scan
+- [x] `run`: for each eligible open action, normalize `target_url` → {host, path}; scan
       `recentUrlsSince(now - lookback)` for a visit with host equal AND path-prefix match (require the
       action path to have ≥2 segments so a bare domain can't match), `last_seen_at >= action.startedAt`;
       on match → collect; dismiss each in `onPublished`; return `{publish, content: notice, components:
       buildActionReopenComponents(closed)}`; none → `{skip}`.
-- [ ] register conditionally in `index.ts` (window logger enabled + topicStore present).
-- [ ] tests (match→close+notice+button, pre-startedAt→no, path-mismatch→no, blocked→no, no-url→no)
-- [ ] run `npm test` — must pass before next task
+- [x] register conditionally in `index.ts` (window logger enabled + topicStore present).
+- [x] tests (match→close+notice+button, pre-startedAt→no, path-mismatch→no, blocked→no, no-url→no)
+- [x] run `npm test` — must pass before next task
 
 ### Task 3: Verify acceptance & build
 - [ ] verify (automated, mocked provider): seeded window_history URL matching an open action's
