@@ -123,8 +123,9 @@ Closing the gap between Claude Code (the harness) and R2:
   - **Push re-delivery** — proactive pushes are DM'd to the owner; if Discord is
     unreachable when one fires (transient outage), the run is persisted and
     automatically re-delivered when the bot reconnects (or restarts), as long as
-    it's still fresh. Delivery is idempotent (no double-send). The freshness
-    window is `REDELIVER_MAX_AGE_MS` (default 6h, clamped 5m–48h) so a stale
+    it's still fresh. Delivery is best-effort at-most-once (idempotent via
+    `markPublished`). The freshness window is `REDELIVER_MAX_AGE_MS` (default 6h;
+    out-of-range falls back to the default, valid range 5m–48h) so a stale
     brief is never surfaced.
 - **Reminders (5A)** — one-shot and recurring (daily / weekly / monthly).
   Three-ring alarm cycle (60 s ring → 2 min pause, ×3), snooze creates a

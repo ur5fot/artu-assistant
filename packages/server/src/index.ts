@@ -859,7 +859,7 @@ if (discordToken) {
       cognitionService,
       // Re-deliver undelivered proactive pushes on Discord (re)connect, but
       // only if fired within this window (default 6h) — don't surface a stale
-      // brief. Clamp: 5m..48h.
+      // brief. Valid range 5m..48h; out-of-range falls back to the 6h default.
       redeliverMaxAgeMs: envInt(process.env.REDELIVER_MAX_AGE_MS, 6 * 60 * 60 * 1000, 5 * 60 * 1000, 48 * 60 * 60 * 1000),
       reminderService,
       permissionService,
