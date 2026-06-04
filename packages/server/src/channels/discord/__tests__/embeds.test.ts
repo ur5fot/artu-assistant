@@ -18,6 +18,8 @@ function mkAction(overrides: Partial<OpenAction> = {}): OpenAction {
     label: 'GitHub access',
     action: 'confirm GitHub permissions',
     url: null,
+    startedAt: 0,
+    autoCloseBlocked: false,
     ...overrides,
   };
 }

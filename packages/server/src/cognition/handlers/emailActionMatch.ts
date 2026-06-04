@@ -100,8 +100,15 @@ function buildCandidates(actions: OpenAction[], emails: EmailPendingRow[]): Cand
   const out: Candidate[] = [];
   let i = 0;
   for (const action of actions) {
+    // The user already reopened this action after a wrong auto-close — never
+    // re-close it from email evidence; only the manual ✓ Готово may close it.
+    if (action.autoCloseBlocked) continue;
     const aHost = action.url ? hostOf(action.url) : null;
     for (const email of emails) {
+      // A confirmation can only postdate the task. An email that arrived before
+      // the topic even started is about something else (e.g. last month's
+      // recurring bank notice) — skip it to avoid a false close.
+      if (email.received_at < action.startedAt) continue;
       let domMatch = false;
       if (aHost) {
         const d = senderDomain(email.from_addr);
@@ -140,18 +147,22 @@ function extractJsonArray(text: string): unknown {
   return JSON.parse(trimmed.slice(start, end + 1));
 }
 
-// Returns the set of candidate indices the model marked match=true. A
-// malformed/uncovered reply yields an empty set — conservative: nothing
-// auto-closes, the user still has the ✓ Готово button.
-function parseMatches(raw: string): Set<number> {
-  const confirmed = new Set<number>();
+// Returns the set of candidate indices the model marked match=true, or null
+// when the reply is malformed (not a JSON array). A malformed reply is a
+// provider failure, NOT a "no matches" verdict: the caller falls back to the
+// other provider and never caches it, so one bad Ollama formatting can't
+// suppress a candidate set until a new email/action appears (mirrors the
+// scorer's normalize→null→fallback contract). A valid empty array `[]` is a
+// real "no matches" verdict and returns an empty set (cacheable).
+function parseMatches(raw: string): Set<number> | null {
   let parsed: unknown;
   try {
     parsed = extractJsonArray(raw);
   } catch {
-    return confirmed;
+    return null;
   }
-  if (!Array.isArray(parsed)) return confirmed;
+  if (!Array.isArray(parsed)) return null;
+  const confirmed = new Set<number>();
   for (const item of parsed) {
     if (item && typeof item.i === 'number' && item.match === true) {
       confirmed.add(item.i);
@@ -184,25 +195,30 @@ async function callClaude(anthropic: Anthropic, prompt: string, signal: AbortSig
   return block?.text ?? '';
 }
 
-async function confirmMatches(cands: Candidate[], deps: Deps, signal: AbortSignal): Promise<Set<number>> {
+// Resolves to the confirmed-match set, or null when no provider returned a
+// parseable verdict (transient failure → caller skips without caching, so it
+// retries next tick instead of suppressing the candidate set).
+async function confirmMatches(
+  cands: Candidate[],
+  deps: Deps,
+  signal: AbortSignal,
+): Promise<Set<number> | null> {
   const rawPrompt = buildMatchPrompt(cands);
   const prompt = deps.piiProxy ? (await deps.piiProxy.anonymize(rawPrompt)).text : rawPrompt;
   const useOllama = deps.ollama && (process.env.LOCAL_LLM_MODE || 'enabled') === 'enabled';
-  let raw: string;
   if (useOllama) {
     try {
-      raw = await callOllama(deps.ollama!, prompt, signal);
+      const matches = parseMatches(await callOllama(deps.ollama!, prompt, signal));
+      if (matches) return matches;
+      console.warn('[emailActionMatch] Ollama reply malformed, falling back to Claude');
     } catch (err) {
       console.warn(
         '[emailActionMatch] Ollama call failed, falling back to Claude:',
         err instanceof Error ? err.message : err,
       );
-      raw = await callClaude(deps.anthropic, prompt, signal);
     }
-  } else {
-    raw = await callClaude(deps.anthropic, prompt, signal);
   }
-  return parseMatches(raw);
+  return parseMatches(await callClaude(deps.anthropic, prompt, signal));
 }
 
 function formatNotice(closed: Array<{ action: OpenAction; email: EmailPendingRow }>): string {
@@ -266,6 +282,10 @@ export function createEmailActionMatchHandler(deps: Deps): Handler {
         if (sig === lastNoMatchSig) return { skip: true, reason: 'candidate set unchanged' };
 
         const confirmed = await confirmMatches(candidates, deps, ctx.signal);
+        // No provider returned a parseable verdict — treat as transient and
+        // retry next tick. Crucially we do NOT cache this set (lastNoMatchSig),
+        // so a malformed reply can't suppress scoring until the set changes.
+        if (confirmed === null) return { skip: true, reason: 'no parseable LLM verdict' };
 
         // Collapse to one close per topic (an action can match several emails);
         // keep the first confirming email for the notice.

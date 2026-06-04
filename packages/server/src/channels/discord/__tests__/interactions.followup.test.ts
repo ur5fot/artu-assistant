@@ -139,7 +139,7 @@ describe('followup:reopen interactions', () => {
     ]);
     await routeInteraction(ixn, makeDeps(store));
     expect(store.reopenAction).toHaveBeenCalledTimes(1);
-    expect(store.reopenAction).toHaveBeenCalledWith(5);
+    expect(store.reopenAction).toHaveBeenCalledWith(5, expect.any(Number));
     expect(ixn.update).toHaveBeenCalledTimes(1);
   });
 
@@ -168,7 +168,7 @@ describe('followup:reopen interactions', () => {
       { type: 1, components: [button('followup:reopen:5', '↩ Вернуть')] },
     ]);
     await routeInteraction(ixn, makeDeps(store));
-    expect(store.reopenAction).toHaveBeenCalledWith(5);
+    expect(store.reopenAction).toHaveBeenCalledWith(5, expect.any(Number));
     expect(ixn.update).toHaveBeenCalledTimes(1);
   });
 

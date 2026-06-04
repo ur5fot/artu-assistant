@@ -31,7 +31,10 @@ function mkAction(
   store: TopicStore,
   opts: { label: string; action: string; url: string | null; finalizedAt: number },
 ): number {
-  const t = store.createOpen(opts.finalizedAt - 1000, 'discord');
+  // Start the topic well before it finalizes so the test confirmation emails
+  // (which arrive ~1h before NOW) legitimately postdate the topic start and
+  // clear the matcher's received_at >= startedAt guard.
+  const t = store.createOpen(opts.finalizedAt - 7200_000, 'discord');
   store.finalize(t.id, opts.label, 'sum', 5, opts.finalizedAt, opts.action, opts.url);
   return t.id;
 }
@@ -301,6 +304,62 @@ describe('createEmailActionMatchHandler.run', () => {
 
     const result = await h.run(mkCtx(NOW));
     expect('error' in result && result.error).toBe(true);
+    expect(topicStore.getOpenActions()).toHaveLength(1);
+  });
+
+  it('does not close on a stale email that predates the action (false-close guard)', async () => {
+    const emailStore = createEmailStore({ db: getDb() });
+    const topicStore = createTopicStore({ db: getDb() });
+    // Topic starts 1h before NOW; the bank confirmation arrived 2h before NOW —
+    // i.e. before this task existed, so it's a recurring/old notice, not a real
+    // confirmation of THIS action. Must not close even though domain + keyword +
+    // LLM would all say match.
+    const t = topicStore.createOpen(NOW - 3600_000, 'discord');
+    topicStore.finalize(t.id, 'банк', 'sum', 5, NOW, 'подтвердить оплату в банке', 'https://bank.test/pay');
+    mkEmail({
+      uid: 1,
+      from: 'noreply@bank.test',
+      subject: 'Платёж получен',
+      snippet: 'Ваш платёж успешно проведён.',
+      received_at: NOW - 7200_000,
+    });
+    const { client, calls } = fakeAnthropic('[{"i":0,"match":true}]');
+    const h = createEmailActionMatchHandler({ emailStore, topicStore, anthropic: client, ollama: null });
+
+    const result = await h.run(mkCtx(NOW));
+    expect('skip' in result && result.skip).toBe(true);
+    expect(calls.n).toBe(0); // gated out before any LLM call
+    expect(topicStore.getOpenActions()).toHaveLength(1);
+  });
+
+  it('never re-closes an action the user reopened after a wrong auto-close', async () => {
+    const emailStore = createEmailStore({ db: getDb() });
+    const topicStore = createTopicStore({ db: getDb() });
+    const topicId = mkAction(topicStore, {
+      label: 'банк',
+      action: 'подтвердить оплату в банке',
+      url: 'https://bank.test/pay',
+      finalizedAt: NOW,
+    });
+    mkEmail({
+      uid: 1,
+      from: 'noreply@bank.test',
+      subject: 'Платёж получен',
+      snippet: 'Ваш платёж успешно проведён.',
+      received_at: NOW - 3600_000,
+    });
+    // Simulate the auto-close → user taps ↩ Вернуть.
+    topicStore.dismissAction(topicId, NOW - 1000);
+    topicStore.reopenAction(topicId, NOW - 500);
+    expect(topicStore.getOpenActions()[0]?.autoCloseBlocked).toBe(true);
+
+    const { client, calls } = fakeAnthropic('[{"i":0,"match":true}]');
+    const h = createEmailActionMatchHandler({ emailStore, topicStore, anthropic: client, ollama: null });
+
+    // The same matching email is still in-window, but the action is blocked.
+    const result = await h.run(mkCtx(NOW));
+    expect('skip' in result && result.skip).toBe(true);
+    expect(calls.n).toBe(0); // blocked before any LLM call
     expect(topicStore.getOpenActions()).toHaveLength(1);
   });
 

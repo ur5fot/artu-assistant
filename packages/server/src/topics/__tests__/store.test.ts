@@ -31,7 +31,8 @@ function freshDb(): Database.Database {
       failure_count INTEGER NOT NULL DEFAULT 0,
       action_required TEXT,
       action_dismissed_at INTEGER,
-      target_url TEXT
+      target_url TEXT,
+      action_autoclose_blocked_at INTEGER
     )
   `);
   db.exec(`
@@ -320,7 +321,14 @@ describe('TopicStore', () => {
 
     const actions = store.getOpenActions();
     expect(actions).toEqual([
-      { topicId: a.id, label: 'gh', action: 'confirm github permissions', url: 'https://gh.test' },
+      {
+        topicId: a.id,
+        label: 'gh',
+        action: 'confirm github permissions',
+        url: 'https://gh.test',
+        startedAt: fakeNow,
+        autoCloseBlocked: false,
+      },
     ]);
   });
 
@@ -360,16 +368,53 @@ describe('TopicStore', () => {
     // dismiss, then reopen → action open again
     store.dismissAction(t.id, fakeNow + 500);
     expect(store.getOpenActions()).toEqual([]);
-    store.reopenAction(t.id);
-    let row = db.prepare('SELECT action_dismissed_at FROM chat_topics WHERE id = ?').get(t.id) as any;
+    store.reopenAction(t.id, fakeNow + 600);
+    let row = db
+      .prepare('SELECT action_dismissed_at, action_autoclose_blocked_at FROM chat_topics WHERE id = ?')
+      .get(t.id) as any;
     expect(row.action_dismissed_at).toBeNull();
+    // Reopen latches the auto-close block to the close time we just cleared, so
+    // the email matcher won't re-close this action.
+    expect(row.action_autoclose_blocked_at).toBe(fakeNow + 500);
     expect(store.getOpenActions()).toEqual([
-      { topicId: t.id, label: 'paid', action: 'pay invoice', url: null },
+      {
+        topicId: t.id,
+        label: 'paid',
+        action: 'pay invoice',
+        url: null,
+        startedAt: fakeNow,
+        autoCloseBlocked: true,
+      },
     ]);
-    // second call on an already-open action is a no-op (no throw, stays null)
-    store.reopenAction(t.id);
-    row = db.prepare('SELECT action_dismissed_at FROM chat_topics WHERE id = ?').get(t.id) as any;
+    // second call on an already-open action is a no-op (no throw, stays null,
+    // keeps the first block timestamp)
+    store.reopenAction(t.id, fakeNow + 700);
+    row = db
+      .prepare('SELECT action_dismissed_at, action_autoclose_blocked_at FROM chat_topics WHERE id = ?')
+      .get(t.id) as any;
     expect(row.action_dismissed_at).toBeNull();
+    expect(row.action_autoclose_blocked_at).toBe(fakeNow + 500);
+  });
+
+  it('reopenAction latches the block on a never-dismissed action (restart-redelivery race)', () => {
+    // An auto-close push redelivered after a restart lost its in-memory
+    // onPublished, so dismissAction never ran — the action is still open
+    // (action_dismissed_at IS NULL). Tapping ↩ Вернуть on that notice must still
+    // latch the auto-close block, or the next matcher tick re-closes the action.
+    const store = createTopicStore({ db });
+    const t = store.createOpen(fakeNow, 'discord');
+    store.closeOpen(t.id, fakeNow + 10);
+    store.finalize(t.id, 'paid', 'sum', 6, fakeNow + 20, 'pay invoice', null);
+    // Action is open and was never dismissed.
+    expect(store.getOpenActions().map((a) => a.topicId)).toEqual([t.id]);
+    store.reopenAction(t.id, fakeNow + 800);
+    const row = db
+      .prepare('SELECT action_dismissed_at, action_autoclose_blocked_at FROM chat_topics WHERE id = ?')
+      .get(t.id) as any;
+    expect(row.action_dismissed_at).toBeNull();
+    // Latched to `now` since there was no dismiss timestamp to inherit.
+    expect(row.action_autoclose_blocked_at).toBe(fakeNow + 800);
+    expect(store.getOpenActions()[0].autoCloseBlocked).toBe(true);
   });
 
   it('listFinalized honors limit', () => {

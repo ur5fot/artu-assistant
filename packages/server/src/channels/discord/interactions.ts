@@ -619,7 +619,7 @@ async function handleFollowupReopen(
     });
     return;
   }
-  deps.topicStore.reopenAction(topicId);
+  deps.topicStore.reopenAction(topicId, Date.now());
   const remaining = rebuildComponentsWithout(
     (ixn as any).message?.components ?? [],
     `followup:reopen:${topicId}`,

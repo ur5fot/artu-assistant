@@ -387,6 +387,12 @@ export function initDb(dbPath?: string): void {
   if (!topicCols.some((c) => c.name === 'target_url')) {
     db.exec(`ALTER TABLE chat_topics ADD COLUMN target_url TEXT`);
   }
+  // Migration: email auto-close (iter-2). Latched when the user reopens a wrongly
+  // auto-closed action (↩ Вернуть) so the matcher never re-closes it from the same
+  // lingering email. Nullable + backward-safe: NULL = never reopened = eligible.
+  if (!topicCols.some((c) => c.name === 'action_autoclose_blocked_at')) {
+    db.exec(`ALTER TABLE chat_topics ADD COLUMN action_autoclose_blocked_at INTEGER`);
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS chat_topic_messages (

@@ -23,6 +23,14 @@ export interface OpenAction {
   label: string;
   action: string;
   url: string | null;
+  /** When the topic was first opened — the earliest the task could exist. A
+   *  confirmation email predating this cannot be about this action, so the
+   *  auto-close matcher uses it as a lower bound on candidate emails. */
+  startedAt: number;
+  /** True once the user has reopened a wrongly auto-closed action (↩ Вернуть).
+   *  The matcher must never auto-close it again — the user explicitly rejected
+   *  the email evidence; it stays closable only via the manual ✓ Готово. */
+  autoCloseBlocked: boolean;
 }
 
 export interface ChatMessageRow {
@@ -52,7 +60,7 @@ export interface TopicStore {
   ): void;
   getOpenActions(): OpenAction[];
   dismissAction(topicId: number, now: number): void;
-  reopenAction(topicId: number): void;
+  reopenAction(topicId: number, now: number): void;
   markFinalizationFailure(topicId: number): number;
   markFinalizationGiveUp(topicId: number, now: number): void;
   findStaleOpen(cutoff: number): TopicRow[];
@@ -169,7 +177,7 @@ export function createTopicStore(deps: StoreDeps): TopicStore {
       // task for (action_required set) that hasn't been closed (no dismiss
       // timestamp). Newest first so the brief surfaces the freshest first.
       const rows = db.prepare(`
-        SELECT id, label, action_required, target_url
+        SELECT id, label, action_required, target_url, started_at, action_autoclose_blocked_at
         FROM chat_topics
         WHERE status = 'finalized'
           AND action_required IS NOT NULL
@@ -181,6 +189,8 @@ export function createTopicStore(deps: StoreDeps): TopicStore {
         label: (r.label ?? '') as string,
         action: r.action_required as string,
         url: (r.target_url ?? null) as string | null,
+        startedAt: r.started_at as number,
+        autoCloseBlocked: r.action_autoclose_blocked_at != null,
       }));
     },
 
@@ -195,16 +205,31 @@ export function createTopicStore(deps: StoreDeps): TopicStore {
       `).run(now, topicId);
     },
 
-    reopenAction(topicId) {
+    reopenAction(topicId, now) {
       // Inverse of dismissAction: clear the dismiss timestamp so the action is
-      // open again (resurfaces in getOpenActions / the next brief). Guard on
-      // action_dismissed_at IS NOT NULL so a repeat tap (or a tap on an action
-      // that was never dismissed) is a no-op — idempotent, stale-safe.
+      // open again (resurfaces in getOpenActions / the next brief).
+      //
+      // Also latch action_autoclose_blocked_at so the email matcher never
+      // auto-closes this action again: a reopen means the user rejected the
+      // email evidence, and the same email lingers in the matcher's window, so
+      // without this it would re-close after the cooldown and undo the undo.
+      // COALESCE prefers the existing block (idempotent across repeats), then the
+      // close time we're about to clear, and finally `now` — the last fallback
+      // covers the restart-redelivery race: an auto-close push redelivered after
+      // a restart lost its in-memory onPublished, so the action was never
+      // actually dismissed (action_dismissed_at IS NULL). Tapping ↩ on that
+      // notice must still latch the block, or the next tick would re-close it.
+      //
+      // Guard only on action_required IS NOT NULL (not action_dismissed_at) so
+      // that open-but-undismissed race also latches; a tap on a topic with no
+      // action is a no-op. Reopen buttons only appear on auto-close notices, so
+      // every tap is a genuine "don't auto-close this" — safe to latch always.
       db.prepare(`
         UPDATE chat_topics
-        SET action_dismissed_at = NULL
-        WHERE id = ? AND action_dismissed_at IS NOT NULL
-      `).run(topicId);
+        SET action_autoclose_blocked_at = COALESCE(action_autoclose_blocked_at, action_dismissed_at, ?),
+            action_dismissed_at = NULL
+        WHERE id = ? AND action_required IS NOT NULL
+      `).run(now, topicId);
     },
 
     markFinalizationFailure(topicId) {

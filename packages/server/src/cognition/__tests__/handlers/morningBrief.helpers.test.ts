@@ -285,6 +285,8 @@ describe('gatherData', () => {
       label: `t${i + 1}`,
       action: `action ${i + 1}`,
       url: null,
+      startedAt: 0,
+      autoCloseBlocked: false,
     }));
     const topicStore = { getOpenActions: () => all };
     const data = await gatherData(getDb(), now, TZ, null, topicStore);
@@ -522,7 +524,14 @@ describe('composePrompt', () => {
         city: null,
         ...recapDefaults,
         openActions: [
-          { topicId: 14, label: 'GitHub', action: 'подтвердить доступ', url: 'https://gh/perm' },
+          {
+            topicId: 14,
+            label: 'GitHub',
+            action: 'подтвердить доступ',
+            url: 'https://gh/perm',
+            startedAt: 0,
+            autoCloseBlocked: false,
+          },
         ],
       },
       TZ,
