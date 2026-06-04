@@ -84,11 +84,10 @@ iter-1 captures `target_url` now so iter-3 has the data; nothing in iter-1 reads
 - [x] run `npm test` — must pass before next task
 
 ### Task 4: Verify acceptance & build
-- [ ] verify end-to-end: a finalized topic with `action_required` shows in the next brief with a
-      "✓ Готово" button (and its link); tapping closes it; the following brief omits it.
-- [ ] run full suite (`npm test`) — all green
-- [ ] run `npm run build` (tsc) in `packages/server` — no type errors
-- [ ] confirm backward-safe (topics without action_required unchanged; text-only brief path intact)
+- [x] verify end-to-end (skipped - manual Discord test, not automatable in headless run; covered by interactions.followup + morningBrief tests)
+- [x] run full suite (`npm test`) — all green (1609 tests, 111 files)
+- [x] run `npm run build` (tsc) in `packages/server` — no type errors
+- [x] confirm backward-safe (topics without action_required unchanged; text-only brief path intact) — verified via passing store/morningBrief tests with nullable columns
 
 ## Technical Details
 - Open action = `chat_topics.status='finalized' AND action_required IS NOT NULL AND action_dismissed_at
