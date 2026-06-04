@@ -67,13 +67,13 @@ iter-1 captures `target_url` now so iter-3 has the data; nothing in iter-1 reads
 - [x] run `npm test` — must pass before next task
 
 ### Task 2: morningBrief surfaces open actions with buttons
-- [ ] `gatherData()` reads `topicStore.getOpenActions()`; pass them into `composePrompt` so the prose
+- [x] `gatherData()` reads `topicStore.getOpenActions()`; pass them into `composePrompt` so the prose
       lists them under "что висит" (with the clickable `target_url` when present), consistent with the buttons.
-- [ ] `run()` returns `components`: one "✓ Готово" button per open action (label `✓ <short action>`,
+- [x] `run()` returns `components`: one "✓ Готово" button per open action (label `✓ <short action>`,
       customId `followup:done:<topicId>`), capped at 5. No open actions → omit components (text-only as today).
-- [ ] add `buildPendingActionsComponents(actions)` in `channels/discord/embeds.ts` (→ `ComponentData[]`).
-- [ ] write morningBrief tests (components from open actions, capped, empty when none)
-- [ ] run `npm test` — must pass before next task
+- [x] add `buildPendingActionsComponents(actions)` in `channels/discord/embeds.ts` (→ `ComponentData[]`).
+- [x] write morningBrief tests (components from open actions, capped, empty when none)
+- [x] run `npm test` — must pass before next task
 
 ### Task 3: "✓ Готово" button handler closes the action
 - [ ] `interactions.ts`: handle `domain === 'followup' && action === 'done'` → parse topicId →

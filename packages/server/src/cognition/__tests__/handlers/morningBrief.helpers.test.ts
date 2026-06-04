@@ -274,6 +274,24 @@ describe('gatherData', () => {
     expect(data).toMatchObject({ reminders: [], notes: [], recentContext: [], city: null });
   });
 
+  it('defaults openActions to [] when no topic store is provided', async () => {
+    const data = await gatherData(getDb(), now, TZ);
+    expect(data.openActions).toEqual([]);
+  });
+
+  it('reads open actions from the topic store, capped at 5', async () => {
+    const all = Array.from({ length: 7 }, (_, i) => ({
+      topicId: i + 1,
+      label: `t${i + 1}`,
+      action: `action ${i + 1}`,
+      url: null,
+    }));
+    const topicStore = { getOpenActions: () => all };
+    const data = await gatherData(getDb(), now, TZ, null, topicStore);
+    expect(data.openActions).toHaveLength(5);
+    expect(data.openActions!.map((a) => a.topicId)).toEqual([1, 2, 3, 4, 5]);
+  });
+
   it('returns city from user.city regardless of 14d freshness', async () => {
     const db = getDb();
     // 90 days old — far outside note freshness window.
@@ -493,6 +511,34 @@ describe('composePrompt', () => {
       TZ,
     );
     expect(prompt).toContain('город не задан');
+  });
+
+  it('renders open actions (with target_url) and a directive to list them', async () => {
+    const prompt = composePrompt(
+      {
+        reminders: [],
+        notes: [],
+        recentContext: [],
+        city: null,
+        ...recapDefaults,
+        openActions: [
+          { topicId: 14, label: 'GitHub', action: 'подтвердить доступ', url: 'https://gh/perm' },
+        ],
+      },
+      TZ,
+    );
+    expect(prompt).toContain('Висящие действия');
+    expect(prompt).toContain('подтвердить доступ');
+    expect(prompt).toContain('https://gh/perm');
+    expect(prompt).toContain('«что висит»');
+  });
+
+  it('omits the pending-actions section when there are no open actions', async () => {
+    const prompt = composePrompt(
+      { reminders: [], notes: [], recentContext: [], city: null, ...recapDefaults, openActions: [] },
+      TZ,
+    );
+    expect(prompt).not.toContain('Висящие действия');
   });
 });
 

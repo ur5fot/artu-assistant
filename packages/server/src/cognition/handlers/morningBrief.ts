@@ -4,6 +4,8 @@ import type { Handler } from '../types.js';
 import type { PiiProxy } from '../../pii/proxy.js';
 import type { OllamaClient } from '../../ai/ollama.js';
 import type { BriefWeatherDeps } from './morningBrief.helpers.js';
+import type { TopicStore } from '../../topics/store.js';
+import { buildPendingActionsComponents } from '../../channels/discord/embeds.js';
 import {
   composePrompt,
   gatherData,
@@ -28,10 +30,20 @@ interface Deps {
   webSearchTool?: ToolDefinition | null;
   // Injected under WEATHER_ENABLED; null → brief omits the forecast section.
   weather?: BriefWeatherDeps | null;
+  // Source of open pending actions surfaced as "✓ Готово" buttons. Optional so
+  // trigger-only tests can omit it; null/absent → brief never shows action buttons.
+  topicStore?: Pick<TopicStore, 'getOpenActions'> | null;
 }
 
 export function createMorningBriefHandler(deps: Deps): Handler {
-  const { piiProxy, anthropic, ollama = null, webSearchTool = null, weather = null } = deps;
+  const {
+    piiProxy,
+    anthropic,
+    ollama = null,
+    webSearchTool = null,
+    weather = null,
+    topicStore = null,
+  } = deps;
   return {
     name: 'morningBrief',
     async trigger(state, ctx) {
@@ -76,7 +88,7 @@ export function createMorningBriefHandler(deps: Deps): Handler {
     },
     async run(ctx) {
       try {
-        const data = await gatherData(ctx.db, ctx.firedAt, TZ, weather);
+        const data = await gatherData(ctx.db, ctx.firedAt, TZ, weather, topicStore);
         const prompt = composePrompt(data, TZ);
         const text = await callMorningBriefAI({
           piiProxy,
@@ -87,7 +99,12 @@ export function createMorningBriefHandler(deps: Deps): Handler {
           webSearchTool,
         });
         if (!text.trim()) return { skip: true, reason: 'empty AI response' };
-        return { publish: true, content: text };
+        // One "✓ Готово" button per open action (capped); none → omit components
+        // entirely so the brief stays a plain text DM exactly as before.
+        const components = buildPendingActionsComponents(data.openActions ?? []);
+        return components.length > 0
+          ? { publish: true, content: text, components }
+          : { publish: true, content: text };
       } catch (err) {
         return {
           error: true,

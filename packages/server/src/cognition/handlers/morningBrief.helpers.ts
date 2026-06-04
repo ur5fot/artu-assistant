@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import type { Coords, Forecast } from '../../weather/types.js';
+import type { OpenAction } from '../../topics/store.js';
 import { formatBriefOutlook } from '../../weather/open-meteo.js';
 
 function tzOffsetMs(ts: number, tz: string): number {
@@ -156,6 +157,11 @@ export interface BriefData {
   // 3-day forecast for the user's city, or null when weather is disabled /
   // coordinates can't be resolved / Open-Meteo failed (degrade gracefully).
   weather?: Forecast | null;
+  // Open pending actions (finalized topics the owner still owes an external
+  // step). Capped at MAX_PENDING_ACTIONS so the prose and the "✓ Готово" buttons
+  // surface the same set. Absent/empty → no "Висящие действия" section, no
+  // buttons (brief behaves exactly as before this feature).
+  openActions?: OpenAction[];
 }
 
 // Weather provider injected into `gatherData`. Kept narrow (no db-bound geocode
@@ -435,12 +441,19 @@ const NOTE_VALUE_TRUNCATE_CHARS = 300;
 const RECENT_CONTEXT_HOURS = 48;
 const RECENT_CONTEXT_MAX_ROWS = 30;
 const CONTENT_TRUNCATE_CHARS = 500;
+// Shared cap for the open-action prose bullets and the "✓ Готово" buttons — the
+// brief lists at most this many so the two surfaces stay consistent (the button
+// builder enforces the same bound independently for safety).
+const MAX_PENDING_ACTIONS = 5;
 
 export async function gatherData(
   db: Database.Database,
   now: number,
   tz: string,
   weatherDeps?: BriefWeatherDeps | null,
+  // Topic store accessor for open pending actions. Optional so existing callers
+  // (and the trigger-only tests) keep working; null/absent → no actions surfaced.
+  topicStore?: { getOpenActions(): OpenAction[] } | null,
 ): Promise<BriefData> {
   const todayStart = getLocalCivilEpoch(now, tz);
   // Exclusive upper bound at local midnight of day-after-tomorrow, DST-aware
@@ -538,6 +551,8 @@ export async function gatherData(
     }
   }
 
+  const openActions = (topicStore?.getOpenActions() ?? []).slice(0, MAX_PENDING_ACTIONS);
+
   return {
     reminders,
     notes,
@@ -548,6 +563,7 @@ export async function gatherData(
     previousPeriodFrom: safeFrom,
     previousPeriodTo,
     weather,
+    openActions,
   };
 }
 
@@ -620,6 +636,24 @@ export function composePrompt(data: BriefData, tz: string): string {
     ),
   ].join('\n');
 
+  // Open pending actions surface both here (so the LLM lists them under "что
+  // висит" with their clickable target_url) and as "✓ Готово" buttons in run().
+  // Empty → no section, no extra directive (text-only brief unchanged).
+  const openActions = data.openActions ?? [];
+  const pendingBlock =
+    openActions.length > 0
+      ? section(
+          'Висящие действия (требуют ручного действия владельца)',
+          openActions.map(
+            (a) => `- ${a.action}${a.url ? ` — ${a.url}` : ''} (тема: ${a.label})`,
+          ),
+        )
+      : '';
+  const pendingDirective =
+    openActions.length > 0
+      ? 'ВАЖНО: каждое «Висящее действие» выше обязательно перечисли в разделе «что висит» — с кликабельной ссылкой (target_url), если она есть.'
+      : '';
+
   const todayGuide = gapMode
     ? `1. "Пока меня не было ${daysPhrase}..." — 2-4 строки выжимка периода\n2. Что висит — 1-5 пунктов, если нет — "висящего нет"\n3. Сегодня — 3-5 bullets: конкретно, не дневник`
     : '1. Что висит со вчера — 1-4 пункта, если нет — "вчера закрыто чисто"\n2. Сегодня — 3-5 bullets';
@@ -635,11 +669,13 @@ export function composePrompt(data: BriefData, tz: string): string {
     '',
     '## Сегодня / завтра',
     todaySection,
+    ...(pendingBlock ? ['', pendingBlock] : []),
     '',
     'Проанализируй прошлый период с разных углов. Найди:',
     '- что висит (вопросы без ответа, задачи без закрытия, overdue reminders)',
     '- что повторяется (одинаковые темы в чате, застрявшие решения)',
     '- что упустил (важное упомянуто мельком и пропало)',
+    ...(pendingDirective ? ['', pendingDirective] : []),
     '',
     'Формат:',
     todayGuide,

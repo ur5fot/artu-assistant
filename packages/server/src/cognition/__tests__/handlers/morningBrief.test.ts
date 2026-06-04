@@ -446,6 +446,50 @@ describe('createMorningBriefHandler', () => {
       expect(anthropic.messages.create).toHaveBeenCalledOnce();
     });
 
+    it('attaches "✓ Готово" components when topicStore has open actions', async () => {
+      const anthropic = fakeAnthropic('brief text');
+      const topicStore = {
+        getOpenActions: vi.fn(() => [
+          { topicId: 14, label: 'GitHub', action: 'confirm GitHub permissions', url: 'https://gh' },
+          { topicId: 22, label: 'Invoice', action: 'pay invoice', url: null },
+        ]),
+      };
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: anthropic as any,
+        topicStore: topicStore as any,
+      });
+      const result = await h.run({
+        db: getDb(),
+        signal: new AbortController().signal,
+        firedAt: Date.now(),
+      });
+      expect(topicStore.getOpenActions).toHaveBeenCalled();
+      expect(result).toMatchObject({ publish: true, content: 'brief text' });
+      const components = (result as any).components;
+      expect(components).toHaveLength(1);
+      expect(components[0].buttons.map((b: any) => b.customId)).toEqual([
+        'followup:done:14',
+        'followup:done:22',
+      ]);
+    });
+
+    it('omits components when topicStore has no open actions', async () => {
+      const anthropic = fakeAnthropic('brief text');
+      const h = createMorningBriefHandler({
+        piiProxy: fakeProxy(),
+        anthropic: anthropic as any,
+        topicStore: { getOpenActions: () => [] } as any,
+      });
+      const result = await h.run({
+        db: getDb(),
+        signal: new AbortController().signal,
+        firedAt: Date.now(),
+      });
+      expect(result).toEqual({ publish: true, content: 'brief text' });
+      expect('components' in (result as any)).toBe(false);
+    });
+
     it('returns skip when AI returns empty text', async () => {
       const anthropic = fakeAnthropic('');
       const h = createMorningBriefHandler({

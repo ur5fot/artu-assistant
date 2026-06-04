@@ -915,6 +915,8 @@ if (discordToken) {
         // Open-Meteo forecast for the brief (null when WEATHER_ENABLED unset →
         // brief renders "погода недоступна" and falls back to web_search prose).
         weather: morningBriefWeather,
+        // Open pending actions → "✓ Готово" buttons in the brief.
+        topicStore,
       }),
     );
 

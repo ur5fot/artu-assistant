@@ -6,6 +6,7 @@ import {
 } from 'discord.js';
 import type { ComponentData, EmbedData } from '../../cognition/types.js';
 import type { EmailPendingRow } from '../../emails/types.js';
+import type { OpenAction } from '../../topics/store.js';
 
 export type ReminderState = 'ringing' | 'dismissed' | 'snoozed' | 'missed';
 
@@ -386,6 +387,32 @@ export function buildDistractionNudge(event: DistractionNudgeEvent): {
     buttons.push({ customId: snoozeId, label: `Отстань на ${event.snoozeMin}м`, style: 'danger' });
   }
   return { content, components: [{ type: 'row', buttons }] };
+}
+
+// One-tap "✓ Готово" buttons for the morning brief's open pending actions. Each
+// action (a finalized topic whose owner still owes an external step) gets a
+// success button whose customId `followup:done:<topicId>` the interaction handler
+// reads to dismiss it. Capped at a single Discord row (5 buttons) — the brief
+// prose lists the same set, so the cap is shared. Empty input → no components
+// (text-only brief, exactly as before this feature). The label is truncated to
+// Discord's 80-char button cap (minus the "✓ " prefix); topicId is a small
+// integer so the customId never approaches the 100-char id limit.
+const PENDING_ACTIONS_MAX = 5;
+const PENDING_ACTION_LABEL_MAX = 78;
+
+export function buildPendingActionsComponents(actions: OpenAction[]): ComponentData[] {
+  const visible = actions.slice(0, PENDING_ACTIONS_MAX);
+  if (visible.length === 0) return [];
+  return [
+    {
+      type: 'row',
+      buttons: visible.map((a) => ({
+        customId: `followup:done:${a.topicId}`,
+        label: `✓ ${truncate(a.action, PENDING_ACTION_LABEL_MAX)}`,
+        style: 'success',
+      })),
+    },
+  ];
 }
 
 export interface PermissionsListReply {

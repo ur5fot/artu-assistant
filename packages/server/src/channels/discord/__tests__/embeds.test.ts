@@ -6,8 +6,20 @@ import {
   buildPlanReviewChunks,
   buildPermissionsListReply,
   buildUrgentEmailEmbed,
+  buildPendingActionsComponents,
 } from '../embeds.js';
 import type { EmailPendingRow } from '../../../emails/types.js';
+import type { OpenAction } from '../../../topics/store.js';
+
+function mkAction(overrides: Partial<OpenAction> = {}): OpenAction {
+  return {
+    topicId: 1,
+    label: 'GitHub access',
+    action: 'confirm GitHub permissions',
+    url: null,
+    ...overrides,
+  };
+}
 
 function mkRow(overrides: Partial<EmailPendingRow> = {}): EmailPendingRow {
   return {
@@ -280,5 +292,49 @@ describe('buildUrgentEmailEmbed', () => {
   it('falls back to "(no subject)" when subject is empty', () => {
     const { embed } = buildUrgentEmailEmbed(mkRow({ subject: '' }));
     expect(embed.fields!.find((f) => f.name === 'Subject')!.value).toBe('(no subject)');
+  });
+});
+
+describe('buildPendingActionsComponents', () => {
+  it('returns no components when there are no open actions', () => {
+    expect(buildPendingActionsComponents([])).toEqual([]);
+  });
+
+  it('builds one success "✓ Готово" button per action with followup:done customId', () => {
+    const components = buildPendingActionsComponents([
+      mkAction({ topicId: 14, action: 'confirm GitHub permissions' }),
+      mkAction({ topicId: 22, action: 'pay invoice' }),
+    ]);
+    expect(components).toHaveLength(1);
+    const row = components[0];
+    expect(row.type).toBe('row');
+    expect(row.buttons).toHaveLength(2);
+    expect(row.buttons[0]).toEqual({
+      customId: 'followup:done:14',
+      label: '✓ confirm GitHub permissions',
+      style: 'success',
+    });
+    expect(row.buttons[1].customId).toBe('followup:done:22');
+    expect(row.buttons[1].label).toBe('✓ pay invoice');
+  });
+
+  it('caps at 5 buttons even when more actions are open', () => {
+    const actions = Array.from({ length: 8 }, (_, i) => mkAction({ topicId: i + 1 }));
+    const components = buildPendingActionsComponents(actions);
+    expect(components[0].buttons).toHaveLength(5);
+    expect(components[0].buttons.map((b) => b.customId)).toEqual([
+      'followup:done:1',
+      'followup:done:2',
+      'followup:done:3',
+      'followup:done:4',
+      'followup:done:5',
+    ]);
+  });
+
+  it('keeps the button label within Discord\'s 80-char cap', () => {
+    const long = 'x'.repeat(200);
+    const [row] = buildPendingActionsComponents([mkAction({ action: long })]);
+    expect(row.buttons[0].label.length).toBeLessThanOrEqual(80);
+    expect(row.buttons[0].label.endsWith('…')).toBe(true);
   });
 });
