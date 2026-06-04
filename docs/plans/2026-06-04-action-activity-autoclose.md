@@ -81,11 +81,13 @@ unit tests mock the URL; the live grab is a manual/assisted post-deploy step.
 - [x] run `npm test` — must pass before next task
 
 ### Task 3: Verify acceptance & build
-- [ ] verify (automated, mocked provider): seeded window_history URL matching an open action's
+- [x] verify (automated, mocked provider): seeded window_history URL matching an open action's
       target_url → handler closes it + notice; non-matching/old/blocked → not closed.
-- [ ] run full suite (`npm test`) — all green
-- [ ] run `npm run build` (tsc) in `packages/server` — no type errors
-- [ ] confirm additive + safe (nullable url; best-effort capture; title/blind paths unchanged)
+      (10 handler tests: match→close+notice+button, pre-startedAt→no, path-mismatch→no,
+      sibling-prefix over-match→no, blocked→no, no-url→no, too-shallow→no)
+- [x] run full suite (`npm test`) — all green (1662 tests, 113 files)
+- [x] run `npm run build` (tsc) in `packages/server` — no type errors
+- [x] confirm additive + safe (nullable url; best-effort capture; title/blind paths unchanged)
 
 ## Technical Details
 - URL match: host equality (after `www.`-strip) AND visited-path starts-with action-path (trailing
