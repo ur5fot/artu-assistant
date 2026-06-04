@@ -86,11 +86,14 @@ recently-undelivered publish runs — re-send them and mark published. Idempoten
 - [x] run `npm test` — must pass before next task
 
 ### Task 3: Verify acceptance & build
-- [ ] verify: a publish run with `published_at NULL` within the window is delivered + marked on a
+- [x] verify: a publish run with `published_at NULL` within the window is delivered + marked on a
       simulated reconnect; stale/already-published runs are not; live publish path unchanged.
-- [ ] run full suite (`npm test`) — all green
-- [ ] run `npm run build` (tsc) in `packages/server` — no type errors
-- [ ] confirm backward-safe (NULL column for old rows handled; no double-send)
+      (bot.test.ts "cognition redelivery on (re)connect" — 8 cases incl. shardReady/shardResume,
+      stale-skip, already-published-skip, send-throws, in-flight guard, freshness window; all green.)
+- [x] run full suite (`npm test`) — all green (229 files, 2878 tests passed)
+- [x] run `npm run build` (tsc) in `packages/server` — no type errors
+- [x] confirm backward-safe (NULL column for old rows handled — store.ts:132-133 falls back to
+      `{content}`; no double-send — every path gates on `published_at IS NULL` + single `markPublished`)
 
 ## Technical Details
 - Idempotency: only `published_at IS NULL` rows are flushed; `markPublished` (sets `published_at`) is
