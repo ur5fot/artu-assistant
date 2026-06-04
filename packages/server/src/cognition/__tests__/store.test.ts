@@ -166,6 +166,43 @@ describe('CognitionStore — handler runs', () => {
     expect(store.getLastResult('a')).toEqual({ error: true, message: 'boom' });
   });
 
+  it('recordHandlerRun persists publish_payload with embed + components', () => {
+    const store = createCognitionStore({ db: getDb() });
+    const id = store.recordHandlerRun({
+      handlerName: 'morningBrief',
+      firedAt: 2000,
+      durationMs: 10,
+      result: {
+        publish: true,
+        content: 'Good morning',
+        embed: { title: 'Brief', description: 'today' },
+        components: [{ type: 'row', buttons: [{ customId: 'b1', label: 'Ok', style: 'primary' }] }],
+      },
+    });
+    const row = getDb()
+      .prepare('SELECT publish_payload FROM cognition_handler_runs WHERE id = ?')
+      .get(id) as { publish_payload: string };
+    expect(JSON.parse(row.publish_payload)).toEqual({
+      content: 'Good morning',
+      embed: { title: 'Brief', description: 'today' },
+      components: [{ type: 'row', buttons: [{ customId: 'b1', label: 'Ok', style: 'primary' }] }],
+    });
+  });
+
+  it('recordHandlerRun leaves publish_payload NULL for skip/error', () => {
+    const store = createCognitionStore({ db: getDb() });
+    const id = store.recordHandlerRun({
+      handlerName: 'pulse',
+      firedAt: 1,
+      durationMs: 0,
+      result: { skip: true, reason: 'alive' },
+    });
+    const row = getDb()
+      .prepare('SELECT publish_payload FROM cognition_handler_runs WHERE id = ?')
+      .get(id) as { publish_payload: string | null };
+    expect(row.publish_payload).toBeNull();
+  });
+
   it('recentRuns returns rows ordered by fired_at desc, limited', () => {
     const store = createCognitionStore({ db: getDb() });
     for (let i = 1; i <= 5; i++) {
@@ -180,5 +217,85 @@ describe('CognitionStore — handler runs', () => {
     expect(recent.map((r) => r.firedAt)).toEqual([500, 400, 300]);
     expect(recent[0].outcome).toBe('skip');
     expect(recent[0].reason).toBe('r5');
+  });
+});
+
+describe('CognitionStore — findUndeliveredPublishes', () => {
+  it('returns only publish rows with NULL published_at and fired_at >= sinceMs', () => {
+    const store = createCognitionStore({ db: getDb() });
+    // eligible: publish, unpublished, recent
+    const eligible = store.recordHandlerRun({
+      handlerName: 'morningBrief',
+      firedAt: 5000,
+      durationMs: 1,
+      result: { publish: true, content: 'brief' },
+    });
+    // excluded: already published
+    const published = store.recordHandlerRun({
+      handlerName: 'morningBrief',
+      firedAt: 5000,
+      durationMs: 1,
+      result: { publish: true, content: 'old' },
+    });
+    store.markPublished(published, 6000);
+    // excluded: stale (fired_at < sinceMs)
+    store.recordHandlerRun({
+      handlerName: 'morningBrief',
+      firedAt: 1000,
+      durationMs: 1,
+      result: { publish: true, content: 'stale' },
+    });
+    // excluded: not a publish
+    store.recordHandlerRun({
+      handlerName: 'pulse',
+      firedAt: 5000,
+      durationMs: 1,
+      result: { skip: true, reason: 'alive' },
+    });
+
+    const found = store.findUndeliveredPublishes(4000);
+    expect(found.map((f) => f.runId)).toEqual([eligible]);
+    expect(found[0].payload.content).toBe('brief');
+  });
+
+  it('round-trips embed + components through the payload', () => {
+    const store = createCognitionStore({ db: getDb() });
+    const id = store.recordHandlerRun({
+      handlerName: 'morningBrief',
+      firedAt: 5000,
+      durationMs: 1,
+      result: {
+        publish: true,
+        content: 'brief',
+        embed: { title: 'T', fields: [{ name: 'n', value: 'v' }] },
+        components: [{ type: 'row', buttons: [{ customId: 'c', label: 'L', style: 'success' }] }],
+      },
+    });
+    const found = store.findUndeliveredPublishes(0);
+    expect(found).toEqual([
+      {
+        runId: id,
+        payload: {
+          content: 'brief',
+          embed: { title: 'T', fields: [{ name: 'n', value: 'v' }] },
+          components: [{ type: 'row', buttons: [{ customId: 'c', label: 'L', style: 'success' }] }],
+        },
+      },
+    ]);
+  });
+
+  it('falls back to {content} for pre-migration rows with NULL publish_payload', () => {
+    const store = createCognitionStore({ db: getDb() });
+    // simulate a pre-migration row: insert directly without publish_payload
+    const r = getDb()
+      .prepare(
+        `INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content, reason)
+         VALUES ('morningBrief', 5000, 1, 'publish', 'legacy brief', NULL)`,
+      )
+      .run();
+    const found = store.findUndeliveredPublishes(0);
+    expect(found).toEqual([
+      { runId: Number(r.lastInsertRowid), payload: { content: 'legacy brief' } },
+    ]);
   });
 });

@@ -1,7 +1,21 @@
 import type Database from 'better-sqlite3';
-import type { HandlerResult, HandlerRunRecord } from './types.js';
+import type { ComponentData, EmbedData, HandlerResult, HandlerRunRecord } from './types.js';
 
 const TICK_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Persisted shape of a publish event — enough to re-build the Discord DM when
+// re-delivering an undelivered push on reconnect. Mirrors the transient
+// `cognition_publish` event payload (minus runId).
+export interface PublishPayload {
+  content: string;
+  embed?: EmbedData;
+  components?: ComponentData[];
+}
+
+export interface UndeliveredPublish {
+  runId: number;
+  payload: PublishPayload;
+}
 
 export interface CognitionStore {
   db: Database.Database;
@@ -18,6 +32,7 @@ export interface CognitionStore {
     result: HandlerResult;
   }): number;
   markPublished(runId: number, publishedAt: number): void;
+  findUndeliveredPublishes(sinceMs: number): UndeliveredPublish[];
   getLastFiredAt(handlerName: string): number | null;
   getLastResult(handlerName: string): HandlerResult | null;
   recentRuns(limit: number): HandlerRunRecord[];
@@ -68,9 +83,16 @@ export function createCognitionStore(deps: { db: Database.Database }): Cognition
       let outcome: 'publish' | 'skip' | 'error';
       let content: string | null = null;
       let reason: string | null = null;
+      let publishPayload: string | null = null;
       if ('publish' in result) {
         outcome = 'publish';
         content = result.content;
+        const payload: PublishPayload = {
+          content: result.content,
+          embed: result.embed,
+          components: result.components,
+        };
+        publishPayload = JSON.stringify(payload);
       } else if ('skip' in result) {
         outcome = 'skip';
         reason = result.reason;
@@ -81,16 +103,47 @@ export function createCognitionStore(deps: { db: Database.Database }): Cognition
       const r = db
         .prepare(
           `INSERT INTO cognition_handler_runs
-             (handler_name, fired_at, duration_ms, outcome, content, reason)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+             (handler_name, fired_at, duration_ms, outcome, content, reason, publish_payload)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(handlerName, firedAt, durationMs, outcome, content, reason);
+        .run(handlerName, firedAt, durationMs, outcome, content, reason, publishPayload);
       return Number(r.lastInsertRowid);
     },
 
     markPublished(runId, publishedAt) {
       db.prepare('UPDATE cognition_handler_runs SET published_at = ? WHERE id = ?')
         .run(publishedAt, runId);
+    },
+
+    findUndeliveredPublishes(sinceMs) {
+      const rows = db
+        .prepare(
+          `SELECT id, content, publish_payload
+           FROM cognition_handler_runs
+           WHERE outcome = 'publish' AND published_at IS NULL AND fired_at >= ?
+           ORDER BY fired_at ASC`,
+        )
+        .all(sinceMs) as Array<{
+          id: number;
+          content: string | null;
+          publish_payload: string | null;
+        }>;
+      return rows.map((r) => {
+        let payload: PublishPayload = { content: r.content ?? '' };
+        if (r.publish_payload) {
+          try {
+            const parsed = JSON.parse(r.publish_payload) as PublishPayload;
+            payload = {
+              content: parsed.content ?? r.content ?? '',
+              embed: parsed.embed,
+              components: parsed.components,
+            };
+          } catch {
+            // Corrupt payload — fall back to plain content so the push still goes out.
+          }
+        }
+        return { runId: r.id, payload };
+      });
     },
 
     getLastFiredAt(handlerName) {

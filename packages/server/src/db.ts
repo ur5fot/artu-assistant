@@ -205,6 +205,18 @@ export function initDb(dbPath?: string): void {
       ON cognition_handler_runs(handler_name, fired_at DESC)
   `);
 
+  // Migration: add `publish_payload` column if missing. Persists the full
+  // publish event ({content, embed, components}) so an undelivered proactive
+  // push (published_at NULL) can be re-sent when Discord reconnects. Nullable,
+  // no DEFAULT — NULL means a pre-migration row (re-delivery falls back to
+  // {content}).
+  const cognitionRunCols = db
+    .prepare("PRAGMA table_info(cognition_handler_runs)")
+    .all() as Array<{ name: string }>;
+  if (!cognitionRunCols.some((c) => c.name === 'publish_payload')) {
+    db.exec(`ALTER TABLE cognition_handler_runs ADD COLUMN publish_payload TEXT`);
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS email_account_state (
       account_id TEXT PRIMARY KEY,
