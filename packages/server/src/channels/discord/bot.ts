@@ -1259,8 +1259,15 @@ export async function startDiscordBot(
   }
 
   // Flush on (re)connect: shardReady/shardResume cover an in-process reconnect
-  // after a transient outage; the clientReady hook below covers a fresh start
-  // after a restart-during-outage. All are idempotent via markPublished.
+  // after a transient outage; the clientReady hook above covers a fresh start
+  // after a restart-during-outage (on a cold start shardReady fires before
+  // isReady(), so its flush no-ops and clientReady is the path that delivers).
+  // Delivery is at-most-once via markPublished. Caveat: markPublished →
+  // firePublished only re-runs the in-memory onPublished callback — present on
+  // an in-process reconnect, GONE after a restart. So a restart-redelivered
+  // weatherAlert/emailUrgent skips its dedup marker (recordAlert/markUrgentPinged)
+  // and can fire once more on the next tick. morningBrief/emailDigest are
+  // unaffected (no callback / idempotent markDelivered). See AGENTS.md.
   if (deps.cognitionService) {
     client.on('shardReady', () => void flushUndeliveredPushes());
     client.on('shardResume', () => void flushUndeliveredPushes());

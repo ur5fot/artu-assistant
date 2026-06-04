@@ -298,4 +298,32 @@ describe('CognitionStore — findUndeliveredPublishes', () => {
       { runId: Number(r.lastInsertRowid), payload: { content: 'legacy brief' } },
     ]);
   });
+
+  it('falls back to {content} (not throw) when publish_payload is corrupt JSON', () => {
+    const store = createCognitionStore({ db: getDb() });
+    // A non-null but malformed payload must not block the flush loop for other rows.
+    const r = getDb()
+      .prepare(
+        `INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, content, reason, publish_payload)
+         VALUES ('morningBrief', 5000, 1, 'publish', 'salvaged brief', NULL, '{not valid json')`,
+      )
+      .run();
+    const found = store.findUndeliveredPublishes(0);
+    expect(found).toEqual([
+      { runId: Number(r.lastInsertRowid), payload: { content: 'salvaged brief' } },
+    ]);
+  });
+
+  it('includes a run whose fired_at equals sinceMs (>= boundary, not >)', () => {
+    const store = createCognitionStore({ db: getDb() });
+    const id = store.recordHandlerRun({
+      handlerName: 'morningBrief',
+      firedAt: 4000,
+      durationMs: 1,
+      result: { publish: true, content: 'edge' },
+    });
+    // fired_at === sinceMs must be eligible; an off-by-one (> vs >=) would drop it.
+    const found = store.findUndeliveredPublishes(4000);
+    expect(found.map((f) => f.runId)).toEqual([id]);
+  });
 });

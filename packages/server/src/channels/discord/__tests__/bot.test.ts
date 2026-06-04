@@ -1540,6 +1540,72 @@ describe('cognition redelivery on (re)connect', () => {
     await stop();
   });
 
+  it('re-delivers on clientReady (cold restart after an outage)', async () => {
+    // The restart-after-outage case from the originating incident: no in-process
+    // reconnect, the process boots fresh and clientReady (post DM pre-cache) is
+    // the path that re-delivers. shardReady fires before isReady() on a cold
+    // start, so this hook — not shardReady — is what actually delivers.
+    initDb(':memory:');
+    const store = createCognitionStore({ db: getDb() });
+    const runId = recordPublish(store, Date.now() - 60_000);
+    const { svc, markPublished } = makeService(store);
+    const { client, dmSend } = makeClientWithDM();
+
+    const { stop } = await start(client, svc);
+    (client as any).emit('clientReady');
+    for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+
+    expect(dmSend).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('lost brief') }),
+    );
+    expect(markPublished).toHaveBeenCalledWith(runId, expect.any(Number));
+    expect(store.findUndeliveredPublishes(0)).toHaveLength(0);
+    await stop();
+  });
+
+  it('marks published once when one recipient fails and another succeeds', async () => {
+    // marked flips only on the first *successful* send, so a partial failure
+    // still re-delivers to the reachable recipient and marks the run once.
+    initDb(':memory:');
+    const store = createCognitionStore({ db: getDb() });
+    const runId = recordPublish(store, Date.now() - 60_000);
+    const markPublished = vi.fn((id: number, at: number) => store.markPublished(id, at));
+    const findUndeliveredPublishes = vi.fn((sinceMs: number) => store.findUndeliveredPublishes(sinceMs));
+    const svc = {
+      register: vi.fn(), start: vi.fn(), stop: vi.fn(),
+      pause: vi.fn(), resume: vi.fn(), status: vi.fn(),
+      markPublished, findUndeliveredPublishes,
+    } as any;
+
+    const okSend = vi.fn().mockResolvedValue(undefined);
+    const client = makeFakeClient();
+    const fetchUser = vi.fn().mockImplementation(async (userId: string) => {
+      if (userId === 'bad') throw new Error('getaddrinfo ENOTFOUND discord.com');
+      return { createDM: vi.fn().mockResolvedValue({ send: okSend }) };
+    });
+    (client as any).users = { fetch: fetchUser };
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { stop } = await startDiscordBot({
+      token: 'test', whitelist: new Set(['bad', 'good']),
+      runChatRequest: vi.fn(),
+      db: makeFakeDb() as any, historyLimit: 10, saveMessage: vi.fn(),
+      memoryService: null, _client: client,
+      reminderBus: new EventEmitter(),
+      cognitionService: svc,
+    });
+    (client as any).emit('shardReady');
+    for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+
+    expect(okSend).toHaveBeenCalledTimes(1); // only the reachable recipient
+    expect(markPublished).toHaveBeenCalledTimes(1);
+    expect(markPublished).toHaveBeenCalledWith(runId, expect.any(Number));
+    expect(errSpy).toHaveBeenCalled(); // the failed recipient is logged, not silent
+    expect(store.findUndeliveredPublishes(0)).toHaveLength(0);
+    errSpy.mockRestore();
+    await stop();
+  });
+
   it('does NOT deliver a stale run (older than the freshness window)', async () => {
     initDb(':memory:');
     const store = createCognitionStore({ db: getDb() });
@@ -1580,16 +1646,21 @@ describe('cognition redelivery on (re)connect', () => {
     const { svc, markPublished } = makeService(store);
     const dmSend = vi.fn().mockRejectedValue(new Error('getaddrinfo ENOTFOUND discord.com'));
     const { client } = makeClientWithDM(dmSend);
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { stop } = await start(client, svc);
     (client as any).emit('shardReady');
     for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
 
     expect(markPublished).not.toHaveBeenCalled();
+    // The rejection is swallowed (logged, not rethrown) — guards against a
+    // refactor that drops the per-chain .catch and leaks an unhandled rejection.
+    expect(errSpy).toHaveBeenCalled();
     // Still eligible — a later reconnect can retry it.
     const remaining = store.findUndeliveredPublishes(0);
     expect(remaining).toHaveLength(1);
     expect(remaining[0]!.runId).toBe(runId);
+    errSpy.mockRestore();
     await stop();
   });
 
