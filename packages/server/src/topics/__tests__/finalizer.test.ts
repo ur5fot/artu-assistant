@@ -199,6 +199,32 @@ describe('createTopicFinalizerHandler.run', () => {
     expect(store.finalize).toHaveBeenCalledWith(15, 'chat', 'just chatting', 2, now, null, null);
   });
 
+  it('normalizes empty / whitespace-only action_required to null', async () => {
+    const store = mkStore();
+    store.listClosedReadyForFinalize.mockReturnValue([topic({ id: 16 })]);
+    store.getTopicMessages.mockReturnValue([msg()]);
+    const { anthropic } = mkAnthropic(
+      JSON.stringify({ label: 'chat', summary: 'just chatting', importance: 2, action_required: '   ', target_url: '' }),
+    );
+    const h = createTopicFinalizerHandler({ store, memoryService: mkMemoryService(), anthropic, ...DEFAULT_DEPS });
+    const now = 9_000_000;
+    await h.run(mkCtx(now));
+    expect(store.finalize).toHaveBeenCalledWith(16, 'chat', 'just chatting', 2, now, null, null);
+  });
+
+  it('trims a meaningful action_required before storing it', async () => {
+    const store = mkStore();
+    store.listClosedReadyForFinalize.mockReturnValue([topic({ id: 17 })]);
+    store.getTopicMessages.mockReturnValue([msg()]);
+    const { anthropic } = mkAnthropic(
+      JSON.stringify({ label: 'pay', summary: 'invoice due', importance: 6, action_required: '  pay invoice  ' }),
+    );
+    const h = createTopicFinalizerHandler({ store, memoryService: mkMemoryService(), anthropic, ...DEFAULT_DEPS });
+    const now = 9_000_000;
+    await h.run(mkCtx(now));
+    expect(store.finalize).toHaveBeenCalledWith(17, 'pay', 'invoice due', 6, now, 'pay invoice', null);
+  });
+
   it('finalizes multiple topics in one tick up to finalizeBatch', async () => {
     const store = mkStore();
     store.listClosedReadyForFinalize.mockReturnValue([

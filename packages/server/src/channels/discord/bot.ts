@@ -1188,16 +1188,32 @@ export async function startDiscordBot(
             return;
           }
           if (event.components) {
-            // Plain-text nudge that still carries interactive buttons (e.g.
-            // distractionPullback). sendReply can't attach components, so
-            // send directly. buildDistractionNudge clamps the content well
-            // under Discord's 2000-char cap (and the prefix added here fits
-            // the margin), so no splitter is needed — and a clamp there is
-            // what keeps this send from throwing and skipping onPublished.
+            // Plain-text content that also carries interactive buttons — a
+            // short distractionPullback nudge OR the morning brief's "✓ Готово"
+            // action buttons. sendReply can't attach components, so we send
+            // directly here. Components ride on a single message, so attach
+            // them to the FINAL chunk and split everything before it exactly
+            // like sendReply: the morning brief body is unclamped LLM output
+            // that routinely exceeds Discord's 2000-char cap, and an oversized
+            // send throws 50035 before markPublished runs — leaving the run
+            // undelivered and re-thrown on every redelivery retry.
+            const MAX = 2000;
+            const noMentions = { parse: [] as never[] };
+            const components = buildComponentsFromData(event.components as ComponentData[]);
+            let remaining = body;
+            while (remaining.length > MAX) {
+              let splitAt = remaining.lastIndexOf(' ', MAX);
+              if (splitAt <= 0) splitAt = MAX;
+              await (dm as unknown as DMChannel).send({
+                content: remaining.slice(0, splitAt),
+                allowedMentions: noMentions,
+              });
+              remaining = remaining.slice(splitAt).trimStart();
+            }
             await (dm as unknown as DMChannel).send({
-              content: body,
-              components: buildComponentsFromData(event.components as ComponentData[]),
-              allowedMentions: { parse: [] },
+              content: remaining,
+              components,
+              allowedMentions: noMentions,
             });
             return;
           }

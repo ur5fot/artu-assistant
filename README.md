@@ -102,6 +102,12 @@ Closing the gap between Claude Code (the harness) and R2:
     publishes to Discord. When the weather feature is on it embeds a
     deterministic 3-day Open-Meteo outlook (no longer a `web_search` lookup).
     Gap-return mode greets you back after multi-day absences with a recap.
+    When a finalized conversation leaves an external action you still owe
+    (confirm permissions, pay an invoice, reply somewhere) the brief lists it
+    under "что висит" with a clickable link and attaches a one-tap **«✓ Готово»**
+    button (up to 5); tapping it closes the action so it stops recurring in
+    later briefs. The brief stays plain text when nothing is open. (iter-1 of 3
+    — email and activity/URL auto-close are planned.)
   - `emailDigest` — registered when email watcher is enabled.
   - `weatherAlert` — proactive Discord ping on a sharp weather change (temp
     swing / incoming rain / frost / storm-wind), deduped per event and
@@ -118,7 +124,8 @@ Closing the gap between Claude Code (the harness) and R2:
   Interactive embeds: reminder ring (dismiss / snooze 10m), permission requests
   (allow once / allow always / deny), plan review (approve / reject), memory
   confirm (approve / edit + approve / deny), tool-call status (running → done
-  / error edits in place). Burst coalescing (1.5 s debounce) — multi-message
+  / error edits in place), morning-brief pending actions (✓ Готово → closes a
+  finalized topic's open external action). Burst coalescing (1.5 s debounce) — multi-message
   clarifications produce one reply, not five.
   - **Push re-delivery** — proactive pushes are DM'd to the owner; if Discord is
     unreachable when one fires (transient outage), the run is persisted and

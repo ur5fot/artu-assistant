@@ -1448,6 +1448,70 @@ describe('cognition_publish handling', () => {
     expect(markPublished).toHaveBeenCalledWith(77, expect.any(Number));
     await stop();
   });
+
+  it('cognition_publish with components AND >2000-char content → splits body, buttons ride the final chunk', async () => {
+    const client = makeFakeClient();
+    const bus = new EventEmitter();
+    const dmSend = vi.fn().mockResolvedValue(undefined);
+    const fetchUser = vi.fn().mockResolvedValue({ createDM: vi.fn().mockResolvedValue({ send: dmSend }) });
+    (client as any).users = { fetch: fetchUser };
+    const markPublished = vi.fn();
+
+    const { stop } = await startDiscordBot({
+      token: 'test', whitelist: new Set(['123']),
+      runChatRequest: vi.fn(),
+      db: makeFakeDb() as any, historyLimit: 10, saveMessage: vi.fn(),
+      memoryService: null, _client: client,
+      reminderBus: bus,
+      reminderService: { dismiss: vi.fn(), snooze: vi.fn(), list: vi.fn() } as any,
+      permissionService: { hasPending: vi.fn(), resolveConfirm: vi.fn() } as any,
+      planReviewService: { hasPending: vi.fn(), resolveReview: vi.fn() } as any,
+      commandService: {
+        clearHistory: vi.fn(), status: vi.fn(), listReminders: vi.fn(), listMemory: vi.fn(),
+        listPermissionRules: vi.fn().mockReturnValue([]), revokePermissionRule: vi.fn(),
+      } as any,
+      cognitionService: {
+        register: vi.fn(), start: vi.fn(), stop: vi.fn(),
+        pause: vi.fn(), resume: vi.fn(),
+        status: vi.fn(), markPublished,
+      } as any,
+    });
+
+    // A morning-brief-sized body well over Discord's 2000-char limit.
+    const longBody = 'слово '.repeat(700).trim(); // ~4200 chars
+    bus.emit('push', {
+      type: 'cognition_publish',
+      runId: 88,
+      handler: 'morningBrief',
+      content: longBody,
+      components: [
+        {
+          type: 'row',
+          buttons: [{ customId: 'followup:done:42', label: '✓ Готово: оплатить счёт', style: 'success' }],
+        },
+      ],
+    });
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+
+    // More than one message → the body was split (an unsplit send would throw 50035).
+    expect(dmSend.mock.calls.length).toBeGreaterThan(1);
+    for (const call of dmSend.mock.calls) {
+      expect((call[0].content as string).length).toBeLessThanOrEqual(2000);
+    }
+    // Every chunk before the last carries no components.
+    for (const call of dmSend.mock.calls.slice(0, -1)) {
+      expect(call[0].components).toBeUndefined();
+    }
+    // The final message carries the "✓ Готово" button.
+    const lastArg = dmSend.mock.calls.at(-1)![0];
+    expect(lastArg.components).toHaveLength(1);
+    const buttons = lastArg.components[0].toJSON().components;
+    expect(buttons[0].custom_id).toBe('followup:done:42');
+    // Delivery succeeded → run marked published exactly once.
+    expect(markPublished).toHaveBeenCalledWith(88, expect.any(Number));
+    await stop();
+  });
 });
 
 describe('cognition redelivery on (re)connect', () => {
