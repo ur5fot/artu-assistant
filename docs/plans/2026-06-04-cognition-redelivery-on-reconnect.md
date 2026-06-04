@@ -69,17 +69,21 @@ recently-undelivered publish runs — re-send them and mark published. Idempoten
 - [x] run `npm test` — must pass before next task
 
 ### Task 2: Flush undelivered on Discord (re)connect (bot)
-- [ ] extract the DM-send body of the `cognition_publish` listener (`bot.ts:1152-1192`) into a reusable
+- [x] extract the DM-send body of the `cognition_publish` listener into a reusable
       `deliverCognitionPush(event)` helper (fetch→createDM→send embed/components/text; on success
-      `markPublished(runId, now)`; on failure log + leave unpublished). Use it for the live listener.
-- [ ] add `flushUndeliveredPushes()`: `runs = store.findUndeliveredPublishes(Date.now() - REDELIVER_MAX_AGE_MS)`;
-      for each, build the event from the persisted payload and call `deliverCognitionPush`. Guard against
-      concurrent runs (a simple in-flight boolean) so overlapping shard events don't double-flush.
-- [ ] hook `flushUndeliveredPushes` on `client.on('shardReady')` and `client.on('shardResume')`, and
+      `markPublished(runId, now)`; on failure log + leave unpublished). Used for the live listener.
+      Returns `Promise<void>` (all per-recipient chains settled) so flush can serialise.
+- [x] add `flushUndeliveredPushes()`: `runs = cognitionService.findUndeliveredPublishes(Date.now() - REDELIVER_MAX_AGE_MS)`;
+      for each, build the event from the persisted payload and call `deliverCognitionPush`. In-flight
+      boolean guards overlapping shard events from double-flushing. (Exposed `findUndeliveredPublishes`
+      on `CognitionService` so the bot reaches the store through the service it already holds.)
+- [x] hook `flushUndeliveredPushes` on `client.on('shardReady')` and `client.on('shardResume')`, and
       once after the `clientReady` pre-cache. (Covers transient reconnect AND restart-after-outage.)
-- [ ] add `REDELIVER_MAX_AGE_MS` env (default 6h) wired where other email/cognition envs are read.
-- [ ] write bot/flush tests for the 5 cases in Testing Strategy (mock client + store + service)
-- [ ] run `npm test` — must pass before next task
+- [x] add `REDELIVER_MAX_AGE_MS` env (default 6h, clamp 5m..48h) wired in `index.ts` via `redeliverMaxAgeMs` dep.
+- [x] write bot/flush tests for the 5 cases in Testing Strategy (real store + mock client + service shim):
+      recent→delivered, embed-on-resume, stale→skipped, already-published→skipped, send-throws→stays
+      unpublished, in-flight guard, live-path regression, freshness-window arg.
+- [x] run `npm test` — must pass before next task
 
 ### Task 3: Verify acceptance & build
 - [ ] verify: a publish run with `published_at NULL` within the window is delivered + marked on a

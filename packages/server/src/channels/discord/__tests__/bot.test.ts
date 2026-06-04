@@ -3,6 +3,8 @@ import { EventEmitter } from 'node:events';
 import { ChannelType, Client } from 'discord.js';
 import type { SSEEvent } from '@r2/shared';
 import { startDiscordBot, sendReply, isRetryableError, type DiscordBotDeps } from '../bot.js';
+import { getDb, initDb } from '../../../db.js';
+import { createCognitionStore, type CognitionStore } from '../../../cognition/store.js';
 
 function makeFakeClient() {
   const emitter = new EventEmitter();
@@ -1444,6 +1446,213 @@ describe('cognition_publish handling', () => {
     expect(buttons[0].custom_id).toBe('distract:back:1700000000');
     expect(buttons[2].custom_id).toBe('distract:snooze:YouTube:1700000000');
     expect(markPublished).toHaveBeenCalledWith(77, expect.any(Number));
+    await stop();
+  });
+});
+
+describe('cognition redelivery on (re)connect', () => {
+  // A real store (in-memory db) so the publish_payload round-trip and the
+  // published_at / fired_at filtering are exercised end-to-end, behind a
+  // service shim whose markPublished is a spy that also mutates the store
+  // (real idempotency).
+  function makeService(store: CognitionStore) {
+    const markPublished = vi.fn((runId: number, at: number) => store.markPublished(runId, at));
+    const findUndeliveredPublishes = vi.fn((sinceMs: number) => store.findUndeliveredPublishes(sinceMs));
+    const svc = {
+      register: vi.fn(), start: vi.fn(), stop: vi.fn(),
+      pause: vi.fn(), resume: vi.fn(), status: vi.fn(),
+      markPublished, findUndeliveredPublishes,
+    } as any;
+    return { svc, markPublished, findUndeliveredPublishes };
+  }
+
+  function makeClientWithDM(dmSend = vi.fn().mockResolvedValue(undefined)) {
+    const client = makeFakeClient();
+    const fetchUser = vi.fn().mockResolvedValue({ createDM: vi.fn().mockResolvedValue({ send: dmSend }) });
+    (client as any).users = { fetch: fetchUser };
+    return { client, dmSend, fetchUser };
+  }
+
+  async function start(client: Client, svc: any, redeliverMaxAgeMs?: number) {
+    return startDiscordBot({
+      token: 'test', whitelist: new Set(['123']),
+      runChatRequest: vi.fn(),
+      db: makeFakeDb() as any, historyLimit: 10, saveMessage: vi.fn(),
+      memoryService: null, _client: client,
+      reminderBus: new EventEmitter(),
+      cognitionService: svc,
+      redeliverMaxAgeMs,
+    });
+  }
+
+  function recordPublish(store: CognitionStore, firedAt: number, content = 'lost brief') {
+    return store.recordHandlerRun({
+      handlerName: 'morningBrief', firedAt, durationMs: 5,
+      result: { publish: true, content },
+    });
+  }
+
+  it('re-delivers a recent undelivered run on shardReady and marks it published', async () => {
+    initDb(':memory:');
+    const store = createCognitionStore({ db: getDb() });
+    const runId = recordPublish(store, Date.now() - 60_000); // 1 min ago
+    const { svc, markPublished } = makeService(store);
+    const { client, dmSend } = makeClientWithDM();
+
+    const { stop } = await start(client, svc);
+    (client as any).emit('shardReady');
+    for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+
+    expect(dmSend).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('lost brief') }),
+    );
+    expect(markPublished).toHaveBeenCalledWith(runId, expect.any(Number));
+    // published_at is now set → no longer eligible.
+    expect(store.findUndeliveredPublishes(0)).toHaveLength(0);
+    await stop();
+  });
+
+  it('re-delivers an undelivered embed run with components on shardResume', async () => {
+    initDb(':memory:');
+    const store = createCognitionStore({ db: getDb() });
+    const runId = store.recordHandlerRun({
+      handlerName: 'emailDigest', firedAt: Date.now() - 30_000, durationMs: 5,
+      result: {
+        publish: true,
+        content: 'fallback',
+        embed: { title: '📬 3 emails', fields: [{ name: 'From', value: 'a@b.com' }] },
+        components: [{ type: 'row', buttons: [{ customId: 'x:1', label: 'Open', style: 'primary' }] }],
+      },
+    });
+    const { svc, markPublished } = makeService(store);
+    const { client, dmSend } = makeClientWithDM();
+
+    const { stop } = await start(client, svc);
+    (client as any).emit('shardResume');
+    for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+
+    expect(dmSend).toHaveBeenCalledTimes(1);
+    const arg = dmSend.mock.calls[0]![0];
+    expect(arg.embeds).toHaveLength(1);
+    expect(arg.embeds[0].toJSON().title).toBe('📬 3 emails');
+    expect(arg.components).toHaveLength(1);
+    expect(markPublished).toHaveBeenCalledWith(runId, expect.any(Number));
+    await stop();
+  });
+
+  it('does NOT deliver a stale run (older than the freshness window)', async () => {
+    initDb(':memory:');
+    const store = createCognitionStore({ db: getDb() });
+    recordPublish(store, Date.now() - 7 * 60 * 60 * 1000); // 7h ago, default window 6h
+    const { svc, markPublished } = makeService(store);
+    const { client, dmSend } = makeClientWithDM();
+
+    const { stop } = await start(client, svc);
+    (client as any).emit('shardReady');
+    for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+
+    expect(dmSend).not.toHaveBeenCalled();
+    expect(markPublished).not.toHaveBeenCalled();
+    await stop();
+  });
+
+  it('skips an already-published run', async () => {
+    initDb(':memory:');
+    const store = createCognitionStore({ db: getDb() });
+    const runId = recordPublish(store, Date.now() - 60_000);
+    store.markPublished(runId, Date.now() - 50_000); // already delivered
+    const { svc, markPublished } = makeService(store);
+    const { client, dmSend } = makeClientWithDM();
+
+    const { stop } = await start(client, svc);
+    (client as any).emit('shardReady');
+    for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+
+    expect(dmSend).not.toHaveBeenCalled();
+    expect(markPublished).not.toHaveBeenCalled();
+    await stop();
+  });
+
+  it('leaves the run unpublished when re-send throws (eligible next reconnect, no crash)', async () => {
+    initDb(':memory:');
+    const store = createCognitionStore({ db: getDb() });
+    const runId = recordPublish(store, Date.now() - 60_000);
+    const { svc, markPublished } = makeService(store);
+    const dmSend = vi.fn().mockRejectedValue(new Error('getaddrinfo ENOTFOUND discord.com'));
+    const { client } = makeClientWithDM(dmSend);
+
+    const { stop } = await start(client, svc);
+    (client as any).emit('shardReady');
+    for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+
+    expect(markPublished).not.toHaveBeenCalled();
+    // Still eligible — a later reconnect can retry it.
+    const remaining = store.findUndeliveredPublishes(0);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]!.runId).toBe(runId);
+    await stop();
+  });
+
+  it('does not double-flush when overlapping shard events fire (in-flight guard)', async () => {
+    initDb(':memory:');
+    const store = createCognitionStore({ db: getDb() });
+    recordPublish(store, Date.now() - 60_000);
+    const { svc, markPublished } = makeService(store);
+    const { client, dmSend } = makeClientWithDM();
+
+    const { stop } = await start(client, svc);
+    // Two reconnect events back-to-back in the same tick.
+    (client as any).emit('shardReady');
+    (client as any).emit('shardResume');
+    for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+
+    expect(dmSend).toHaveBeenCalledTimes(1);
+    expect(markPublished).toHaveBeenCalledTimes(1);
+    await stop();
+  });
+
+  it('live cognition_publish path still delivers via the shared helper (regression)', async () => {
+    initDb(':memory:');
+    const store = createCognitionStore({ db: getDb() });
+    const { svc, markPublished } = makeService(store);
+    const { client, dmSend } = makeClientWithDM();
+    const bus = new EventEmitter();
+
+    const { stop } = await startDiscordBot({
+      token: 'test', whitelist: new Set(['123']),
+      runChatRequest: vi.fn(),
+      db: makeFakeDb() as any, historyLimit: 10, saveMessage: vi.fn(),
+      memoryService: null, _client: client,
+      reminderBus: bus,
+      cognitionService: svc,
+    });
+
+    bus.emit('push', { type: 'cognition_publish', runId: 5, handler: 'pulse', content: 'hi there' });
+    for (let i = 0; i < 4; i++) await new Promise((r) => setImmediate(r));
+
+    expect(dmSend).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('hi there') }),
+    );
+    expect(markPublished).toHaveBeenCalledWith(5, expect.any(Number));
+    await stop();
+  });
+
+  it('queries with the configured freshness window (fired_at >= now - redeliverMaxAgeMs)', async () => {
+    initDb(':memory:');
+    const store = createCognitionStore({ db: getDb() });
+    const { svc, findUndeliveredPublishes } = makeService(store);
+    const { client } = makeClientWithDM();
+
+    const { stop } = await start(client, svc, 60 * 60 * 1000); // 1h window
+    const before = Date.now();
+    (client as any).emit('shardReady');
+    for (let i = 0; i < 4; i++) await new Promise((r) => setImmediate(r));
+
+    expect(findUndeliveredPublishes).toHaveBeenCalledTimes(1);
+    const sinceMs = findUndeliveredPublishes.mock.calls[0]![0];
+    // ~ now - 1h, allowing a little slack for test execution time.
+    expect(sinceMs).toBeGreaterThanOrEqual(before - 60 * 60 * 1000 - 5_000);
+    expect(sinceMs).toBeLessThanOrEqual(before - 60 * 60 * 1000 + 5_000);
     await stop();
   });
 });

@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import type { EventEmitter } from 'node:events';
-import { createCognitionStore, type CognitionStore } from './store.js';
+import { createCognitionStore, type CognitionStore, type UndeliveredPublish } from './store.js';
 import { createHandlerRegistry, type HandlerRegistry } from './registry.js';
 import { createJobQueue, type JobQueue } from './queue.js';
 import { createDispatcher } from './dispatcher.js';
@@ -15,6 +15,10 @@ export interface CognitionService {
   resume(): void;
   status(): CognitionStatus;
   markPublished(runId: number, publishedAt: number): void;
+  /** Publish runs that recorded `outcome='publish'` but were never delivered
+   *  (DM send failed → `published_at IS NULL`), fired since `sinceMs`. Used by
+   *  the Discord bot to re-deliver on (re)connect. */
+  findUndeliveredPublishes(sinceMs: number): UndeliveredPublish[];
 }
 
 interface Deps {
@@ -72,6 +76,9 @@ export function createCognitionService(deps: Deps): CognitionService {
       // Fire any handler-registered post-publish callback (e.g. emailDigest
       // marking email_pending rows delivered only after the DM confirmed).
       queue.firePublished(runId);
+    },
+    findUndeliveredPublishes(sinceMs) {
+      return store.findUndeliveredPublishes(sinceMs);
     },
   };
 }

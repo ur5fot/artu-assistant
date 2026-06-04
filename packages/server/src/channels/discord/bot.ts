@@ -93,6 +93,9 @@ export interface DiscordBotDeps {
   commandService?: CommandService;
   /** Cognition service — heartbeat/handler runs; bot listens for `cognition_publish` events on the reminder bus and marks runs published after DM delivery. */
   cognitionService?: CognitionService;
+  /** Max age (ms) of an undelivered publish run still eligible for re-delivery
+   *  on Discord (re)connect. Older runs are skipped (stale). Default 6h. */
+  redeliverMaxAgeMs?: number;
   /** Email draft reply flow — pending in-memory state keyed by nanoid. */
   draftReplyService?: DraftReplyService;
   /** Email store — used by the draft-reply button handler to load the urgent row. */
@@ -297,6 +300,11 @@ export async function startDiscordBot(
     } catch (err) {
       console.error('[discord] slash command registration failed:', err instanceof Error ? err.message : err);
     }
+    // Re-deliver any cognition pushes that were lost to an outage before this
+    // (re)start. Runs after the DM pre-cache so the send can resolve the DM
+    // channel. `flushUndeliveredPushes` is declared later in this function but
+    // assigned before this callback ever fires (post-login).
+    void flushUndeliveredPushes();
   });
   client.on('warn', (m) => console.warn('[discord] warn:', m));
   client.on('shardDisconnect', (e, id) => console.warn('[discord] shardDisconnect', id, e.code, e.reason));
@@ -1133,71 +1141,129 @@ export async function startDiscordBot(
     deps.reminderBus.on('push', reminderListener);
   }
 
+  // Shared delivery path for cognition pushes — used by the live
+  // `cognition_publish` listener AND the reconnect flush. Fetches each
+  // whitelisted user's DM channel, sends the embed/components/text payload,
+  // and marks the run published exactly once on the first successful DM.
+  // Resolves only after all per-recipient chains settle so the flush guard
+  // can serialise overlapping reconnect events.
+  const deliverCognitionPush = (event: {
+    runId: number;
+    handler?: string;
+    content: string;
+    embed?: EmbedData;
+    components?: ComponentData[];
+  }): Promise<void> => {
+    if (!client.isReady()) return Promise.resolve();
+    // Mark the run as published exactly once — on the first successful DM.
+    // Calling markPublished per-whitelist-user would overwrite published_at
+    // N times and could falsely mark a run as published even when earlier
+    // recipients' sends failed.
+    let marked = false;
+    // `typeof [] === 'object'` is true, so guard against an accidental array
+    // shape from a future caller — buildEmbedFromData would silently produce
+    // an empty embed instead of throwing.
+    const hasEmbed = event.embed && typeof event.embed === 'object' && !Array.isArray(event.embed);
+    // The `from` prefix needs the handler name; persisted re-delivery payloads
+    // don't carry it, so fall back to the bare content (embeds never use it).
+    const body = event.handler ? `💭 _from ${event.handler}_\n${event.content}` : event.content;
+    const chains = [...deps.whitelist].map((userId) =>
+      client.users.fetch(userId)
+        .then((u) => u.createDM())
+        .then(async (dm) => {
+          if (hasEmbed) {
+            const embed = buildEmbedFromData(event.embed as EmbedData);
+            const components = event.components
+              ? buildComponentsFromData(event.components as ComponentData[])
+              : [];
+            await (dm as unknown as DMChannel).send({
+              embeds: [embed],
+              components,
+              // Cognition handlers compose `content` from LLM output (e.g.
+              // morningBrief, draft replies). Block @everyone / role pings
+              // even though the channel is a 1:1 DM — defense in depth.
+              allowedMentions: { parse: [] },
+            });
+            return;
+          }
+          if (event.components) {
+            // Plain-text nudge that still carries interactive buttons (e.g.
+            // distractionPullback). sendReply can't attach components, so
+            // send directly. buildDistractionNudge clamps the content well
+            // under Discord's 2000-char cap (and the prefix added here fits
+            // the margin), so no splitter is needed — and a clamp there is
+            // what keeps this send from throwing and skipping onPublished.
+            await (dm as unknown as DMChannel).send({
+              content: body,
+              components: buildComponentsFromData(event.components as ComponentData[]),
+              allowedMentions: { parse: [] },
+            });
+            return;
+          }
+          await sendReply(dm as unknown as DMChannel, body);
+        })
+        .then(() => {
+          if (marked) return;
+          // Attempt DB write first; only set `marked` if it actually
+          // succeeds. Otherwise a transient DB failure here would leave
+          // `marked=true`, silently skipping later successful recipients.
+          deps.cognitionService?.markPublished(event.runId, Date.now());
+          marked = true;
+        })
+        .catch((err) => console.error(
+          '[discord] cognition publish failed:',
+          err instanceof Error ? err.message : err,
+        )),
+    );
+    return Promise.allSettled(chains).then(() => undefined);
+  };
+
+  // Re-deliver publish runs that never reached the owner (DM send failed →
+  // published_at NULL) within the freshness window. Idempotent: every path
+  // gates on `published_at IS NULL` and calls markPublished on success. The
+  // in-flight guard stops overlapping shard events (shardReady + shardResume)
+  // from double-flushing the same rows before the first sends mark them.
+  const REDELIVER_MAX_AGE_MS = deps.redeliverMaxAgeMs ?? 6 * 60 * 60 * 1000;
+  let flushing = false;
+  const flushUndeliveredPushes = async () => {
+    if (flushing) return;
+    if (!deps.cognitionService) return;
+    if (!client.isReady()) return;
+    flushing = true;
+    try {
+      const runs = deps.cognitionService.findUndeliveredPublishes(Date.now() - REDELIVER_MAX_AGE_MS);
+      if (runs.length === 0) return;
+      console.log('[discord] re-delivering', runs.length, 'undelivered cognition push(es)');
+      for (const run of runs) {
+        await deliverCognitionPush({
+          runId: run.runId,
+          content: run.payload.content,
+          embed: run.payload.embed,
+          components: run.payload.components,
+        });
+      }
+    } catch (err) {
+      console.error('[discord] flush undelivered pushes failed:', err instanceof Error ? err.message : err);
+    } finally {
+      flushing = false;
+    }
+  };
+
   let cognitionListener: ((e: any) => void) | null = null;
   if (deps.reminderBus) {
     cognitionListener = (event: any) => {
       if (event.type !== 'cognition_publish') return;
-      if (!client.isReady()) return;
-      // Mark the run as published exactly once — on the first successful DM.
-      // Calling markPublished per-whitelist-user would overwrite
-      // published_at N times and could falsely mark a run as published even
-      // when earlier recipients' sends failed.
-      let marked = false;
-      // `typeof [] === 'object'` is true, so guard against an accidental array
-      // shape from a future caller — buildEmbedFromData would silently produce
-      // an empty embed instead of throwing.
-      const hasEmbed = event.embed && typeof event.embed === 'object' && !Array.isArray(event.embed);
-      const body = `💭 _from ${event.handler}_\n${event.content}`;
-      for (const userId of deps.whitelist) {
-        client.users.fetch(userId)
-          .then((u) => u.createDM())
-          .then(async (dm) => {
-            if (hasEmbed) {
-              const embed = buildEmbedFromData(event.embed as EmbedData);
-              const components = event.components
-                ? buildComponentsFromData(event.components as ComponentData[])
-                : [];
-              await (dm as unknown as DMChannel).send({
-                embeds: [embed],
-                components,
-                // Cognition handlers compose `content` from LLM output (e.g.
-                // morningBrief, draft replies). Block @everyone / role pings
-                // even though the channel is a 1:1 DM — defense in depth.
-                allowedMentions: { parse: [] },
-              });
-              return;
-            }
-            if (event.components) {
-              // Plain-text nudge that still carries interactive buttons (e.g.
-              // distractionPullback). sendReply can't attach components, so
-              // send directly. buildDistractionNudge clamps the content well
-              // under Discord's 2000-char cap (and the prefix added here fits
-              // the margin), so no splitter is needed — and a clamp there is
-              // what keeps this send from throwing and skipping onPublished.
-              await (dm as unknown as DMChannel).send({
-                content: body,
-                components: buildComponentsFromData(event.components as ComponentData[]),
-                allowedMentions: { parse: [] },
-              });
-              return;
-            }
-            await sendReply(dm as unknown as DMChannel, body);
-          })
-          .then(() => {
-            if (marked) return;
-            // Attempt DB write first; only set `marked` if it actually
-            // succeeds. Otherwise a transient DB failure here would leave
-            // `marked=true`, silently skipping later successful recipients.
-            deps.cognitionService?.markPublished(event.runId, Date.now());
-            marked = true;
-          })
-          .catch((err) => console.error(
-            '[discord] cognition publish failed:',
-            err instanceof Error ? err.message : err,
-          ));
-      }
+      void deliverCognitionPush(event);
     };
     deps.reminderBus.on('push', cognitionListener);
+  }
+
+  // Flush on (re)connect: shardReady/shardResume cover an in-process reconnect
+  // after a transient outage; the clientReady hook below covers a fresh start
+  // after a restart-during-outage. All are idempotent via markPublished.
+  if (deps.cognitionService) {
+    client.on('shardReady', () => void flushUndeliveredPushes());
+    client.on('shardResume', () => void flushUndeliveredPushes());
   }
 
   const LOGIN_TIMEOUT_MS = 30_000;
