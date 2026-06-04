@@ -1265,9 +1265,16 @@ export async function startDiscordBot(
   // Delivery is at-most-once via markPublished. Caveat: markPublished →
   // firePublished only re-runs the in-memory onPublished callback — present on
   // an in-process reconnect, GONE after a restart. So a restart-redelivered
-  // weatherAlert/emailUrgent skips its dedup marker (recordAlert/markUrgentPinged)
-  // and can fire once more on the next tick. morningBrief/emailDigest are
-  // unaffected (no callback / idempotent markDelivered). See AGENTS.md.
+  // handler skips its onPublished side-effect entirely. This affects every
+  // handler that carries one: weatherAlert/emailUrgent skip their dedup marker
+  // (recordAlert/markUrgentPinged), emailDigest skips markDelivered so its email
+  // rows stay pending, contextSwitch skips recordPing (away-app dedup), and
+  // distractionPullback skips recordEval (dwell dedup). In every case the run can fire
+  // once more on the next tick (a duplicate, not a loss — the re-fired run runs
+  // in-process, so its onPublished lands and settles the state, bounding it to a
+  // single repeat). Only morningBrief is truly unaffected (no onPublished
+  // callback). Persisting onPublished across restarts is out of scope (YAGNI).
+  // See AGENTS.md.
   if (deps.cognitionService) {
     client.on('shardReady', () => void flushUndeliveredPushes());
     client.on('shardResume', () => void flushUndeliveredPushes());
