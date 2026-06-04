@@ -7,6 +7,7 @@ import {
   buildPermissionsListReply,
   buildUrgentEmailEmbed,
   buildPendingActionsComponents,
+  buildActionReopenComponents,
 } from '../embeds.js';
 import type { EmailPendingRow } from '../../../emails/types.js';
 import type { OpenAction } from '../../../topics/store.js';
@@ -334,6 +335,38 @@ describe('buildPendingActionsComponents', () => {
   it('keeps the button label within Discord\'s 80-char cap', () => {
     const long = 'x'.repeat(200);
     const [row] = buildPendingActionsComponents([mkAction({ action: long })]);
+    expect(row.buttons[0].label.length).toBeLessThanOrEqual(80);
+    expect(row.buttons[0].label.endsWith('…')).toBe(true);
+  });
+});
+
+describe('buildActionReopenComponents', () => {
+  it('returns no components when there are no closed actions', () => {
+    expect(buildActionReopenComponents([])).toEqual([]);
+  });
+
+  it('builds one secondary "↩ Вернуть" button per action with followup:reopen customId', () => {
+    const components = buildActionReopenComponents([
+      mkAction({ topicId: 14, action: 'confirm payment' }),
+      mkAction({ topicId: 22, action: 'pay invoice' }),
+    ]);
+    expect(components).toHaveLength(1);
+    const row = components[0];
+    expect(row.type).toBe('row');
+    expect(row.buttons).toHaveLength(2);
+    expect(row.buttons[0]).toEqual({
+      customId: 'followup:reopen:14',
+      label: '↩ confirm payment',
+      style: 'secondary',
+    });
+    expect(row.buttons[1].customId).toBe('followup:reopen:22');
+  });
+
+  it('caps at 5 buttons and clamps the label to Discord\'s 80-char limit', () => {
+    const actions = Array.from({ length: 8 }, (_, i) => mkAction({ topicId: i + 1 }));
+    expect(buildActionReopenComponents(actions)[0].buttons).toHaveLength(5);
+    const long = 'y'.repeat(200);
+    const [row] = buildActionReopenComponents([mkAction({ action: long })]);
     expect(row.buttons[0].label.length).toBeLessThanOrEqual(80);
     expect(row.buttons[0].label.endsWith('…')).toBe(true);
   });

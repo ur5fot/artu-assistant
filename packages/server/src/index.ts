@@ -58,6 +58,7 @@ import { scoreBatch } from './emails/scorer.js';
 import { startEmailPoller } from './emails/multi-account-poller.js';
 import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
 import { createEmailUrgentHandler } from './cognition/handlers/emailUrgent.js';
+import { createEmailActionMatchHandler } from './cognition/handlers/emailActionMatch.js';
 import { createDraftReplyService, type DraftState } from './services/draft-reply-service.js';
 import { MORNING_FALLBACK_HOUR } from './cognition/handlers/emailDigest.helpers.js';
 import { createTopicFinalizerHandler } from './topics/finalizer.js';
@@ -936,6 +937,21 @@ if (discordToken) {
           // both trip on the same hour). quietStart=0 would also silently disable
           // the digest since `hour >= 0` is always true.
           quietStart: envInt(process.env.EMAIL_QUIET_HOUR_START, 22, MORNING_FALLBACK_HOUR + 1, 23),
+        }),
+      );
+
+      // Auto-close pending actions when a confirmation email arrives. Gated on
+      // email like the digest (it reads email_pending); publishes a reversible
+      // "↩ Вернуть" notice via the cognition bus, so it lives in the
+      // Discord-started block alongside emailDigest.
+      cognitionService.register(
+        createEmailActionMatchHandler({
+          emailStore,
+          topicStore,
+          anthropic: client.anthropic,
+          ollama: ollamaForRouter,
+          piiProxy,
+          lookbackHours: envInt(process.env.EMAIL_ACTION_MATCH_LOOKBACK_H, 72, 1, 720),
         }),
       );
     }

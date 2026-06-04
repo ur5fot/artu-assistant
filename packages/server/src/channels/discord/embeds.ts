@@ -415,6 +415,27 @@ export function buildPendingActionsComponents(actions: OpenAction[]): ComponentD
   ];
 }
 
+// One-tap "↩ Вернуть" buttons for actions the emailActionMatch handler
+// auto-closed off a confirmation email. Each gets a secondary button whose
+// customId `followup:reopen:<topicId>` the interaction handler reads to clear
+// the dismiss timestamp (resurfacing the action in the next brief). Same caps
+// and empty-input behaviour as buildPendingActionsComponents — auto-close
+// notices list at most PENDING_ACTIONS_MAX closed actions per message.
+export function buildActionReopenComponents(actions: OpenAction[]): ComponentData[] {
+  const visible = actions.slice(0, PENDING_ACTIONS_MAX);
+  if (visible.length === 0) return [];
+  return [
+    {
+      type: 'row',
+      buttons: visible.map((a) => ({
+        customId: `followup:reopen:${a.topicId}`,
+        label: `↩ ${truncate(a.action, PENDING_ACTION_LABEL_MAX)}`,
+        style: 'secondary',
+      })),
+    },
+  ];
+}
+
 export interface PermissionsListReply {
   content: string;
   embeds: EmbedBuilder[];

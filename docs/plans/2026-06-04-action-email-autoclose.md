@@ -64,21 +64,22 @@ posts a notice with a one-tap "↩ Вернуть" so a wrong close costs nothin
 - [x] run `npm test` — must pass before next task
 
 ### Task 2: emailActionMatch cognition handler
-- [ ] new `cognition/handlers/emailActionMatch.ts`: `createEmailActionMatchHandler({ emailStore,
+- [x] new `cognition/handlers/emailActionMatch.ts`: `createEmailActionMatchHandler({ emailStore,
       topicStore, anthropic, ollama, lookbackHours=72 })`.
-- [ ] `trigger`: return true only if `topicStore.getOpenActions().length > 0` (cheap gate; no LLM in
+- [x] `trigger`: return true only if `topicStore.getOpenActions().length > 0` (cheap gate; no LLM in
       trigger). Optional short cooldown after a publish.
-- [ ] `run`: actions = getOpenActions(); recent = `emailStore.fetchInWindow(lookbackHours, N, now)`;
+- [x] `run`: actions = getOpenActions(); recent = `emailStore.fetchInWindow(lookbackHours, N, now)`;
       build candidate (action,email) pairs by domain match (action.url host vs email from-domain) or
       keyword overlap (action label vs subject); LLM-confirm candidates with a conservative prompt
       ("match=true ONLY if this email clearly confirms THIS action is done; else false"); for each
-      confirmed → `dismissAction(topicId, now)`. Return `{publish:true, content: notice listing closed
-      actions + sender, components: [↩ Вернуть per closed action]}`; nothing confirmed → `{skip}`.
-- [ ] reuse the scorer's Claude/Ollama call pattern for the match (small JSON in/out).
-- [ ] register conditionally in `index.ts` (email enabled + topicStore present), like emailDigest.
-- [ ] add `buildActionReopenComponents(actions)` in `embeds.ts` (→ `followup:reopen:<topicId>` buttons).
-- [ ] tests (match→close+notice+button, no-actions→skip, wrong-domain→no match, LLM-no→no close)
-- [ ] run `npm test` — must pass before next task
+      confirmed → `dismissAction(topicId, now)` (in `onPublished`, after the DM lands). Return
+      `{publish:true, content: notice listing closed actions + sender, components: [↩ Вернуть per
+      closed action]}`; nothing confirmed → `{skip}`.
+- [x] reuse the scorer's Claude/Ollama call pattern for the match (small JSON in/out).
+- [x] register conditionally in `index.ts` (email enabled + topicStore present), like emailDigest.
+- [x] add `buildActionReopenComponents(actions)` in `embeds.ts` (→ `followup:reopen:<topicId>` buttons).
+- [x] tests (match→close+notice+button, no-actions→skip, wrong-domain→no match, LLM-no→no close)
+- [x] run `npm test` — must pass before next task
 
 ### Task 3: Verify acceptance & build
 - [ ] verify: an open action + a matching confirmation email → handler closes it and DMs a notice with
