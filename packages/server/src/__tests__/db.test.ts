@@ -405,6 +405,7 @@ describe('window_history table', () => {
     const names = cols.map((c) => c.name).sort();
     expect(names).toEqual([
       'app_name', 'id', 'last_seen_at', 'sample_count', 'started_at', 'window_title', 'url',
+      'url_last_seen_at',
     ].sort());
   });
 

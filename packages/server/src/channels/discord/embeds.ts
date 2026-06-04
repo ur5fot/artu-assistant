@@ -397,7 +397,11 @@ export function buildDistractionNudge(event: DistractionNudgeEvent): {
 // (text-only brief, exactly as before this feature). The label is truncated to
 // Discord's 80-char button cap (minus the "✓ " prefix); topicId is a small
 // integer so the customId never approaches the 100-char id limit.
-const PENDING_ACTIONS_MAX = 5;
+// Discord caps a button row at 5, so at most this many actions get a tap-button
+// per message. Exported so auto-close handlers cap how many actions they
+// dismiss per notice — never dismiss an action we can't render a reopen button
+// for (that would break the soft + reversible contract).
+export const PENDING_ACTIONS_MAX = 5;
 const PENDING_ACTION_LABEL_MAX = 78;
 
 export function buildPendingActionsComponents(actions: OpenAction[]): ComponentData[] {

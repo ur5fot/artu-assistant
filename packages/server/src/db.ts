@@ -420,6 +420,13 @@ export function initDb(dbPath?: string): void {
   if (!whCols.some((c) => c.name === 'url')) {
     db.exec(`ALTER TABLE window_history ADD COLUMN url TEXT`);
   }
+  // Tracks when the row's `url` was last actually observed, distinct from
+  // last_seen_at (which bumps on every same-title resample, even a null-url
+  // tick). recentUrlsSince keys off this so a stale URL preserved by COALESCE
+  // can't be re-stamped as a fresh visit and falsely auto-close an action.
+  if (!whCols.some((c) => c.name === 'url_last_seen_at')) {
+    db.exec(`ALTER TABLE window_history ADD COLUMN url_last_seen_at INTEGER`);
+  }
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_window_history_last_seen
       ON window_history(last_seen_at DESC)

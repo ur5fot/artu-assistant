@@ -123,6 +123,11 @@ export function createOsascriptProvider(
  * leading `www.` stripped, trailing slash trimmed). Returns null for anything
  * that isn't a parseable http(s) URL. Privacy: query strings can carry tokens,
  * so they never reach the DB.
+ *
+ * Uses `host` (not `hostname`) so a non-default port stays part of identity:
+ * this is a localhost-first project where `localhost:3000` and `localhost:5173`
+ * are different services and must never cross-match (default :80/:443 are
+ * omitted by the URL API, so normal sites are unaffected).
  */
 export function stripUrl(raw: string): string | null {
   if (!raw) return null;
@@ -133,7 +138,7 @@ export function stripUrl(raw: string): string | null {
     return null;
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
-  const host = parsed.hostname.replace(/^www\./, '');
+  const host = parsed.host.replace(/^www\./, '');
   if (!host) return null;
   const path = parsed.pathname.replace(/\/+$/, '');
   return host + path;

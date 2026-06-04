@@ -49,15 +49,23 @@ export function createWindowHistoryStore(deps: { db: Database.Database }): Windo
      FROM window_history ORDER BY id DESC LIMIT 1`,
   );
   // COALESCE keeps the existing url when a later same-title sample has none, so
-  // a transient blank URL never wipes a captured one.
+  // a transient blank URL never wipes a captured one. url_last_seen_at advances
+  // ONLY when this sample actually carried a url (the CASE): a null-url resample
+  // bumps last_seen_at (session continuity / blind detection) without claiming
+  // the preserved url was re-visited — otherwise a stale URL would look freshly
+  // seen and could falsely auto-close an action.
   const updateLatest = db.prepare(
     `UPDATE window_history
-     SET last_seen_at = ?, sample_count = sample_count + 1, url = COALESCE(?, url)
-     WHERE id = ?`,
+     SET last_seen_at = @sampledAt,
+         sample_count = sample_count + 1,
+         url = COALESCE(@url, url),
+         url_last_seen_at = CASE WHEN @url IS NOT NULL THEN @sampledAt ELSE url_last_seen_at END
+     WHERE id = @id`,
   );
   const insertRow = db.prepare(
-    `INSERT INTO window_history (app_name, window_title, started_at, last_seen_at, sample_count, url)
-     VALUES (?, ?, ?, ?, 1, ?)`,
+    `INSERT INTO window_history
+       (app_name, window_title, started_at, last_seen_at, sample_count, url, url_last_seen_at)
+     VALUES (@app, @title, @sampledAt, @sampledAt, 1, @url, @urlLastSeen)`,
   );
   const selectRecent = db.prepare(
     `SELECT id, app_name, window_title, started_at, last_seen_at, sample_count, url
@@ -66,10 +74,13 @@ export function createWindowHistoryStore(deps: { db: Database.Database }): Windo
      ORDER BY last_seen_at DESC
      LIMIT ?`,
   );
+  // last_seen_at here is the url's OWN last-observed time (url_last_seen_at), not
+  // the row's session last_seen_at — so a same-title resample that didn't
+  // re-capture the url can't advance it past an action's startedAt.
   const selectRecentUrls = db.prepare(
-    `SELECT url, MAX(last_seen_at) AS last_seen_at
+    `SELECT url, MAX(url_last_seen_at) AS last_seen_at
      FROM window_history
-     WHERE url IS NOT NULL AND last_seen_at >= ?
+     WHERE url IS NOT NULL AND url_last_seen_at >= ?
      GROUP BY url
      ORDER BY last_seen_at DESC
      LIMIT ?`,
@@ -87,22 +98,23 @@ export function createWindowHistoryStore(deps: { db: Database.Database }): Windo
 
   return {
     recordSample(sample) {
+      const url = sample.url ?? null;
       const latest = selectLatest.get() as WindowHistoryRow | undefined;
       if (
         latest &&
         latest.app_name === sample.app_name &&
         latest.window_title === sample.window_title
       ) {
-        updateLatest.run(sample.sampled_at, sample.url ?? null, latest.id);
+        updateLatest.run({ sampledAt: sample.sampled_at, url, id: latest.id });
         return;
       }
-      insertRow.run(
-        sample.app_name,
-        sample.window_title,
-        sample.sampled_at,
-        sample.sampled_at,
-        sample.url ?? null,
-      );
+      insertRow.run({
+        app: sample.app_name,
+        title: sample.window_title,
+        sampledAt: sample.sampled_at,
+        url,
+        urlLastSeen: url !== null ? sample.sampled_at : null,
+      });
     },
 
     findCurrentSession() {

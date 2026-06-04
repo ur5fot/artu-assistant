@@ -2,7 +2,7 @@ import type { Handler } from '../types.js';
 import type { WindowHistoryStore } from '../../observers/window-history-store.js';
 import type { TopicStore, OpenAction } from '../../topics/store.js';
 import { stripUrl } from '../../observers/window-snapshot.js';
-import { buildActionReopenComponents } from '../../channels/discord/embeds.js';
+import { buildActionReopenComponents, PENDING_ACTIONS_MAX } from '../../channels/discord/embeds.js';
 
 interface Deps {
   windowHistoryStore: WindowHistoryStore;
@@ -118,6 +118,10 @@ export function createActionActivityMatchHandler(deps: Deps): Handler {
           if (hit) closed.push({ action, url: hit.url });
         }
         if (closed.length === 0) return { skip: true, reason: 'no visited url matches an open action' };
+        // Dismiss at most as many as get a reopen button (one Discord row = 5).
+        // Any overflow stays open and is caught on a later scan — never dismiss
+        // an action we can't offer a one-tap "↩ Вернуть" for (soft + reversible).
+        if (closed.length > PENDING_ACTIONS_MAX) closed.length = PENDING_ACTIONS_MAX;
 
         const now = ctx.firedAt;
         return {

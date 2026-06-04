@@ -149,6 +149,31 @@ describe('createActionActivityMatchHandler.run', () => {
     expect(topicStore.getOpenActions()).toHaveLength(0);
   });
 
+  it('caps dismissals at the reopen-button limit — never closes an action it cannot offer a button for', async () => {
+    const topicStore = createTopicStore({ db: getDb() });
+    const windowHistoryStore = createWindowHistoryStore({ db: getDb() });
+    // Seven matching actions, but a Discord row holds at most 5 reopen buttons.
+    for (let i = 0; i < 7; i++) {
+      mkAction(topicStore, {
+        label: `pr${i}`,
+        action: `review PR ${i}`,
+        url: `https://github.com/org/repo/pull/${i}`,
+        finalizedAt: NOW,
+      });
+      mkVisit(windowHistoryStore, `github.com/org/repo/pull/${i}`, NOW - 3600_000 + i);
+    }
+
+    const h = createActionActivityMatchHandler({ windowHistoryStore, topicStore });
+    const result = await h.run(mkCtx(NOW));
+    if (!('publish' in result)) throw new Error('expected publish');
+    // At most 5 reopen buttons, and exactly that many dismissed — the 2 overflow
+    // actions stay open for a later scan (soft + reversible holds for all).
+    const ids = result.components?.flatMap((r) => r.buttons.map((b) => b.customId)) ?? [];
+    expect(ids).toHaveLength(5);
+    await result.onPublished?.();
+    expect(topicStore.getOpenActions()).toHaveLength(2);
+  });
+
   it('returns {error} instead of throwing when the store read fails', async () => {
     const topicStore = createTopicStore({ db: getDb() });
     mkAction(topicStore, { label: 'pr', action: 'review PR', url: 'https://github.com/org/repo/pull/9', finalizedAt: NOW });

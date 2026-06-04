@@ -269,6 +269,17 @@ describe('stripUrl', () => {
     expect(stripUrl('not a url')).toBeNull();
     expect(stripUrl('')).toBeNull();
   });
+  it('keeps a non-default port so localhost services do not cross-match', () => {
+    // localhost-first project: :3000 and :5173 are different services and must
+    // produce distinct host+path identities (uses `host`, not `hostname`).
+    expect(stripUrl('http://localhost:3000/a/b')).toBe('localhost:3000/a/b');
+    expect(stripUrl('http://localhost:5173/a/b')).toBe('localhost:5173/a/b');
+    expect(stripUrl('http://localhost:3000/a/b')).not.toBe(stripUrl('http://localhost:5173/a/b'));
+  });
+  it('omits default ports (normal sites unaffected)', () => {
+    expect(stripUrl('https://example.com:443/foo')).toBe('example.com/foo');
+    expect(stripUrl('http://example.com:80/foo')).toBe('example.com/foo');
+  });
 });
 
 describe('createOsascriptProvider.getActive — active-tab URL capture', () => {

@@ -270,6 +270,32 @@ describe('createWindowHistoryStore', () => {
         expect(urls[0].url).toBe('s3.com/p');
       });
 
+      it('does NOT advance a url last-seen on a same-title resample without a url', () => {
+        // A transient URL-capture failure (or same-title navigation) bumps the
+        // row's session last_seen_at via COALESCE, but the url was NOT actually
+        // re-observed — so its recency must stay at the original visit time and
+        // not slide forward (which would falsely look like a fresh visit).
+        const store = createWindowHistoryStore({ db: getDb() });
+        const t0 = 1_700_000_000_000;
+        store.recordSample({ app_name: 'Chrome', window_title: 'Issue', sampled_at: t0, url: 'gh.com/o/r' });
+        // Same app+title, no url (capture failed) at a much later time.
+        store.recordSample({ app_name: 'Chrome', window_title: 'Issue', sampled_at: t0 + 600_000 });
+
+        // The url's recency stayed at t0, so a bound past t0 finds nothing.
+        expect(store.recentUrlsSince(t0 + 1)).toEqual([]);
+        // And at t0 it still reports the original observation time, not t0+600_000.
+        const urls = store.recentUrlsSince(t0);
+        expect(urls).toEqual([{ url: 'gh.com/o/r', last_seen_at: t0 }]);
+      });
+
+      it('advances url last-seen when the same url IS re-observed', () => {
+        const store = createWindowHistoryStore({ db: getDb() });
+        const t0 = 1_700_000_000_000;
+        store.recordSample({ app_name: 'Chrome', window_title: 'Issue', sampled_at: t0, url: 'gh.com/o/r' });
+        store.recordSample({ app_name: 'Chrome', window_title: 'Issue', sampled_at: t0 + 600_000, url: 'gh.com/o/r' });
+        expect(store.recentUrlsSince(t0 + 1)).toEqual([{ url: 'gh.com/o/r', last_seen_at: t0 + 600_000 }]);
+      });
+
       it('returns empty array when no url rows match', () => {
         const store = createWindowHistoryStore({ db: getDb() });
         const t0 = 1_700_000_000_000;
