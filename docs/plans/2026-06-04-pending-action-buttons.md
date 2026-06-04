@@ -76,12 +76,12 @@ iter-1 captures `target_url` now so iter-3 has the data; nothing in iter-1 reads
 - [x] run `npm test` — must pass before next task
 
 ### Task 3: "✓ Готово" button handler closes the action
-- [ ] `interactions.ts`: handle `domain === 'followup' && action === 'done'` → parse topicId →
+- [x] `interactions.ts`: handle `domain === 'followup' && action === 'done'` → parse topicId →
       `topicStore.dismissAction(topicId, now)` → `ixn.update(...)` to drop the tapped button / show ✓.
       Handle already-dismissed gracefully.
-- [ ] wire the topic store/service into `InteractionDeps`.
-- [ ] write interaction tests (done → dismissAction + message updated; stale button → graceful)
-- [ ] run `npm test` — must pass before next task
+- [x] wire the topic store/service into `InteractionDeps`.
+- [x] write interaction tests (done → dismissAction + message updated; stale button → graceful)
+- [x] run `npm test` — must pass before next task
 
 ### Task 4: Verify acceptance & build
 - [ ] verify end-to-end: a finalized topic with `action_required` shows in the next brief with a

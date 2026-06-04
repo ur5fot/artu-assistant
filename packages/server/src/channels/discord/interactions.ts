@@ -34,6 +34,7 @@ import type { MessageHeaders } from '../../emails/imap-client.js';
 import type { PiiProxy } from '../../pii/proxy.js';
 import type { WindowHistoryStore } from '../../observers/window-history-store.js';
 import type { DistractionEvalStore } from '../../observers/distraction-eval-store.js';
+import type { TopicStore } from '../../topics/store.js';
 import { parseFromAddress } from '../../emails/address.js';
 import {
   buildReminderEmbed,
@@ -135,6 +136,9 @@ export interface InteractionDeps {
   distractionEvalStore?: DistractionEvalStore;
   /** Snooze window (minutes) applied by the `distract:snooze` button. */
   distractionSnoozeMin?: number;
+  /** Topic store — read/written by the `followup:done` button to dismiss a
+   *  finalized topic's pending action (the morning-brief "✓ Готово" button). */
+  topicStore?: TopicStore | null;
 }
 
 // Parses the description rendered by buildPermissionEmbed —
@@ -387,6 +391,11 @@ async function routeButton(
     return;
   }
 
+  if (domain === 'followup' && action === 'done') {
+    await handleFollowupDone(ixn, deps, rawId ?? '');
+    return;
+  }
+
   if (domain === 'perm_rule' && action === 'revoke') {
     const toolName = rawId ?? '';
     deps.commandService.revokePermissionRule(toolName);
@@ -527,6 +536,62 @@ async function handleDistractFeedback(
     });
     return;
   }
+}
+
+// Rebuilds a message's button rows, dropping the one whose customId matches.
+// The morning brief carries one row of "✓ Готово" buttons (one per open
+// action); when the owner taps one we want to remove just that button and
+// leave the rest tappable — not wipe the whole row. Empty rows are dropped so
+// Discord doesn't reject a zero-component action row. Defensive: a row/button
+// that can't be rebuilt (unexpected shape) is skipped rather than thrown.
+function rebuildComponentsWithout(
+  rows: readonly any[],
+  dropCustomId: string,
+): ActionRowBuilder<ButtonBuilder>[] {
+  const out: ActionRowBuilder<ButtonBuilder>[] = [];
+  for (const row of rows) {
+    const builder = new ActionRowBuilder<ButtonBuilder>();
+    let kept = 0;
+    for (const comp of row?.components ?? []) {
+      if (comp?.customId === dropCustomId) continue;
+      try {
+        builder.addComponents(ButtonBuilder.from(comp));
+        kept++;
+      } catch {
+        // A non-button component (or one ButtonBuilder.from can't parse) —
+        // skip it rather than abort the whole rebuild.
+      }
+    }
+    if (kept > 0) out.push(builder);
+  }
+  return out;
+}
+
+// One-tap close for a morning-brief pending action. customId is
+// `followup:done:<topicId>`; dismissAction is idempotent so a stale button
+// (already-dismissed action, or one tapped on an old brief) is a safe no-op —
+// we still update the message to drop the tapped button so the UI reflects the
+// close. No topicId / unwired store → silent return (nothing actionable).
+async function handleFollowupDone(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  const topicId = Number(rawId);
+  if (!Number.isInteger(topicId) || topicId <= 0) return;
+  if (!deps.topicStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Pending actions are not configured.',
+    });
+    return;
+  }
+  deps.topicStore.dismissAction(topicId, Date.now());
+  const remaining = rebuildComponentsWithout(
+    (ixn as any).message?.components ?? [],
+    `followup:done:${topicId}`,
+  );
+  await (ixn as any).update({ components: remaining });
 }
 
 const DRAFT_MAX_TOKENS = 1024;

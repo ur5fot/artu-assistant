@@ -339,6 +339,7 @@ export async function startDiscordBot(
         windowHistoryStore: deps.windowHistoryStore,
         distractionEvalStore: deps.distractionEvalStore,
         distractionSnoozeMin: deps.distractionSnoozeMin,
+        topicStore: deps.topicStore,
       });
     } catch (err) {
       console.error('[discord] interaction error:', err instanceof Error ? err.message : err);
