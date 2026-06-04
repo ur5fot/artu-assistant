@@ -28,7 +28,10 @@ function freshDb(): Database.Database {
       status TEXT NOT NULL CHECK (status IN ('open','closed','finalized')),
       source TEXT,
       finalized_at INTEGER,
-      failure_count INTEGER NOT NULL DEFAULT 0
+      failure_count INTEGER NOT NULL DEFAULT 0,
+      action_required TEXT,
+      action_dismissed_at INTEGER,
+      target_url TEXT
     )
   `);
   db.exec(`
@@ -272,6 +275,81 @@ describe('TopicStore', () => {
 
     const list = store.listFinalized(10);
     expect(list.map((t) => t.id)).toEqual([t2.id, t1.id]);
+  });
+
+  it('finalize persists action_required and target_url', () => {
+    const store = createTopicStore({ db });
+    const t = store.createOpen(fakeNow, 'discord');
+    store.closeOpen(t.id, fakeNow + 100);
+    store.finalize(t.id, 'gh perms', 'confirm github perms', 7, fakeNow + 500, 'confirm github permissions', 'https://github.com/settings');
+    const row = db.prepare('SELECT * FROM chat_topics WHERE id = ?').get(t.id) as any;
+    expect(row.action_required).toBe('confirm github permissions');
+    expect(row.target_url).toBe('https://github.com/settings');
+    expect(row.action_dismissed_at).toBeNull();
+  });
+
+  it('finalize defaults action_required and target_url to null when omitted', () => {
+    const store = createTopicStore({ db });
+    const t = store.createOpen(fakeNow, 'discord');
+    store.closeOpen(t.id, fakeNow + 100);
+    store.finalize(t.id, 'label', 'summary', 5, fakeNow + 500);
+    const row = db.prepare('SELECT * FROM chat_topics WHERE id = ?').get(t.id) as any;
+    expect(row.action_required).toBeNull();
+    expect(row.target_url).toBeNull();
+  });
+
+  it('getOpenActions returns only finalized topics with an undismissed action', () => {
+    const store = createTopicStore({ db });
+    // with action -> included
+    const a = store.createOpen(fakeNow, 'discord');
+    store.closeOpen(a.id, fakeNow + 10);
+    store.finalize(a.id, 'gh', 'sum', 7, fakeNow + 20, 'confirm github permissions', 'https://gh.test');
+    // no action -> excluded
+    const b = store.createOpen(fakeNow + 100, 'discord');
+    store.closeOpen(b.id, fakeNow + 110);
+    store.finalize(b.id, 'plain', 'sum', 5, fakeNow + 120);
+    // action but dismissed -> excluded
+    const c = store.createOpen(fakeNow + 200, 'discord');
+    store.closeOpen(c.id, fakeNow + 210);
+    store.finalize(c.id, 'paid', 'sum', 6, fakeNow + 220, 'pay invoice', null);
+    store.dismissAction(c.id, fakeNow + 230);
+    // action but still closed (not finalized) -> excluded
+    const d = store.createOpen(fakeNow + 300, 'discord');
+    store.closeOpen(d.id, fakeNow + 310);
+    db.prepare(`UPDATE chat_topics SET action_required = 'reply' WHERE id = ?`).run(d.id);
+
+    const actions = store.getOpenActions();
+    expect(actions).toEqual([
+      { topicId: a.id, label: 'gh', action: 'confirm github permissions', url: 'https://gh.test' },
+    ]);
+  });
+
+  it('getOpenActions orders newest finalized first', () => {
+    const store = createTopicStore({ db });
+    const older = store.createOpen(fakeNow, 'discord');
+    store.closeOpen(older.id, fakeNow + 10);
+    store.finalize(older.id, 'older', 'sum', 5, fakeNow + 20, 'older action', null);
+    const newer = store.createOpen(fakeNow + 100, 'discord');
+    store.closeOpen(newer.id, fakeNow + 110);
+    store.finalize(newer.id, 'newer', 'sum', 5, fakeNow + 200, 'newer action', null);
+    const actions = store.getOpenActions();
+    expect(actions.map((x) => x.topicId)).toEqual([newer.id, older.id]);
+  });
+
+  it('dismissAction sets the timestamp and is idempotent', () => {
+    const store = createTopicStore({ db });
+    const t = store.createOpen(fakeNow, 'discord');
+    store.closeOpen(t.id, fakeNow + 10);
+    store.finalize(t.id, 'gh', 'sum', 7, fakeNow + 20, 'confirm github permissions', null);
+    store.dismissAction(t.id, fakeNow + 500);
+    let row = db.prepare('SELECT action_dismissed_at FROM chat_topics WHERE id = ?').get(t.id) as any;
+    expect(row.action_dismissed_at).toBe(fakeNow + 500);
+    // second call keeps the original timestamp (no-op)
+    store.dismissAction(t.id, fakeNow + 999);
+    row = db.prepare('SELECT action_dismissed_at FROM chat_topics WHERE id = ?').get(t.id) as any;
+    expect(row.action_dismissed_at).toBe(fakeNow + 500);
+    // and it disappears from getOpenActions
+    expect(store.getOpenActions()).toEqual([]);
   });
 
   it('listFinalized honors limit', () => {

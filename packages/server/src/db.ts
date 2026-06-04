@@ -373,6 +373,21 @@ export function initDb(dbPath?: string): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_topics_status ON chat_topics(status, ended_at)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_topics_finalized ON chat_topics(finalized_at)`);
 
+  // Migration: pending-action columns (iter-1). All nullable + backward-safe —
+  // a finalized topic with no external action leaves action_required NULL and
+  // behaves exactly as before. target_url is captured now for later URL-based
+  // auto-close (iter-3) but is only shown as a link in iter-1.
+  const topicCols = db.prepare("PRAGMA table_info(chat_topics)").all() as Array<{ name: string }>;
+  if (!topicCols.some((c) => c.name === 'action_required')) {
+    db.exec(`ALTER TABLE chat_topics ADD COLUMN action_required TEXT`);
+  }
+  if (!topicCols.some((c) => c.name === 'action_dismissed_at')) {
+    db.exec(`ALTER TABLE chat_topics ADD COLUMN action_dismissed_at INTEGER`);
+  }
+  if (!topicCols.some((c) => c.name === 'target_url')) {
+    db.exec(`ALTER TABLE chat_topics ADD COLUMN target_url TEXT`);
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS chat_topic_messages (
       topic_id INTEGER NOT NULL REFERENCES chat_topics(id) ON DELETE CASCADE,

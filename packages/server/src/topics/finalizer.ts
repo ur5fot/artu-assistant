@@ -46,12 +46,15 @@ const SLASH_COMMAND_RE = /^\/[\p{L}\p{N}_-]+(?:\s|$)/u;
 const PROMPT_HEADER = `You will receive a transcript of a conversation between a user and an AI assistant. Produce a concise summary capturing decisions, outcomes, and key facts. Skip pleasantries and verbose tool output.
 
 Return ONLY valid JSON in this exact shape (no markdown fence, no prose):
-{"label": "5-7 words", "summary": "300-500 characters", "importance": 1-10}
+{"label": "5-7 words", "summary": "300-500 characters", "importance": 1-10, "action_required": "≤7 words or null", "target_url": "url or null"}
 
 Importance scale:
 - 7-9: plans/decisions made, code shipped, bugs fixed
 - 4-6: ongoing investigation, partial work
 - 1-3: chitchat, one-off question, error retry
+
+action_required: if the owner still has a manual EXTERNAL action to do that this assistant cannot do for them — confirm a permission, pay an invoice, reply somewhere — state it in ≤7 words. Otherwise null. Do NOT invent actions; null is the common case.
+target_url: the URL that action points to, if one appears in the transcript; else null.
 
 Transcript:`;
 
@@ -59,6 +62,8 @@ interface ParsedSummary {
   label: string;
   summary: string;
   importance: number;
+  actionRequired: string | null;
+  targetUrl: string | null;
 }
 
 function formatMessage(m: ChatMessageRow): string {
@@ -161,7 +166,22 @@ function parseSummary(raw: string): ParsedSummary | null {
   const importanceRaw = typeof o.importance === 'number' ? o.importance : Number(o.importance);
   if (!label || !summary || !Number.isFinite(importanceRaw)) return null;
   const importance = Math.min(10, Math.max(1, Math.round(importanceRaw)));
-  return { label, summary, importance };
+  return {
+    label,
+    summary,
+    importance,
+    actionRequired: parseNullableString(o.action_required),
+    targetUrl: parseNullableString(o.target_url),
+  };
+}
+
+// Haiku may emit a missing field, a real null, or the literal string "null".
+// Normalize all of those to null; only a non-empty meaningful string survives.
+function parseNullableString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'null') return null;
+  return trimmed;
 }
 
 export function createTopicFinalizerHandler(deps: Deps): Handler {
@@ -251,7 +271,15 @@ export function createTopicFinalizerHandler(deps: Deps): Handler {
           continue;
         }
 
-        store.finalize(topic.id, parsed.label, parsed.summary, parsed.importance, now);
+        store.finalize(
+          topic.id,
+          parsed.label,
+          parsed.summary,
+          parsed.importance,
+          now,
+          parsed.actionRequired,
+          parsed.targetUrl,
+        );
 
         // Embedding + facts run after finalize so a downstream failure does
         // not roll back the chat_topics row — the topic is summarized; only

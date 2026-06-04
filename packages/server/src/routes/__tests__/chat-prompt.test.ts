@@ -12,6 +12,8 @@ function fakeStore(topics: TopicRow[]): TopicStore {
     linkMessage: () => {},
     listClosedReadyForFinalize: () => [],
     finalize: () => {},
+    getOpenActions: () => [],
+    dismissAction: () => {},
     markFinalizationFailure: () => 0,
     markFinalizationGiveUp: () => {},
     findStaleOpen: () => [],
@@ -32,6 +34,9 @@ function topic(partial: Partial<TopicRow>): TopicRow {
     source: 'discord',
     finalized_at: Date.UTC(2026, 4, 23, 14, 0),
     failure_count: 0,
+    action_required: null,
+    action_dismissed_at: null,
+    target_url: null,
     ...partial,
   };
 }

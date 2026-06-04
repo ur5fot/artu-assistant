@@ -15,6 +15,9 @@ function topic(overrides: Partial<TopicRow> = {}): TopicRow {
     source: 'discord',
     finalized_at: null,
     failure_count: 0,
+    action_required: null,
+    action_dismissed_at: null,
+    target_url: null,
     ...overrides,
   };
 }
@@ -46,6 +49,8 @@ function mkStore(): TopicStore & {
     linkMessage: vi.fn(),
     listClosedReadyForFinalize: vi.fn(),
     finalize: vi.fn(),
+    getOpenActions: vi.fn(),
+    dismissAction: vi.fn(),
     markFinalizationFailure: vi.fn(),
     markFinalizationGiveUp: vi.fn(),
     findStaleOpen: vi.fn(),
@@ -143,7 +148,7 @@ describe('createTopicFinalizerHandler.run', () => {
     const result = await h.run(mkCtx(now));
 
     expect(create).toHaveBeenCalledOnce();
-    expect(store.finalize).toHaveBeenCalledWith(42, 'fixed bug X', 'fixed bug X by patching foo.ts', 8, now);
+    expect(store.finalize).toHaveBeenCalledWith(42, 'fixed bug X', 'fixed bug X by patching foo.ts', 8, now, null, null);
     expect(memoryService.indexTopicSummary).toHaveBeenCalledWith({
       topicId: 42,
       label: 'fixed bug X',
@@ -152,6 +157,46 @@ describe('createTopicFinalizerHandler.run', () => {
     });
     expect(memoryService.extractFactsFromConversation).toHaveBeenCalledOnce();
     expect((result as any).skip).toBe(true);
+  });
+
+  it('extracts action_required and target_url and threads them into finalize', async () => {
+    const store = mkStore();
+    store.listClosedReadyForFinalize.mockReturnValue([topic({ id: 14 })]);
+    store.getTopicMessages.mockReturnValue([msg()]);
+    const { anthropic } = mkAnthropic(
+      JSON.stringify({
+        label: 'github perms',
+        summary: 'need to confirm github permissions',
+        importance: 7,
+        action_required: 'confirm github permissions',
+        target_url: 'https://github.com/settings/installations',
+      }),
+    );
+    const h = createTopicFinalizerHandler({ store, memoryService: mkMemoryService(), anthropic, ...DEFAULT_DEPS });
+    const now = 9_000_000;
+    await h.run(mkCtx(now));
+    expect(store.finalize).toHaveBeenCalledWith(
+      14,
+      'github perms',
+      'need to confirm github permissions',
+      7,
+      now,
+      'confirm github permissions',
+      'https://github.com/settings/installations',
+    );
+  });
+
+  it('treats literal "null" / missing action fields as null', async () => {
+    const store = mkStore();
+    store.listClosedReadyForFinalize.mockReturnValue([topic({ id: 15 })]);
+    store.getTopicMessages.mockReturnValue([msg()]);
+    const { anthropic } = mkAnthropic(
+      JSON.stringify({ label: 'chat', summary: 'just chatting', importance: 2, action_required: 'null' }),
+    );
+    const h = createTopicFinalizerHandler({ store, memoryService: mkMemoryService(), anthropic, ...DEFAULT_DEPS });
+    const now = 9_000_000;
+    await h.run(mkCtx(now));
+    expect(store.finalize).toHaveBeenCalledWith(15, 'chat', 'just chatting', 2, now, null, null);
   });
 
   it('finalizes multiple topics in one tick up to finalizeBatch', async () => {
@@ -383,6 +428,6 @@ describe('createTopicFinalizerHandler.run', () => {
       ...DEFAULT_DEPS,
     });
     await h.run(mkCtx(9_000_000));
-    expect(store.finalize).toHaveBeenCalledWith(5, 'x', 'y', 10, expect.any(Number));
+    expect(store.finalize).toHaveBeenCalledWith(5, 'x', 'y', 10, expect.any(Number), null, null);
   });
 });

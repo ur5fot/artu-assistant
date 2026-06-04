@@ -13,6 +13,16 @@ export interface TopicRow {
   source: string | null;
   finalized_at: number | null;
   failure_count: number;
+  action_required: string | null;
+  action_dismissed_at: number | null;
+  target_url: string | null;
+}
+
+export interface OpenAction {
+  topicId: number;
+  label: string;
+  action: string;
+  url: string | null;
 }
 
 export interface ChatMessageRow {
@@ -31,7 +41,17 @@ export interface TopicStore {
   closeOpen(topicId: number, endedAt: number): void;
   linkMessage(topicId: number, messageId: string): void;
   listClosedReadyForFinalize(cutoff: number, limit: number): TopicRow[];
-  finalize(topicId: number, label: string, summary: string, importance: number, now: number): void;
+  finalize(
+    topicId: number,
+    label: string,
+    summary: string,
+    importance: number,
+    now: number,
+    actionRequired?: string | null,
+    targetUrl?: string | null,
+  ): void;
+  getOpenActions(): OpenAction[];
+  dismissAction(topicId: number, now: number): void;
   markFinalizationFailure(topicId: number): number;
   markFinalizationGiveUp(topicId: number, now: number): void;
   findStaleOpen(cutoff: number): TopicRow[];
@@ -55,6 +75,9 @@ function rowToTopic(raw: any): TopicRow {
     source: raw.source ?? null,
     finalized_at: raw.finalized_at ?? null,
     failure_count: raw.failure_count ?? 0,
+    action_required: raw.action_required ?? null,
+    action_dismissed_at: raw.action_dismissed_at ?? null,
+    target_url: raw.target_url ?? null,
   };
 }
 
@@ -126,16 +149,49 @@ export function createTopicStore(deps: StoreDeps): TopicStore {
       return rows.map(rowToTopic);
     },
 
-    finalize(topicId, label, summary, importance, now) {
+    finalize(topicId, label, summary, importance, now, actionRequired = null, targetUrl = null) {
       db.prepare(`
         UPDATE chat_topics
         SET status = 'finalized',
             label = ?,
             summary = ?,
             importance = ?,
-            finalized_at = ?
+            finalized_at = ?,
+            action_required = ?,
+            target_url = ?
         WHERE id = ?
-      `).run(label, summary, importance, now, topicId);
+      `).run(label, summary, importance, now, actionRequired, targetUrl, topicId);
+    },
+
+    getOpenActions() {
+      // An open action is a finalized topic the owner still has an external
+      // task for (action_required set) that hasn't been closed (no dismiss
+      // timestamp). Newest first so the brief surfaces the freshest first.
+      const rows = db.prepare(`
+        SELECT id, label, action_required, target_url
+        FROM chat_topics
+        WHERE status = 'finalized'
+          AND action_required IS NOT NULL
+          AND action_dismissed_at IS NULL
+        ORDER BY finalized_at DESC
+      `).all() as any[];
+      return rows.map((r) => ({
+        topicId: r.id as number,
+        label: (r.label ?? '') as string,
+        action: r.action_required as string,
+        url: (r.target_url ?? null) as string | null,
+      }));
+    },
+
+    dismissAction(topicId, now) {
+      // Guard on action_dismissed_at IS NULL so a repeat tap (or a tap on an
+      // old brief's button for an already-closed action) is a no-op and keeps
+      // the original close timestamp — idempotent.
+      db.prepare(`
+        UPDATE chat_topics
+        SET action_dismissed_at = ?
+        WHERE id = ? AND action_dismissed_at IS NULL
+      `).run(now, topicId);
     },
 
     markFinalizationFailure(topicId) {
