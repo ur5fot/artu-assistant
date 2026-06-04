@@ -82,11 +82,12 @@ posts a notice with a one-tap "↩ Вернуть" so a wrong close costs nothin
 - [x] run `npm test` — must pass before next task
 
 ### Task 3: Verify acceptance & build
-- [ ] verify: an open action + a matching confirmation email → handler closes it and DMs a notice with
-      "↩ Вернуть"; tapping reopen restores it (next brief shows ✓ Готово again); unrelated emails don't close.
-- [ ] run full suite (`npm test`) — all green
-- [ ] run `npm run build` (tsc) in `packages/server` — no type errors
-- [ ] confirm additive + safe (no schema change; only open actions touched; reversible)
+- [x] verify: covered by automated tests (emailActionMatch handler: match→close+notice+button,
+      no-actions→skip, wrong-domain→no match, LLM-no→no close; reopen round-trip + button update).
+      On-device manual e2e (skipped — not automatable; see Manual verification below).
+- [x] run full suite (`npm test`) — all green (1629 tests, 112 files passed)
+- [x] run `npm run build` (tsc) in `packages/server` — no type errors
+- [x] confirm additive + safe (no schema change; only open actions touched; reversible)
 
 ## Technical Details
 - Candidate gate (no LLM): action.url host == email sender domain, OR action-label keyword ∈ subject.
