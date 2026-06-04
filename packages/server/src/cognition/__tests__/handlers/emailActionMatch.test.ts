@@ -212,6 +212,98 @@ describe('createEmailActionMatchHandler.run', () => {
     expect(calls.n).toBe(0);
   });
 
+  it('does not re-invoke the LLM when the candidate set is unchanged after a no-match', async () => {
+    const emailStore = createEmailStore({ db: getDb() });
+    const topicStore = createTopicStore({ db: getDb() });
+    mkAction(topicStore, {
+      label: 'банк',
+      action: 'подтвердить оплату в банке',
+      url: 'https://bank.test/pay',
+      finalizedAt: NOW,
+    });
+    mkEmail({
+      uid: 1,
+      from: 'noreply@bank.test',
+      subject: 'Напоминание об оплате',
+      snippet: 'Не забудьте оплатить.',
+      received_at: NOW - 3600_000,
+    });
+    const { client, calls } = fakeAnthropic('[{"i":0,"match":false}]');
+    const h = createEmailActionMatchHandler({ emailStore, topicStore, anthropic: client, ollama: null });
+
+    // First tick scores the pair (LLM says no); the action stays open.
+    expect('skip' in (await h.run(mkCtx(NOW)))).toBe(true);
+    expect(calls.n).toBe(1);
+    // Second tick with the same actions + emails must not re-ask the model.
+    expect('skip' in (await h.run(mkCtx(NOW + 60_000)))).toBe(true);
+    expect(calls.n).toBe(1);
+
+    // A newly-arrived email changes the candidate set → scoring re-opens.
+    mkEmail({
+      uid: 2,
+      from: 'noreply@bank.test',
+      subject: 'Платёж получен',
+      snippet: 'Оплата прошла.',
+      received_at: NOW - 1000,
+    });
+    expect('skip' in (await h.run(mkCtx(NOW + 120_000)))).toBe(true);
+    expect(calls.n).toBe(2);
+  });
+
+  it('does not close on a malformed (non-JSON) LLM reply', async () => {
+    const emailStore = createEmailStore({ db: getDb() });
+    const topicStore = createTopicStore({ db: getDb() });
+    mkAction(topicStore, {
+      label: 'банк',
+      action: 'подтвердить оплату в банке',
+      url: 'https://bank.test/pay',
+      finalizedAt: NOW,
+    });
+    mkEmail({
+      uid: 1,
+      from: 'noreply@bank.test',
+      subject: 'Платёж получен',
+      snippet: 'Ваш платёж успешно проведён.',
+      received_at: NOW - 3600_000,
+    });
+    const { client, calls } = fakeAnthropic('конечно, задача выполнена!');
+    const h = createEmailActionMatchHandler({ emailStore, topicStore, anthropic: client, ollama: null });
+
+    const result = await h.run(mkCtx(NOW));
+    expect('skip' in result && result.skip).toBe(true);
+    expect(calls.n).toBe(1);
+    expect(topicStore.getOpenActions()).toHaveLength(1);
+  });
+
+  it('returns an error result (actions left open, retry-able) when the LLM throws', async () => {
+    const emailStore = createEmailStore({ db: getDb() });
+    const topicStore = createTopicStore({ db: getDb() });
+    mkAction(topicStore, {
+      label: 'банк',
+      action: 'подтвердить оплату в банке',
+      url: 'https://bank.test/pay',
+      finalizedAt: NOW,
+    });
+    mkEmail({
+      uid: 1,
+      from: 'noreply@bank.test',
+      subject: 'Платёж получен',
+      received_at: NOW - 3600_000,
+    });
+    const client = {
+      messages: {
+        create: async () => {
+          throw new Error('LLM down');
+        },
+      },
+    } as any;
+    const h = createEmailActionMatchHandler({ emailStore, topicStore, anthropic: client, ollama: null });
+
+    const result = await h.run(mkCtx(NOW));
+    expect('error' in result && result.error).toBe(true);
+    expect(topicStore.getOpenActions()).toHaveLength(1);
+  });
+
   it('closes a keyword-matched action even when domains differ', async () => {
     const emailStore = createEmailStore({ db: getDb() });
     const topicStore = createTopicStore({ db: getDb() });

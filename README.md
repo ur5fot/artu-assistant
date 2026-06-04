@@ -106,8 +106,17 @@ Closing the gap between Claude Code (the harness) and R2:
     (confirm permissions, pay an invoice, reply somewhere) the brief lists it
     under "что висит" with a clickable link and attaches a one-tap **«✓ Готово»**
     button (up to 5); tapping it closes the action so it stops recurring in
-    later briefs. The brief stays plain text when nothing is open. (iter-1 of 3
-    — email and activity/URL auto-close are planned.)
+    later briefs. The brief stays plain text when nothing is open. (iter-2 of 3
+    — email auto-close shipped via `emailActionMatch`; activity/URL auto-close
+    is planned.)
+  - `emailActionMatch` — auto-closes a pending action when a confirmation email
+    arrives (payment received, access granted, request approved). Candidate
+    `(action, email)` pairs are gated cheaply by sender-domain or subject-keyword
+    overlap, then conservatively LLM-confirmed (default not-a-match); a confirmed
+    match closes the action and DMs a reversible notice with a one-tap
+    **«↩ Вернуть»** button. Registered when the email watcher is enabled (no
+    separate kill switch). Lookback over stored email is configurable via
+    `EMAIL_ACTION_MATCH_LOOKBACK_H` (default 72; range 1–720).
   - `emailDigest` — registered when email watcher is enabled.
   - `weatherAlert` — proactive Discord ping on a sharp weather change (temp
     swing / incoming rain / frost / storm-wind), deduped per event and
@@ -125,7 +134,8 @@ Closing the gap between Claude Code (the harness) and R2:
   (allow once / allow always / deny), plan review (approve / reject), memory
   confirm (approve / edit + approve / deny), tool-call status (running → done
   / error edits in place), morning-brief pending actions (✓ Готово → closes a
-  finalized topic's open external action). Burst coalescing (1.5 s debounce) — multi-message
+  finalized topic's open external action; ↩ Вернуть → reopens an action that
+  `emailActionMatch` auto-closed). Burst coalescing (1.5 s debounce) — multi-message
   clarifications produce one reply, not five.
   - **Push re-delivery** — proactive pushes are DM'd to the owner; if Discord is
     unreachable when one fires (transient outage), the run is persisted and

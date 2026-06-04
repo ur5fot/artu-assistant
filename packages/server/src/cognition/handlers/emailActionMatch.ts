@@ -217,9 +217,22 @@ function formatNotice(closed: Array<{ action: OpenAction; email: EmailPendingRow
   return `${head}\n${lines.join('\n')}\n\nЕсли поторопился — верни кнопкой ↩`;
 }
 
+// Stable fingerprint of a candidate set (open actions × recent emails). Used to
+// skip a redundant LLM re-scoring when nothing changed since the last no-match
+// verdict — the heartbeat fires every 60s, but an unchanged set always yields
+// the same answer, so re-asking the model is pure waste.
+function candidateSignature(cands: Candidate[]): string {
+  return cands.map((c) => `${c.action.topicId}:${c.email.id}`).join('|');
+}
+
 export function createEmailActionMatchHandler(deps: Deps): Handler {
   const lookbackHours = deps.lookbackHours ?? 72;
   const cooldownMs = deps.cooldownMs ?? 6 * 3600_000;
+  // The candidate set last sent to the LLM that came back with no confirmed
+  // match. While the open actions and in-window emails are unchanged, re-running
+  // the model every tick can only repeat that "no" — so we short-circuit. Any
+  // new email or new/closed action changes the signature and re-opens scoring.
+  let lastNoMatchSig: string | null = null;
   return {
     name: 'emailActionMatch',
     trigger(state) {
@@ -247,6 +260,11 @@ export function createEmailActionMatchHandler(deps: Deps): Handler {
         const candidates = buildCandidates(actions, recent);
         if (candidates.length === 0) return { skip: true, reason: 'no candidate pairs' };
 
+        // Same actions + same emails as the last no-match → the LLM would only
+        // repeat itself. Skip the call until something actually changes.
+        const sig = candidateSignature(candidates);
+        if (sig === lastNoMatchSig) return { skip: true, reason: 'candidate set unchanged' };
+
         const confirmed = await confirmMatches(candidates, deps, ctx.signal);
 
         // Collapse to one close per topic (an action can match several emails);
@@ -257,7 +275,14 @@ export function createEmailActionMatchHandler(deps: Deps): Handler {
             closedByTopic.set(c.action.topicId, { action: c.action, email: c.email });
           }
         }
-        if (closedByTopic.size === 0) return { skip: true, reason: 'no confirmed matches' };
+        if (closedByTopic.size === 0) {
+          // Remember this exact set so the next ticks don't re-ask the model
+          // about emails it already rejected. Cleared implicitly once the set
+          // changes (new email / new action). Not set on the match path: there
+          // the closed actions leave the set, so the signature changes anyway.
+          lastNoMatchSig = sig;
+          return { skip: true, reason: 'no confirmed matches' };
+        }
 
         const closed = [...closedByTopic.values()];
         const now = ctx.firedAt;
