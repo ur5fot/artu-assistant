@@ -352,6 +352,26 @@ describe('TopicStore', () => {
     expect(store.getOpenActions()).toEqual([]);
   });
 
+  it('reopenAction clears the dismiss timestamp (round-trip) and is idempotent', () => {
+    const store = createTopicStore({ db });
+    const t = store.createOpen(fakeNow, 'discord');
+    store.closeOpen(t.id, fakeNow + 10);
+    store.finalize(t.id, 'paid', 'sum', 6, fakeNow + 20, 'pay invoice', null);
+    // dismiss, then reopen → action open again
+    store.dismissAction(t.id, fakeNow + 500);
+    expect(store.getOpenActions()).toEqual([]);
+    store.reopenAction(t.id);
+    let row = db.prepare('SELECT action_dismissed_at FROM chat_topics WHERE id = ?').get(t.id) as any;
+    expect(row.action_dismissed_at).toBeNull();
+    expect(store.getOpenActions()).toEqual([
+      { topicId: t.id, label: 'paid', action: 'pay invoice', url: null },
+    ]);
+    // second call on an already-open action is a no-op (no throw, stays null)
+    store.reopenAction(t.id);
+    row = db.prepare('SELECT action_dismissed_at FROM chat_topics WHERE id = ?').get(t.id) as any;
+    expect(row.action_dismissed_at).toBeNull();
+  });
+
   it('listFinalized honors limit', () => {
     const store = createTopicStore({ db });
     for (let i = 0; i < 3; i++) {

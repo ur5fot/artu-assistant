@@ -13,6 +13,7 @@ function makeTopicStore(): TopicStore {
     finalize: vi.fn(),
     getOpenActions: vi.fn(),
     dismissAction: vi.fn(),
+    reopenAction: vi.fn(),
     markFinalizationFailure: vi.fn(),
     markFinalizationGiveUp: vi.fn(),
     findStaleOpen: vi.fn(),
@@ -122,6 +123,66 @@ describe('followup:done interactions', () => {
   it('replies ephemerally when the topic store is not wired', async () => {
     const ixn = makeButton('followup:done:5', [
       { type: 1, components: [button('followup:done:5', '✓ pay invoice')] },
+    ]);
+    await routeInteraction(ixn, makeDeps(undefined));
+    expect(ixn.reply).toHaveBeenCalledTimes(1);
+    expect(ixn.reply.mock.calls[0][0].flags).toBe(MessageFlags.Ephemeral);
+    expect(ixn.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('followup:reopen interactions', () => {
+  it('reopens the action and updates the message', async () => {
+    const store = makeTopicStore();
+    const ixn = makeButton('followup:reopen:5', [
+      { type: 1, components: [button('followup:reopen:5', '↩ Вернуть')] },
+    ]);
+    await routeInteraction(ixn, makeDeps(store));
+    expect(store.reopenAction).toHaveBeenCalledTimes(1);
+    expect(store.reopenAction).toHaveBeenCalledWith(5);
+    expect(ixn.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops only the tapped reopen button, keeping the others', async () => {
+    const store = makeTopicStore();
+    const ixn = makeButton('followup:reopen:5', [
+      {
+        type: 1,
+        components: [
+          button('followup:reopen:5', '↩ Вернуть'),
+          button('followup:reopen:7', '↩ Вернуть'),
+        ],
+      },
+    ]);
+    await routeInteraction(ixn, makeDeps(store));
+    const arg = ixn.update.mock.calls[0][0];
+    const remainingIds = arg.components
+      .flatMap((row: any) => row.components)
+      .map((b: any) => b.data.custom_id);
+    expect(remainingIds).toEqual(['followup:reopen:7']);
+  });
+
+  it('still reopens (idempotent) for a stale already-reopened button', async () => {
+    const store = makeTopicStore();
+    const ixn = makeButton('followup:reopen:5', [
+      { type: 1, components: [button('followup:reopen:5', '↩ Вернуть')] },
+    ]);
+    await routeInteraction(ixn, makeDeps(store));
+    expect(store.reopenAction).toHaveBeenCalledWith(5);
+    expect(ixn.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a malformed topicId without touching the store', async () => {
+    const store = makeTopicStore();
+    const ixn = makeButton('followup:reopen:not-a-number');
+    await routeInteraction(ixn, makeDeps(store));
+    expect(store.reopenAction).not.toHaveBeenCalled();
+    expect(ixn.update).not.toHaveBeenCalled();
+  });
+
+  it('replies ephemerally when the topic store is not wired', async () => {
+    const ixn = makeButton('followup:reopen:5', [
+      { type: 1, components: [button('followup:reopen:5', '↩ Вернуть')] },
     ]);
     await routeInteraction(ixn, makeDeps(undefined));
     expect(ixn.reply).toHaveBeenCalledTimes(1);

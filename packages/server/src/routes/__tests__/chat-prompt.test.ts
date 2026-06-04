@@ -14,6 +14,7 @@ function fakeStore(topics: TopicRow[]): TopicStore {
     finalize: () => {},
     getOpenActions: () => [],
     dismissAction: () => {},
+    reopenAction: () => {},
     markFinalizationFailure: () => 0,
     markFinalizationGiveUp: () => {},
     findStaleOpen: () => [],

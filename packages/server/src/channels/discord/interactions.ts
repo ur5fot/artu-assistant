@@ -396,6 +396,11 @@ async function routeButton(
     return;
   }
 
+  if (domain === 'followup' && action === 'reopen') {
+    await handleFollowupReopen(ixn, deps, rawId ?? '');
+    return;
+  }
+
   if (domain === 'perm_rule' && action === 'revoke') {
     const toolName = rawId ?? '';
     deps.commandService.revokePermissionRule(toolName);
@@ -590,6 +595,34 @@ async function handleFollowupDone(
   const remaining = rebuildComponentsWithout(
     (ixn as any).message?.components ?? [],
     `followup:done:${topicId}`,
+  );
+  await (ixn as any).update({ components: remaining });
+}
+
+// One-tap undo for an auto-closed pending action. customId is
+// `followup:reopen:<topicId>`; reopenAction is idempotent so a stale button
+// (already-reopened, or one tapped twice) is a safe no-op — we still drop the
+// tapped button so the UI reflects the restore. The action resurfaces in the
+// next brief with its ✓ Готово button. No topicId / unwired store → silent
+// return (nothing actionable).
+async function handleFollowupReopen(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  const topicId = Number(rawId);
+  if (!Number.isInteger(topicId) || topicId <= 0) return;
+  if (!deps.topicStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Pending actions are not configured.',
+    });
+    return;
+  }
+  deps.topicStore.reopenAction(topicId);
+  const remaining = rebuildComponentsWithout(
+    (ixn as any).message?.components ?? [],
+    `followup:reopen:${topicId}`,
   );
   await (ixn as any).update({ components: remaining });
 }

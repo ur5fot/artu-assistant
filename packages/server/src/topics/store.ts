@@ -52,6 +52,7 @@ export interface TopicStore {
   ): void;
   getOpenActions(): OpenAction[];
   dismissAction(topicId: number, now: number): void;
+  reopenAction(topicId: number): void;
   markFinalizationFailure(topicId: number): number;
   markFinalizationGiveUp(topicId: number, now: number): void;
   findStaleOpen(cutoff: number): TopicRow[];
@@ -192,6 +193,18 @@ export function createTopicStore(deps: StoreDeps): TopicStore {
         SET action_dismissed_at = ?
         WHERE id = ? AND action_dismissed_at IS NULL
       `).run(now, topicId);
+    },
+
+    reopenAction(topicId) {
+      // Inverse of dismissAction: clear the dismiss timestamp so the action is
+      // open again (resurfaces in getOpenActions / the next brief). Guard on
+      // action_dismissed_at IS NOT NULL so a repeat tap (or a tap on an action
+      // that was never dismissed) is a no-op — idempotent, stale-safe.
+      db.prepare(`
+        UPDATE chat_topics
+        SET action_dismissed_at = NULL
+        WHERE id = ? AND action_dismissed_at IS NOT NULL
+      `).run(topicId);
     },
 
     markFinalizationFailure(topicId) {
