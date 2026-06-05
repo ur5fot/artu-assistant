@@ -3,7 +3,10 @@ import { isTransientNetworkError } from './transient-error.js';
 
 describe('isTransientNetworkError', () => {
   it('classifies errno codes on .code as transient', () => {
-    for (const code of ['ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EPIPE']) {
+    for (const code of [
+      'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EPIPE',
+      'EHOSTUNREACH', 'ENETUNREACH', 'ENETDOWN',
+    ]) {
       const err = Object.assign(new Error('boom'), { code });
       expect(isTransientNetworkError(err), code).toBe(true);
     }

@@ -20,6 +20,7 @@ describe('handleFatalSignal', () => {
     const deps = makeDeps();
     handleFatalSignal('unhandledRejection', Object.assign(new Error('boom'), { code: 'ECONNRESET' }), deps);
     expect(deps.onExit).not.toHaveBeenCalled();
+    expect(deps.log).toHaveBeenCalledWith('warn', expect.stringContaining('transient'), expect.any(Error));
   });
 
   it('exits with 1 on a fatal (non-transient) error', () => {

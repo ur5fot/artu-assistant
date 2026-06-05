@@ -1185,10 +1185,16 @@ if (discordToken) {
         return Number.isFinite(n) && n > 0 ? n : 300_000;
       })(),
     });
+  // Keep the connect attempt and the handler registration in separate steps.
+  // If we wrapped both in one try and connect succeeded but registration threw,
+  // the catch would null out an already-connected bot (leaking it) and spin up a
+  // second one in the background — while guardOnce, having latched on the failed
+  // first call, would never register the handlers at all (silent, channel-live
+  // but proactive-handler-less). So: only the connect failure starts the retry
+  // loop; registration runs after, and a genuine registration bug is allowed to
+  // surface (the process net exits → supervisor restart) rather than be hidden.
   try {
     discordBot = await connectDiscord();
-    console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
-    await registerDiscordGatedHandlers();
   } catch (err) {
     // Don't block bootstrap or null out the channel for good — hand off to a
     // background loop that keeps retrying with capped exponential backoff and
@@ -1213,6 +1219,10 @@ if (discordToken) {
       capMs: reconnectCapMs,
       log: (msg, e) => console.warn(msg, e instanceof Error ? e.message : e),
     });
+  }
+  if (discordBot) {
+    console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
+    await registerDiscordGatedHandlers();
   }
 }
 

@@ -25,7 +25,13 @@ const TRANSIENT_CODES = [
   'ENETDOWN',
 ];
 
-/** Substrings (lowercased) seen in transient gateway/WebSocket/DNS failures. */
+// Substrings (lowercased) seen in transient gateway/WebSocket/DNS failures.
+// Note: 'timeout' and 'network' are intentionally broad — they preserve the
+// pre-existing isRetryableError login-retry contract. The process-level crash
+// net shares this classifier, so a genuine bug whose message happens to contain
+// these words is ridden out rather than exited; the reconnect loop and the rest
+// of R2's resilience bound the blast radius. Tightening this would break the
+// Discord login retry, so it's kept as-is by design.
 const TRANSIENT_MESSAGES = [
   'opening handshake has timed out',
   'websocket',

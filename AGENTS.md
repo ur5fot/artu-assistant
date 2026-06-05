@@ -595,6 +595,8 @@ R2 can receive messages via Discord DMs in addition to the web UI. The bot is wh
 - `DISCORD_ALLOWED_USER_IDS` — comma-separated Discord user IDs; required when token is set
 - `DISCORD_REQUEST_TIMEOUT_MS` — per-message request timeout in ms (default 300000); on expiry unresolved permission/plan-review embeds are edited to `⚠️ expired`
 - `DISCORD_COALESCE_MS` — burst coalescing debounce window in ms (default 1500); incoming DMs are saved immediately but `handleMessage` (history read + LLM call) only fires after this much idle time, so a series of short multi-turn messages triggers the LLM once
+- `DISCORD_RECONNECT_BASE_MS` — background connect-retry backoff floor in ms (default 5000, clamped 1000–60000); the first retry after a failed initial connect waits ~this long
+- `DISCORD_RECONNECT_CAP_MS` — background connect-retry backoff ceiling in ms (default 300000, clamped 5000–1800000); capped exponential backoff with full jitter never waits longer than this. If the initial connect fails (flapping VPN/DNS), R2 boots degraded — HTTP/pollers up — and a detached loop retries the connection, registering Discord-gated handlers exactly once on the first success; no manual restart needed
 
 ### Slash commands
 
