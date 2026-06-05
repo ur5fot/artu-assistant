@@ -28,6 +28,7 @@ import type { TopicStore } from '../../topics/store.js';
 import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
 import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from './tool-embeds.js';
 import { routeInteraction } from './interactions.js';
+import { isTransientNetworkError } from '../../net/transient-error.js';
 import type {
   DraftImapClient,
   DraftThreadFetcher,
@@ -132,18 +133,9 @@ export interface DiscordBotDeps {
 const RETRY_DELAYS = [1000, 3000];
 
 export function isRetryableError(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  const msg = err.message.toLowerCase();
-  return (
-    msg.includes('timeout') ||
-    msg.includes('econnrefused') ||
-    msg.includes('econnreset') ||
-    msg.includes('enotfound') ||
-    msg.includes('socket hang up') ||
-    msg.includes('fetch failed') ||
-    msg.includes('network') ||
-    msg.includes('connect timeout')
-  );
+  // Delegate to the shared network classifier — same transient codes/messages
+  // recognized by the worker's process-level safety net (no duplicated logic).
+  return isTransientNetworkError(err);
 }
 
 const SECRET_KEY_RE = /(token|secret|password|passwd|authorization|auth|api[_-]?key|credential|private[_-]?key|session|cookie)/i;

@@ -81,6 +81,21 @@ import type { Coords } from './weather/types.js';
 import { envInt } from './env-utils.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { handleFatalSignal } from './net/fatal-signal.js';
+
+// Process-level safety net (root cause #1): a flapping network surfaces raw
+// `ws` 'error' events / unhandled rejections below the discord.js Client layer.
+// Without a handler Node aborts the whole worker. Transient blips are logged
+// and swallowed; genuine faults exit(1) so the supervisor restarts cleanly.
+const fatalSignalDeps = {
+  onExit: (code: number) => process.exit(code),
+  log: (level: 'warn' | 'error', msg: string, err: unknown) => {
+    if (level === 'warn') console.warn(msg, err);
+    else console.error(msg, err);
+  },
+};
+process.on('uncaughtException', (err) => handleFatalSignal('uncaughtException', err, fatalSignalDeps));
+process.on('unhandledRejection', (reason) => handleFatalSignal('unhandledRejection', reason, fatalSignalDeps));
 
 const app = express();
 const PORT = process.env.PORT || 3001;
