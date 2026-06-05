@@ -143,6 +143,7 @@ describe('createDistractionHandler.run', () => {
     expect(buttons.map((b) => b.customId)).toEqual([
       `distract:back:${chromeStart}`,
       `distract:work:Chrome:${chromeStart}`,
+      `distract:done:Chrome:${chromeStart}`,
       `distract:snooze:Chrome:${chromeStart}`,
     ]);
 

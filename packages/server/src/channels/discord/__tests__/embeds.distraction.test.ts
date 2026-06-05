@@ -25,12 +25,13 @@ describe('buildDistractionNudge', () => {
     expect(content).toBe('🧲 Ты ~30 мин в Chrome. Вернёшься?');
   });
 
-  it('emits the three pullback buttons with the dwell key encoded', () => {
+  it('emits the four pullback buttons with the dwell key encoded', () => {
     const { components } = buildDistractionNudge(EVENT);
     const buttons = components[0]?.buttons ?? [];
     expect(buttons.map((b) => b.customId)).toEqual([
       `distract:back:${RUN_START}`,
       `distract:work:Chrome:${RUN_START}`,
+      `distract:done:Chrome:${RUN_START}`,
       `distract:snooze:Chrome:${RUN_START}`,
     ]);
   });
@@ -41,9 +42,25 @@ describe('buildDistractionNudge', () => {
     expect(buttons.map((b) => b.label)).toEqual([
       'Возвращаюсь',
       'Это по работе',
+      '✅ Закончил',
       'Отстань на 45м',
     ]);
-    expect(buttons.map((b) => b.style)).toEqual(['success', 'secondary', 'danger']);
+    expect(buttons.map((b) => b.style)).toEqual([
+      'success',
+      'secondary',
+      'secondary',
+      'danger',
+    ]);
+  });
+
+  it('drops the done button alongside work/snooze when the app name is too long', () => {
+    const longApp = 'A'.repeat(90);
+    const { components } = buildDistractionNudge({ ...EVENT, app: longApp });
+    const buttons = components[0]?.buttons ?? [];
+    // The done id embeds the app verbatim, so it falls under the same guard.
+    expect(buttons.some((b) => b.customId.startsWith('distract:done:'))).toBe(false);
+    // The app-free ack still survives.
+    expect(buttons.map((b) => b.customId)).toEqual([`distract:back:${RUN_START}`]);
   });
 
   // A long window title / LLM work summary must not push the body past

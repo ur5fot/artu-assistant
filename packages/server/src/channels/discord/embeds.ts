@@ -350,8 +350,8 @@ export interface DistractionNudgeEvent {
 }
 
 // Builds the proactive pullback ping: a short "you've been stuck N min" line +
-// three buttons (back / it's-work / snooze). Mirrors buildWindowRestoreEmbed's
-// custom_id overflow guard — the `work`/`snooze` ids embed the app name
+// four buttons (back / it's-work / done / snooze). Mirrors buildWindowRestoreEmbed's
+// custom_id overflow guard — the `work`/`done`/`snooze` ids embed the app name
 // verbatim (the feedback lookup matches it exactly via recordFeedback), so for
 // a pathologically long app name those buttons are dropped rather than letting
 // setCustomId throw and fail the whole publish; the "Возвращаюсь" ack (no app
@@ -376,12 +376,16 @@ export function buildDistractionNudge(event: DistractionNudgeEvent): {
   );
 
   const workId = `distract:work:${event.app}:${event.runStart}`;
+  const doneId = `distract:done:${event.app}:${event.runStart}`;
   const snoozeId = `distract:snooze:${event.app}:${event.runStart}`;
   const buttons: ComponentData['buttons'] = [
     { customId: `distract:back:${event.runStart}`, label: 'Возвращаюсь', style: 'success' },
   ];
   if (workId.length <= CUSTOM_ID_LIMIT) {
     buttons.push({ customId: workId, label: 'Это по работе', style: 'secondary' });
+  }
+  if (doneId.length <= CUSTOM_ID_LIMIT) {
+    buttons.push({ customId: doneId, label: '✅ Закончил', style: 'secondary' });
   }
   if (snoozeId.length <= CUSTOM_ID_LIMIT) {
     buttons.push({ customId: snoozeId, label: `Отстань на ${event.snoozeMin}м`, style: 'danger' });
