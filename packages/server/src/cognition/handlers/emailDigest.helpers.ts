@@ -59,9 +59,14 @@ export function morningBriefPublishedToday(db: Database.Database, now: number, t
   // "out today" — otherwise the morning-hold digest unblocks while the user
   // never saw the brief. Redelivery (flushUndeliveredPushes on reconnect)
   // re-sends it and stamps published_at, which then flips this gate true.
+  //
+  // Compare MAX(published_at), the *delivery* timestamp — NOT fired_at. A brief
+  // fired late yesterday but redelivered after midnight (within the 6h redeliver
+  // window) has fired_at=yesterday / published_at=today; the user saw it today,
+  // so the gate must read today's delivery, not yesterday's generation.
   const row = db
     .prepare(
-      "SELECT MAX(fired_at) AS ts FROM cognition_handler_runs WHERE handler_name='morningBrief' AND published_at IS NOT NULL",
+      "SELECT MAX(published_at) AS ts FROM cognition_handler_runs WHERE handler_name='morningBrief' AND published_at IS NOT NULL",
     )
     .get() as { ts: number | null } | undefined;
   if (row?.ts && sameLocalDay(row.ts, now, tz)) return true;

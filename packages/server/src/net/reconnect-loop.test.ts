@@ -95,6 +95,32 @@ describe('startReconnectLoop', () => {
     expect(connect).toHaveBeenCalledTimes(1);
   });
 
+  it('surfaces an onConnect failure instead of retrying connect (no leaked bot, no silent skip)', async () => {
+    // Regression: registration throwing after a successful connect must NOT be
+    // misread as a connect failure. If it were, the loop would retry connect()
+    // (leaking the already-connected bot) and — because the registrar is
+    // guardOnce-latched on the first call — never register again. So the failure
+    // has to reject the loop and surface to the process-level net instead.
+    const connect = vi.fn(async () => 'bot');
+    const regErr = new Error('handler registration blew up');
+    const onConnect = vi.fn(async () => { throw regErr; });
+    const captured: unknown[] = [];
+    const onUnhandled = (err: unknown) => captured.push(err);
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      startReconnectLoop({
+        connect, onConnect, baseMs: 5000, capMs: 300_000, sleep: manualSleeper().sleep, jitter: noJitter,
+      });
+      await flush();
+      await flush();
+      expect(connect).toHaveBeenCalledTimes(1); // connected once, NOT retried
+      expect(onConnect).toHaveBeenCalledTimes(1);
+      expect(captured).toContain(regErr); // failure surfaced, not swallowed
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
   it('does not register if shut down mid-connect', async () => {
     let resolveConnect: (v: string) => void = () => {};
     const connect = vi.fn(() => new Promise<string>((res) => { resolveConnect = res; }));

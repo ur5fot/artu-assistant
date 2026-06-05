@@ -61,18 +61,29 @@ export function startReconnectLoop<T>(deps: ReconnectLoopDeps<T>): () => void {
   void (async () => {
     let attempt = 0;
     while (!stopped) {
+      // Only the connect() call is retryable — a transient network failure is
+      // expected and we back off and try again. onConnect() runs OUTSIDE this
+      // try: if handler registration throws it must NOT be misread as a connect
+      // failure. Doing so would retry connect() (leaking the just-connected bot),
+      // and since guardOnce latches on the first call, registration would then be
+      // skipped on every later success — channel live, proactive handlers dead,
+      // silently. Instead we let an onConnect failure reject this loop so the
+      // process-level net surfaces it (real bug → exit → supervisor restart),
+      // mirroring the fast-path policy in index.ts.
+      let result: T;
       try {
-        const result = await connect();
-        if (stopped) return; // shut down while connecting — drop the result
-        await onConnect(result);
-        return; // connected + registered once; loop is done
+        result = await connect();
       } catch (err) {
         if (stopped) return;
         const wait = computeBackoff(attempt, baseMs, capMs, jitter);
         log(`[discord] reconnect attempt ${attempt + 1} failed, retrying in ${wait}ms`, err);
         attempt += 1;
         await sleep(wait);
+        continue;
       }
+      if (stopped) return; // shut down while connecting — drop the result
+      await onConnect(result); // failures surface (not retried as connect)
+      return; // connected + registered once; loop is done
     }
   })();
 

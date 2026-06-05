@@ -98,9 +98,19 @@ describe('morningBriefPublishedToday', () => {
     expect(morningBriefPublishedToday(getDb(), now, TZ)).toBe(true);
   });
 
+  it('returns true when a brief FIRED yesterday was redelivered today (gate reads published_at, not fired_at)', () => {
+    // Brief generated late yesterday but Discord was down; redelivery (within the
+    // 6h window) re-sent it after midnight, so published_at=today while
+    // fired_at=yesterday. The user saw it today → gate must be true. A MAX(fired_at)
+    // gate would read yesterday and stay blocked all day.
+    insertRun('morningBrief', epochAtKyiv(2026, 4, 23, 23), 'publish', epochAtKyiv(2026, 4, 24, 1));
+    const now = epochAtKyiv(2026, 4, 24, 9);
+    expect(morningBriefPublishedToday(getDb(), now, TZ)).toBe(true);
+  });
+
   it('falls back to release hour when the only brief today is undelivered and none ever delivered', () => {
-    // No delivered brief has ever existed, so MAX(fired_at) over delivered rows
-    // is NULL → fallback to MORNING_FALLBACK_HOUR. At 11:00 that releases.
+    // No delivered brief has ever existed, so MAX(published_at) over delivered
+    // rows is NULL → fallback to MORNING_FALLBACK_HOUR. At 11:00 that releases.
     insertRun('morningBrief', epochAtKyiv(2026, 4, 24, 7), 'publish', null);
     const now = epochAtKyiv(2026, 4, 24, 11);
     expect(morningBriefPublishedToday(getDb(), now, TZ)).toBe(true);
