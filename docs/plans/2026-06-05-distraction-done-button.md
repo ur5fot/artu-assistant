@@ -50,10 +50,10 @@
 - [x] run `npm test` — зелёное перед Task 3
 
 ### Task 3: Verify acceptance criteria
-- [ ] проверить: кнопка приходит в пуше, клик пишет `feedback='done'`, ре-наг по этому dwell не повторяется (через существующий verdict-гейт, без правок детектора)
-- [ ] полный `npm test` — зелёное
-- [ ] `npm run build -w @r2/shared && -w @r2/server && -w @r2/supervisor` — clean
-- [ ] подтвердить, что judge/схема БД/env не менялись
+- [x] проверить: кнопка приходит в пуше, клик пишет `feedback='done'`, ре-наг по этому dwell не повторяется (через существующий verdict-гейт, без правок детектора) — путь покрыт зелёными тестами interactions/store; verdict-гейт distraction-detector.ts:110 не тронут; live Discord-клик остаётся в Post-Completion (не автоматизируемо)
+- [x] полный `npm test` — зелёное (1996 passed / 146 files)
+- [x] `npm run build -w @r2/shared && -w @r2/server && -w @r2/supervisor` — clean
+- [x] подтвердить, что judge/схема БД/env не менялись (diff vs master трогает только embeds.ts/interactions.ts/distraction-eval-store.ts + тесты; db.ts/judge/env-config не в диффе)
 
 ## Technical Details
 
