@@ -572,10 +572,13 @@ nudges you out of it. Two-stage, cost-aware:
    (≥ `DISTRACTION_CONFIDENCE_PCT`); `break` / `working` / `unknown` never ping.
    A judge error is silent — never a false ping.
 
-The nudge DM carries three buttons: **Возвращаюсь** (ack), **Это по работе**
-(records `work` feedback, mutes re-evaluation of that dwell), **Отстань**
-(snoozes all pullbacks for `DISTRACTION_SNOOZE_MIN`). Verdicts, pings, feedback
-and snoozes are persisted in `distraction_evals` for dedup and the daily cap.
+The nudge DM carries four buttons: **Возвращаюсь** (ack), **Это по работе**
+(records `work` feedback, mutes re-evaluation of that dwell), **✅ Закончил**
+(records `done` feedback — the task was finished rather than abandoned; behaves
+like `work` for re-nag suppression and feeds the judge's future learning),
+**Отстань** (snoozes all pullbacks for `DISTRACTION_SNOOZE_MIN`). Verdicts,
+pings, feedback and snoozes are persisted in `distraction_evals` for dedup and
+the daily cap.
 
 **Self-diagnostics (iter 1.5).** The poller can go silently blind — after a
 sleep/wake macOS often revokes Automation access and `osascript` starts
@@ -635,8 +638,8 @@ exactly one alert per blind streak.
   filter goes quiet for the rest of the day (cost guard, silent — no ping, no
   error).
 - **Long app names drop buttons** — an app name long enough to push a button
-  customId past Discord's 100-char limit drops the "work"/"snooze" buttons,
-  leaving only the ack.
+  customId past Discord's 100-char limit drops the "work"/"done"/"snooze"
+  buttons, leaving only the ack.
 - macOS only — Linux / Docker silently see nothing.
 
 ---

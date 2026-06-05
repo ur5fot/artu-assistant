@@ -71,6 +71,7 @@ describe('distract:* interactions', () => {
     expect(store.recordFeedback).toHaveBeenCalledWith('Chrome', RUN_START, 'done');
     const arg = ixn.reply.mock.calls[0][0];
     expect(arg.flags).toBe(MessageFlags.Ephemeral);
+    expect(arg.content).toBe('✓ Понял, задача закрыта — по этому переходу не дёргаю.');
   });
 
   it('done still acks when the eval store is not wired', async () => {
@@ -79,11 +80,12 @@ describe('distract:* interactions', () => {
     expect(ixn.reply).toHaveBeenCalledTimes(1);
   });
 
-  it('done with malformed id does not throw and writes nothing', async () => {
+  it('done with malformed id does not throw, writes nothing, and silently drops', async () => {
     const store = makeEvalStore();
     const ixn = makeButton('distract:done:NoRunStart');
     await routeInteraction(ixn, makeDeps(store));
     expect(store.recordFeedback).not.toHaveBeenCalled();
+    expect(ixn.reply).not.toHaveBeenCalled();
   });
 
   it('snooze writes a future snooze_until using the configured window', async () => {
