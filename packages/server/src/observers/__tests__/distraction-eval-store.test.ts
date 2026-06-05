@@ -168,6 +168,16 @@ describe('createDistractionEvalStore', () => {
       expect(row!.snooze_until).toBeNull();
     });
 
+    it('attaches "done" feedback to the latest eval for a dwell', () => {
+      const store = createDistractionEvalStore({ db: getDb() });
+      store.recordEval(baseInput());
+      store.recordFeedback('Chrome', T0, 'done');
+
+      const row = store.findLatestEvalForDwell('Chrome', T0);
+      expect(row!.feedback).toBe('done');
+      expect(row!.snooze_until).toBeNull();
+    });
+
     it('writes snooze_until when provided and preserves it otherwise', () => {
       const store = createDistractionEvalStore({ db: getDb() });
       store.recordEval(baseInput());

@@ -43,11 +43,11 @@
 - [x] run `npm test` — зелёное перед Task 2
 
 ### Task 2: Роутинг + запись фидбека `done`
-- [ ] добавить `'done'` в тип `DistractionFeedback` ([distraction-eval-store.ts:4](../../packages/server/src/observers/distraction-eval-store.ts:4))
-- [ ] в `handleDistractFeedback` ([interactions.ts:510](../../packages/server/src/channels/discord/interactions.ts:510)) добавить ветку `action === 'done'` → `deps.distractionEvalStore?.recordFeedback(app, runStart, 'done')` + ephemeral-ack «✓ Понял, задача закрыта — по этому переходу не дёргаю» (по образцу `work`)
-- [ ] write tests (`interactions.distraction.test.ts`): `done` зовёт `recordFeedback(app, runStart, 'done')` один раз и отвечает ephemeral; no-op если store не подключён (ack всё равно есть); malformed rawId не падает
-- [ ] write tests (`distraction-eval-store.test.ts`): `recordFeedback(..., 'done')` пишет `feedback='done'` в строку dwell
-- [ ] run `npm test` — зелёное перед Task 3
+- [x] добавить `'done'` в тип `DistractionFeedback` ([distraction-eval-store.ts:4](../../packages/server/src/observers/distraction-eval-store.ts:4))
+- [x] в `handleDistractFeedback` ([interactions.ts:510](../../packages/server/src/channels/discord/interactions.ts:510)) добавить ветку `action === 'done'` → `deps.distractionEvalStore?.recordFeedback(app, runStart, 'done')` + ephemeral-ack «✓ Понял, задача закрыта — по этому переходу не дёргаю» (по образцу `work`)
+- [x] write tests (`interactions.distraction.test.ts`): `done` зовёт `recordFeedback(app, runStart, 'done')` один раз и отвечает ephemeral; no-op если store не подключён (ack всё равно есть); malformed rawId не падает
+- [x] write tests (`distraction-eval-store.test.ts`): `recordFeedback(..., 'done')` пишет `feedback='done'` в строку dwell
+- [x] run `npm test` — зелёное перед Task 3
 
 ### Task 3: Verify acceptance criteria
 - [ ] проверить: кнопка приходит в пуше, клик пишет `feedback='done'`, ре-наг по этому dwell не повторяется (через существующий verdict-гейт, без правок детектора)

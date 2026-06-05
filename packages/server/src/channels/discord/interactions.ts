@@ -501,9 +501,11 @@ function parseAppDwell(rawId: string): { app: string; runStart: number } | null 
   return { app, runStart };
 }
 
-// Handles the three pullback-nudge buttons. `back` is a pure ack (no DB write);
-// `work` marks the dwell as work so the filter stops re-evaluating it; `snooze`
-// writes a global snooze_until that mutes all pings for DISTRACTION_SNOOZE_MIN.
+// Handles the pullback-nudge buttons. `back` is a pure ack (no DB write);
+// `work` marks the dwell as work so the filter stops re-evaluating it; `done`
+// records that the user finished the task (a data signal for iter-2, behaves
+// like `work` for re-nag suppression); `snooze` writes a global snooze_until
+// that mutes all pings for DISTRACTION_SNOOZE_MIN.
 // The reply is ephemeral (mirrors window:show) so the original nudge stays
 // visible in the DM. Writes are no-ops if the eval row is missing (e.g. the
 // store was not wired) — the user still gets an acknowledgement.
@@ -527,6 +529,15 @@ async function handleDistractFeedback(
     await (ixn as any).reply({
       flags: MessageFlags.Ephemeral,
       content: '✓ Ок, помечу как работу — больше не дёргаю по этому окну.',
+    });
+    return;
+  }
+
+  if (action === 'done') {
+    deps.distractionEvalStore?.recordFeedback(app, runStart, 'done');
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '✓ Понял, задача закрыта — по этому переходу не дёргаю.',
     });
     return;
   }

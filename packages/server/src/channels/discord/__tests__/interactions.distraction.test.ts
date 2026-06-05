@@ -63,6 +63,29 @@ describe('distract:* interactions', () => {
     expect(arg.flags).toBe(MessageFlags.Ephemeral);
   });
 
+  it('done records "done" feedback once and acks ephemerally', async () => {
+    const store = makeEvalStore();
+    const ixn = makeButton(`distract:done:Chrome:${RUN_START}`);
+    await routeInteraction(ixn, makeDeps(store));
+    expect(store.recordFeedback).toHaveBeenCalledTimes(1);
+    expect(store.recordFeedback).toHaveBeenCalledWith('Chrome', RUN_START, 'done');
+    const arg = ixn.reply.mock.calls[0][0];
+    expect(arg.flags).toBe(MessageFlags.Ephemeral);
+  });
+
+  it('done still acks when the eval store is not wired', async () => {
+    const ixn = makeButton(`distract:done:Chrome:${RUN_START}`);
+    await routeInteraction(ixn, makeDeps(undefined));
+    expect(ixn.reply).toHaveBeenCalledTimes(1);
+  });
+
+  it('done with malformed id does not throw and writes nothing', async () => {
+    const store = makeEvalStore();
+    const ixn = makeButton('distract:done:NoRunStart');
+    await routeInteraction(ixn, makeDeps(store));
+    expect(store.recordFeedback).not.toHaveBeenCalled();
+  });
+
   it('snooze writes a future snooze_until using the configured window', async () => {
     const store = makeEvalStore();
     const ixn = makeButton(`distract:snooze:Chrome:${RUN_START}`);
