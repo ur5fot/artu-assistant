@@ -63,10 +63,10 @@ R2 падает и «немеет» при нестабильной сети (ф
 - [x] run `npm test` — зелёное перед Task 3 (1986 passed, build green)
 
 ### Task 3: Delivery-aware гейт morning-hold (корень #3, low-risk)
-- [ ] в `morningBriefPublishedToday` ([emailDigest.helpers.ts:55](../../packages/server/src/cognition/handlers/emailDigest.helpers.ts:55)) сменить условие основного запроса с `outcome='publish'` на `published_at IS NOT NULL` (учитывать только реально доставленный бриф); fallback по `MORNING_FALLBACK_HOUR` сохранить
-- [ ] комментарий: morningBrief self-gate ([morningBrief.ts:52](../../packages/server/src/cognition/handlers/morningBrief.ts:52)) намеренно оставлен на publish-исходе — недоставленное добивает redelivery, не регенерация
-- [ ] write tests: `morningBriefPublishedToday` → false при строке с `published_at` NULL за сегодня; true при доставленной; fallback-ветка не сломана
-- [ ] run `npm test` — зелёное перед Task 4
+- [x] в `morningBriefPublishedToday` ([emailDigest.helpers.ts:55](../../packages/server/src/cognition/handlers/emailDigest.helpers.ts:55)) сменить условие основного запроса с `outcome='publish'` на `published_at IS NOT NULL` (учитывать только реально доставленный бриф); fallback по `MORNING_FALLBACK_HOUR` сохранить
+- [x] комментарий: morningBrief self-gate ([morningBrief.ts:52](../../packages/server/src/cognition/handlers/morningBrief.ts:52)) намеренно оставлен на publish-исходе — недоставленное добивает redelivery, не регенерация
+- [x] write tests: `morningBriefPublishedToday` → false при строке с `published_at` NULL за сегодня; true при доставленной; fallback-ветка не сломана
+- [x] run `npm test` — зелёное (1989 passed)
 
 ### Task 4: Verify acceptance criteria
 - [ ] проверить, что все 3 корня закрыты (краш-сетка ловит handshake-timeout; Discord-петля сама поднимает канал; гейт по доставке)

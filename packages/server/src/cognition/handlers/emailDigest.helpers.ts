@@ -53,9 +53,15 @@ export function inQuietHours(
 }
 
 export function morningBriefPublishedToday(db: Database.Database, now: number, tz: string): boolean {
+  // Gate on actual delivery (`published_at IS NOT NULL`), not on generation
+  // (`outcome='publish'`). A brief that was generated but never delivered
+  // (Discord down during a network flap → published_at NULL) must NOT count as
+  // "out today" — otherwise the morning-hold digest unblocks while the user
+  // never saw the brief. Redelivery (flushUndeliveredPushes on reconnect)
+  // re-sends it and stamps published_at, which then flips this gate true.
   const row = db
     .prepare(
-      "SELECT MAX(fired_at) AS ts FROM cognition_handler_runs WHERE handler_name='morningBrief' AND outcome='publish'",
+      "SELECT MAX(fired_at) AS ts FROM cognition_handler_runs WHERE handler_name='morningBrief' AND published_at IS NOT NULL",
     )
     .get() as { ts: number | null } | undefined;
   if (row?.ts && sameLocalDay(row.ts, now, tz)) return true;

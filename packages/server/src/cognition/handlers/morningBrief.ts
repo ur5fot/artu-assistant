@@ -49,6 +49,13 @@ export function createMorningBriefHandler(deps: Deps): Handler {
     async trigger(state, ctx) {
       // Guard: a successful publish today blocks re-firing across both branches.
       // Errors and skips fall through to retry on the next tick.
+      // NOTE: this self-gate is intentionally keyed on the publish OUTCOME, not
+      // on actual delivery (published_at). If a brief generated but failed to
+      // deliver (Discord down), redelivery (flushUndeliveredPushes on reconnect)
+      // re-sends the existing payload — we must NOT regenerate it here, which a
+      // delivery-keyed gate would do and would race the redelivery into a dup.
+      // The email-digest morning-hold gate (morningBriefPublishedToday) keys on
+      // published_at instead, since it only needs to know the user saw a brief.
       const publishedToday =
         state.lastResult !== null &&
         'publish' in state.lastResult &&

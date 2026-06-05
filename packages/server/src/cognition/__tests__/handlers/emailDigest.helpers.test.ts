@@ -17,10 +17,20 @@ function epochAtKyiv(year: number, month: number, day: number, hour: number): nu
   return Date.UTC(year, month - 1, day, utcHour, 0, 0);
 }
 
-function insertRun(handlerName: string, firedAt: number, outcome: 'publish' | 'skip' | 'error') {
+function insertRun(
+  handlerName: string,
+  firedAt: number,
+  outcome: 'publish' | 'skip' | 'error',
+  publishedAt?: number | null,
+) {
+  // For a 'publish' outcome, default published_at to firedAt (delivered) unless
+  // explicitly passed null (generated but never delivered). skip/error rows are
+  // always undelivered.
+  const delivered =
+    outcome === 'publish' ? (publishedAt === undefined ? firedAt : publishedAt) : null;
   getDb().prepare(
-    'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome) VALUES (?, ?, ?, ?)',
-  ).run(handlerName, firedAt, 10, outcome);
+    'INSERT INTO cognition_handler_runs (handler_name, fired_at, duration_ms, outcome, published_at) VALUES (?, ?, ?, ?, ?)',
+  ).run(handlerName, firedAt, 10, outcome, delivered);
 }
 
 describe('inQuietHours', () => {
@@ -68,6 +78,30 @@ describe('morningBriefPublishedToday', () => {
   it('returns true when morningBrief published earlier today', () => {
     const pubAt = epochAtKyiv(2026, 4, 24, 7);
     insertRun('morningBrief', pubAt, 'publish');
+    const now = epochAtKyiv(2026, 4, 24, 11);
+    expect(morningBriefPublishedToday(getDb(), now, TZ)).toBe(true);
+  });
+
+  it('returns false when brief was generated today but NOT delivered (published_at NULL)', () => {
+    // Network flap: brief generated (outcome=publish) but Discord was down, so
+    // published_at stayed NULL. Must NOT count as out today — redelivery will
+    // re-send it. A recent delivered brief exists (yesterday) so fallback is off.
+    insertRun('morningBrief', epochAtKyiv(2026, 4, 23, 7), 'publish');
+    insertRun('morningBrief', epochAtKyiv(2026, 4, 24, 7), 'publish', null);
+    const now = epochAtKyiv(2026, 4, 24, 11);
+    expect(morningBriefPublishedToday(getDb(), now, TZ)).toBe(false);
+  });
+
+  it('returns true once an undelivered brief is redelivered today (published_at stamped)', () => {
+    insertRun('morningBrief', epochAtKyiv(2026, 4, 24, 7), 'publish', epochAtKyiv(2026, 4, 24, 8));
+    const now = epochAtKyiv(2026, 4, 24, 11);
+    expect(morningBriefPublishedToday(getDb(), now, TZ)).toBe(true);
+  });
+
+  it('falls back to release hour when the only brief today is undelivered and none ever delivered', () => {
+    // No delivered brief has ever existed, so MAX(fired_at) over delivered rows
+    // is NULL → fallback to MORNING_FALLBACK_HOUR. At 11:00 that releases.
+    insertRun('morningBrief', epochAtKyiv(2026, 4, 24, 7), 'publish', null);
     const now = epochAtKyiv(2026, 4, 24, 11);
     expect(morningBriefPublishedToday(getDb(), now, TZ)).toBe(true);
   });
