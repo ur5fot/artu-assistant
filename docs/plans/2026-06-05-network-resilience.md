@@ -69,10 +69,10 @@ R2 падает и «немеет» при нестабильной сети (ф
 - [x] run `npm test` — зелёное (1989 passed)
 
 ### Task 4: Verify acceptance criteria
-- [ ] проверить, что все 3 корня закрыты (краш-сетка ловит handshake-timeout; Discord-петля сама поднимает канал; гейт по доставке)
-- [ ] полный `npm test` — зелёное
-- [ ] `npm run build` (если есть) + линтер — без ошибок
-- [ ] проверить отсутствие дубль-регистрации хендлеров при реконнекте
+- [x] проверить, что все 3 корня закрыты (краш-сетка ловит handshake-timeout; Discord-петля сама поднимает канал; гейт по доставке)
+- [x] полный `npm test` — зелёное (1989 passed)
+- [x] `npm run build` (shared + server, tsc) + линтер — без ошибок
+- [x] проверить отсутствие дубль-регистрации хендлеров при реконнекте (`guardOnce` оборачивает `registerDiscordGatedHandlers`; fast-path и reconnect onConnect зовут один и тот же guard — срабатывает только первый)
 
 ## Technical Details
 
