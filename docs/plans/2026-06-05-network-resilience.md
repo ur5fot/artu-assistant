@@ -54,13 +54,13 @@ R2 падает и «немеет» при нестабильной сети (ф
 - [x] run `npm test` — зелёное перед Task 2
 
 ### Task 2: Discord background connect-retry + идемпотентная регистрация хендлеров (корень #2)
-- [ ] вынести регистрацию Discord-gated хендлеров (morningBrief, emailDigest, emailActionMatch, emailUrgent, contextSwitch/distraction-зависимые от `discordBot`) в `registerDiscordGatedHandlers(deps)` с once-guard (флаг, чтобы при реконнекте не дублировать)
-- [ ] заменить «фейл → `discordBot=null`, тишина» ([index.ts:959](../../packages/server/src/index.ts:959)) на: первый attempt по-старому (fast path), при фейле — запуск **фоновой** retry-петли (exp-backoff, cap ~5 мин, env `DISCORD_RECONNECT_*` с дефолтами, не сдаётся до shutdown), которая ретраит `startDiscordBot`; при успехе → `registerDiscordGatedHandlers()` один раз + лог
-- [ ] не блокировать bootstrap: остальной R2 (HTTP, поллеры) стартует degraded без Discord; Discord цепляется в фоне
-- [ ] остановка петли в shutdown (SIGTERM/disconnect, [index.ts:1220](../../packages/server/src/index.ts:1220))
-- [ ] write tests: retry-петля через `_client`-мок — фейл N раз затем коннект; хендлеры зарегистрированы ровно один раз; backoff растёт и кэпится
-- [ ] write tests: degraded-старт — фейл логина не валит bootstrap, петля заведена
-- [ ] run `npm test` — зелёное перед Task 3
+- [x] вынести регистрацию Discord-gated хендлеров (morningBrief, emailDigest, emailActionMatch, emailUrgent, contextSwitch/distraction-зависимые от `discordBot`) в `registerDiscordGatedHandlers(deps)` с once-guard (`guardOnce`, чтобы при реконнекте не дублировать)
+- [x] заменить «фейл → `discordBot=null`, тишина» на: первый attempt по-старому (fast path), при фейле — запуск **фоновой** retry-петли (`startReconnectLoop`, exp-backoff + full jitter, cap ~5 мин, env `DISCORD_RECONNECT_BASE_MS`/`DISCORD_RECONNECT_CAP_MS` с дефолтами 5s/300s, не сдаётся до shutdown), которая ретраит `connectDiscord`; при успехе → `registerDiscordGatedHandlers()` один раз + лог
+- [x] не блокировать bootstrap: `startReconnectLoop` возвращается синхронно, остальной R2 (HTTP, поллеры) стартует degraded без Discord; Discord цепляется в фоне
+- [x] остановка петли в shutdown (`stopDiscordReconnect?.()` в `gracefulShutdown`, SIGTERM/disconnect)
+- [x] write tests: retry-петля через инъекцию `connect`-мока — фейл N раз затем коннект; `onConnect`/`guardOnce` ровно один раз; `computeBackoff` растёт и кэпится; full jitter в [0, capped]
+- [x] write tests: degraded-старт — `startReconnectLoop` возвращает stop() синхронно (не блокирует); stop() гасит петлю; shutdown mid-connect не регистрирует
+- [x] run `npm test` — зелёное перед Task 3 (1986 passed, build green)
 
 ### Task 3: Delivery-aware гейт morning-hold (корень #3, low-risk)
 - [ ] в `morningBriefPublishedToday` ([emailDigest.helpers.ts:55](../../packages/server/src/cognition/handlers/emailDigest.helpers.ts:55)) сменить условие основного запроса с `outcome='publish'` на `published_at IS NOT NULL` (учитывать только реально доставленный бриф); fallback по `MORNING_FALLBACK_HOUR` сохранить

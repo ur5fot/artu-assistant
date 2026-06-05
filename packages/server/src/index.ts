@@ -82,6 +82,7 @@ import { envInt } from './env-utils.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { handleFatalSignal } from './net/fatal-signal.js';
+import { startReconnectLoop, guardOnce } from './net/reconnect-loop.js';
 
 // Process-level safety net (root cause #1): a flapping network surfaces raw
 // `ws` 'error' events / unhandled rejections below the discord.js Client layer.
@@ -840,85 +841,24 @@ if (emailEnabled) {
   console.log('[emails] disabled (EMAIL_ENABLED=false or IMAP_ACCOUNTS empty)');
 }
 
-// Discord bot (optional — only starts if DISCORD_BOT_TOKEN is set)
+// Discord bot (optional — only starts if DISCORD_BOT_TOKEN is set).
+//
+// Connect resilience (root #2): the first attempt runs inline (fast path). If it
+// fails — a flapping VPN/DNS can keep Discord login from reaching the gateway — we
+// do NOT leave R2 channel-less until a manual restart. A background loop retries
+// with capped exponential backoff and, on the first success, registers every
+// Discord-gated handler exactly once (guardOnce). The rest of R2 (HTTP, pollers)
+// has already started, so it runs degraded until Discord attaches in the background.
 let discordBot: { stop(): Promise<void> } | null = null;
+let stopDiscordReconnect: (() => void) | null = null;
 const discordToken = process.env.DISCORD_BOT_TOKEN;
-if (discordToken) {
-  const rawIds = process.env.DISCORD_ALLOWED_USER_IDS || '';
-  const ids = rawIds.split(',').map((s) => s.trim()).filter(Boolean);
-  if (ids.length === 0) {
-    throw new Error('DISCORD_BOT_TOKEN set but DISCORD_ALLOWED_USER_IDS empty');
-  }
-  const whitelist = new Set(ids);
-  try {
-    discordBot = await startDiscordBot({
-      token: discordToken,
-      whitelist,
-      runChatRequest: (params) =>
-        runChatRequest({
-          ...params,
-          signal: params.signal,
-          pendingConfirms,
-          pendingPlanReviews,
-          pendingMemoryConfirms,
-          piiProxy,
-          ollama: ollamaForRouter,
-          registry,
-          memoryService,
-          runLoop: runLoopFn,
-        }),
-      db: getDb(),
-      historyLimit: getChatHistoryLimit(),
-      saveMessage,
-      memoryService,
-      topicStore,
-      reminderBus,
-      cognitionService,
-      // Re-deliver undelivered proactive pushes on Discord (re)connect, but
-      // only if fired within this window (default 6h) — don't surface a stale
-      // brief. Valid range 5m..48h; out-of-range falls back to the 6h default.
-      redeliverMaxAgeMs: envInt(process.env.REDELIVER_MAX_AGE_MS, 6 * 60 * 60 * 1000, 5 * 60 * 1000, 48 * 60 * 60 * 1000),
-      reminderService,
-      permissionService,
-      planReviewService,
-      memoryConfirmService,
-      commandService,
-      draftReplyService,
-      emailStore: emailEnabled ? emailStore : undefined,
-      // markAnswered exists only to feed the implicit-feedback resolver, so
-      // only wire it when feedback is enabled — otherwise EMAIL_FEEDBACK_ENABLED=false
-      // would still write \Answered to the mailbox, breaking the "zero behaviour
-      // change when off" guarantee.
-      imapClient: emailEnabled
-        ? { fetchHeaders, ...(emailFeedbackEnabled ? { markAnswered } : {}) }
-        : undefined,
-      threadFetcher: emailEnabled ? { fetchThread } : undefined,
-      anthropic: client.anthropic,
-      imapAccounts: emailEnabled ? imapAccountsById : undefined,
-      smtpClient: emailEnabled ? { sendReply: sendSmtpReply } : undefined,
-      emailSendHoldSeconds,
-      emailSentLog: emailEnabled ? emailSentLog : undefined,
-      emailSuppressionStore: emailEnabled ? emailSuppressionStore : undefined,
-      // Always pass piiProxy — at runtime it's a real anonymizer or a
-      // passthrough depending on PII_GATEWAY_MODE. The interactions handler
-      // anonymizes the email thread before sending to Claude (plan: outbound
-      // draft prompt goes through PII proxy when memory uses Claude).
-      piiProxy,
-      // Read by the `window:show` button to reveal session titles as an
-      // ephemeral. Passed unconditionally — when the feature is off no pings
-      // (and thus no buttons) are ever created, so the store is never queried.
-      windowHistoryStore: windowStore,
-      // distract:* button feedback (back/work/snooze) writes here. Passed
-      // unconditionally for the same reason as windowHistoryStore — no pings and
-      // thus no buttons when the feature is off, so the store is never touched.
-      distractionEvalStore,
-      distractionSnoozeMin,
-      requestTimeoutMs: (() => {
-        const n = Number(process.env.DISCORD_REQUEST_TIMEOUT_MS);
-        return Number.isFinite(n) && n > 0 ? n : 300_000;
-      })(),
-    });
-    console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
+
+// Every handler that publishes via the cognition bus and needs a live Discord
+// consumer (morningBrief, emailDigest/actionMatch/urgent, window-logger +
+// context-switch + action-activity, distraction, weatherAlert). guardOnce so the
+// fast path and a later background reconnect can both call it without
+// double-registering the handlers.
+const registerDiscordGatedHandlers = guardOnce(async () => {
     const webSearchTool = registry.get('web_search') ?? null;
     if (!webSearchTool) {
       console.warn('[morningBrief] web_search tool not registered — brief will run without weather lookup');
@@ -971,13 +911,8 @@ if (discordToken) {
         }),
       );
     }
-  } catch (err) {
-    console.error('[discord] bot failed to start:', err instanceof Error ? err.message : err);
-    discordBot = null;
-  }
-}
 
-// emailUrgent gate. Distinct from the digest gate because the urgent handler
+  // emailUrgent gate. Distinct from the digest gate because the urgent handler
 // re-triggers every tick on the same row until `onPublished` flips
 // `urgent_pinged_at`; without a working Discord publisher that callback never
 // fires, so the registration is hard-gated on `discordBot` being live.
@@ -1172,6 +1107,114 @@ if (discordToken) {
     console.log(`[weatherAlert] disabled (discord=${discordReady})`);
   }
 }
+});
+
+if (discordToken) {
+  const rawIds = process.env.DISCORD_ALLOWED_USER_IDS || '';
+  const ids = rawIds.split(',').map((s) => s.trim()).filter(Boolean);
+  if (ids.length === 0) {
+    throw new Error('DISCORD_BOT_TOKEN set but DISCORD_ALLOWED_USER_IDS empty');
+  }
+  const whitelist = new Set(ids);
+  // Single connect thunk reused by the fast path and the background retry loop.
+  const connectDiscord = () =>
+    startDiscordBot({
+      token: discordToken,
+      whitelist,
+      runChatRequest: (params) =>
+        runChatRequest({
+          ...params,
+          signal: params.signal,
+          pendingConfirms,
+          pendingPlanReviews,
+          pendingMemoryConfirms,
+          piiProxy,
+          ollama: ollamaForRouter,
+          registry,
+          memoryService,
+          runLoop: runLoopFn,
+        }),
+      db: getDb(),
+      historyLimit: getChatHistoryLimit(),
+      saveMessage,
+      memoryService,
+      topicStore,
+      reminderBus,
+      cognitionService,
+      // Re-deliver undelivered proactive pushes on Discord (re)connect, but
+      // only if fired within this window (default 6h) — don't surface a stale
+      // brief. Valid range 5m..48h; out-of-range falls back to the 6h default.
+      redeliverMaxAgeMs: envInt(process.env.REDELIVER_MAX_AGE_MS, 6 * 60 * 60 * 1000, 5 * 60 * 1000, 48 * 60 * 60 * 1000),
+      reminderService,
+      permissionService,
+      planReviewService,
+      memoryConfirmService,
+      commandService,
+      draftReplyService,
+      emailStore: emailEnabled ? emailStore : undefined,
+      // markAnswered exists only to feed the implicit-feedback resolver, so
+      // only wire it when feedback is enabled — otherwise EMAIL_FEEDBACK_ENABLED=false
+      // would still write \Answered to the mailbox, breaking the "zero behaviour
+      // change when off" guarantee.
+      imapClient: emailEnabled
+        ? { fetchHeaders, ...(emailFeedbackEnabled ? { markAnswered } : {}) }
+        : undefined,
+      threadFetcher: emailEnabled ? { fetchThread } : undefined,
+      anthropic: client.anthropic,
+      imapAccounts: emailEnabled ? imapAccountsById : undefined,
+      smtpClient: emailEnabled ? { sendReply: sendSmtpReply } : undefined,
+      emailSendHoldSeconds,
+      emailSentLog: emailEnabled ? emailSentLog : undefined,
+      emailSuppressionStore: emailEnabled ? emailSuppressionStore : undefined,
+      // Always pass piiProxy — at runtime it's a real anonymizer or a
+      // passthrough depending on PII_GATEWAY_MODE. The interactions handler
+      // anonymizes the email thread before sending to Claude (plan: outbound
+      // draft prompt goes through PII proxy when memory uses Claude).
+      piiProxy,
+      // Read by the `window:show` button to reveal session titles as an
+      // ephemeral. Passed unconditionally — when the feature is off no pings
+      // (and thus no buttons) are ever created, so the store is never queried.
+      windowHistoryStore: windowStore,
+      // distract:* button feedback (back/work/snooze) writes here. Passed
+      // unconditionally for the same reason as windowHistoryStore — no pings and
+      // thus no buttons when the feature is off, so the store is never touched.
+      distractionEvalStore,
+      distractionSnoozeMin,
+      requestTimeoutMs: (() => {
+        const n = Number(process.env.DISCORD_REQUEST_TIMEOUT_MS);
+        return Number.isFinite(n) && n > 0 ? n : 300_000;
+      })(),
+    });
+  try {
+    discordBot = await connectDiscord();
+    console.log(`[discord] bot started, whitelist size: ${whitelist.size}`);
+    await registerDiscordGatedHandlers();
+  } catch (err) {
+    // Don't block bootstrap or null out the channel for good — hand off to a
+    // background loop that keeps retrying with capped exponential backoff and
+    // registers the gated handlers (exactly once) on the first success.
+    console.error(
+      '[discord] initial connect failed — starting background retry:',
+      err instanceof Error ? err.message : err,
+    );
+    discordBot = null;
+    // Backoff floor/ceiling (ms). Defaults 5s/300s; validated ranges so a bad
+    // env can't wedge the loop into hammering or sleeping forever.
+    const reconnectBaseMs = envInt(process.env.DISCORD_RECONNECT_BASE_MS, 5_000, 1_000, 60_000);
+    const reconnectCapMs = envInt(process.env.DISCORD_RECONNECT_CAP_MS, 300_000, 5_000, 1_800_000);
+    stopDiscordReconnect = startReconnectLoop({
+      connect: connectDiscord,
+      onConnect: async (bot) => {
+        discordBot = bot;
+        console.log('[discord] reconnected in background — registering gated handlers');
+        await registerDiscordGatedHandlers();
+      },
+      baseMs: reconnectBaseMs,
+      capMs: reconnectCapMs,
+      log: (msg, e) => console.warn(msg, e instanceof Error ? e.message : e),
+    });
+  }
+}
 
 const chatRouter = createChatRouter({
   runLoop: ({ messages, onEvent, signal, pendingConfirms: pc, pendingPlanReviews: ppr, pendingMemoryConfirms: pmc, piiProxy: pp, currentUserMessageId, currentUserMessageTimestamp }) =>
@@ -1223,6 +1266,9 @@ async function gracefulShutdown(reason: string): Promise<void> {
   stopEmailPoller?.();
   emailPollerAbort?.abort();
   stopWindowLogger?.();
+  // Halt the Discord background connect-retry loop (no-op if the fast path
+  // connected) so it can't keep firing during/after shutdown.
+  stopDiscordReconnect?.();
   await cognitionService.stop().catch(() => {});
   await discordBot?.stop().catch(() => {});
   server.close(() => {
