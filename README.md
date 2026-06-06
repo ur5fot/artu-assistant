@@ -639,13 +639,32 @@ observer выключен" instead of a misleading empty digest. An `ACTIVITY_RU
 prompt block routes activity questions here so the agent stops falsely claiming
 it has no access.
 
+**Presence / away tracking (idle detection).** The observer trackers *focus*,
+not input, so a window left in front while you step away (or an overnight
+YouTube tab in focus) used to count as hours of "activity". Each poll now also
+reads system idle time (`ioreg -c IOHIDSystem` → `HIDIdleTime`, macOS only). When
+idle crosses `IDLE_THRESHOLD_SEC` (default 300 s) you're treated as **away**: the
+tick records no `window_history` sample and opens an away-span back-dated to the
+last active moment (`now − idleSec`, never before the last active tick). On
+return to active the closed span `[awayStart, now]` is written to `presence_log`
+and sampling resumes (open spans are never persisted). The `activity` tool reads
+`presence_log` for the queried range and the digest reports "активно ~X, отошёл
+~Y (N отлучек)", so idle stretches no longer inflate active time. Idle data
+accumulates only from the day the feature is deployed. Relatedly, `recordSample`
+is now **gap-aware**: it extends the latest row only when the app+title match
+*and* the gap is ≤ `WINDOW_SESSION_MAX_GAP_MS` (default 90 s ≈ 3× the 30 s
+interval), so a long blind/away gap no longer stitches two separate sessions of
+the same app into one bridged row.
+
 **Known limitations** (apply to both `contextSwitch` and the iter-2
 `distractionPullback` handler):
 
 - **Screen-lock false positive** — macOS reports the last-focused app as
-  active even while the screen is locked, so a sleeping laptop with Chrome in
-  front looks like "deep work on Chrome". A screen-lock detector is not yet
-  implemented.
+  active even while the screen is locked. Idle detection (presence tracking,
+  above) now catches the common case — a sleeping laptop with Chrome in front
+  goes idle and is logged as "away" rather than "deep work on Chrome" — but a
+  locked screen with ongoing playback (no input, content advancing) can still
+  read as active until idle crosses the threshold.
 - **Read-in-browser false positive** — reading docs in a browser for a few
   minutes can read as a switch away from coding; threshold tuning covers this
   in practice.

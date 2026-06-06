@@ -113,11 +113,16 @@
       (1744 tests pass, tsc clean)
 
 ### Task 7: Verify acceptance & build
-- [ ] verify: симуляция тиков active↔away → presence_log + digest away_min корректны
-- [ ] verify: gap-split — новая сессия после разрыва (unit на реальных таймстампах)
-- [ ] run full suite (`npm test`) — all green (вкл. detector/distraction регресс)
-- [ ] `npx tsc --noEmit` (packages/server) — без type-ошибок
-- [ ] update README/AGENTS если описывают наблюдатель/тулзу activity
+- [x] verify: симуляция тиков active↔away → presence_log + digest away_min корректны
+      (window-logger.test.ts: active→away без recordSample + бэкдейт; away→active
+      recordAway([awayStart,now]); digest.test.ts: away_min/away_spans клампинг к range)
+- [x] verify: gap-split — новая сессия после разрыва (window-history-store.test.ts:
+      extend в пределах maxGap на границе 90с; INSERT при 90с+1мс на тех же app+title)
+- [x] run full suite (`npm test`) — all green (server 1744 / tool-activity 33, вкл. detector/distraction регресс)
+- [x] `npx tsc --noEmit` (packages/server) — без type-ошибок (EXIT:0)
+- [x] update README/AGENTS если описывают наблюдатель/тулзу activity
+      (README: presence/away абзац + screen-lock note; AGENTS: presence-pipeline bullet +
+      digest signature + таблица команд; .env.example: IDLE_THRESHOLD_SEC/WINDOW_SESSION_MAX_GAP_MS)
 
 ## Technical Details
 - `getIdleSeconds`: `ioreg -c IOHIDSystem`, `HIDIdleTime` ns → `Math.round(ns/1e9)`.
