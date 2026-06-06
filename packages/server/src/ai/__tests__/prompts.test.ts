@@ -105,6 +105,36 @@ describe('prompts overlay integration', () => {
     });
   });
 
+  describe('activity routing rule', () => {
+    beforeEach(() => {
+      mockedGetOverlay.mockReturnValue(null);
+    });
+
+    it('getSystemPrompt routes activity questions to activity tool', () => {
+      const out = getSystemPrompt();
+      expect(out).toContain('activity');
+      expect(out).toContain('екранний час');
+    });
+
+    it('getLocalSystemPrompt routes activity questions to activity tool', () => {
+      const out = getLocalSystemPrompt();
+      expect(out).toContain('activity');
+      expect(out).toContain('екранний час');
+    });
+
+    it('getSystemPrompt forbids false "no access" claims', () => {
+      const out = getSystemPrompt();
+      expect(out).toContain('немає доступу');
+      expect(out).toContain('фізично недоступно');
+    });
+
+    it('getLocalSystemPrompt forbids false "no access" claims', () => {
+      const out = getLocalSystemPrompt();
+      expect(out).toContain('немає доступу');
+      expect(out).toContain('фізично недоступно');
+    });
+  });
+
   describe('multi-turn coalescing rule', () => {
     beforeEach(() => {
       mockedGetOverlay.mockReturnValue(null);

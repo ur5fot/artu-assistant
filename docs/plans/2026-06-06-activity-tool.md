@@ -117,15 +117,15 @@
 - [x] run `npm test` + `npx tsc --noEmit` (packages/server) — must pass before next task
 
 ### Task 5: `ACTIVITY_RULES` блок в промпт (стоп ложного «нет доступа»)
-- [ ] в `packages/server/src/ai/prompts.ts` добавить общий `ACTIVITY_RULES` (UA, по
+- [x] в `packages/server/src/ai/prompts.ts` добавить общий `ACTIVITY_RULES` (UA, по
       образцу `EMAIL_RULES`), инжектить в `getSystemPrompt` и `getLocalSystemPrompt`:
       «проаналізуй роботу / чим займався / екранний час / скільки сидів у X → виклич
       activity. У тебе Є дані Digital Observer (активність/застосунки/час) — НЕ кажи
       'немає доступу'/'фізично недоступно'. Якщо за період порожньо — 'спостереження
       порожнє за цей період'.»
-- [ ] write tests: оба промпта содержат `activity` + запрет «немає доступу»/
+- [x] write tests: оба промпта содержат `activity` + запрет «немає доступу»/
       «фізично недоступно»
-- [ ] run `npm test` — must pass before next task
+- [x] run `npm test` — must pass before next task
 
 ### Task 6: Verify acceptance & build
 - [ ] verify: дайджест из `buildActivityDigest` на реальной БД за сегодня
