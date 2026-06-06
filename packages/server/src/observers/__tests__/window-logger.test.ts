@@ -272,6 +272,135 @@ describe('startWindowLogger', () => {
     stop();
   });
 
+  it('does not record an away span and keeps recording samples when idleSec is null', async () => {
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'Gmail' };
+    const provider = mockProvider(vi.fn(async () => snap));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const presence = { recordAway: vi.fn(), listAwayInWindow: vi.fn(), purgeOlderThan: vi.fn() };
+    const idleSource = { getIdleSeconds: vi.fn(async () => null) };
+
+    const stop = startWindowLogger({
+      store, provider, intervalMs: 30_000, idleSource, presence, idleThresholdSec: 300,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(presence.recordAway).not.toHaveBeenCalled();
+    expect(rows()).toEqual([{ app_name: 'Chrome', window_title: 'Gmail', sample_count: 2 }]);
+    stop();
+  });
+
+  it('records a sample every tick while continuously active (idle below threshold)', async () => {
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'Gmail' };
+    const provider = mockProvider(vi.fn(async () => snap));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const presence = { recordAway: vi.fn(), listAwayInWindow: vi.fn(), purgeOlderThan: vi.fn() };
+    const idleSource = { getIdleSeconds: vi.fn(async () => 10) };
+
+    const stop = startWindowLogger({
+      store, provider, intervalMs: 30_000, idleSource, presence, idleThresholdSec: 300,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(presence.recordAway).not.toHaveBeenCalled();
+    expect(rows()).toEqual([{ app_name: 'Chrome', window_title: 'Gmail', sample_count: 3 }]);
+    stop();
+  });
+
+  it('stops recording samples while away and back-dates the away start, not before last active', async () => {
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'YouTube' };
+    const provider = mockProvider(vi.fn(async () => snap));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const presence = { recordAway: vi.fn(), listAwayInWindow: vi.fn(), purgeOlderThan: vi.fn() };
+    // tick1 active, tick2 away (idle 400s ≥ 300)
+    const idleSource = {
+      getIdleSeconds: vi.fn<() => Promise<number | null>>()
+        .mockResolvedValueOnce(0)
+        .mockResolvedValue(400),
+    };
+
+    const stop = startWindowLogger({
+      store, provider, intervalMs: 30_000, idleSource, presence, idleThresholdSec: 300,
+    });
+    await vi.advanceTimersByTimeAsync(0); // active → records
+    await vi.advanceTimersByTimeAsync(30_000); // away → no record, opens span
+
+    // Only the first (active) tick produced a row; away tick recorded nothing.
+    expect(rows()).toEqual([{ app_name: 'Chrome', window_title: 'YouTube', sample_count: 1 }]);
+    // Span is open — not yet flushed to presence on entering away.
+    expect(presence.recordAway).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('flushes the away span on return to active and resumes recording', async () => {
+    const t0 = Date.now();
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'YouTube' };
+    const provider = mockProvider(vi.fn(async () => snap));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const presence = { recordAway: vi.fn(), listAwayInWindow: vi.fn(), purgeOlderThan: vi.fn() };
+    const idleSource = {
+      getIdleSeconds: vi.fn<() => Promise<number | null>>()
+        .mockResolvedValueOnce(0)   // t0: active
+        .mockResolvedValueOnce(400) // t0+30s: away
+        .mockResolvedValue(0),      // t0+60s: active again
+    };
+
+    const stop = startWindowLogger({
+      store, provider, intervalMs: 30_000, idleSource, presence, idleThresholdSec: 300,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000); // away
+    await vi.advanceTimersByTimeAsync(30_000); // back to active → flush span
+
+    // Span = [awayStart, returnTick]. awayStart back-dates to now-400s but is
+    // clamped to lastActiveAt (t0). Return tick is t0+60_000.
+    expect(presence.recordAway).toHaveBeenCalledTimes(1);
+    expect(presence.recordAway).toHaveBeenCalledWith(t0, t0 + 60_000);
+    // Two active ticks recorded; the away tick in the middle did not.
+    expect(rows()).toEqual([{ app_name: 'Chrome', window_title: 'YouTube', sample_count: 2 }]);
+    stop();
+  });
+
+  it('does not run away-detection without an idle source (backward-compat)', async () => {
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'Gmail' };
+    const provider = mockProvider(vi.fn(async () => snap));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const presence = { recordAway: vi.fn(), listAwayInWindow: vi.fn(), purgeOlderThan: vi.fn() };
+
+    const stop = startWindowLogger({
+      store, provider, intervalMs: 30_000, presence, idleThresholdSec: 300,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(presence.recordAway).not.toHaveBeenCalled();
+    expect(rows()).toEqual([{ app_name: 'Chrome', window_title: 'Gmail', sample_count: 2 }]);
+    stop();
+  });
+
+  it('does not let idle-source failures affect blind detection', async () => {
+    const provider = mockProvider(vi.fn(async () => null)); // truly blind
+    const store = createWindowHistoryStore({ db: getDb() });
+    const presence = { recordAway: vi.fn(), listAwayInWindow: vi.fn(), purgeOlderThan: vi.fn() };
+    const idleSource = { getIdleSeconds: vi.fn(async () => { throw new Error('ioreg boom'); }) };
+    const onBlind = vi.fn();
+
+    const stop = startWindowLogger({
+      store, provider, intervalMs: 30_000, idleSource, presence, idleThresholdSec: 300,
+      blindAlertAfter: 2, onBlind,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    // Idle throw → treated as active; blindness still tracked from provider only.
+    expect(onBlind).toHaveBeenCalledTimes(1);
+    expect(onBlind).toHaveBeenCalledWith({ consecutive: 2 });
+    expect(presence.recordAway).not.toHaveBeenCalled();
+    stop();
+  });
+
   it('does not fire further ticks after stop is called', async () => {
     const getActive = vi
       .fn<WindowSnapshotProvider['getActive']>()

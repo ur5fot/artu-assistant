@@ -78,16 +78,16 @@
 - [x] run `npm test` — must pass before next task
 
 ### Task 4: логгер — presence state machine
-- [ ] `window-logger.ts`: добавить deps `idleSource`, `presence`, `idleThresholdSec`;
+- [x] `window-logger.ts`: добавить deps `idleSource`, `presence`, `idleThresholdSec`;
       каждый тик: `idleSec = getIdleSeconds()`; AWAY (idleSec≥порог): не recordSample,
       если awayStart==null → `awayStart = now − idleSec*1000` (не раньше last active);
       ACTIVE (иначе/null): если awayStart!=null → `presence.recordAway(awayStart, now)`
       + reset; recordSample
-- [ ] idle-проверка не трогает blind-detection
-- [ ] write tests (моки idle/presence/store): active→away (нет recordSample, awayStart
+- [x] idle-проверка не трогает blind-detection
+- [x] write tests (моки idle/presence/store): active→away (нет recordSample, awayStart
       бэкдейт), away→active (recordAway с [awayStart,now] + recordSample), непрерывный
       active (recordSample каждый тик), idleSec=null → active
-- [ ] run `npm test` — must pass before next task
+- [x] run `npm test` — must pass before next task
 
 ### Task 5: away в дайджесте/тулзе activity
 - [ ] `digest.ts`: `buildActivityDigest(rows, evals, awaySpans, range)` — `away_min`
