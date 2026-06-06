@@ -74,6 +74,16 @@ describe('buildJudgePrompt', () => {
     expect(system).toContain('unknown');
     expect(system).toContain('лучше промолчать, чем гадать');
   });
+
+  it('draws the distracted/break line at content format: chosen leisure is a break', () => {
+    const { system } = buildJudgePrompt(TIMELINE, CURRENT);
+    // chosen leisure (music/film/games) → break, any hour
+    expect(system).toMatch(/музык/i);
+    expect(system).toContain('break');
+    // distracted is reserved for infinite/feed formats
+    expect(system).toMatch(/лент/i);
+    expect(system).toMatch(/Shorts|Reels|TikTok/i);
+  });
 });
 
 describe('judgeDistraction', () => {
