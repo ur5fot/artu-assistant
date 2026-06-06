@@ -135,6 +135,8 @@ describe('discoverTools', () => {
       },
       weatherClient: null,
       resolveUserCoords: null,
+      store: null,
+      evalStore: null,
     }, packagesDir);
 
     expect(registry.get('emails_list')).toBeTruthy();
@@ -263,6 +265,8 @@ describe('discoverTools with factory support', () => {
       imapClient: null,
       weatherClient: null,
       resolveUserCoords: null,
+      store: null,
+      evalStore: null,
     };
     await discoverTools(registry, deps, tmpDir);
 

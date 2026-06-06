@@ -122,6 +122,35 @@ describe('createDistractionEvalStore', () => {
     });
   });
 
+  describe('listEvalsInWindow', () => {
+    it('returns evals with evaluated_at within [from, to], chronological', () => {
+      const store = createDistractionEvalStore({ db: getDb() });
+      store.recordEval(baseInput({ app_name: 'Slack', evaluated_at: T0 + 30 * MIN }));
+      store.recordEval(baseInput({ app_name: 'Chrome', evaluated_at: T0 + 10 * MIN }));
+      store.recordEval(baseInput({ app_name: 'Code', evaluated_at: T0 + 20 * MIN }));
+
+      const rows = store.listEvalsInWindow(T0, T0 + HOUR);
+      expect(rows.map((r) => r.app_name)).toEqual(['Chrome', 'Code', 'Slack']);
+    });
+
+    it('is inclusive of the window bounds and excludes evals outside', () => {
+      const store = createDistractionEvalStore({ db: getDb() });
+      store.recordEval(baseInput({ app_name: 'Before', evaluated_at: T0 - MIN }));
+      store.recordEval(baseInput({ app_name: 'AtFrom', evaluated_at: T0 }));
+      store.recordEval(baseInput({ app_name: 'AtTo', evaluated_at: T0 + HOUR }));
+      store.recordEval(baseInput({ app_name: 'After', evaluated_at: T0 + HOUR + MIN }));
+
+      const rows = store.listEvalsInWindow(T0, T0 + HOUR);
+      expect(rows.map((r) => r.app_name)).toEqual(['AtFrom', 'AtTo']);
+    });
+
+    it('returns an empty array when nothing falls in the window', () => {
+      const store = createDistractionEvalStore({ db: getDb() });
+      store.recordEval(baseInput({ evaluated_at: T0 }));
+      expect(store.listEvalsInWindow(T0 + HOUR, T0 + 2 * HOUR)).toEqual([]);
+    });
+  });
+
   describe('activeSnoozeUntil', () => {
     it('returns the max future snooze_until', () => {
       const store = createDistractionEvalStore({ db: getDb() });

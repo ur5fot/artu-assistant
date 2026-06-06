@@ -10,6 +10,8 @@ import type { ReminderStore } from '../reminders/store.js';
 import type { EmailStore } from '../emails/store.js';
 import type { ImapAccount, NewMessage, FullMessage } from '../emails/types.js';
 import type { Coords, Forecast, GeocodeResult } from '../weather/types.js';
+import type { WindowHistoryStore } from '../observers/window-history-store.js';
+import type { DistractionEvalStore } from '../observers/distraction-eval-store.js';
 
 export type { ToolDefinition, ToolContext, PlanReviewResponse } from '@r2/shared';
 
@@ -65,6 +67,11 @@ export interface ToolDeps {
   // integration is not enabled.
   weatherClient: WeatherClientForTool | null;
   resolveUserCoords: ResolveUserCoordsFn | null;
+  // Read by @r2/tool-activity (structurally as ActivityStoreLike/EvalStoreLike).
+  // Injected under WINDOW_LOGGER_ENABLED; null store → the `activity` tool
+  // reports the digital observer is disabled.
+  store: WindowHistoryStore | null;
+  evalStore: DistractionEvalStore | null;
 }
 
 export type ToolFactory = (deps: ToolDeps) => SharedToolDefinition | SharedToolDefinition[];

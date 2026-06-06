@@ -705,6 +705,18 @@ if (weatherEnabled) {
   console.log('[weather] disabled (WEATHER_ENABLED not true)');
 }
 
+// Digital Observer stores — created unconditionally (cheap prepared statements
+// over always-migrated tables) and hoisted above discoverTools so the `activity`
+// tool can read them, and so the Discord bot's "Show titles" button + the
+// distract:* button handlers (constructed below) share one store instance. The
+// poller + context-switch + distraction handlers that *write* stay gated on the
+// feature flags below, so a disabled feature still produces no rows.
+const windowStore = createWindowHistoryStore({ db: getDb() });
+const distractionEvalStore = createDistractionEvalStore({ db: getDb() });
+// `activity` tool gate: with the Digital Observer off, inject a null store so the
+// tool answers with a clear "observer disabled" instead of an empty digest.
+const windowLoggerEnabled = process.env.WINDOW_LOGGER_ENABLED === 'true';
+
 // Now discover tools with deps (fills registry in-place)
 await discoverTools(registry, {
   runLoop: runLoopFn,
@@ -717,6 +729,8 @@ await discoverTools(registry, {
   imapClient: imapClientForTool,
   weatherClient: weatherClientForTool,
   resolveUserCoords: resolveUserCoordsForTool,
+  store: windowLoggerEnabled ? windowStore : null,
+  evalStore: distractionEvalStore,
 });
 
 // Email poller lifecycle handles (hoisted so SIGTERM can clean them up).
@@ -725,18 +739,6 @@ let emailPollerAbort: AbortController | null = null;
 
 // Window logger (Digital Observer) lifecycle handle, hoisted for SIGTERM.
 let stopWindowLogger: (() => void) | null = null;
-// Window history store is created unconditionally (cheap — just prepared
-// statements over an always-migrated table) so the Discord bot's "Show titles"
-// button can read session titles. The poller + context-switch handler that
-// *write* to it stay gated on the feature flag below, so a disabled feature
-// still produces no rows and no buttons — the store just sits idle.
-const windowStore = createWindowHistoryStore({ db: getDb() });
-// Distraction-pullback eval store — hoisted like windowStore so the Discord bot
-// (constructed below, before the Digital Observer block) can hand it to the
-// distract:* button handlers. Cheap prepared statements over an always-migrated
-// table; stays idle until the handler is gated on. snoozeMin is read here too
-// because both the bot (button reply text) and the handler (nudge button) need it.
-const distractionEvalStore = createDistractionEvalStore({ db: getDb() });
 const distractionSnoozeMin = envInt(process.env.DISTRACTION_SNOOZE_MIN, 60, 5, 480);
 
 // Polling runs independently of Discord. email_pending feeds on-demand tools

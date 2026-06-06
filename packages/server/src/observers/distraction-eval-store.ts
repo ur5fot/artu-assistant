@@ -35,6 +35,8 @@ export interface DistractionEvalStore {
   findRecentPing(app: string, since: number): DistractionEvalRow | null;
   /** Count of evals at or after `since` (daily LLM cap). */
   countEvalsSince(since: number): number;
+  /** Evals with `evaluated_at` in `[from, to]`, chronological — the `activity` tool's observer layer. */
+  listEvalsInWindow(from: number, to: number): DistractionEvalRow[];
   /** Max snooze_until still in the future relative to `now`, else null. */
   activeSnoozeUntil(now: number): number | null;
   /** Insert a new eval row, returning its id. */
@@ -73,6 +75,11 @@ export function createDistractionEvalStore(deps: { db: Database.Database }): Dis
   const countSince = db.prepare(
     `SELECT COUNT(*) AS n FROM distraction_evals WHERE evaluated_at >= ?`,
   );
+  const selectInWindow = db.prepare(
+    `SELECT ${COLUMNS} FROM distraction_evals
+     WHERE evaluated_at >= ? AND evaluated_at <= ?
+     ORDER BY evaluated_at ASC, id ASC`,
+  );
   const selectSnooze = db.prepare(
     `SELECT MAX(snooze_until) AS s FROM distraction_evals WHERE snooze_until > ?`,
   );
@@ -106,6 +113,10 @@ export function createDistractionEvalStore(deps: { db: Database.Database }): Dis
     countEvalsSince(since) {
       const row = countSince.get(since) as { n: number };
       return row.n;
+    },
+
+    listEvalsInWindow(from, to) {
+      return selectInWindow.all(from, to) as DistractionEvalRow[];
     },
 
     activeSnoozeUntil(now) {

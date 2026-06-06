@@ -103,14 +103,18 @@
 - [x] run `npm test` — must pass before next task
 
 ### Task 4: Регистрация в `discoverTools` + гейт
-- [ ] добавить `@r2/tool-activity` в реестр (`packages/server/src/tools/registry.ts`
+- [x] добавить `@r2/tool-activity` в реестр (`packages/server/src/tools/registry.ts`
       запись пакета) и в deps `discoverTools` на `index.ts:709` пробросить
-      `{ store, evalStore }` (уже созданы для distraction)
-- [ ] гейт `WINDOW_LOGGER_ENABLED`: если выключен — инжектить `null` стор, тулза
-      отвечает понятным `success:false`
-- [ ] write/extend tests для проводки реестра (если тестируемо) либо подтвердить
-      сборкой
-- [ ] run `npm test` + `npx tsc --noEmit` (packages/server) — must pass before next task
+      `{ store, evalStore }` (уже созданы для distraction) — discoverTools авто-сканирует
+      `tool-*` (workspace-симлинк), так что добавлены лишь поля `store`/`evalStore`
+      в `ToolDeps` (base.ts) + проброс на месте вызова; сторы хойстнуты выше вызова;
+      в `DistractionEvalStore` добавлен `listEvalsInWindow(from,to)` под `EvalStoreLike`
+- [x] гейт `WINDOW_LOGGER_ENABLED`: если выключен — инжектить `null` стор, тулза
+      отвечает понятным `success:false` (`store: windowLoggerEnabled ? windowStore : null`)
+- [x] write/extend tests для проводки реестра (если тестируемо) либо подтвердить
+      сборкой — тесты `listEvalsInWindow` + обновлены deps в registry.test; discover
+      подтверждён логом «Tool discovered: activity (tool-activity)»
+- [x] run `npm test` + `npx tsc --noEmit` (packages/server) — must pass before next task
 
 ### Task 5: `ACTIVITY_RULES` блок в промпт (стоп ложного «нет доступа»)
 - [ ] в `packages/server/src/ai/prompts.ts` добавить общий `ACTIVITY_RULES` (UA, по
