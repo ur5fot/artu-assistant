@@ -128,12 +128,18 @@
 - [x] run `npm test` — must pass before next task
 
 ### Task 6: Verify acceptance & build
-- [ ] verify: дайджест из `buildActivityDigest` на реальной БД за сегодня
-      (2026-06-06) отражает реальный день (приложения/время/сессии)
-- [ ] verify: оба промпта маршрутизируют активность на `activity`, без отрицания
-- [ ] run full suite (`npm test`) — all green
-- [ ] `npx tsc --noEmit` (packages/server) + build нового пакета — без type-ошибок
-- [ ] подтвердить: аддитивно, read-only, без изменений схемы/наблюдателя
+- [x] verify: дайджест из `buildActivityDigest` на реальной БД за сегодня
+      (2026-06-06) отражает реальный день — прогон на `data/r2.db`: 23 строки,
+      Chrome/YouTube ~693 мин (60%), Claude ~457 мин (40%), Signal; 5 переключений;
+      12 эпизодов наблюдателя (4 отдых/1 раб./7 неясн.); summary эпизодический + coverage_note
+- [x] verify: оба промпта маршрутизируют активность на `activity`, без отрицания —
+      `ACTIVITY_RULES` инжектится в `getSystemPrompt` (prompts.ts:98) и
+      `getLocalSystemPrompt` (prompts.ts:183); тесты в prompts.test.ts
+- [x] run full suite (`npm test`) — all green (148 файлов, 2028 тестов)
+- [x] `npx tsc --noEmit` (packages/server) + tool-activity `typecheck` — без type-ошибок
+      (у tool-* нет отдельного build, как у tool-weather; consume через workspace)
+- [x] подтвердить: аддитивно, read-only, без изменений схемы/наблюдателя — новый пакет
+      + один промпт-блок + регистрация; только чтение стора/эвалов
 
 ## Technical Details
 - `ActivityDigest` = `{ range:{from,to,label}, total_active_min, context_switches,
