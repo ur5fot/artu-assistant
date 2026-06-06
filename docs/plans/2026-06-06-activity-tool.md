@@ -61,19 +61,19 @@
 ## Implementation Steps
 
 ### Task 1: Пакет `@r2/tool-activity` + `buildActivityDigest` (факты активности)
-- [ ] scaffold `packages/tool-activity/` (`package.json` `@r2/tool-activity`,
+- [x] scaffold `packages/tool-activity/` (`package.json` `@r2/tool-activity`,
       `tsconfig.json`, `src/index.ts`, `src/types.ts`, `src/digest.ts`) по образцу
       `tool-weather`; добавить в workspace build
-- [ ] `src/types.ts`: `ActivityRange`, `ActivityDigest`, `ActivityDeps`
+- [x] `src/types.ts`: `ActivityRange`, `ActivityDigest`, `ActivityDeps`
       (`{ store, evalStore }`), `WindowRowLike`, `EvalLike` (структурные)
-- [ ] `src/digest.ts`: `buildActivityDigest(rows, evals, range)` — idle-исключение
+- [x] `src/digest.ts`: `buildActivityDigest(rows, evals, range)` — idle-исключение
       (`loginwindow`/`ScreenSaverEngine`), `total_active_min`, `by_app`+`share`,
       `top_sites` (по хосту из `url`), `timeline` (склейка соседних same-app в
       app-run, только ≥3 мин), `context_switches` (число смен app в timeline),
       клампинг длительностей к `[range.from, range.to]`
-- [ ] write tests: склейка/idle/by_app/share/top_sites/timeline/context_switches/
+- [x] write tests: склейка/idle/by_app/share/top_sites/timeline/context_switches/
       клампинг/пустое окно (success + edge)
-- [ ] run `npm test` (в `packages/server` или корне) — must pass before next task
+- [x] run `npm test` (в `packages/server` или корне) — must pass before next task
 
 ### Task 2: Слой отвлечений + `summary` в дайджесте
 - [ ] расширить `buildActivityDigest`: `observer.episodes` (из evals в окне:
