@@ -70,12 +70,12 @@
 - [x] run `npm test` — detector/distraction сьюты зелёные — must pass before next task
 
 ### Task 3: presence-store + таблица presence_log
-- [ ] `db.ts`: `CREATE TABLE IF NOT EXISTS presence_log (id, away_started_at INTEGER,
+- [x] `db.ts`: `CREATE TABLE IF NOT EXISTS presence_log (id, away_started_at INTEGER,
       away_ended_at INTEGER)` + индекс по `away_ended_at`
-- [ ] `observers/presence-store.ts`: `createPresenceStore({db})` → `recordAway(from,to)`,
+- [x] `observers/presence-store.ts`: `createPresenceStore({db})` → `recordAway(from,to)`,
       `listAwayInWindow(from,to)` (спаны, пересекающие окно), `purgeOlderThan(cutoff)`
-- [ ] write tests: recordAway (to>from); listAwayInWindow (пересечение/границы); purge
-- [ ] run `npm test` — must pass before next task
+- [x] write tests: recordAway (to>from); listAwayInWindow (пересечение/границы); purge
+- [x] run `npm test` — must pass before next task
 
 ### Task 4: логгер — presence state machine
 - [ ] `window-logger.ts`: добавить deps `idleSource`, `presence`, `idleThresholdSec`;

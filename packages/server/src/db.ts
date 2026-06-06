@@ -442,6 +442,22 @@ export function initDb(dbPath?: string): void {
       ON window_history(started_at)
   `);
 
+  // presence/idle tracking: one row per closed "away" span (user idle >= the
+  // threshold then returned). Only finalized spans land here (recorded on the
+  // return tick); an in-progress away has no row. listAwayInWindow keys off
+  // away_ended_at via the index for the activity digest's "отошёл Y" report.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS presence_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      away_started_at INTEGER NOT NULL,
+      away_ended_at INTEGER NOT NULL
+    )
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_presence_log_ended
+      ON presence_log(away_ended_at DESC)
+  `);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS context_pings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
