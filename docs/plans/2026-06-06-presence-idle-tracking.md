@@ -51,12 +51,12 @@
 ## Implementation Steps
 
 ### Task 1: idle-source (macOS HIDIdleTime)
-- [ ] `observers/idle-source.ts`: `IdleSource = { getIdleSeconds(): Promise<number|null> }`
+- [x] `observers/idle-source.ts`: `IdleSource = { getIdleSeconds(): Promise<number|null> }`
       + реализация через `ioreg -c IOHIDSystem` (regex `HIDIdleTime` → ns → сек,
       инжектируемый exec-runner для тестов)
-- [ ] любой сбой/не-macOS/непарс → `null`
-- [ ] write tests: корректный парс ns→сек; мусор/пустой вывод/throw → null (мок exec)
-- [ ] run `npm test` (packages/server) — must pass before next task
+- [x] любой сбой/не-macOS/непарс → `null`
+- [x] write tests: корректный парс ns→сек; мусор/пустой вывод/throw → null (мок exec)
+- [x] run `npm test` (packages/server) — must pass before next task
 
 ### Task 2: recordSample gap-aware split
 - [ ] `window-history-store.ts`: `recordSample` принимает `maxGapMs` (через фабрику
