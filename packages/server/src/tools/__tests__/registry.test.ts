@@ -137,6 +137,7 @@ describe('discoverTools', () => {
       resolveUserCoords: null,
       store: null,
       evalStore: null,
+      presence: null,
     }, packagesDir);
 
     expect(registry.get('emails_list')).toBeTruthy();
@@ -164,6 +165,7 @@ describe('discoverTools', () => {
       // Structural fakes — exercise the real createTool factory + ActivityDeps wiring.
       store: { findRowsInWindow: () => [] } as any,
       evalStore: { listEvalsInWindow: () => [] } as any,
+      presence: { listAwayInWindow: () => [] } as any,
     }, packagesDir);
 
     const activity = registry.get('activity');
@@ -297,6 +299,7 @@ describe('discoverTools with factory support', () => {
       resolveUserCoords: null,
       store: null,
       evalStore: null,
+      presence: null,
     };
     await discoverTools(registry, deps, tmpDir);
 

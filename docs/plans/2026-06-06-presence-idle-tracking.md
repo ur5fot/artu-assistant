@@ -100,13 +100,17 @@
 - [x] run `npm test` — must pass before next task
 
 ### Task 6: проводка index.ts + конфиг
-- [ ] `index.ts`: построить `idleSource` (реальный ioreg) + `presenceStore`; передать
+- [x] `index.ts`: построить `idleSource` (реальный ioreg) + `presenceStore`; передать
       в `startWindowLogger` (idleSource/presence/порог) и в deps `discoverTools`
       (`presence` для тулзы); всё под `WINDOW_LOGGER_ENABLED`
-- [ ] env: `IDLE_THRESHOLD_SEC` (300, 60..3600), `WINDOW_SESSION_MAX_GAP_MS`
+      (presenceStore создаётся безусловно как windowStore; в deps `presence` гейтнут флагом; idleSource/presence/idleThresholdSec — внутри darwin+discord блока)
+- [x] env: `IDLE_THRESHOLD_SEC` (300, 60..3600), `WINDOW_SESSION_MAX_GAP_MS`
       (90000, 35000..600000) через `envInt`; пробросить maxGap в стор
-- [ ] write/extend тесты проводки если тестируемо; иначе подтвердить сборкой
-- [ ] run `npm test` + `npx tsc --noEmit` (packages/server) — must pass before next task
+      (`presence: PresenceStore|null` добавлен в `ToolDeps`)
+- [x] write/extend тесты проводки если тестируемо; иначе подтвердить сборкой
+      (registry.test.ts: ActivityDeps с `presence` структурным фейком; tsc --noEmit зелёный)
+- [x] run `npm test` + `npx tsc --noEmit` (packages/server) — must pass before next task
+      (1744 tests pass, tsc clean)
 
 ### Task 7: Verify acceptance & build
 - [ ] verify: симуляция тиков active↔away → presence_log + digest away_min корректны

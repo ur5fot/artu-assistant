@@ -68,6 +68,8 @@ import { createWindowHistoryStore } from './observers/window-history-store.js';
 import { createContextPingStore } from './observers/context-switch-detector.js';
 import { createOsascriptProvider } from './observers/window-snapshot.js';
 import { startWindowLogger } from './observers/window-logger.js';
+import { createIoregIdleSource } from './observers/idle-source.js';
+import { createPresenceStore } from './observers/presence-store.js';
 import { createContextSwitchHandler } from './cognition/handlers/contextSwitch.js';
 import { createDistractionEvalStore } from './observers/distraction-eval-store.js';
 import { createDistractionHandler } from './cognition/handlers/distractionPullback.js';
@@ -711,8 +713,19 @@ if (weatherEnabled) {
 // distract:* button handlers (constructed below) share one store instance. The
 // poller + context-switch + distraction handlers that *write* stay gated on the
 // feature flags below, so a disabled feature still produces no rows.
-const windowStore = createWindowHistoryStore({ db: getDb() });
+// Same-(app,title) samples only extend the latest session row when the pause
+// since its last_seen_at is within this gap; a longer pause (e.g. an away gap)
+// starts a fresh session so a focused-but-idle window can't stitch across it.
+// Default 90s = 3× the 30s sampling interval. Floor 35s keeps it above one
+// interval (avoids spurious splits on a single missed tick).
+const windowSessionMaxGapMs = envInt(process.env.WINDOW_SESSION_MAX_GAP_MS, 90_000, 35_000, 600_000);
+const windowStore = createWindowHistoryStore({ db: getDb(), maxGapMs: windowSessionMaxGapMs });
 const distractionEvalStore = createDistractionEvalStore({ db: getDb() });
+// Presence (away) store — created unconditionally over the always-migrated
+// presence_log table (cheap prepared statements), so the `activity` tool can
+// read away spans. The window logger that WRITES away spans stays gated on the
+// feature flag below, so a disabled observer still records nothing.
+const presenceStore = createPresenceStore({ db: getDb() });
 // `activity` tool gate: with the Digital Observer off, inject a null store so the
 // tool answers with a clear "observer disabled" instead of an empty digest.
 const windowLoggerEnabled = process.env.WINDOW_LOGGER_ENABLED === 'true';
@@ -731,6 +744,7 @@ await discoverTools(registry, {
   resolveUserCoords: resolveUserCoordsForTool,
   store: windowLoggerEnabled ? windowStore : null,
   evalStore: windowLoggerEnabled ? distractionEvalStore : null,
+  presence: windowLoggerEnabled ? presenceStore : null,
 });
 
 // Email poller lifecycle handles (hoisted so SIGTERM can clean them up).
@@ -955,16 +969,26 @@ const registerDiscordGatedHandlers = guardOnce(async () => {
   const stableNewMin = envInt(process.env.CONTEXT_SWITCH_STABLE_NEW_MIN, 5, 1, 60);
   const dedupeWindowH = envInt(process.env.CONTEXT_SWITCH_DEDUPE_WINDOW_H, 8, 1, 168);
   const blindAlertAfter = envInt(process.env.WINDOW_LOGGER_BLIND_ALERT_AFTER, 10, 1, 2880);
+  // Idle seconds at or above which the user counts as "away" — that time is not
+  // recorded as activity but written to presence_log instead. Default 5 min;
+  // floor 1 min, ceiling 1h.
+  const idleThresholdSec = envInt(process.env.IDLE_THRESHOLD_SEC, 300, 60, 3600);
 
   if (windowFlag && isDarwin && discordReady) {
     // Reuse the hoisted windowStore (also handed to the Discord bot above) so
     // the poller's writes and the "Show titles" button's reads share one store.
     const pingStore = createContextPingStore({ db: getDb() });
     const provider = createOsascriptProvider({ timeoutMs: 5_000 });
+    // Real input-idle signal (macOS ioreg HIDIdleTime). Drives the away state
+    // machine in the logger together with presenceStore + idleThresholdSec.
+    const idleSource = createIoregIdleSource({ timeoutMs: 5_000 });
     stopWindowLogger = startWindowLogger({
       store: windowStore,
       provider,
       intervalMs: windowIntervalMs,
+      idleSource,
+      presence: presenceStore,
+      idleThresholdSec,
       onError: (e) => console.error('[window-logger]', e instanceof Error ? e.message : e),
       blindAlertAfter,
       onBlind: ({ consecutive }) => {
@@ -1016,7 +1040,7 @@ const registerDiscordGatedHandlers = guardOnce(async () => {
     );
     console.log('[action-activity-match] handler registered');
     console.log(
-      `[window-logger] started (interval=${Math.round(windowIntervalMs / 1000)}s, blind-alert=${blindAlertAfter})`,
+      `[window-logger] started (interval=${Math.round(windowIntervalMs / 1000)}s, blind-alert=${blindAlertAfter}, idle-threshold=${idleThresholdSec}s, max-gap=${Math.round(windowSessionMaxGapMs / 1000)}s)`,
     );
   } else {
     console.log(

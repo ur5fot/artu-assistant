@@ -12,6 +12,7 @@ import type { ImapAccount, NewMessage, FullMessage } from '../emails/types.js';
 import type { Coords, Forecast, GeocodeResult } from '../weather/types.js';
 import type { WindowHistoryStore } from '../observers/window-history-store.js';
 import type { DistractionEvalStore } from '../observers/distraction-eval-store.js';
+import type { PresenceStore } from '../observers/presence-store.js';
 
 export type { ToolDefinition, ToolContext, PlanReviewResponse } from '@r2/shared';
 
@@ -72,6 +73,10 @@ export interface ToolDeps {
   // reports the digital observer is disabled.
   store: WindowHistoryStore | null;
   evalStore: DistractionEvalStore | null;
+  // Read by @r2/tool-activity (structurally as ActivityPresenceStoreLike) for
+  // away-time reporting. Injected under WINDOW_LOGGER_ENABLED; null → the
+  // `activity` digest reports no away time.
+  presence: PresenceStore | null;
 }
 
 export type ToolFactory = (deps: ToolDeps) => SharedToolDefinition | SharedToolDefinition[];
