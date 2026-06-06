@@ -53,6 +53,39 @@ export interface ActivityTopSite {
   minutes: number;
 }
 
+/** One distraction-judge episode mapped from a `distraction_evals` row. */
+export interface ActivityEpisode {
+  /** When the judge evaluated the dwell, epoch ms. */
+  at: number;
+  app: string;
+  title: string | null;
+  /** Dwell length the judge saw, minutes. */
+  dwell_min: number;
+  /** Judge verdict (distracted/break/working/unknown/error). */
+  verdict: string;
+  confidence: number | null;
+}
+
+/** Episode tallies by verdict. `error` verdicts fold into `unknown`. */
+export interface ActivityObserverCounts {
+  distracted: number;
+  break: number;
+  working: number;
+  unknown: number;
+}
+
+/**
+ * The distraction-observer layer over a window: the episodes the judge logged,
+ * their tallies, and a permanent honesty note that sampling is selective.
+ */
+export interface ActivityObserver {
+  /** Judge episodes in the window, chronological. */
+  episodes: ActivityEpisode[];
+  counts: ActivityObserverCounts;
+  /** Always present: sampling is selective; no marks ≠ no distractions. */
+  coverage_note: string;
+}
+
 /** One notable app-run on the chronological timeline. */
 export interface ActivityTimelineEntry {
   /** Run start, epoch ms (clamped to range). */
@@ -66,10 +99,7 @@ export interface ActivityTimelineEntry {
   min: number;
 }
 
-/**
- * Aggregated digest of digital activity over a window. The observer layer and
- * the ready-made RU `summary` are added in Task 2.
- */
+/** Aggregated digest of digital activity over a window. */
 export interface ActivityDigest {
   range: ActivityRange;
   /** Σ of clamped, non-idle app-run minutes. */
@@ -82,6 +112,10 @@ export interface ActivityDigest {
   top_sites: ActivityTopSite[];
   /** Notable app-runs (>= 3 min), chronological. */
   timeline: ActivityTimelineEntry[];
+  /** Distraction-observer layer (episodes + counts + honesty note). */
+  observer: ActivityObserver;
+  /** Ready-made RU narrative an agent can voice verbatim. */
+  summary: string;
 }
 
 /** Minimal window-history store surface the `activity` tool depends on. */

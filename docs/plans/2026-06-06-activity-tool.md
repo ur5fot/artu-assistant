@@ -76,16 +76,16 @@
 - [x] run `npm test` (в `packages/server` или корне) — must pass before next task
 
 ### Task 2: Слой отвлечений + `summary` в дайджесте
-- [ ] расширить `buildActivityDigest`: `observer.episodes` (из evals в окне:
+- [x] расширить `buildActivityDigest`: `observer.episodes` (из evals в окне:
       `{at, app, title, dwell_min, verdict, confidence}`), `observer.counts`
       (distracted/break/working/unknown), `observer.coverage_note` (всегда —
       «наблюдатель оценивает выборочно… отсутствие отметок ≠ отсутствие отвлечений»)
-- [ ] собрать готовый RU `summary`: топ-приложения по времени, заметные сессии,
+- [x] собрать готовый RU `summary`: топ-приложения по времени, заметные сессии,
       смены; слой отвлечений **эпизодически** («отмечено N эпизодов: X залипаний,
       Y отдых»), без «всего за день»
-- [ ] write tests: маппинг эпизодов, counts, `coverage_note` присутствует всегда,
+- [x] write tests: маппинг эпизодов, counts, `coverage_note` присутствует всегда,
       фразинг summary эпизодический, пустой слой
-- [ ] run `npm test` — must pass before next task
+- [x] run `npm test` — must pass before next task
 
 ### Task 3: Тулза `activity` + handler
 - [ ] `src/index.ts`: `createTool({ store, evalStore }): ToolDefinition[]` — тулза
