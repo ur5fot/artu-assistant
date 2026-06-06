@@ -363,6 +363,65 @@ describe('startWindowLogger', () => {
     stop();
   });
 
+  it('back-dates the away start to when idleness began when that is after the last active tick', async () => {
+    const t0 = Date.now();
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'YouTube' };
+    const provider = mockProvider(vi.fn(async () => snap));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const presence = { recordAway: vi.fn(), listAwayInWindow: vi.fn(), purgeOlderThan: vi.fn() };
+    // Low threshold (20s) so a short idle crosses it. Away tick fires at t0+30s
+    // with idle 25s → idleness began at t0+5s, which is AFTER lastActiveAt (t0).
+    // The clamp must act as a floor, leaving the back-dated start untouched.
+    const idleSource = {
+      getIdleSeconds: vi.fn<() => Promise<number | null>>()
+        .mockResolvedValueOnce(0)   // t0: active
+        .mockResolvedValueOnce(25)  // t0+30s: away (idle began t0+5s)
+        .mockResolvedValue(0),      // t0+60s: active again → flush
+    };
+
+    const stop = startWindowLogger({
+      store, provider, intervalMs: 30_000, idleSource, presence, idleThresholdSec: 20,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000); // away
+    await vi.advanceTimersByTimeAsync(30_000); // back to active → flush span
+
+    // Span start = now − idleSec*1000 = (t0+30_000) − 25_000 = t0+5_000 (not t0).
+    expect(presence.recordAway).toHaveBeenCalledTimes(1);
+    expect(presence.recordAway).toHaveBeenCalledWith(t0 + 5_000, t0 + 60_000);
+    stop();
+  });
+
+  it('keeps the original away-span start across consecutive away ticks', async () => {
+    const t0 = Date.now();
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'YouTube' };
+    const provider = mockProvider(vi.fn(async () => snap));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const presence = { recordAway: vi.fn(), listAwayInWindow: vi.fn(), purgeOlderThan: vi.fn() };
+    // active → away (idle began t0+5s) → still away (large idle that would
+    // back-date much later if re-opened) → active. The span must keep its
+    // original start (t0+5s), not be re-back-dated on the second away tick.
+    const idleSource = {
+      getIdleSeconds: vi.fn<() => Promise<number | null>>()
+        .mockResolvedValueOnce(0)   // t0: active
+        .mockResolvedValueOnce(25)  // t0+30s: away → opens span at t0+5s
+        .mockResolvedValueOnce(400) // t0+60s: still away → guard must not re-open
+        .mockResolvedValue(0),      // t0+90s: active → flush
+    };
+
+    const stop = startWindowLogger({
+      store, provider, intervalMs: 30_000, idleSource, presence, idleThresholdSec: 20,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000); // away (opens span)
+    await vi.advanceTimersByTimeAsync(30_000); // still away (guard holds start)
+    await vi.advanceTimersByTimeAsync(30_000); // active → flush
+
+    expect(presence.recordAway).toHaveBeenCalledTimes(1);
+    expect(presence.recordAway).toHaveBeenCalledWith(t0 + 5_000, t0 + 90_000);
+    stop();
+  });
+
   it('does not run away-detection without an idle source (backward-compat)', async () => {
     const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'Gmail' };
     const provider = mockProvider(vi.fn(async () => snap));
