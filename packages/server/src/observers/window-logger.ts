@@ -45,7 +45,14 @@ export function startWindowLogger(params: StartWindowLoggerParams): () => void {
   // idle source and a positive threshold are wired in; otherwise every tick is
   // active and this stays inert (backward-compat).
   const awayEnabled = !!idleSource && idleThresholdSec != null && idleThresholdSec > 0;
+  // Start of the currently-open away span, or null while the user is active.
   let awayStartedAt: number | null = null;
+  // Closed away spans whose recordAway() flush has not yet succeeded (DB locked/
+  // full/corrupt). Each return-to-active appends one span here; a separate later
+  // away period opens its OWN span instead of merging into an unflushed one, so a
+  // persistence outage never stamps the active gap between two away periods as
+  // away. Drained FIFO on every active tick until it empties.
+  const pendingAway: Array<{ from: number; to: number }> = [];
   // Last tick we observed the user active — clamps the back-dated away start so
   // a large HIDIdleTime can't push an away span before the user was last seen.
   let lastActiveAt: number | null = null;
@@ -101,16 +108,36 @@ export function startWindowLogger(params: StartWindowLoggerParams): () => void {
       away = idleSec != null && idleSec >= idleThresholdSec!;
       if (away) {
         // Entering (or staying) away: back-date the span start to when idleness
-        // actually began, but never before the user was last seen active.
+        // actually began, but never before the user was last seen active. A
+        // re-away after a failed flush opens a FRESH span here — the unflushed
+        // closed span stays queued in pendingAway and is never merged into it.
         if (awayStartedAt == null) {
           const backDated = now - idleSec! * 1000;
           awayStartedAt = lastActiveAt != null ? Math.max(backDated, lastActiveAt) : backDated;
         }
       } else {
-        // Returning to active: close the open away span (if any) and reset.
+        // Returning to active: close the open away span into the pending queue
+        // (with its real return time), then drain the backlog. Queuing closed
+        // spans rather than retrying a single open span means each away period is
+        // recorded with its own [start, return] even if an earlier flush failed
+        // and the user went away again in between.
         if (awayStartedAt != null) {
-          safely(() => presence?.recordAway(awayStartedAt as number, now));
+          pendingAway.push({ from: awayStartedAt, to: now });
           awayStartedAt = null;
+        }
+        // A recordAway() throw (locked/full/corrupt DB) is a storage fault, not a
+        // swallowed no-op — mirror recordSample and route it through onError
+        // instead of `safely` (which is for callback throws). Stop draining on the
+        // first failure so the queue keeps its order and retries next active tick.
+        while (pendingAway.length > 0) {
+          const span = pendingAway[0];
+          try {
+            presence?.recordAway(span.from, span.to);
+            pendingAway.shift();
+          } catch (err) {
+            safely(() => onError?.(err));
+            break;
+          }
         }
         lastActiveAt = now;
       }

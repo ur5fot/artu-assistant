@@ -363,6 +363,83 @@ describe('startWindowLogger', () => {
     stop();
   });
 
+  it('routes a recordAway() throw through onError and retries the flush next tick', async () => {
+    const t0 = Date.now();
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'YouTube' };
+    const provider = mockProvider(vi.fn(async () => snap));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const dbErr = new Error('database is locked');
+    const recordAway = vi.fn()
+      .mockImplementationOnce(() => { throw dbErr; }) // first flush fails
+      .mockImplementation(() => {});                  // retry succeeds
+    const presence = { recordAway, listAwayInWindow: vi.fn(), purgeOlderThan: vi.fn() };
+    const idleSource = {
+      getIdleSeconds: vi.fn<() => Promise<number | null>>()
+        .mockResolvedValueOnce(0)   // t0: active
+        .mockResolvedValueOnce(400) // t0+30s: away → opens span at t0 (clamped)
+        .mockResolvedValue(0),      // t0+60s, t0+90s: active → flush (fail, then retry)
+    };
+    const onError = vi.fn();
+
+    const stop = startWindowLogger({
+      store, provider, intervalMs: 30_000, idleSource, presence, idleThresholdSec: 300, onError,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000); // away
+    await vi.advanceTimersByTimeAsync(30_000); // active → flush throws → onError, span retained
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(dbErr);
+
+    await vi.advanceTimersByTimeAsync(30_000); // still active → retry flush succeeds
+    // Span retained across the failure and flushed on retry with the ORIGINAL
+    // return time (t0+60s), not the later retry tick — active time after the
+    // real return must not be counted as away.
+    expect(recordAway).toHaveBeenCalledTimes(2);
+    expect(recordAway).toHaveBeenLastCalledWith(t0, t0 + 60_000);
+    expect(onError).toHaveBeenCalledTimes(1); // no further errors after success
+    stop();
+  });
+
+  it('records each away period as its own span when away resumes before a failed flush retries', async () => {
+    const t0 = Date.now();
+    const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'YouTube' };
+    const provider = mockProvider(vi.fn(async () => snap));
+    const store = createWindowHistoryStore({ db: getDb() });
+    const dbErr = new Error('database is locked');
+    const recordAway = vi.fn()
+      .mockImplementationOnce(() => { throw dbErr; }) // first flush (at return) fails
+      .mockImplementation(() => {});                  // later flushes succeed
+    const presence = { recordAway, listAwayInWindow: vi.fn(), purgeOlderThan: vi.fn() };
+    const idleSource = {
+      getIdleSeconds: vi.fn<() => Promise<number | null>>()
+        .mockResolvedValueOnce(0)   // t0: active
+        .mockResolvedValueOnce(400) // t0+30s: away → opens span at t0 (clamped)
+        .mockResolvedValueOnce(0)   // t0+60s: active → flush throws, span queued [t0, t0+60s]
+        .mockResolvedValueOnce(400) // t0+90s: away again → opens a FRESH span (clamped t0+60s)
+        .mockResolvedValue(0),      // t0+120s: active → drains both spans
+    };
+    const onError = vi.fn();
+
+    const stop = startWindowLogger({
+      store, provider, intervalMs: 30_000, idleSource, presence, idleThresholdSec: 300, onError,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_000); // away → opens span at t0
+    await vi.advanceTimersByTimeAsync(30_000); // active → flush throws, span [t0, t0+60s] queued
+    await vi.advanceTimersByTimeAsync(30_000); // away again → fresh span, queued one untouched
+    await vi.advanceTimersByTimeAsync(30_000); // active → drains both spans in order
+
+    // Three calls: the failed flush, its retry, and the second period's span.
+    // The first away period keeps its real return (t0+60s) — NOT merged forward
+    // across the active gap — and the second period is a separate span.
+    expect(recordAway).toHaveBeenCalledTimes(3);
+    expect(recordAway).toHaveBeenNthCalledWith(2, t0, t0 + 60_000);
+    expect(recordAway).toHaveBeenNthCalledWith(3, t0 + 60_000, t0 + 120_000);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(dbErr);
+    stop();
+  });
+
   it('back-dates the away start to when idleness began when that is after the last active tick', async () => {
     const t0 = Date.now();
     const snap: WindowSnapshot = { app_name: 'Chrome', window_title: 'YouTube' };
