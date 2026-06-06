@@ -44,8 +44,19 @@ export interface WindowHistoryStore {
   purgeOlderThan(cutoff: number): number;
 }
 
-export function createWindowHistoryStore(deps: { db: Database.Database }): WindowHistoryStore {
+/** Default max pause (ms) the same (app,title) may bridge before splitting into a
+ * new session — 3× the 30s sampling interval. Mirrors WINDOW_SESSION_MAX_GAP_MS. */
+const DEFAULT_MAX_GAP_MS = 90_000;
+
+export function createWindowHistoryStore(deps: {
+  db: Database.Database;
+  /** A same-(app,title) sample only extends the latest row when the pause since
+   * its last_seen_at is <= this; a longer pause starts a new session (gap-split),
+   * so a focused-but-idle window can't stitch across an away gap. */
+  maxGapMs?: number;
+}): WindowHistoryStore {
   const { db } = deps;
+  const maxGapMs = deps.maxGapMs ?? DEFAULT_MAX_GAP_MS;
 
   const selectLatest = db.prepare(
     `SELECT id, app_name, window_title, started_at, last_seen_at, sample_count, url
@@ -116,7 +127,8 @@ export function createWindowHistoryStore(deps: { db: Database.Database }): Windo
       if (
         latest &&
         latest.app_name === sample.app_name &&
-        latest.window_title === sample.window_title
+        latest.window_title === sample.window_title &&
+        sample.sampled_at - latest.last_seen_at <= maxGapMs
       ) {
         updateLatest.run({ sampledAt: sample.sampled_at, url, id: latest.id });
         return;

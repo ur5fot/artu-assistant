@@ -59,14 +59,15 @@
 - [x] run `npm test` (packages/server) — must pass before next task
 
 ### Task 2: recordSample gap-aware split
-- [ ] `window-history-store.ts`: `recordSample` принимает `maxGapMs` (через фабрику
+- [x] `window-history-store.ts`: `recordSample` принимает `maxGapMs` (через фабрику
       `createWindowHistoryStore({db, maxGapMs})` или параметр) — продлевать latest
       только если `(app,title)` совпали И `sampled_at − last_seen_at ≤ maxGapMs`,
       иначе INSERT
-- [ ] обновить вызывающих (логгер) и существующие тесты стора под новую семантику
-- [ ] write tests: продление в пределах maxGap; INSERT за пределом при том же
+- [x] обновить вызывающих (логгер) и существующие тесты стора под новую семантику
+      (фабрика взяла дефолт maxGap 90с — логгер/index.ts вызывают как раньше; env-проводка в Task 6)
+- [x] write tests: продление в пределах maxGap; INSERT за пределом при том же
       (app,title); обычная смена title — как раньше; дефолт maxGap
-- [ ] run `npm test` — detector/distraction сьюты зелёные — must pass before next task
+- [x] run `npm test` — detector/distraction сьюты зелёные — must pass before next task
 
 ### Task 3: presence-store + таблица presence_log
 - [ ] `db.ts`: `CREATE TABLE IF NOT EXISTS presence_log (id, away_started_at INTEGER,

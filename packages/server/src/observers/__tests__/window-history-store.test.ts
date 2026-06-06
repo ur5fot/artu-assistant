@@ -82,6 +82,54 @@ describe('createWindowHistoryStore', () => {
       expect(rows[1].app_name).toBe('iTerm');
     });
 
+    it('extends the latest row when same app+title and gap <= maxGapMs', () => {
+      const store = createWindowHistoryStore({ db: getDb(), maxGapMs: 90_000 });
+      const t1 = 1_700_000_000_000;
+      store.recordSample({ app_name: 'Chrome', window_title: 'Gmail', sampled_at: t1 });
+      // 90s gap, exactly at the boundary -> still an extension.
+      store.recordSample({ app_name: 'Chrome', window_title: 'Gmail', sampled_at: t1 + 90_000 });
+
+      const rows = getDb()
+        .prepare('SELECT started_at, last_seen_at, sample_count FROM window_history ORDER BY id')
+        .all() as Array<{ started_at: number; last_seen_at: number; sample_count: number }>;
+      expect(rows).toHaveLength(1);
+      expect(rows[0].started_at).toBe(t1);
+      expect(rows[0].last_seen_at).toBe(t1 + 90_000);
+      expect(rows[0].sample_count).toBe(2);
+    });
+
+    it('INSERTs a new row when same app+title but gap > maxGapMs (gap-split)', () => {
+      // The bridge bug: a focused-but-idle window (e.g. nightly YouTube) must NOT
+      // stitch across a long pause just because app+title still match.
+      const store = createWindowHistoryStore({ db: getDb(), maxGapMs: 90_000 });
+      const t1 = 1_700_000_000_000;
+      store.recordSample({ app_name: 'Chrome', window_title: 'YouTube', sampled_at: t1 });
+      // 90s + 1ms gap, one past the boundary -> new session.
+      store.recordSample({ app_name: 'Chrome', window_title: 'YouTube', sampled_at: t1 + 90_001 });
+
+      const rows = getDb()
+        .prepare('SELECT started_at, last_seen_at, sample_count FROM window_history ORDER BY id')
+        .all() as Array<{ started_at: number; last_seen_at: number; sample_count: number }>;
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toMatchObject({ started_at: t1, last_seen_at: t1, sample_count: 1 });
+      expect(rows[1]).toMatchObject({ started_at: t1 + 90_001, last_seen_at: t1 + 90_001, sample_count: 1 });
+    });
+
+    it('uses a default maxGapMs (90s) when none is provided', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t1 = 1_700_000_000_000;
+      store.recordSample({ app_name: 'Chrome', window_title: 'Gmail', sampled_at: t1 });
+      // Under the 90s default -> extend.
+      store.recordSample({ app_name: 'Chrome', window_title: 'Gmail', sampled_at: t1 + 60_000 });
+      // Over the 90s default -> split.
+      store.recordSample({ app_name: 'Chrome', window_title: 'Gmail', sampled_at: t1 + 60_000 + 120_000 });
+
+      const rows = getDb()
+        .prepare('SELECT sample_count FROM window_history ORDER BY id')
+        .all() as Array<{ sample_count: number }>;
+      expect(rows.map((r) => r.sample_count)).toEqual([2, 1]);
+    });
+
     it('matches on the most recent row, not any historical row with same app+title', () => {
       const store = createWindowHistoryStore({ db: getDb() });
       const t1 = 1_700_000_000_000;
