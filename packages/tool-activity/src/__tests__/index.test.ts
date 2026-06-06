@@ -3,7 +3,9 @@ import { createTool, resolveRange } from '../index.js';
 import type {
   ActivityDigest,
   ActivityEvalStoreLike,
+  ActivityPresenceStoreLike,
   ActivityStoreLike,
+  AwaySpanLike,
   EvalLike,
   WindowRowLike,
 } from '../types.js';
@@ -35,6 +37,19 @@ function fakeEvalStore(
     listEvalsInWindow(from: number, to: number) {
       this.lastWindow = [from, to];
       return evals;
+    },
+  };
+}
+
+/** A fake presence store returning fixed away spans, recording its window args. */
+function fakePresenceStore(
+  spans: AwaySpanLike[],
+): ActivityPresenceStoreLike & { lastWindow: [number, number] | null } {
+  return {
+    lastWindow: null,
+    listAwayInWindow(from: number, to: number) {
+      this.lastWindow = [from, to];
+      return spans;
     },
   };
 }
@@ -151,6 +166,43 @@ describe('activity tool', () => {
     const midnight = new Date(2026, 5, 6, 0, 0, 0, 0).getTime();
     expect(store.lastSince).toBe(midnight);
     expect(evalStore.lastWindow).toEqual([midnight, now.getTime()]);
+  });
+
+  it('injects presence away spans over the window into the digest', async () => {
+    vi.useFakeTimers();
+    const now = new Date(2026, 5, 6, 14, 30, 0, 0);
+    vi.setSystemTime(now);
+    const t0 = new Date(2026, 5, 6, 9, 0, 0, 0).getTime();
+
+    const rows: WindowRowLike[] = [
+      { app_name: 'Code', window_title: 'index.ts', started_at: t0, last_seen_at: t0 + 60 * MIN, url: null },
+    ];
+    const spans: AwaySpanLike[] = [
+      { away_started_at: t0 + 20 * MIN, away_ended_at: t0 + 35 * MIN },
+    ];
+    const presence = fakePresenceStore(spans);
+    const [tool] = createTool({ store: fakeStore(rows), evalStore: fakeEvalStore([]), presence });
+
+    const res = await tool.handler({ period: 'today' });
+    expect(res.success).toBe(true);
+    const data = res.data as ActivityDigest;
+    expect(data.away_min).toBe(15);
+    expect(data.away_spans).toHaveLength(1);
+    expect(data.summary).toContain('Отошёл ~15 мин (1 отлучка)');
+
+    const midnight = new Date(2026, 5, 6, 0, 0, 0, 0).getTime();
+    expect(presence.lastWindow).toEqual([midnight, now.getTime()]);
+  });
+
+  it('absent presence dep → digest reports no away time', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 5, 6, 14, 30, 0, 0));
+    const [tool] = createTool({ store: fakeStore([]), evalStore: fakeEvalStore([]) });
+    const res = await tool.handler({ period: 'today' });
+    expect(res.success).toBe(true);
+    const data = res.data as ActivityDigest;
+    expect(data.away_min).toBe(0);
+    expect(data.away_spans).toEqual([]);
   });
 
   it('empty day → success:true with an empty digest', async () => {

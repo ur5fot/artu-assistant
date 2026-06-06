@@ -4,6 +4,7 @@ import type { ActivityDeps, ActivityRange } from './types.js';
 
 export { buildActivityDigest } from './digest.js';
 export type {
+  ActivityAwaySpan,
   ActivityByApp,
   ActivityDeps,
   ActivityDigest,
@@ -11,10 +12,12 @@ export type {
   ActivityEvalStoreLike,
   ActivityObserver,
   ActivityObserverCounts,
+  ActivityPresenceStoreLike,
   ActivityRange,
   ActivityStoreLike,
   ActivityTimelineEntry,
   ActivityTopSite,
+  AwaySpanLike,
   EvalLike,
   WindowRowLike,
 } from './types.js';
@@ -107,7 +110,7 @@ function createActivityTool(deps: ActivityDeps): ToolDefinition {
       ],
     },
     async handler(params: Record<string, unknown>): Promise<ToolResult> {
-      const { store, evalStore } = deps;
+      const { store, evalStore, presence } = deps;
       if (!store) {
         return { success: false, error: 'digital observer выключен (WINDOW_LOGGER_ENABLED)' };
       }
@@ -118,7 +121,8 @@ function createActivityTool(deps: ActivityDeps): ToolDefinition {
       try {
         const rows = store.findRowsInWindow(range.from, range.to, 2000);
         const evals = evalStore ? evalStore.listEvalsInWindow(range.from, range.to) : [];
-        const digest = buildActivityDigest(rows, evals, range);
+        const awaySpans = presence ? presence.listAwayInWindow(range.from, range.to) : [];
+        const digest = buildActivityDigest(rows, evals, awaySpans, range);
         return { success: true, data: digest };
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : String(err) };

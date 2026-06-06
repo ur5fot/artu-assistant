@@ -90,14 +90,14 @@
 - [x] run `npm test` — must pass before next task
 
 ### Task 5: away в дайджесте/тулзе activity
-- [ ] `digest.ts`: `buildActivityDigest(rows, evals, awaySpans, range)` — `away_min`
+- [x] `digest.ts`: `buildActivityDigest(rows, evals, awaySpans, range)` — `away_min`
       (Σ пересечений с range), `away_spans:[{from,to,min}]` (клампинг), summary +
       «активно ~X, отошёл ~Y (N отлучек)»; типы в `types.ts`
-- [ ] `index.ts` тулзы: handler инжектит `presence`, читает `listAwayInWindow(range)`,
-      передаёт в digest; обновить deps-тип `ActivityDeps`
-- [ ] write tests: away_min/spans (клампинг к range, пересечения); summary с away;
+- [x] `index.ts` тулзы: handler инжектит `presence`, читает `listAwayInWindow(range)`,
+      передаёт в digest; обновить deps-тип `ActivityDeps` (presence опционален до Task 6)
+- [x] write tests: away_min/spans (клампинг к range, пересечения); summary с away;
       пустые away → без «отошёл»
-- [ ] run `npm test` — must pass before next task
+- [x] run `npm test` — must pass before next task
 
 ### Task 6: проводка index.ts + конфиг
 - [ ] `index.ts`: построить `idleSource` (реальный ioreg) + `presenceStore`; передать

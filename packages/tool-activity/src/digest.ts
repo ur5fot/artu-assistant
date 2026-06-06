@@ -1,4 +1,5 @@
 import type {
+  ActivityAwaySpan,
   ActivityByApp,
   ActivityDigest,
   ActivityEpisode,
@@ -7,6 +8,7 @@ import type {
   ActivityRange,
   ActivityTimelineEntry,
   ActivityTopSite,
+  AwaySpanLike,
   EvalLike,
   WindowRowLike,
 } from './types.js';
@@ -39,6 +41,28 @@ interface AppRun {
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+/** Russian plural of «отлучка» for a count (1 отлучка / 2 отлучки / 5 отлучек). */
+function pluralAway(n: number): string {
+  const mod100 = n % 100;
+  const mod10 = n % 10;
+  if (mod100 >= 11 && mod100 <= 14) return 'отлучек';
+  if (mod10 === 1) return 'отлучка';
+  if (mod10 >= 2 && mod10 <= 4) return 'отлучки';
+  return 'отлучек';
+}
+
+/** Clamp away spans to the range, drop empties, sort chronological. */
+function buildAwaySpans(spans: AwaySpanLike[], range: ActivityRange): ActivityAwaySpan[] {
+  return spans
+    .map((s) => {
+      const from = Math.max(s.away_started_at, range.from);
+      const to = Math.min(s.away_ended_at, range.to);
+      return to > from ? { from, to, min: round1((to - from) / MIN_MS) } : null;
+    })
+    .filter((s): s is ActivityAwaySpan => s !== null)
+    .sort((a, b) => a.from - b.from);
 }
 
 /** Clamp a row to `[range.from, range.to]`; null if it lands outside / empty. */
@@ -120,9 +144,18 @@ function buildObserver(evals: EvalLike[], range: ActivityRange): ActivityObserve
 
 /** Compose a ready-to-voice RU narrative. Distractions are stated episodically. */
 function buildSummary(digest: Omit<ActivityDigest, 'summary'>): string {
-  const { range, total_active_min, by_app, top_sites, context_switches, observer } = digest;
+  const { range, total_active_min, by_app, top_sites, context_switches, observer, away_min, away_spans } = digest;
+
+  /** «отошёл ~Y мин (N отлучек)» when there were away spans, else ''. */
+  const awaySentence =
+    away_spans.length > 0
+      ? `Отошёл ~${away_min} мин (${away_spans.length} ${pluralAway(away_spans.length)}).`
+      : '';
 
   if (total_active_min === 0 && observer.episodes.length === 0) {
+    if (awaySentence) {
+      return `За ${range.label} активности не зафиксировано — ${awaySentence.charAt(0).toLowerCase()}${awaySentence.slice(1)} ${COVERAGE_NOTE}`;
+    }
     return `За ${range.label} активности не зафиксировано — наблюдение пустое за этот период. ${COVERAGE_NOTE}`;
   }
 
@@ -135,6 +168,10 @@ function buildSummary(digest: Omit<ActivityDigest, 'summary'>): string {
     `За ${range.label} — ~${total_active_min} мин активности (оценочно, выборка ~30с)` +
       (topApps ? `: ${topApps}.` : '.'),
   );
+
+  if (awaySentence) {
+    parts.push(awaySentence);
+  }
 
   if (top_sites.length > 0) {
     const sites = top_sites
@@ -167,12 +204,13 @@ function buildSummary(digest: Omit<ActivityDigest, 'summary'>): string {
  * Aggregate raw window-history rows into an {@link ActivityDigest}: idle apps
  * dropped, durations clamped to `range`, per-app/per-host time, a glued
  * timeline of notable app-runs, the number of context switches, a
- * distraction-observer layer built from `evals`, and a ready-made RU summary.
- * Pure and deterministic — no I/O.
+ * distraction-observer layer built from `evals`, away time clamped from
+ * `awaySpans`, and a ready-made RU summary. Pure and deterministic — no I/O.
  */
 export function buildActivityDigest(
   rows: WindowRowLike[],
   evals: EvalLike[],
+  awaySpans: AwaySpanLike[],
   range: ActivityRange,
 ): ActivityDigest {
   const intervals = rows
@@ -225,6 +263,11 @@ export function buildActivityDigest(
 
   const observer = buildObserver(evals, range);
 
+  // Away spans clamped to the range; away_min sums raw ms (not rounded per-span).
+  const away_spans = buildAwaySpans(awaySpans, range);
+  const awayMs = away_spans.reduce((acc, s) => acc + (s.to - s.from), 0);
+  const away_min = round1(awayMs / MIN_MS);
+
   const base: Omit<ActivityDigest, 'summary'> = {
     range,
     total_active_min: round1(totalMs / MIN_MS),
@@ -232,6 +275,8 @@ export function buildActivityDigest(
     by_app,
     top_sites,
     timeline,
+    away_min,
+    away_spans,
     observer,
   };
 

@@ -27,6 +27,14 @@ export interface WindowRowLike {
   url?: string | null;
 }
 
+/** Subset of a `presence_log` away span the digest needs (Task 5). */
+export interface AwaySpanLike {
+  /** When idleness began (back-dated), epoch ms. */
+  away_started_at: number;
+  /** When the user returned, epoch ms. */
+  away_ended_at: number;
+}
+
 /** Subset of a `distraction_evals` row the observer layer needs (Task 2). */
 export interface EvalLike {
   app_name: string;
@@ -86,6 +94,16 @@ export interface ActivityObserver {
   coverage_note: string;
 }
 
+/** One away span clamped to the range (user idle ≥ threshold). */
+export interface ActivityAwaySpan {
+  /** Away start, epoch ms (clamped to range). */
+  from: number;
+  /** Away end (return), epoch ms (clamped to range). */
+  to: number;
+  /** Away span in minutes. */
+  min: number;
+}
+
 /** One notable app-run on the chronological timeline. */
 export interface ActivityTimelineEntry {
   /** Run start, epoch ms (clamped to range). */
@@ -112,6 +130,10 @@ export interface ActivityDigest {
   top_sites: ActivityTopSite[];
   /** Notable app-runs (>= 3 min), chronological. */
   timeline: ActivityTimelineEntry[];
+  /** Σ away minutes overlapping the range (idle ≥ threshold). */
+  away_min: number;
+  /** Away spans clamped to the range, chronological. */
+  away_spans: ActivityAwaySpan[];
   /** Distraction-observer layer (episodes + counts + honesty note). */
   observer: ActivityObserver;
   /** Ready-made RU narrative an agent can voice verbatim. */
@@ -130,8 +152,16 @@ export interface ActivityEvalStoreLike {
   listEvalsInWindow(from: number, to: number): EvalLike[];
 }
 
+/** Minimal presence store surface — away spans overlapping a window (Task 5). */
+export interface ActivityPresenceStoreLike {
+  listAwayInWindow(from: number, to: number): AwaySpanLike[];
+}
+
 /** Dependencies injected into `createTool`. Null when the observer is off. */
 export interface ActivityDeps {
   store: ActivityStoreLike | null;
   evalStore: ActivityEvalStoreLike | null;
+  /** Presence store for away-time reporting. Optional/null until wired
+   * (server wiring lands in Task 6); absent → digest reports no away time. */
+  presence?: ActivityPresenceStoreLike | null;
 }

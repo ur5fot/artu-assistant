@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildActivityDigest } from '../digest.js';
-import type { ActivityRange, EvalLike, WindowRowLike } from '../types.js';
+import type { ActivityRange, AwaySpanLike, EvalLike, WindowRowLike } from '../types.js';
 
 const MIN = 60_000;
 const T0 = 1_750_000_000_000; // fixed base epoch (a "midnight")
@@ -45,9 +45,14 @@ function ev(
   };
 }
 
+/** Build an away span using minute offsets from T0. */
+function away(fromMin: number, toMin: number): AwaySpanLike {
+  return { away_started_at: T0 + fromMin * MIN, away_ended_at: T0 + toMin * MIN };
+}
+
 describe('buildActivityDigest', () => {
   it('empty window → zeros and empty arrays', () => {
-    const d = buildActivityDigest([], [], range());
+    const d = buildActivityDigest([], [], [], range());
     expect(d.total_active_min).toBe(0);
     expect(d.context_switches).toBe(0);
     expect(d.by_app).toEqual([]);
@@ -62,7 +67,7 @@ describe('buildActivityDigest', () => {
       row('ScreenSaverEngine', 'saver', 60, 120),
       row('Code', 'work', 120, 150),
     ];
-    const d = buildActivityDigest(rows, [], range());
+    const d = buildActivityDigest(rows, [], [], range());
     expect(d.total_active_min).toBe(30);
     expect(d.by_app).toEqual([{ app: 'Code', minutes: 30, share: 1 }]);
   });
@@ -72,7 +77,7 @@ describe('buildActivityDigest', () => {
       row('Code', 'a', 0, 60),
       row('Slack', 's', 100, 120),
     ];
-    const d = buildActivityDigest(rows, [], range());
+    const d = buildActivityDigest(rows, [], [], range());
     expect(d.total_active_min).toBe(80);
     expect(d.by_app).toEqual([
       { app: 'Code', minutes: 60, share: 0.75 },
@@ -86,7 +91,7 @@ describe('buildActivityDigest', () => {
       row('Code', 'editing b.ts', 30, 50),
       row('Slack', 'dm', 50, 60),
     ];
-    const d = buildActivityDigest(rows, [], range());
+    const d = buildActivityDigest(rows, [], [], range());
     expect(d.context_switches).toBe(1);
     expect(d.timeline).toEqual([
       { from: T0, to: T0 + 50 * MIN, app: 'Code', title: 'editing a.ts', min: 50 },
@@ -100,7 +105,7 @@ describe('buildActivityDigest', () => {
       row('ScreenSaverEngine', 'saver', 30, 90), // idle — dropped, not active time
       row('Code', 'afternoon', 90, 120),
     ];
-    const d = buildActivityDigest(rows, [], range());
+    const d = buildActivityDigest(rows, [], [], range());
     expect(d.total_active_min).toBe(60);
     // Single glued Code run spans 0..120, but min reports active time only (60), not the 120 span.
     expect(d.timeline).toEqual([
@@ -114,7 +119,7 @@ describe('buildActivityDigest', () => {
       row('Slack', 'ping', 30, 32), // 2 min — notable enough to switch, not to list
       row('Code', 'b', 32, 60),
     ];
-    const d = buildActivityDigest(rows, [], range());
+    const d = buildActivityDigest(rows, [], [], range());
     expect(d.context_switches).toBe(2); // Code → Slack → Code
     expect(d.timeline.map((t) => `${t.app}:${t.min}`)).toEqual(['Code:30', 'Code:28']);
   });
@@ -126,7 +131,7 @@ describe('buildActivityDigest', () => {
       // entirely before the window → excluded
       row('Slack', 'earlier', -120, -100),
     ];
-    const d = buildActivityDigest(rows, [], range(0, 60));
+    const d = buildActivityDigest(rows, [], [], range(0, 60));
     expect(d.total_active_min).toBe(60);
     expect(d.by_app).toEqual([{ app: 'Code', minutes: 60, share: 1 }]);
   });
@@ -138,7 +143,7 @@ describe('buildActivityDigest', () => {
       row('Chrome', 'yt2', 35, 40, 'https://youtube.com/other'),
       row('Chrome', 'blank', 45, 50, ''),
     ];
-    const d = buildActivityDigest(rows, [], range());
+    const d = buildActivityDigest(rows, [], [], range());
     expect(d.top_sites).toEqual([
       { host: 'youtube.com', minutes: 20 },
       { host: 'github.com', minutes: 10 },
@@ -147,7 +152,7 @@ describe('buildActivityDigest', () => {
 
   it('ignores unparseable URLs in top_sites', () => {
     const rows = [row('Chrome', 'weird', 0, 10, 'not a url at all ::::')];
-    const d = buildActivityDigest(rows, [], range());
+    const d = buildActivityDigest(rows, [], [], range());
     expect(d.top_sites).toEqual([]);
   });
 });
@@ -158,7 +163,7 @@ describe('buildActivityDigest — observer layer (Task 2)', () => {
       ev('YouTube', 40, 'distracted', 12, 'video', 0.9),
       ev('Code', 10, 'working', 30, 'a.ts', 0.7),
     ];
-    const d = buildActivityDigest([], evals, range());
+    const d = buildActivityDigest([], evals, [], range());
     expect(d.observer.episodes).toEqual([
       { at: T0 + 10 * MIN, app: 'Code', title: 'a.ts', dwell_min: 30, verdict: 'working', confidence: 0.7 },
       { at: T0 + 40 * MIN, app: 'YouTube', title: 'video', dwell_min: 12, verdict: 'distracted', confidence: 0.9 },
@@ -171,7 +176,7 @@ describe('buildActivityDigest — observer layer (Task 2)', () => {
       ev('Code', 700, 'working'), // after to (range 0..600)
       ev('Slack', 100, 'break'),
     ];
-    const d = buildActivityDigest([], evals, range());
+    const d = buildActivityDigest([], evals, [], range());
     expect(d.observer.episodes.map((e) => e.app)).toEqual(['Slack']);
   });
 
@@ -184,13 +189,13 @@ describe('buildActivityDigest — observer layer (Task 2)', () => {
       ev('E', 50, 'unknown'),
       ev('F', 60, 'error'),
     ];
-    const d = buildActivityDigest([], evals, range());
+    const d = buildActivityDigest([], evals, [], range());
     expect(d.observer.counts).toEqual({ distracted: 2, break: 1, working: 1, unknown: 2 });
   });
 
   it('coverage_note is always present, even with no episodes', () => {
-    const empty = buildActivityDigest([], [], range());
-    const withEp = buildActivityDigest([row('Code', 'x', 0, 30)], [ev('YouTube', 10, 'distracted')], range());
+    const empty = buildActivityDigest([], [], [], range());
+    const withEp = buildActivityDigest([row('Code', 'x', 0, 30)], [ev('YouTube', 10, 'distracted')], [], range());
     expect(empty.observer.coverage_note).toContain('выборочно');
     expect(withEp.observer.coverage_note).toContain('выборочно');
   });
@@ -198,7 +203,7 @@ describe('buildActivityDigest — observer layer (Task 2)', () => {
   it('summary states distractions episodically, not as a daily total', () => {
     const rows = [row('Code', 'work', 0, 120), row('YouTube', 'v', 120, 140, 'https://youtube.com/x')];
     const evals = [ev('YouTube', 125, 'distracted', 15), ev('Code', 30, 'break', 5)];
-    const d = buildActivityDigest(rows, evals, range());
+    const d = buildActivityDigest(rows, evals, [], range());
     expect(d.summary).toContain('Наблюдатель отметил 2 эпизодов');
     expect(d.summary).toContain('залипаний');
     expect(d.summary).toContain('Code');
@@ -207,15 +212,68 @@ describe('buildActivityDigest — observer layer (Task 2)', () => {
   });
 
   it('summary has no observer sentence when the layer is empty', () => {
-    const d = buildActivityDigest([row('Code', 'work', 0, 60)], [], range());
+    const d = buildActivityDigest([row('Code', 'work', 0, 60)], [], [], range());
     expect(d.summary).not.toContain('Наблюдатель отметил');
     expect(d.summary).toContain('Code');
     expect(d.summary).toContain('выборочно');
   });
 
   it('fully empty digest yields an honest empty-observation summary', () => {
-    const d = buildActivityDigest([], [], range(0, 600, 'сегодня'));
+    const d = buildActivityDigest([], [], [], range(0, 600, 'сегодня'));
     expect(d.summary).toContain('наблюдение пустое');
     expect(d.summary).toContain('выборочно');
+  });
+});
+
+describe('buildActivityDigest — away layer (Task 5)', () => {
+  it('no away spans → away_min 0, empty away_spans, no «отошёл» in summary', () => {
+    const d = buildActivityDigest([row('Code', 'work', 0, 60)], [], [], range());
+    expect(d.away_min).toBe(0);
+    expect(d.away_spans).toEqual([]);
+    expect(d.summary).not.toContain('тошёл');
+  });
+
+  it('sums away_min and lists chronological spans wholly inside the range', () => {
+    const spans = [away(120, 150), away(20, 35)]; // unsorted on input
+    const d = buildActivityDigest([row('Code', 'work', 0, 200)], [], spans, range());
+    expect(d.away_min).toBe(45); // 15 + 30
+    expect(d.away_spans).toEqual([
+      { from: T0 + 20 * MIN, to: T0 + 35 * MIN, min: 15 },
+      { from: T0 + 120 * MIN, to: T0 + 150 * MIN, min: 30 },
+    ]);
+  });
+
+  it('clamps away spans to the range and drops spans outside it', () => {
+    const spans = [
+      away(-30, 20), // starts before from → clamps to [0, 20]
+      away(590, 700), // ends after to (range 0..600) → clamps to [590, 600]
+      away(700, 800), // entirely after the window → dropped
+    ];
+    const d = buildActivityDigest([], [], spans, range(0, 600));
+    expect(d.away_spans).toEqual([
+      { from: T0, to: T0 + 20 * MIN, min: 20 },
+      { from: T0 + 590 * MIN, to: T0 + 600 * MIN, min: 10 },
+    ]);
+    expect(d.away_min).toBe(30);
+  });
+
+  it('summary states «отошёл ~Y мин (N отлучек)» with correct plural', () => {
+    const rows = [row('Code', 'work', 0, 120)];
+    const d = buildActivityDigest(rows, [], [away(30, 50), away(70, 75)], range());
+    expect(d.summary).toContain('Отошёл ~25 мин (2 отлучки)');
+
+    const d1 = buildActivityDigest(rows, [], [away(30, 50)], range());
+    expect(d1.summary).toContain('Отошёл ~20 мин (1 отлучка)');
+
+    const five = [away(5, 6), away(10, 11), away(15, 16), away(20, 21), away(25, 26)];
+    const d5 = buildActivityDigest(rows, [], five, range());
+    expect(d5.summary).toContain('(5 отлучек)');
+  });
+
+  it('reports away even when there is no active time (away-only window)', () => {
+    const d = buildActivityDigest([], [], [away(10, 40)], range());
+    expect(d.away_min).toBe(30);
+    expect(d.summary).toContain('активности не зафиксировано');
+    expect(d.summary).toContain('отошёл ~30 мин (1 отлучка)');
   });
 });
