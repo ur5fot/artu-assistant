@@ -94,6 +94,20 @@ describe('buildActivityDigest', () => {
     ]);
   });
 
+  it('timeline min excludes idle gaps glued between same-app sessions', () => {
+    const rows = [
+      row('Code', 'morning', 0, 30),
+      row('ScreenSaverEngine', 'saver', 30, 90), // idle — dropped, not active time
+      row('Code', 'afternoon', 90, 120),
+    ];
+    const d = buildActivityDigest(rows, [], range());
+    expect(d.total_active_min).toBe(60);
+    // Single glued Code run spans 0..120, but min reports active time only (60), not the 120 span.
+    expect(d.timeline).toEqual([
+      { from: T0, to: T0 + 120 * MIN, app: 'Code', title: 'morning', min: 60 },
+    ]);
+  });
+
   it('drops runs shorter than 3 min from timeline but still counts switches', () => {
     const rows = [
       row('Code', 'a', 0, 30),

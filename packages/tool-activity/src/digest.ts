@@ -217,7 +217,9 @@ export function buildActivityDigest(
       to: run.to,
       app: run.app,
       title: representativeTitle(run),
-      min: round1((run.to - run.from) / MIN_MS),
+      // Active minutes only — sum the parts so dropped idle gaps (loginwindow,
+      // screensaver) glued between same-app sessions don't inflate the span.
+      min: round1(run.parts.reduce((a, p) => a + (p.end - p.start), 0) / MIN_MS),
     }))
     .filter((entry) => entry.min >= TIMELINE_MIN_MINUTES);
 
