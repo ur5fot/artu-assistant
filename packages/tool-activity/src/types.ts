@@ -120,7 +120,9 @@ export interface ActivityDigest {
 
 /** Minimal window-history store surface the `activity` tool depends on. */
 export interface ActivityStoreLike {
-  findRecentRows(since: number, limit?: number): WindowRowLike[];
+  /** Rows overlapping [from, to], newest first. Bounded above so a past-day
+   * window isn't truncated by newer out-of-window rows hitting the limit. */
+  findRowsInWindow(from: number, to: number, limit?: number): WindowRowLike[];
 }
 
 /** Minimal distraction-eval store surface (window listing, used in Task 2+). */

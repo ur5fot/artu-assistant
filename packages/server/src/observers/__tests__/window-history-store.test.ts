@@ -154,6 +154,37 @@ describe('createWindowHistoryStore', () => {
     });
   });
 
+  describe('findRowsInWindow', () => {
+    it('returns only rows overlapping [from, to], most-recent-first', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      store.recordSample({ app_name: 'before', window_title: 't', sampled_at: t0 - 60_000 });
+      store.recordSample({ app_name: 'inside1', window_title: 't', sampled_at: t0 + 10_000 });
+      store.recordSample({ app_name: 'inside2', window_title: 't', sampled_at: t0 + 50_000 });
+      store.recordSample({ app_name: 'after', window_title: 't', sampled_at: t0 + 200_000 });
+
+      const rows = store.findRowsInWindow(t0, t0 + 100_000);
+      expect(rows.map((r) => r.app_name)).toEqual(['inside2', 'inside1']);
+    });
+
+    it('does not let newer out-of-window rows consume the LIMIT budget', () => {
+      // Regression: querying a past day must not be truncated by today's rows.
+      const store = createWindowHistoryStore({ db: getDb() });
+      const dayStart = 1_700_000_000_000;
+      const dayEnd = dayStart + 86_400_000;
+      // One row inside the target (past) day.
+      store.recordSample({ app_name: 'pastday', window_title: 't', sampled_at: dayStart + 1000 });
+      // Two newer rows after the window (would sort first under findRecentRows).
+      store.recordSample({ app_name: 'today1', window_title: 't', sampled_at: dayEnd + 60_000 });
+      store.recordSample({ app_name: 'today2', window_title: 't', sampled_at: dayEnd + 120_000 });
+
+      // limit=1: an unbounded query would return only 'today2'; the windowed
+      // query must still surface the in-window 'pastday' row.
+      const rows = store.findRowsInWindow(dayStart, dayEnd, 1);
+      expect(rows.map((r) => r.app_name)).toEqual(['pastday']);
+    });
+  });
+
   describe('listTitlesInSession', () => {
     it('returns distinct titles for given app within [from, to] window, ordered by last_seen_at desc', () => {
       const store = createWindowHistoryStore({ db: getDb() });

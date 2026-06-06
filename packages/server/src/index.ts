@@ -730,7 +730,7 @@ await discoverTools(registry, {
   weatherClient: weatherClientForTool,
   resolveUserCoords: resolveUserCoordsForTool,
   store: windowLoggerEnabled ? windowStore : null,
-  evalStore: distractionEvalStore,
+  evalStore: windowLoggerEnabled ? distractionEvalStore : null,
 });
 
 // Email poller lifecycle handles (hoisted so SIGTERM can clean them up).

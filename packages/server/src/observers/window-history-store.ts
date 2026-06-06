@@ -35,6 +35,9 @@ export interface WindowHistoryStore {
   /** The latest recorded session (most recent row). "Current" = newest. */
   findCurrentSession(): WindowSession | null;
   findRecentRows(since: number, limit?: number): WindowSession[];
+  /** Rows overlapping [from, to] (newest first), bounded above so a past-day
+   * window can't have its LIMIT budget eaten by newer out-of-window rows. */
+  findRowsInWindow(from: number, to: number, limit?: number): WindowSession[];
   listTitlesInSession(app: string, from: number, to: number): SessionTitle[];
   /** Distinct visited URLs (non-null) with last_seen_at >= sinceMs, newest first. */
   recentUrlsSince(sinceMs: number, limit?: number): RecentUrl[];
@@ -71,6 +74,16 @@ export function createWindowHistoryStore(deps: { db: Database.Database }): Windo
     `SELECT id, app_name, window_title, started_at, last_seen_at, sample_count, url
      FROM window_history
      WHERE last_seen_at >= ?
+     ORDER BY last_seen_at DESC
+     LIMIT ?`,
+  );
+  // Like selectRecent but bounded above by the window end (started_at < @to), so
+  // a query for a past day (e.g. "yesterday") can't have its LIMIT budget eaten
+  // by newer rows that fall after the window and get clamped away downstream.
+  const selectInWindow = db.prepare(
+    `SELECT id, app_name, window_title, started_at, last_seen_at, sample_count, url
+     FROM window_history
+     WHERE last_seen_at >= ? AND started_at < ?
      ORDER BY last_seen_at DESC
      LIMIT ?`,
   );
@@ -124,6 +137,10 @@ export function createWindowHistoryStore(deps: { db: Database.Database }): Windo
 
     findRecentRows(since, limit = 200) {
       return selectRecent.all(since, limit) as WindowSession[];
+    },
+
+    findRowsInWindow(from, to, limit = 2000) {
+      return selectInWindow.all(from, to, limit) as WindowSession[];
     },
 
     listTitlesInSession(app, from, to) {

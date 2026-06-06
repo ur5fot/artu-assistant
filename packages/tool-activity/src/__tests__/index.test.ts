@@ -11,12 +11,16 @@ import type {
 const MIN = 60_000;
 const DAY = 86_400_000;
 
-/** A fake window-history store returning fixed rows, recording its `since` arg. */
-function fakeStore(rows: WindowRowLike[]): ActivityStoreLike & { lastSince: number | null } {
+/** A fake window-history store returning fixed rows, recording its window args. */
+function fakeStore(
+  rows: WindowRowLike[],
+): ActivityStoreLike & { lastSince: number | null; lastWindow: [number, number] | null } {
   return {
     lastSince: null,
-    findRecentRows(since: number) {
-      this.lastSince = since;
+    lastWindow: null,
+    findRowsInWindow(from: number, to: number) {
+      this.lastSince = from;
+      this.lastWindow = [from, to];
       return rows;
     },
   };
@@ -90,6 +94,20 @@ describe('activity tool', () => {
     const res = await tool.handler({ period: 'today' });
     expect(res.success).toBe(false);
     expect(res.error).toContain('WINDOW_LOGGER_ENABLED');
+  });
+
+  it('store throwing → success:false carrying the error message', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 5, 6, 14, 30, 0, 0));
+    const store: ActivityStoreLike = {
+      findRowsInWindow() {
+        throw new Error('db gone');
+      },
+    };
+    const [tool] = createTool({ store, evalStore: fakeEvalStore([]) });
+    const res = await tool.handler({ period: 'today' });
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('db gone');
   });
 
   it('success: builds a digest from store rows + evals', async () => {

@@ -143,6 +143,36 @@ describe('discoverTools', () => {
     expect(registry.get('emails_get')).toBeTruthy();
   });
 
+  it('discovers the activity tool and its handler returns a digest', async () => {
+    const thisDir = path.dirname(fileURLToPath(import.meta.url));
+    const packagesDir = path.resolve(thisDir, '..', '..', '..', '..');
+    const hasActivity = fs.existsSync(path.join(packagesDir, 'tool-activity'));
+    if (!hasActivity) return; // skip if not in full repo context
+
+    const registry = createRegistry();
+    await discoverTools(registry, {
+      runLoop: vi.fn() as any,
+      client: {} as any,
+      registry,
+      piiProxy: {} as any,
+      memoryService: null,
+      reminderStore: null,
+      emailStore: null,
+      imapClient: null,
+      weatherClient: null,
+      resolveUserCoords: null,
+      // Structural fakes — exercise the real createTool factory + ActivityDeps wiring.
+      store: { findRowsInWindow: () => [] } as any,
+      evalStore: { listEvalsInWindow: () => [] } as any,
+    }, packagesDir);
+
+    const activity = registry.get('activity');
+    expect(activity).toBeTruthy();
+    const res = await activity!.handler({ period: 'today' });
+    expect(res.success).toBe(true);
+    expect((res.data as any).total_active_min).toBe(0);
+  });
+
   it('returns empty registry when no tool packages exist', async () => {
     // Pass a directory with no tool-* packages
     const registry = await discoverTools(undefined, undefined, '/tmp/nonexistent-dir-r2-test');

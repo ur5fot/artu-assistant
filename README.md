@@ -624,6 +624,21 @@ exactly one alert per blind streak.
 5. `WINDOW_LOGGER_BLIND_ALERT_AFTER` (10 — consecutive blind ticks before the
    self-diagnostics warning + Discord ping; range 1–2880).
 
+**On-demand `activity` tool (read-only).** Everything above is the *proactive*
+side. The flip side is querying it: `@r2/tool-activity` exposes an `activity`
+tool (permission `auto`, slash form `активність`) so you can ask "что я делал
+сегодня / проанализируй работу / экранное время / сколько сидел в X". It takes a
+`period` (`today` default / `yesterday` / `last_24h`) and reads `window_history`
++ `distraction_evals` to return a structured digest — per-app minutes + share,
+top sites by host, a glued timeline of notable app-runs (≥ 3 min), a
+context-switch count, and a distraction-observer layer (judge episodes + counts)
+— plus a ready-to-voice RU summary. Times are estimates (~30 s sampling) and
+distractions are sampled, stated honestly. It's gated on the same
+`WINDOW_LOGGER_ENABLED` flag: with the observer off the tool replies "digital
+observer выключен" instead of a misleading empty digest. An `ACTIVITY_RULES`
+prompt block routes activity questions here so the agent stops falsely claiming
+it has no access.
+
 **Known limitations** (apply to both `contextSwitch` and the iter-2
 `distractionPullback` handler):
 

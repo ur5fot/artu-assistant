@@ -116,7 +116,7 @@ function createActivityTool(deps: ActivityDeps): ToolDefinition {
       const range = resolveRange(period, Date.now());
 
       try {
-        const rows = store.findRecentRows(range.from, 2000);
+        const rows = store.findRowsInWindow(range.from, range.to, 2000);
         const evals = evalStore ? evalStore.listEvalsInWindow(range.from, range.to) : [];
         const digest = buildActivityDigest(rows, evals, range);
         return { success: true, data: digest };
