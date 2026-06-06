@@ -88,19 +88,19 @@
 - [x] run `npm test` — must pass before next task
 
 ### Task 3: Тулза `activity` + handler
-- [ ] `src/index.ts`: `createTool({ store, evalStore }): ToolDefinition[]` — тулза
+- [x] `src/index.ts`: `createTool({ store, evalStore }): ToolDefinition[]` — тулза
       `activity`, `permissionLevel:'auto'`, `provider:'all'`, param `period` enum
       `today`(default)/`yesterday`/`last_24h`, `command` `активність [period]`
-- [ ] description (RU): «Сводка активности за компом (приложения/сайты/время/смены/
+- [x] description (RU): «Сводка активности за компом (приложения/сайты/время/смены/
       отвлечения) за период. Зови на: проанализируй работу, чем занимался, что
       делал сегодня/вчера, экранное время, сколько сидел в X.»
-- [ ] handler: `period→range` (локальная полночь для today/yesterday, now-24h для
+- [x] handler: `period→range` (локальная полночь для today/yesterday, now-24h для
       last_24h), читает `store.findRecentRows(range.from, 2000)` + эвалы за окно,
       зовёт `buildActivityDigest`, → `{success:true, data}`; стор null/observer-off
       → `{success:false, error:'digital observer выключен (WINDOW_LOGGER_ENABLED)'}`
-- [ ] write tests: period→range (3 значения), success, пустой день, disabled
+- [x] write tests: period→range (3 значения), success, пустой день, disabled
       (инжект fake `store`/`evalStore`)
-- [ ] run `npm test` — must pass before next task
+- [x] run `npm test` — must pass before next task
 
 ### Task 4: Регистрация в `discoverTools` + гейт
 - [ ] добавить `@r2/tool-activity` в реестр (`packages/server/src/tools/registry.ts`
