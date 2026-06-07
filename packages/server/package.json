@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@r2/shared": "*",
     "@r2/tool-code-deploy": "*",
     "@r2/tool-code-task": "*",

@@ -63,13 +63,13 @@ stdio bridge for Claude Desktop. Local only, no network auth, PII raw in v1.
 ## Implementation Steps
 
 ### Task 1: Dependency + env config (MCP_ENABLED, MCP_TOOL_DENYLIST)
-- [ ] add `@modelcontextprotocol/sdk` (^1.29.0) to `packages/server/package.json` deps
-- [ ] add `MCP_ENABLED`, `MCP_TOOL_DENYLIST` to `.env.example` with comments
-- [ ] extend the server env-config module to parse `MCP_ENABLED` (default `false`) and
-      `MCP_TOOL_DENYLIST` (comma-separated → string[])
-- [ ] write tests: `MCP_ENABLED` default off + truthy parsing; denylist parse (empty,
+- [x] add `@modelcontextprotocol/sdk` (^1.29.0) to `packages/server/package.json` deps
+- [x] add `MCP_ENABLED`, `MCP_TOOL_DENYLIST` to `.env.example` with comments
+- [x] extend the server env-config module to parse `MCP_ENABLED` (default `false`) and
+      `MCP_TOOL_DENYLIST` (comma-separated → string[]) — `envBool`/`envCsv` in `env-utils.ts`
+- [x] write tests: `MCP_ENABLED` default off + truthy parsing; denylist parse (empty,
       single, multi, whitespace trimming)
-- [ ] run tests — must pass before next task
+- [x] run tests — must pass before next task
 
 ### Task 2: `toMcpTool` converter
 - [ ] write failing tests `packages/server/src/mcp/__tests__/to-mcp-tool.test.ts`:

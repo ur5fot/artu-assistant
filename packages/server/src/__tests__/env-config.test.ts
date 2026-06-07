@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { envInt } from '../env-utils.js';
+import { envInt, envBool, envCsv } from '../env-utils.js';
 
 describe('envInt — EMAIL_SEND_HOLD_SECONDS bounds (min=0, max=300, default=30)', () => {
   const parse = (raw: string | undefined) => envInt(raw, 30, 0, 300);
@@ -48,5 +48,65 @@ describe('envInt — EMAIL_SEND_HOLD_SECONDS bounds (min=0, max=300, default=30)
   it('floors fractional values within bounds', () => {
     expect(parse('30.9')).toBe(30);
     expect(parse('0.5')).toBe(0);
+  });
+});
+
+describe('envBool — MCP_ENABLED (default false)', () => {
+  const parse = (raw: string | undefined) => envBool(raw, false);
+
+  it('returns default false when undefined', () => {
+    expect(parse(undefined)).toBe(false);
+  });
+
+  it('returns default false when empty / whitespace', () => {
+    expect(parse('')).toBe(false);
+    expect(parse('   ')).toBe(false);
+  });
+
+  it('parses "true" (case-insensitive, trimmed) as true', () => {
+    expect(parse('true')).toBe(true);
+    expect(parse('TRUE')).toBe(true);
+    expect(parse(' True ')).toBe(true);
+  });
+
+  it('treats any non-"true" value as false', () => {
+    expect(parse('false')).toBe(false);
+    expect(parse('1')).toBe(false);
+    expect(parse('yes')).toBe(false);
+    expect(parse('0')).toBe(false);
+  });
+
+  it('honors a true default when unset', () => {
+    expect(envBool(undefined, true)).toBe(true);
+    expect(envBool('', true)).toBe(true);
+    expect(envBool('false', true)).toBe(false);
+  });
+});
+
+describe('envCsv — MCP_TOOL_DENYLIST (comma-separated → string[])', () => {
+  it('returns [] when undefined', () => {
+    expect(envCsv(undefined)).toEqual([]);
+  });
+
+  it('returns [] when empty / whitespace-only', () => {
+    expect(envCsv('')).toEqual([]);
+    expect(envCsv('   ')).toEqual([]);
+  });
+
+  it('parses a single entry', () => {
+    expect(envCsv('foo')).toEqual(['foo']);
+  });
+
+  it('parses multiple entries', () => {
+    expect(envCsv('foo,bar,baz')).toEqual(['foo', 'bar', 'baz']);
+  });
+
+  it('trims whitespace around entries', () => {
+    expect(envCsv(' foo , bar ,baz ')).toEqual(['foo', 'bar', 'baz']);
+  });
+
+  it('drops empty entries from stray / trailing commas', () => {
+    expect(envCsv('foo,,bar,')).toEqual(['foo', 'bar']);
+    expect(envCsv(',foo,')).toEqual(['foo']);
   });
 });
