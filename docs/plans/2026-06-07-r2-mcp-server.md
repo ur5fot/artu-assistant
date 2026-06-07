@@ -72,13 +72,13 @@ stdio bridge for Claude Desktop. Local only, no network auth, PII raw in v1.
 - [x] run tests — must pass before next task
 
 ### Task 2: `toMcpTool` converter
-- [ ] write failing tests `packages/server/src/mcp/__tests__/to-mcp-tool.test.ts`:
+- [x] write failing tests `packages/server/src/mcp/__tests__/to-mcp-tool.test.ts`:
       name/description pass-through; `inputSchema` built from `parameters`
       (`type/properties/required`); `destructiveHint:true` for `permissionLevel:'confirm'`
       or a tool with `preCheck`; `readOnlyHint` omitted
-- [ ] implement `packages/server/src/mcp/to-mcp-tool.ts` (parallel to `toClaudeTool`)
-- [ ] add edge tests: tool with no `required`; tool with `preCheck` but `auto` level
-- [ ] run tests — must pass before next task
+- [x] implement `packages/server/src/mcp/to-mcp-tool.ts` (parallel to `toClaudeTool`)
+- [x] add edge tests: tool with no `required`; tool with `preCheck` but `auto` level
+- [x] run tests — must pass before next task
 
 ### Task 3: Result mapper + headless `ToolContext`
 - [ ] write failing tests `packages/server/src/mcp/__tests__/runtime.test.ts`:
