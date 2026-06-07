@@ -125,11 +125,11 @@ stdio bridge for Claude Desktop. Local only, no network auth, PII raw in v1.
 - [x] run tests — must pass before next task
 
 ### Task 7: stdio bridge + client wiring docs
-- [ ] add `scripts/r2-mcp-stdio.sh` → `exec npx -y mcp-remote "http://127.0.0.1:${PORT:-3001}/mcp"` (executable)
-- [ ] add README section: Claude Code (`claude mcp add --transport http r2 http://127.0.0.1:3001/mcp`)
+- [x] add `scripts/r2-mcp-stdio.sh` → `exec npx -y mcp-remote "http://127.0.0.1:${PORT:-3001}/mcp"` (executable)
+- [x] add README section: Claude Code (`claude mcp add --transport http r2 http://127.0.0.1:3001/mcp`)
       and Claude Desktop (config pointing at the bridge script)
-- [ ] shellcheck the script if available; otherwise note manual verification
-- [ ] run tests — must pass before next task
+- [x] shellcheck the script if available; otherwise note manual verification (shellcheck PASS)
+- [x] run tests — must pass before next task (MCP suite 35/35 green)
 
 ### Task 8: Verify acceptance criteria
 - [ ] verify every spec requirement is implemented (scope, local bind, denylist,

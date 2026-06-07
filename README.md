@@ -718,6 +718,53 @@ models with different dimensions are rejected at boot.
 
 ---
 
+## MCP server (expose R2 tools to Claude Desktop / Claude Code)
+
+R2 can expose its tool arsenal (read + write, minus R2-internal tools) to the
+Claude clients you already pay for. The Claude client becomes the brain; R2 is
+just a tool/data provider (no R2-side LLM in this path). Local only, no network
+auth — the endpoint binds to `127.0.0.1` inside the existing Express server.
+
+Enable it and restart R2:
+
+```bash
+export MCP_ENABLED=true
+# Optional: hide extra tools from MCP clients (comma-separated, extends the
+# built-in internal denylist).
+# export MCP_TOOL_DENYLIST=weather,reminder_create
+npm run service:restart
+```
+
+The endpoint is Streamable HTTP at `http://127.0.0.1:${PORT:-3001}/mcp`.
+
+**Claude Code** (native HTTP transport):
+
+```bash
+claude mcp add --transport http r2 http://127.0.0.1:3001/mcp
+```
+
+Then `claude mcp list` to confirm, and the R2 tools appear in-session.
+
+**Claude Desktop** (stdio only — use the bundled bridge). Add to its MCP config
+(`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "r2": {
+      "command": "/absolute/path/to/R2-D2/scripts/r2-mcp-stdio.sh"
+    }
+  }
+}
+```
+
+The bridge ([scripts/r2-mcp-stdio.sh](scripts/r2-mcp-stdio.sh)) runs
+`npx mcp-remote` to proxy Claude Desktop's stdio to R2's HTTP endpoint. If R2
+runs on a non-default port, set `PORT` in the script's `env`. Restart Claude
+Desktop after editing its config.
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
