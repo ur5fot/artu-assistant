@@ -80,7 +80,8 @@ import { createWeatherAlertHandler } from './cognition/handlers/weatherAlert.js'
 import type { BriefWeatherDeps } from './cognition/handlers/morningBrief.helpers.js';
 import type { WeatherClientForTool, ResolveUserCoordsFn } from './tools/base.js';
 import type { Coords } from './weather/types.js';
-import { envInt } from './env-utils.js';
+import { envInt, envBool, envCsv } from './env-utils.js';
+import { mountMcpRouter } from './mcp/mount.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { handleFatalSignal } from './net/fatal-signal.js';
@@ -1282,6 +1283,18 @@ if (piiVault) {
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'R2 online', timestamp: new Date().toISOString() });
 });
+
+// MCP endpoint (off unless MCP_ENABLED) — exposes the live registry's arsenal
+// (minus internal/forbidden + MCP_TOOL_DENYLIST) to local Claude clients over
+// Streamable HTTP. Mounted after discoverTools populated the registry above.
+const mcpMounted = mountMcpRouter(app, {
+  enabled: envBool(process.env.MCP_ENABLED, false),
+  registry,
+  denylist: envCsv(process.env.MCP_TOOL_DENYLIST),
+});
+if (mcpMounted) {
+  console.log('MCP server enabled at /mcp');
+}
 
 app.use(errorHandler);
 

@@ -116,11 +116,13 @@ stdio bridge for Claude Desktop. Local only, no network auth, PII raw in v1.
 - [x] run tests — must pass before next task
 
 ### Task 6: Wire into `index.ts` behind `MCP_ENABLED`
-- [ ] mount `app.use('/mcp', createMcpRouter({ registry, denylist }))` after
+- [x] mount `app.use('/mcp', createMcpRouter({ registry, denylist }))` after
       `discoverTools` populates the registry and before `errorHandler`, only when
-      `MCP_ENABLED`
-- [ ] write test (cognition-wiring style): route present when enabled, absent when disabled
-- [ ] run tests — must pass before next task
+      `MCP_ENABLED` (via `mountMcpRouter` helper, gated on `envBool(MCP_ENABLED)`,
+      denylist from `envCsv(MCP_TOOL_DENYLIST)`)
+- [x] write test (cognition-wiring style): route present when enabled, absent when disabled
+      (`mcp/__tests__/mount.test.ts`, supertest against an Express app)
+- [x] run tests — must pass before next task
 
 ### Task 7: stdio bridge + client wiring docs
 - [ ] add `scripts/r2-mcp-stdio.sh` → `exec npx -y mcp-remote "http://127.0.0.1:${PORT:-3001}/mcp"` (executable)
