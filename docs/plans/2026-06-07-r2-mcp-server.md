@@ -81,14 +81,14 @@ stdio bridge for Claude Desktop. Local only, no network auth, PII raw in v1.
 - [x] run tests — must pass before next task
 
 ### Task 3: Result mapper + headless `ToolContext`
-- [ ] write failing tests `packages/server/src/mcp/__tests__/runtime.test.ts`:
+- [x] write failing tests `packages/server/src/mcp/__tests__/runtime.test.ts`:
       `ToolResult.success` → content (prefer `display.content`, else JSON `data`);
       `success:false` → `isError:true` with `error`; handler throw → `isError:true`;
       headless ctx: `requestPlanReview`/`requestMemoryConfirm` resolve approved,
       `onProgress` is a no-op
-- [ ] implement `packages/server/src/mcp/runtime.ts`: `toCallToolResult(result)` +
+- [x] implement `packages/server/src/mcp/runtime.ts`: `toCallToolResult(result)` +
       `makeHeadlessCtx({ signal, callId })`
-- [ ] run tests — must pass before next task
+- [x] run tests — must pass before next task
 
 ### Task 4: Tool filtering (denylist + forbidden)
 - [ ] read exact prompt-overlay tool names from `tool-prompt-overlay` `CONFIGS` and
