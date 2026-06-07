@@ -103,16 +103,17 @@ stdio bridge for Claude Desktop. Local only, no network auth, PII raw in v1.
 - [x] run tests — must pass before next task
 
 ### Task 5: MCP server + Streamable HTTP Express route
-- [ ] write failing integration test `packages/server/src/mcp/__tests__/server.integration.test.ts`
+- [x] write failing integration test `packages/server/src/mcp/__tests__/server.integration.test.ts`
       driving the server via `InMemoryTransport`: `list_tools` = exposed set & excludes
       internal; call a mocked read tool; call `reminder_create` against a temp DB; assert
       `CallToolResult` mapping; unknown tool → error
-- [ ] implement `packages/server/src/mcp/server.ts`: `createMcpRouter({ registry, denylist })`
-      → `McpServer` registering `selectMcpTools` via `toMcpTool`, `CallTool` handler runs
-      `registry.get(name).handler(params, headlessCtx)` and maps via `toCallToolResult`,
-      wired to `StreamableHTTPServerTransport` as an Express handler
-- [ ] add error tests: denylisted/unknown tool call → `isError`
-- [ ] run tests — must pass before next task
+- [x] implement `packages/server/src/mcp/server.ts`: `createMcpServer`/`createMcpRouter({ registry, denylist })`
+      → low-level `Server` (raw JSON-Schema tools; `McpServer.registerTool` wants Zod)
+      listing `selectMcpTools` via `toMcpTool`; `CallTool` handler re-checks exposure, runs
+      `tool.handler(params, headlessCtx)` and maps via `toCallToolResult`, wired to
+      `StreamableHTTPServerTransport` as a stateless Express handler
+- [x] add error tests: denylisted/unknown tool call → `isError`; thrown handler → `isError`
+- [x] run tests — must pass before next task
 
 ### Task 6: Wire into `index.ts` behind `MCP_ENABLED`
 - [ ] mount `app.use('/mcp', createMcpRouter({ registry, denylist }))` after
