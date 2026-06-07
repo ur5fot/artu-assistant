@@ -91,14 +91,16 @@ stdio bridge for Claude Desktop. Local only, no network auth, PII raw in v1.
 - [x] run tests — must pass before next task
 
 ### Task 4: Tool filtering (denylist + forbidden)
-- [ ] read exact prompt-overlay tool names from `tool-prompt-overlay` `CONFIGS` and
+- [x] read exact prompt-overlay tool names from `tool-prompt-overlay` `CONFIGS` and
       record the full internal denylist constant: `code_deploy`, `code_task`, `task`,
-      `eval_add`, `eval_run`, `<prompt-overlay names>`
-- [ ] write failing tests: filter excludes internal names + any `permissionLevel:'forbidden'`;
+      `eval_add`, `eval_run`, `prompt_overlay_claude`, `prompt_overlay_ollama`
+      (verified `eval_add`/`eval_run` live in `tool-eval-add`/`tool-eval-run`; no live
+      tool literally named `task` — kept as harmless defense-in-depth per plan)
+- [x] write failing tests: filter excludes internal names + any `permissionLevel:'forbidden'`;
       exposes non-internal tools; `MCP_TOOL_DENYLIST` extends the default; unknown
       denylist entries are ignored
-- [ ] implement `selectMcpTools(registry, denylist)` (returns the exposed `ToolDefinition[]`)
-- [ ] run tests — must pass before next task
+- [x] implement `selectMcpTools(registry, denylist)` (returns the exposed `ToolDefinition[]`)
+- [x] run tests — must pass before next task
 
 ### Task 5: MCP server + Streamable HTTP Express route
 - [ ] write failing integration test `packages/server/src/mcp/__tests__/server.integration.test.ts`
