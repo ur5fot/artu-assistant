@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initDb, closeDb, getDb } from '../../../db.js';
+import { buttonsOf } from '../../types.js';
 import { createTopicStore, type TopicStore } from '../../../topics/store.js';
 import { createWindowHistoryStore } from '../../../observers/window-history-store.js';
 import { createActionActivityMatchHandler } from '../../handlers/actionActivityMatch.js';
@@ -106,7 +107,7 @@ describe('createActionActivityMatchHandler.run', () => {
     expect('publish' in result && result.publish).toBe(true);
     if (!('publish' in result)) throw new Error('expected publish');
     expect(result.content).toContain('review PR');
-    const ids = result.components?.flatMap((r) => r.buttons.map((b) => b.customId)) ?? [];
+    const ids = result.components?.flatMap((r) => buttonsOf(r).map((b) => b.customId)) ?? [];
     expect(ids).toContain(`followup:reopen:${topicId}`);
 
     // Not dismissed until the publish lands.
@@ -140,7 +141,7 @@ describe('createActionActivityMatchHandler.run', () => {
     expect(result.content).toContain('Закрыл 2 задач');
     expect(result.content).toContain('review PR');
     expect(result.content).toContain('read doc');
-    const ids = result.components?.flatMap((r) => r.buttons.map((b) => b.customId)) ?? [];
+    const ids = result.components?.flatMap((r) => buttonsOf(r).map((b) => b.customId)) ?? [];
     expect(ids).toContain(`followup:reopen:${prId}`);
     expect(ids).toContain(`followup:reopen:${docId}`);
     // Both close only after the DM lands.
@@ -168,7 +169,7 @@ describe('createActionActivityMatchHandler.run', () => {
     if (!('publish' in result)) throw new Error('expected publish');
     // At most 5 reopen buttons, and exactly that many dismissed — the 2 overflow
     // actions stay open for a later scan (soft + reversible holds for all).
-    const ids = result.components?.flatMap((r) => r.buttons.map((b) => b.customId)) ?? [];
+    const ids = result.components?.flatMap((r) => buttonsOf(r).map((b) => b.customId)) ?? [];
     expect(ids).toHaveLength(5);
     await result.onPublished?.();
     expect(topicStore.getOpenActions()).toHaveLength(2);

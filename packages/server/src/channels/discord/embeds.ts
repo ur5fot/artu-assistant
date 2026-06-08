@@ -4,7 +4,7 @@ import {
   ButtonStyle,
   EmbedBuilder,
 } from 'discord.js';
-import type { ComponentData, EmbedData } from '../../cognition/types.js';
+import type { ButtonData, ComponentData, EmbedData } from '../../cognition/types.js';
 import type { EmailPendingRow } from '../../emails/types.js';
 import type { OpenAction } from '../../topics/store.js';
 
@@ -378,7 +378,7 @@ export function buildDistractionNudge(event: DistractionNudgeEvent): {
   const workId = `distract:work:${event.app}:${event.runStart}`;
   const doneId = `distract:done:${event.app}:${event.runStart}`;
   const snoozeId = `distract:snooze:${event.app}:${event.runStart}`;
-  const buttons: ComponentData['buttons'] = [
+  const buttons: ButtonData[] = [
     { customId: `distract:back:${event.runStart}`, label: 'Возвращаюсь', style: 'success' },
   ];
   if (workId.length <= CUSTOM_ID_LIMIT) {

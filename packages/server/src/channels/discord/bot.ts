@@ -7,6 +7,8 @@ import {
   GatewayIntentBits,
   Partials,
   ChannelType,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   type Message,
   type DMChannel,
 } from 'discord.js';
@@ -184,10 +186,25 @@ function buildEmbedFromData(data: EmbedData): EmbedBuilder {
   return eb;
 }
 
-function buildComponentsFromData(
+export function buildComponentsFromData(
   data: ComponentData[],
-): ActionRowBuilder<ButtonBuilder>[] {
+): (ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>)[] {
   return data.map((row) => {
+    if (row.type === 'select') {
+      const menu = new StringSelectMenuBuilder().setCustomId(row.menu.customId);
+      if (row.menu.placeholder) menu.setPlaceholder(row.menu.placeholder);
+      menu.addOptions(
+        row.menu.options.map((o) => {
+          const opt = new StringSelectMenuOptionBuilder()
+            .setLabel(o.label)
+            .setValue(o.value);
+          if (o.description) opt.setDescription(o.description);
+          if (o.emoji) opt.setEmoji(o.emoji);
+          return opt;
+        }),
+      );
+      return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+    }
     const builder = new ActionRowBuilder<ButtonBuilder>();
     for (const b of row.buttons) {
       const btn = new ButtonBuilder()

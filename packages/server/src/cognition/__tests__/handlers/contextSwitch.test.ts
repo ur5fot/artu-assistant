@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { initDb, closeDb, getDb } from '../../../db.js';
+import { buttonsOf } from '../../types.js';
 import { createWindowHistoryStore } from '../../../observers/window-history-store.js';
 import { createContextPingStore } from '../../../observers/context-switch-detector.js';
 import { createContextSwitchHandler } from '../../handlers/contextSwitch.js';
@@ -90,7 +91,7 @@ describe('createContextSwitchHandler.run', () => {
     const nowOn = res.embed?.fields?.find((f) => f.name === 'Now on');
     expect(nowOn?.value).toBe('iTerm');
 
-    const btn = res.components?.[0]?.buttons?.[0];
+    const btn = buttonsOf(res.components?.[0])[0];
     expect(btn?.label).toBe('Show titles');
     // customId encodes away_app + the two session timestamps.
     expect(btn?.customId.startsWith('window:show:Chrome:')).toBe(true);

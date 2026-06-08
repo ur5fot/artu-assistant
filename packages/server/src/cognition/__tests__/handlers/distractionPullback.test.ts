@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { initDb, closeDb, getDb } from '../../../db.js';
+import { buttonsOf } from '../../types.js';
 import { createWindowHistoryStore } from '../../../observers/window-history-store.js';
 import { createDistractionEvalStore } from '../../../observers/distraction-eval-store.js';
 import { createDistractionHandler, type DistractionJudge } from '../../handlers/distractionPullback.js';
@@ -139,7 +140,7 @@ describe('createDistractionHandler.run', () => {
     expect(res.publish).toBe(true);
     expect(res.content).toBe('🧲 Ты ~30 мин в Chrome: Chrome window. До этого: писал сервер. Вернёшься?');
 
-    const buttons = res.components?.[0]?.buttons ?? [];
+    const buttons = buttonsOf(res.components?.[0]);
     expect(buttons.map((b) => b.customId)).toEqual([
       `distract:back:${chromeStart}`,
       `distract:work:Chrome:${chromeStart}`,

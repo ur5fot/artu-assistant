@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initDb, closeDb, getDb } from '../../../db.js';
+import { buttonsOf } from '../../types.js';
 import { createEmailStore } from '../../../emails/store.js';
 import { createEmailSuppressionStore } from '../../../emails/suppression-store.js';
 import { createEmailFeedbackStore } from '../../../emails/feedback-store.js';
@@ -249,7 +250,7 @@ describe('createEmailUrgentHandler.run', () => {
       expect(res.embed).toBeDefined();
       expect(res.embed!.title).toBe('🚨 Urgent email');
       expect(res.components).toBeDefined();
-      const buttons = res.components![0]!.buttons;
+      const buttons = buttonsOf(res.components![0]);
       expect(buttons).toHaveLength(3);
       // customId encodes the email_pending row id (autoincrement so look it up)
       const rowId = store.findUnpingedUrgent()!.id;

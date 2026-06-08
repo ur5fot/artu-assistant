@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildDistractionNudge, type DistractionNudgeEvent } from '../embeds.js';
+import { buttonsOf } from '../../../cognition/types.js';
 
 const RUN_START = 1_700_000_000_000;
 
@@ -27,7 +28,7 @@ describe('buildDistractionNudge', () => {
 
   it('emits the four pullback buttons with the dwell key encoded', () => {
     const { components } = buildDistractionNudge(EVENT);
-    const buttons = components[0]?.buttons ?? [];
+    const buttons = buttonsOf(components[0]);
     expect(buttons.map((b) => b.customId)).toEqual([
       `distract:back:${RUN_START}`,
       `distract:work:Chrome:${RUN_START}`,
@@ -38,7 +39,7 @@ describe('buildDistractionNudge', () => {
 
   it('labels the buttons per spec, with the snooze window in the snooze label', () => {
     const { components } = buildDistractionNudge({ ...EVENT, snoozeMin: 45 });
-    const buttons = components[0]?.buttons ?? [];
+    const buttons = buttonsOf(components[0]);
     expect(buttons.map((b) => b.label)).toEqual([
       'Возвращаюсь',
       'Это по работе',
@@ -56,7 +57,7 @@ describe('buildDistractionNudge', () => {
   it('drops the done button alongside work/snooze when the app name is too long', () => {
     const longApp = 'A'.repeat(90);
     const { components } = buildDistractionNudge({ ...EVENT, app: longApp });
-    const buttons = components[0]?.buttons ?? [];
+    const buttons = buttonsOf(components[0]);
     // The done id embeds the app verbatim, so it falls under the same guard.
     expect(buttons.some((b) => b.customId.startsWith('distract:done:'))).toBe(false);
     // The app-free ack still survives.
@@ -89,7 +90,7 @@ describe('buildDistractionNudge', () => {
   it('drops the app-bearing buttons when their customId would exceed 100 chars', () => {
     const longApp = 'A'.repeat(90);
     const { content, components } = buildDistractionNudge({ ...EVENT, app: longApp });
-    const buttons = components[0]?.buttons ?? [];
+    const buttons = buttonsOf(components[0]);
     expect(buttons.map((b) => b.customId)).toEqual([`distract:back:${RUN_START}`]);
     // The nudge text still renders so the pullback is not lost.
     expect(content).toContain('🧲');

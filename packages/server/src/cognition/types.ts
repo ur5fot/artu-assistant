@@ -13,9 +13,29 @@ export interface ButtonData {
   emoji?: string;
 }
 
-export interface ComponentData {
-  type: 'row';
-  buttons: ButtonData[];
+export interface SelectOptionData {
+  label: string;
+  value: string;
+  description?: string;
+  emoji?: string;
+}
+
+export interface SelectMenuData {
+  customId: string;
+  placeholder?: string;
+  options: SelectOptionData[];
+}
+
+export type ComponentData =
+  | { type: 'row'; buttons: ButtonData[] }
+  | { type: 'select'; menu: SelectMenuData };
+
+// Narrow a component (or nothing) to its button list — '' for select/empty rows.
+// Keeps callers free of inline discriminant checks now that ComponentData is a
+// union; used by handler/embed tests and any consumer that only cares about
+// button rows.
+export function buttonsOf(c: ComponentData | undefined | null): ButtonData[] {
+  return c && c.type === 'row' ? c.buttons : [];
 }
 
 export interface EmbedFieldData {

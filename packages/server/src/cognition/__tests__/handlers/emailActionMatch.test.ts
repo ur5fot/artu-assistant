@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initDb, closeDb, getDb } from '../../../db.js';
+import { buttonsOf } from '../../types.js';
 import { createEmailStore } from '../../../emails/store.js';
 import { createTopicStore, type TopicStore } from '../../../topics/store.js';
 import { createEmailActionMatchHandler } from '../../handlers/emailActionMatch.js';
@@ -132,7 +133,7 @@ describe('createEmailActionMatchHandler.run', () => {
     if (!('publish' in result)) throw new Error('expected publish');
     expect(calls.n).toBe(1);
     expect(result.content).toContain('подтвердить оплату в банке');
-    const ids = result.components?.flatMap((r) => r.buttons.map((b) => b.customId)) ?? [];
+    const ids = result.components?.flatMap((r) => buttonsOf(r).map((b) => b.customId)) ?? [];
     expect(ids).toContain(`followup:reopen:${topicId}`);
 
     // Not dismissed until the publish lands.

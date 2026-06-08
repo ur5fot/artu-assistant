@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { ChannelType, Client } from 'discord.js';
 import type { SSEEvent } from '@r2/shared';
-import { startDiscordBot, sendReply, isRetryableError, type DiscordBotDeps } from '../bot.js';
+import { startDiscordBot, sendReply, isRetryableError, buildComponentsFromData, type DiscordBotDeps } from '../bot.js';
+import type { ComponentData } from '../../../cognition/types.js';
 import { getDb, initDb } from '../../../db.js';
 import { createCognitionStore, type CognitionStore } from '../../../cognition/store.js';
 
@@ -254,6 +255,70 @@ describe('isRetryableError', () => {
     expect(isRetryableError(new Error('Rate limited'))).toBe(false);
     expect(isRetryableError('string error')).toBe(false);
     expect(isRetryableError(null)).toBe(false);
+  });
+});
+
+describe('buildComponentsFromData', () => {
+  it('builds a string select-menu row with customId, placeholder, and mapped options', () => {
+    const data: ComponentData[] = [
+      {
+        type: 'select',
+        menu: {
+          customId: 'email_digest:pick',
+          placeholder: 'Выбери письмо',
+          options: [
+            { label: 'Boss — Server down', value: '42', description: 'Prod is on fire' },
+            { label: 'Newsletter', value: '43', emoji: '📰' },
+          ],
+        },
+      },
+    ];
+
+    const rows = buildComponentsFromData(data);
+    expect(rows).toHaveLength(1);
+    const json = rows[0]!.toJSON() as any;
+    const menu = json.components[0];
+    expect(menu.type).toBe(3); // StringSelect component type
+    expect(menu.custom_id).toBe('email_digest:pick');
+    expect(menu.placeholder).toBe('Выбери письмо');
+    expect(menu.options).toHaveLength(2);
+    expect(menu.options[0].label).toBe('Boss — Server down');
+    expect(menu.options[0].value).toBe('42');
+    expect(menu.options[0].description).toBe('Prod is on fire');
+    expect(menu.options[1].value).toBe('43');
+    expect(menu.options[1].emoji?.name).toBe('📰');
+  });
+
+  it('still builds a button row unchanged', () => {
+    const data: ComponentData[] = [
+      {
+        type: 'row',
+        buttons: [
+          { customId: 'email_draft:start:42', label: 'Ответить', style: 'primary' },
+          { customId: 'email_digest:dismiss:42', label: 'Разобрать', style: 'success' },
+        ],
+      },
+    ];
+
+    const rows = buildComponentsFromData(data);
+    expect(rows).toHaveLength(1);
+    const json = rows[0]!.toJSON() as any;
+    expect(json.components).toHaveLength(2);
+    expect(json.components[0].custom_id).toBe('email_draft:start:42');
+    expect(json.components[0].type).toBe(2); // Button component type
+    expect(json.components[1].custom_id).toBe('email_digest:dismiss:42');
+  });
+
+  it('builds mixed select + button rows in order', () => {
+    const data: ComponentData[] = [
+      { type: 'select', menu: { customId: 's:pick', options: [{ label: 'A', value: '1' }] } },
+      { type: 'row', buttons: [{ customId: 'b:go', label: 'Go', style: 'secondary' }] },
+    ];
+
+    const rows = buildComponentsFromData(data);
+    expect(rows).toHaveLength(2);
+    expect((rows[0]!.toJSON() as any).components[0].type).toBe(3);
+    expect((rows[1]!.toJSON() as any).components[0].type).toBe(2);
   });
 });
 

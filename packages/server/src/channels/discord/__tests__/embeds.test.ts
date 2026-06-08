@@ -10,6 +10,7 @@ import {
   buildActionReopenComponents,
 } from '../embeds.js';
 import type { EmailPendingRow } from '../../../emails/types.js';
+import { buttonsOf } from '../../../cognition/types.js';
 import type { OpenAction } from '../../../topics/store.js';
 
 function mkAction(overrides: Partial<OpenAction> = {}): OpenAction {
@@ -239,18 +240,18 @@ describe('buildUrgentEmailEmbed', () => {
     ]);
     expect(components).toHaveLength(1);
     expect(components[0]!.type).toBe('row');
-    expect(components[0]!.buttons).toHaveLength(3);
-    expect(components[0]!.buttons[0]!).toEqual({
+    expect(buttonsOf(components[0])).toHaveLength(3);
+    expect(buttonsOf(components[0])[0]!).toEqual({
       customId: 'email_draft:start:42',
       label: 'Draft reply',
       style: 'primary',
     });
-    expect(components[0]!.buttons[1]!).toEqual({
+    expect(buttonsOf(components[0])[1]!).toEqual({
       customId: 'email_suppress:sender_start:42',
       label: '🙈 Sender',
       style: 'secondary',
     });
-    expect(components[0]!.buttons[2]!).toEqual({
+    expect(buttonsOf(components[0])[2]!).toEqual({
       customId: 'email_suppress:subject_start:42',
       label: '🙈 Subject',
       style: 'secondary',
@@ -259,9 +260,9 @@ describe('buildUrgentEmailEmbed', () => {
 
   it('button customId encodes the email_pending row id', () => {
     const { components } = buildUrgentEmailEmbed(mkRow({ id: 1337 }));
-    expect(components[0]!.buttons[0]!.customId).toBe('email_draft:start:1337');
-    expect(components[0]!.buttons[1]!.customId).toBe('email_suppress:sender_start:1337');
-    expect(components[0]!.buttons[2]!.customId).toBe('email_suppress:subject_start:1337');
+    expect(buttonsOf(components[0])[0]!.customId).toBe('email_draft:start:1337');
+    expect(buttonsOf(components[0])[1]!.customId).toBe('email_suppress:sender_start:1337');
+    expect(buttonsOf(components[0])[2]!.customId).toBe('email_suppress:subject_start:1337');
   });
 
   it('collapses internal whitespace in from/subject/snippet', () => {
@@ -311,21 +312,21 @@ describe('buildPendingActionsComponents', () => {
     expect(components).toHaveLength(1);
     const row = components[0];
     expect(row.type).toBe('row');
-    expect(row.buttons).toHaveLength(2);
-    expect(row.buttons[0]).toEqual({
+    expect(buttonsOf(row)).toHaveLength(2);
+    expect(buttonsOf(row)[0]).toEqual({
       customId: 'followup:done:14',
       label: '✓ confirm GitHub permissions',
       style: 'success',
     });
-    expect(row.buttons[1].customId).toBe('followup:done:22');
-    expect(row.buttons[1].label).toBe('✓ pay invoice');
+    expect(buttonsOf(row)[1].customId).toBe('followup:done:22');
+    expect(buttonsOf(row)[1].label).toBe('✓ pay invoice');
   });
 
   it('caps at 5 buttons even when more actions are open', () => {
     const actions = Array.from({ length: 8 }, (_, i) => mkAction({ topicId: i + 1 }));
     const components = buildPendingActionsComponents(actions);
-    expect(components[0].buttons).toHaveLength(5);
-    expect(components[0].buttons.map((b) => b.customId)).toEqual([
+    expect(buttonsOf(components[0])).toHaveLength(5);
+    expect(buttonsOf(components[0]).map((b) => b.customId)).toEqual([
       'followup:done:1',
       'followup:done:2',
       'followup:done:3',
@@ -337,8 +338,8 @@ describe('buildPendingActionsComponents', () => {
   it('keeps the button label within Discord\'s 80-char cap', () => {
     const long = 'x'.repeat(200);
     const [row] = buildPendingActionsComponents([mkAction({ action: long })]);
-    expect(row.buttons[0].label.length).toBeLessThanOrEqual(80);
-    expect(row.buttons[0].label.endsWith('…')).toBe(true);
+    expect(buttonsOf(row)[0].label.length).toBeLessThanOrEqual(80);
+    expect(buttonsOf(row)[0].label.endsWith('…')).toBe(true);
   });
 });
 
@@ -355,21 +356,21 @@ describe('buildActionReopenComponents', () => {
     expect(components).toHaveLength(1);
     const row = components[0];
     expect(row.type).toBe('row');
-    expect(row.buttons).toHaveLength(2);
-    expect(row.buttons[0]).toEqual({
+    expect(buttonsOf(row)).toHaveLength(2);
+    expect(buttonsOf(row)[0]).toEqual({
       customId: 'followup:reopen:14',
       label: '↩ confirm payment',
       style: 'secondary',
     });
-    expect(row.buttons[1].customId).toBe('followup:reopen:22');
+    expect(buttonsOf(row)[1].customId).toBe('followup:reopen:22');
   });
 
   it('caps at 5 buttons and clamps the label to Discord\'s 80-char limit', () => {
     const actions = Array.from({ length: 8 }, (_, i) => mkAction({ topicId: i + 1 }));
-    expect(buildActionReopenComponents(actions)[0].buttons).toHaveLength(5);
+    expect(buttonsOf(buildActionReopenComponents(actions)[0])).toHaveLength(5);
     const long = 'y'.repeat(200);
     const [row] = buildActionReopenComponents([mkAction({ action: long })]);
-    expect(row.buttons[0].label.length).toBeLessThanOrEqual(80);
-    expect(row.buttons[0].label.endsWith('…')).toBe(true);
+    expect(buttonsOf(row)[0].label.length).toBeLessThanOrEqual(80);
+    expect(buttonsOf(row)[0].label.endsWith('…')).toBe(true);
   });
 });

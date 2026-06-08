@@ -78,11 +78,11 @@ Dependencies identified: no new npm deps. discord.js 14 already exports `StringS
 - [x] run `npm test -w @r2/server` — must pass before Task 3
 
 ### Task 3: Select-menu support in the plain-data component model
-- [ ] in `cognition/types.ts`: add `SelectOptionData { label; value; description?; emoji? }` and `SelectMenuData { customId; placeholder?; options: SelectOptionData[] }`; widen `ComponentData` to `{ type: 'row'; buttons: ButtonData[] } | { type: 'select'; menu: SelectMenuData }`
-- [ ] in `bot.ts` `buildComponentsFromData`: handle `type: 'select'` → `ActionRowBuilder<StringSelectMenuBuilder>` with a `StringSelectMenuBuilder` (customId, placeholder, options); keep existing button-row branch unchanged
-- [ ] ensure the function's return type covers both `ActionRowBuilder<ButtonBuilder>` and `ActionRowBuilder<StringSelectMenuBuilder>`
-- [ ] write tests for `buildComponentsFromData` covering a select component (export it if not already exported, mirroring how button-row building is tested) — verify customId/placeholder/option mapping; keep a button-row case green
-- [ ] run `npm run build -w @r2/server` (tsc) and `npm test -w @r2/server` — must pass before Task 4
+- [x] in `cognition/types.ts`: add `SelectOptionData { label; value; description?; emoji? }` and `SelectMenuData { customId; placeholder?; options: SelectOptionData[] }`; widen `ComponentData` to `{ type: 'row'; buttons: ButtonData[] } | { type: 'select'; menu: SelectMenuData }` (also added `buttonsOf()` guard so existing button-row consumers narrow cleanly)
+- [x] in `bot.ts` `buildComponentsFromData`: handle `type: 'select'` → `ActionRowBuilder<StringSelectMenuBuilder>` with a `StringSelectMenuBuilder` (customId, placeholder, options); keep existing button-row branch unchanged
+- [x] ensure the function's return type covers both `ActionRowBuilder<ButtonBuilder>` and `ActionRowBuilder<StringSelectMenuBuilder>`
+- [x] write tests for `buildComponentsFromData` covering a select component (exported it; mirrors button-row building) — verify customId/placeholder/option mapping; button-row + mixed cases green
+- [x] run `npm run build -w @r2/server` (tsc) and `npm test -w @r2/server` — must pass before Task 4
 
 ### Task 4: Attach the select-menu to the digest
 - [ ] in `emailDigest.helpers.ts`: add `buildDigestMenu(rows: EmailPendingRow[], includedIds: number[]): ComponentData[]` — one option per included row: `label = "${emojiFor(imp)} ${cleanSender} — ${subject}"` clamped to 100 chars, `value = String(row.id)`, `description = snippet` clamped to 100 chars; customId `email_digest:pick`; placeholder e.g. `Выбери письмо для действия`; cap at Discord's 25-option limit (included rows are already ≤ list size, but clamp defensively); return `[]` when no rows

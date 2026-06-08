@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildWindowRestoreEmbed, type WindowRestoreEvent } from '../embeds.js';
+import { buttonsOf } from '../../../cognition/types.js';
 
 const EVENT: WindowRestoreEvent = {
   away_app: 'Chrome',
@@ -20,7 +21,7 @@ describe('buildWindowRestoreEmbed', () => {
 
   it('encodes away_app + session timestamps in the Show titles button', () => {
     const { components } = buildWindowRestoreEmbed(EVENT, 60);
-    const btn = components[0]?.buttons[0];
+    const btn = buttonsOf(components[0])[0];
     expect(btn?.label).toBe('Show titles');
     expect(btn?.style).toBe('primary');
     expect(btn?.customId).toBe(
@@ -46,7 +47,7 @@ describe('buildWindowRestoreEmbed', () => {
     // window:show: (12) + app + : + 13 + : + 13 = 40 + app; 60-char app => 100.
     const app = 'B'.repeat(60);
     const { components } = buildWindowRestoreEmbed({ ...EVENT, away_app: app }, 60);
-    expect(components[0]?.buttons[0]?.customId.length).toBe(100);
+    expect(buttonsOf(components[0])[0]?.customId.length).toBe(100);
   });
 
   // Privacy regression: titles must NEVER appear in the default embed. They can

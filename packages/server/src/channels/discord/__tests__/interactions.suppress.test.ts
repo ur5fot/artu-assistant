@@ -4,6 +4,7 @@ import { routeInteraction, type InteractionDeps } from '../interactions.js';
 import type { EmailStore } from '../../../emails/store.js';
 import type { EmailSuppressionStore } from '../../../emails/suppression-store.js';
 import type { EmailPendingRow } from '../../../emails/types.js';
+import { buttonsOf } from '../../../cognition/types.js';
 
 const SAMPLE_ROW: EmailPendingRow = {
   id: 7,
@@ -553,7 +554,7 @@ describe('embed renders email_suppress buttons', () => {
       delivered_at: null,
       urgent_pinged_at: null,
     });
-    const ids = components[0]!.buttons.map((b) => b.customId);
+    const ids = buttonsOf(components[0]).map((b) => b.customId);
     expect(ids).toContain('email_suppress:sender_start:42');
     expect(ids).toContain('email_suppress:subject_start:42');
   });
