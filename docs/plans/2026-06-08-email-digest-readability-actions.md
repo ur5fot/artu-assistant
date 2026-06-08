@@ -118,8 +118,8 @@ Dependencies identified: no new npm deps. discord.js 14 already exports `StringS
 - [x] verify no regression in urgent-email buttons (shared `email_draft`/`email_suppress` handlers unchanged)
 
 ### Task 8: Docs
-- [ ] update the emails module docs (`AGENTS.md` / module README near the email pipeline) to note: HTML→text in `decodePickedText`, the digest select-menu + `email_digest:*` interaction domain, and the two new actions
-- [ ] note in docs that the menu reuses `email_draft`/`email_suppress` so urgent + digest share one action surface
+- [x] update the emails module docs (`AGENTS.md` / module README near the email pipeline) to note: HTML→text in `decodePickedText`, the digest select-menu + `email_digest:*` interaction domain, and the two new actions
+- [x] note in docs that the menu reuses `email_draft`/`email_suppress` so urgent + digest share one action surface
 
 *Note: ralphex automatically moves completed plans to `docs/plans/completed/`.*
 
