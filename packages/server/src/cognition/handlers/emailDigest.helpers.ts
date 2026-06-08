@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import type { EmailPendingRow } from '../../emails/types.js';
+import type { ComponentData } from '../types.js';
 
 const DISCORD_MAX = 2000;
 const SUMMARY_CHARS = 140;
@@ -135,4 +136,45 @@ export function formatDigest(rows: EmailPendingRow[], totalPending?: number): Fo
   }
 
   return { text: lines.join('\n'), includedIds: included };
+}
+
+// Discord select-menu hard limits.
+const MENU_MAX_OPTIONS = 25;
+const OPTION_TEXT_MAX = 100;
+
+function clamp(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max) : s;
+}
+
+// Build a string select-menu offering one option per digest-included email.
+// Picking an option opens the ephemeral action card (routed via the
+// `email_digest:pick` customId). Returns [] when there are no included rows
+// so the handler can omit the component entirely.
+export function buildDigestMenu(rows: EmailPendingRow[], includedIds: number[]): ComponentData[] {
+  const includedSet = new Set(includedIds);
+  // Preserve digest order: iterate rows, keep only the included ones.
+  const picked = rows.filter((r) => includedSet.has(r.id)).slice(0, MENU_MAX_OPTIONS);
+  if (picked.length === 0) return [];
+
+  const options = picked.map((r) => {
+    const sender = cleanSender(r.from_addr);
+    const subject = (r.subject || '(без темы)').replace(/\s+/g, ' ').trim();
+    const label = clamp(`${emojiFor(r.importance)} ${sender} — ${subject}`, OPTION_TEXT_MAX);
+    const snippet = (r.snippet || '').replace(/\s+/g, ' ').trim();
+    const description = clamp(snippet, OPTION_TEXT_MAX);
+    return description
+      ? { label, value: String(r.id), description }
+      : { label, value: String(r.id) };
+  });
+
+  return [
+    {
+      type: 'select',
+      menu: {
+        customId: 'email_digest:pick',
+        placeholder: 'Выбери письмо для действия',
+        options,
+      },
+    },
+  ];
 }

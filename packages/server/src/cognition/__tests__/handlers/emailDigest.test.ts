@@ -165,6 +165,25 @@ describe('createEmailDigestHandler.run', () => {
     expect(remaining).toBeGreaterThan(0); // the "…ещё N" tail rows are still pending
   });
 
+  it('attaches a select-menu whose option values match includedIds', async () => {
+    const store = createEmailStore({ db: getDb() });
+    mkPending({ uid: 1, importance: 5, received_at: 1000 });
+    mkPending({ uid: 2, importance: 4, received_at: 1000 });
+    const h = createEmailDigestHandler({ store, tz: TZ, threshold: 1, cooldownMs: 100, quietStart: 22 });
+    const now = Date.UTC(2026, 3, 24, 12 - 3);
+    const res = await h.run(mkCtx(now));
+    if (!('publish' in res) || !res.publish) throw new Error('expected publish');
+    expect(res.components).toBeDefined();
+    expect(res.components).toHaveLength(1);
+    const c = res.components![0];
+    expect(c.type).toBe('select');
+    if (c.type !== 'select') throw new Error('expected select');
+    expect(c.menu.customId).toBe('email_digest:pick');
+    // The pending row ids are auto-incremented (1, 2). Option values must match.
+    const values = c.menu.options.map((o) => o.value).sort();
+    expect(values).toEqual(['1', '2']);
+  });
+
   it('re-run after publish returns skip (markDelivered is idempotent)', async () => {
     const store = createEmailStore({ db: getDb() });
     mkPending({ uid: 1, importance: 5, received_at: 1000 });

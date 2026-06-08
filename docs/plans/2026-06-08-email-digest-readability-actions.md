@@ -85,10 +85,10 @@ Dependencies identified: no new npm deps. discord.js 14 already exports `StringS
 - [x] run `npm run build -w @r2/server` (tsc) and `npm test -w @r2/server` — must pass before Task 4
 
 ### Task 4: Attach the select-menu to the digest
-- [ ] in `emailDigest.helpers.ts`: add `buildDigestMenu(rows: EmailPendingRow[], includedIds: number[]): ComponentData[]` — one option per included row: `label = "${emojiFor(imp)} ${cleanSender} — ${subject}"` clamped to 100 chars, `value = String(row.id)`, `description = snippet` clamped to 100 chars; customId `email_digest:pick`; placeholder e.g. `Выбери письмо для действия`; cap at Discord's 25-option limit (included rows are already ≤ list size, but clamp defensively); return `[]` when no rows
-- [ ] in `emailDigest.ts` `run`: build `components` from `buildDigestMenu(pending, includedIds)` and return it alongside `content` (omit when empty); leave `onPublished`/`markDelivered` untouched
-- [ ] write tests: `buildDigestMenu` option shape (label/value/description, clamping, 25-cap); `emailDigest` run result includes a `select` component whose option values match `includedIds`
-- [ ] run `npm test -w @r2/server` — must pass before Task 5
+- [x] in `emailDigest.helpers.ts`: add `buildDigestMenu(rows: EmailPendingRow[], includedIds: number[]): ComponentData[]` — one option per included row: `label = "${emojiFor(imp)} ${cleanSender} — ${subject}"` clamped to 100 chars, `value = String(row.id)`, `description = snippet` clamped to 100 chars; customId `email_digest:pick`; placeholder e.g. `Выбери письмо для действия`; cap at Discord's 25-option limit (included rows are already ≤ list size, but clamp defensively); return `[]` when no rows
+- [x] in `emailDigest.ts` `run`: build `components` from `buildDigestMenu(pending, includedIds)` and return it alongside `content` (omit when empty); leave `onPublished`/`markDelivered` untouched
+- [x] write tests: `buildDigestMenu` option shape (label/value/description, clamping, 25-cap); `emailDigest` run result includes a `select` component whose option values match `includedIds`
+- [x] run `npm test -w @r2/server` — must pass before Task 5
 
 ### Task 5: Route select-menu + email picker → ephemeral action card
 - [ ] in `interactions.ts` `routeInteraction`: add `if (interaction.isStringSelectMenu()) { await routeStringSelectMenu(interaction, deps); return; }`

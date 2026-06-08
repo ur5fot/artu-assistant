@@ -4,6 +4,7 @@ import {
   inQuietHours,
   morningBriefPublishedToday,
   formatDigest,
+  buildDigestMenu,
 } from './emailDigest.helpers.js';
 
 interface Deps {
@@ -44,6 +45,9 @@ export function createEmailDigestHandler(deps: Deps): Handler {
         // Pass the true backlog count so header and "…ещё N писем" stay
         // honest when the store returned a capped slice.
         const { text, includedIds } = formatDigest(pending, totalPending);
+        // Select-menu offering one action option per included email. Omitted
+        // when empty so the digest stays a plain message in that edge case.
+        const components = buildDigestMenu(pending, includedIds);
         // markDelivered runs only after the publish channel confirms delivery.
         // Marking here would silently drop rows when Discord DM fails — the
         // digest pushes nothing to the user yet countPendingUndelivered()
@@ -52,6 +56,7 @@ export function createEmailDigestHandler(deps: Deps): Handler {
         return {
           publish: true,
           content: text,
+          ...(components.length > 0 ? { components } : {}),
           onPublished: () => deps.store.markDelivered(includedIds, Date.now()),
         };
       } catch (err) {

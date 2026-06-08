@@ -4,6 +4,7 @@ import {
   inQuietHours,
   morningBriefPublishedToday,
   formatDigest,
+  buildDigestMenu,
 } from '../../handlers/emailDigest.helpers.js';
 
 beforeEach(() => initDb(':memory:'));
@@ -238,5 +239,66 @@ describe('formatDigest', () => {
     expect(withUndef.text).toContain('📬 2 важных');
     const withSmaller = formatDigest(rows, 1);
     expect(withSmaller.text).toContain('📬 2 важных');
+  });
+});
+
+describe('buildDigestMenu', () => {
+  const mk = (id: number, importance: number, from = 'Alice <a@b.com>', subject = 'Hi', snippet = 'Hello world') => ({
+    id, account_id: 'acc', message_uid: id, from_addr: from, subject, snippet,
+    importance, received_at: 1000, added_at: 1000, delivered_at: null,
+    urgent_pinged_at: null,
+  });
+
+  it('returns [] when no rows are included', () => {
+    expect(buildDigestMenu([mk(1, 5)], [])).toEqual([]);
+    expect(buildDigestMenu([], [])).toEqual([]);
+  });
+
+  it('builds a select component with one option per included row', () => {
+    const rows = [mk(1, 5, 'Alice <a@b>', 'Pay', 'invoice due'), mk(2, 4, 'Bob <b@c>', 'Call', 'meet up')];
+    const out = buildDigestMenu(rows, [1, 2]);
+    expect(out).toHaveLength(1);
+    const c = out[0];
+    expect(c.type).toBe('select');
+    if (c.type !== 'select') throw new Error('expected select');
+    expect(c.menu.customId).toBe('email_digest:pick');
+    expect(c.menu.placeholder).toBeTruthy();
+    expect(c.menu.options.map((o) => o.value)).toEqual(['1', '2']);
+    expect(c.menu.options[0].label).toContain('🔴');
+    expect(c.menu.options[0].label).toContain('Alice');
+    expect(c.menu.options[0].label).toContain('Pay');
+    expect(c.menu.options[0].description).toBe('invoice due');
+  });
+
+  it('only includes rows whose id is in includedIds, preserving digest order', () => {
+    const rows = [mk(1, 5), mk(2, 4), mk(3, 3)];
+    const out = buildDigestMenu(rows, [3, 1]);
+    if (out[0].type !== 'select') throw new Error('expected select');
+    // Iterates rows order, filtered by the included set → [1, 3], not [3, 1].
+    expect(out[0].menu.options.map((o) => o.value)).toEqual(['1', '3']);
+  });
+
+  it('clamps label and description to 100 chars', () => {
+    const rows = [mk(1, 5, 'A <a@b>', 'S'.repeat(200), 'd'.repeat(200))];
+    const out = buildDigestMenu(rows, [1]);
+    if (out[0].type !== 'select') throw new Error('expected select');
+    const opt = out[0].menu.options[0];
+    expect(opt.label.length).toBeLessThanOrEqual(100);
+    expect(opt.description!.length).toBeLessThanOrEqual(100);
+  });
+
+  it('omits description when snippet is empty', () => {
+    const rows = [mk(1, 5, 'A <a@b>', 'S', '')];
+    const out = buildDigestMenu(rows, [1]);
+    if (out[0].type !== 'select') throw new Error('expected select');
+    expect(out[0].menu.options[0].description).toBeUndefined();
+  });
+
+  it('caps options at Discord 25-option limit', () => {
+    const rows = Array.from({ length: 40 }, (_, i) => mk(i + 1, 5));
+    const ids = rows.map((r) => r.id);
+    const out = buildDigestMenu(rows, ids);
+    if (out[0].type !== 'select') throw new Error('expected select');
+    expect(out[0].menu.options).toHaveLength(25);
   });
 });
