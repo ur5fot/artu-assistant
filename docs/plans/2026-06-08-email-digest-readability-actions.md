@@ -110,12 +110,12 @@ Dependencies identified: no new npm deps. discord.js 14 already exports `StringS
 - [x] run `npm run build -w @r2/server` (tsc) and `npm test -w @r2/server` — must pass before Task 7
 
 ### Task 7: Verify acceptance criteria
-- [ ] HTML no longer appears in: digest snippet, scorer input (snippet), `emails_get` body, full-text action — confirmed by tests
-- [ ] digest publishes with a working select-menu; picking an email yields the ephemeral 5-button card
-- [ ] all four actions work: Разобрать (idempotent), Ответить (existing draft flow), Заглушить (existing sender/subject flow), Полный текст
-- [ ] run full `npm test -w @r2/server`
-- [ ] run `npm run build -w @r2/server` (tsc clean — no type errors)
-- [ ] verify no regression in urgent-email buttons (shared `email_draft`/`email_suppress` handlers unchanged)
+- [x] HTML no longer appears in: digest snippet, scorer input (snippet), `emails_get` body, full-text action — confirmed by tests
+- [x] digest publishes with a working select-menu; picking an email yields the ephemeral 5-button card
+- [x] all four actions work: Разобрать (idempotent), Ответить (existing draft flow), Заглушить (existing sender/subject flow), Полный текст
+- [x] run full `npm test -w @r2/server` (1845 passed, 126 files)
+- [x] run `npm run build -w @r2/server` (tsc clean — no type errors)
+- [x] verify no regression in urgent-email buttons (shared `email_draft`/`email_suppress` handlers unchanged)
 
 ### Task 8: Docs
 - [ ] update the emails module docs (`AGENTS.md` / module README near the email pipeline) to note: HTML→text in `decodePickedText`, the digest select-menu + `email_digest:*` interaction domain, and the two new actions
