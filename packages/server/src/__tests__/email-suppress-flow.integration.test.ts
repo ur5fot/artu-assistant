@@ -45,6 +45,7 @@ function makeSenderTtlButton(rowId: number, ttl: number) {
   return {
     isButton: () => true,
     isModalSubmit: () => false,
+    isStringSelectMenu: () => false,
     isChatInputCommand: () => false,
     user: { id: 'user-1' },
     customId: `email_suppress:sender_set_ttl:${rowId}:${ttl}`,
@@ -62,6 +63,7 @@ function makeWhySlashIxn(id?: number) {
   return {
     isButton: () => false,
     isModalSubmit: () => false,
+    isStringSelectMenu: () => false,
     isChatInputCommand: () => true,
     commandName: 'why',
     user: { id: 'user-1' },

@@ -36,6 +36,7 @@ function makeButton(customId: string) {
   return {
     isButton: () => true,
     isModalSubmit: () => false,
+    isStringSelectMenu: () => false,
     isChatInputCommand: () => false,
     user: { id: 'user-1' },
     customId,

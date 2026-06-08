@@ -29,6 +29,7 @@ function makeButton(customId: string, overrides: Record<string, any> = {}) {
   return {
     isButton: () => true,
     isModalSubmit: () => false,
+    isStringSelectMenu: () => false,
     isChatInputCommand: () => false,
     user: { id: 'user-1' },
     customId,

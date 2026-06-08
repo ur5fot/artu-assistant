@@ -24,6 +24,7 @@ function makeWhySlashIxn(opts: { id?: number; userId?: string } = {}) {
   return {
     isButton: () => false,
     isModalSubmit: () => false,
+    isStringSelectMenu: () => false,
     isChatInputCommand: () => true,
     commandName: 'why',
     user: { id: opts.userId ?? 'user-1' },

@@ -45,6 +45,7 @@ function makeButton(overrides: Record<string, any> = {}) {
   return {
     isButton: () => true,
     isModalSubmit: () => false,
+    isStringSelectMenu: () => false,
     isChatInputCommand: () => false,
     user: { id: 'user-1' },
     customId: 'email_draft:send:p1',

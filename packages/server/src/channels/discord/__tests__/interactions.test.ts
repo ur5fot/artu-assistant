@@ -49,6 +49,7 @@ function makeButtonInteraction(overrides: Record<string, any> = {}) {
   return {
     isButton: () => true,
     isModalSubmit: () => false,
+    isStringSelectMenu: () => false,
     isChatInputCommand: () => false,
     user: { id: 'user-1' },
     customId: 'reminder:dismiss:7',
@@ -254,6 +255,7 @@ describe('routeInteraction — memconfirm modal submit', () => {
     return {
       isButton: () => false,
       isModalSubmit: () => true,
+      isStringSelectMenu: () => false,
       isChatInputCommand: () => false,
       user: { id: 'user-1' },
       customId: 'memconfirm_modal:CALL-2:query',
@@ -305,6 +307,7 @@ function makeSlashInteraction(overrides: Record<string, any> = {}) {
   return {
     isButton: () => false,
     isModalSubmit: () => false,
+    isStringSelectMenu: () => false,
     isChatInputCommand: () => true,
     user: { id: 'user-1' },
     commandName: 'status',
@@ -513,6 +516,7 @@ describe('routeInteraction — /heartbeat', () => {
     return {
       isButton: () => false,
       isModalSubmit: () => false,
+      isStringSelectMenu: () => false,
       isChatInputCommand: () => true,
       user: { id: 'user-1' },
       commandName: 'heartbeat',

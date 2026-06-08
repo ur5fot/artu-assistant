@@ -91,16 +91,16 @@ Dependencies identified: no new npm deps. discord.js 14 already exports `StringS
 - [x] run `npm test -w @r2/server` — must pass before Task 5
 
 ### Task 5: Route select-menu + email picker → ephemeral action card
-- [ ] in `interactions.ts` `routeInteraction`: add `if (interaction.isStringSelectMenu()) { await routeStringSelectMenu(interaction, deps); return; }`
-- [ ] add `routeStringSelectMenu`: `splitCustomId`, dispatch `email_digest:pick` → `handleEmailDigestPick(ixn, deps, ixn.values[0])`
-- [ ] add `handleEmailDigestPick`: parse id from the selected value; `findByPendingId`; if missing → ephemeral `⚠️ Письмо больше недоступно`; else ephemeral reply with a short card (sender / subject / clean snippet) + one action row of 5 buttons:
+- [x] in `interactions.ts` `routeInteraction`: add `if (interaction.isStringSelectMenu()) { await routeStringSelectMenu(interaction, deps); return; }`
+- [x] add `routeStringSelectMenu`: `splitCustomId`, dispatch `email_digest:pick` → `handleEmailDigestPick(ixn, deps, ixn.values[0])`
+- [x] add `handleEmailDigestPick`: parse id from the selected value; `findByPendingId`; if missing → ephemeral `⚠️ Письмо больше недоступно`; else ephemeral reply with a short card (sender / subject / clean snippet) + one action row of 5 buttons:
   - `email_digest:dismiss:${id}` — `Разобрать` (success)
   - `email_draft:start:${id}` — `Ответить` (primary) *(reuses existing handler)*
   - `email_suppress:sender_start:${id}` — `🙈 Отправитель` (secondary) *(reuses existing)*
   - `email_suppress:subject_start:${id}` — `🙈 Тема` (secondary) *(reuses existing)*
   - `email_digest:fulltext:${id}` — `Полный текст` (secondary)
-- [ ] write tests: a `StringSelectMenu` interaction routes to the picker; valid id builds a card containing all 5 expected customIds; missing row → ephemeral "недоступно"; non-numeric/invalid value guarded
-- [ ] run `npm test -w @r2/server` — must pass before Task 6
+- [x] write tests: a `StringSelectMenu` interaction routes to the picker; valid id builds a card containing all 5 expected customIds; missing row → ephemeral "недоступно"; non-numeric/invalid value guarded (also: empty values, store-not-configured, non-whitelisted). Added `isStringSelectMenu: () => false` to existing interaction stubs so the new router branch is exercised cleanly.
+- [x] run `npm test -w @r2/server` — must pass before Task 6
 
 ### Task 6: New button handlers — Разобрать & Полный текст
 - [ ] in `routeButton`: add `email_digest` domain with actions `dismiss` and `fulltext`

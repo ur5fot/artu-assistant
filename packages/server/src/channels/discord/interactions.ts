@@ -4,6 +4,7 @@ import type {
   ChatInputCommandInteraction,
   Interaction,
   ModalSubmitInteraction,
+  StringSelectMenuInteraction,
 } from 'discord.js';
 import {
   ActionRowBuilder,
@@ -166,6 +167,11 @@ export async function routeInteraction(
     return;
   }
 
+  if (interaction.isStringSelectMenu()) {
+    await routeStringSelectMenu(interaction, deps);
+    return;
+  }
+
   if (interaction.isModalSubmit()) {
     await routeModalSubmit(interaction, deps);
     return;
@@ -173,6 +179,21 @@ export async function routeInteraction(
 
   if (interaction.isChatInputCommand()) {
     await routeSlashCommand(interaction, deps);
+    return;
+  }
+}
+
+async function routeStringSelectMenu(
+  ixn: StringSelectMenuInteraction,
+  deps: InteractionDeps,
+): Promise<void> {
+  const { domain, action } = splitCustomId(ixn.customId);
+
+  if (domain === 'email_digest' && action === 'pick') {
+    // Discord guarantees ≥1 value for a non-optional select; guard anyway so a
+    // malformed payload surfaces a notice instead of a silent "thinking…".
+    const value = ixn.values[0];
+    await handleEmailDigestPick(ixn, deps, value ?? '');
     return;
   }
 }
@@ -703,6 +724,76 @@ function buildDraftActionRow(pendingId: string): ActionRowBuilder<ButtonBuilder>
       .setLabel('Cancel')
       .setStyle(ButtonStyle.Danger),
   );
+}
+
+// The five-button action row shown on the ephemeral card after a digest pick.
+// Reuses the existing `email_draft` / `email_suppress` handlers so urgent and
+// digest emails share one action surface; adds two `email_digest` actions.
+function buildDigestActionRow(id: number): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`email_digest:dismiss:${id}`)
+      .setLabel('Разобрать')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`email_draft:start:${id}`)
+      .setLabel('Ответить')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`email_suppress:sender_start:${id}`)
+      .setLabel('🙈 Отправитель')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`email_suppress:subject_start:${id}`)
+      .setLabel('🙈 Тема')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`email_digest:fulltext:${id}`)
+      .setLabel('Полный текст')
+      .setStyle(ButtonStyle.Secondary),
+  );
+}
+
+async function handleEmailDigestPick(
+  ixn: StringSelectMenuInteraction,
+  deps: InteractionDeps,
+  value: string,
+): Promise<void> {
+  if (!deps.emailStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Email actions are not configured.',
+    });
+    return;
+  }
+  const rowId = Number(value);
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Некорректная ссылка на письмо',
+    });
+    return;
+  }
+  const row = deps.emailStore.findByPendingId(rowId);
+  if (!row) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Письмо больше недоступно',
+    });
+    return;
+  }
+
+  const sender = row.from_addr;
+  const subject = (row.subject || '(без темы)').replace(/\s+/g, ' ').trim();
+  const snippet = (row.snippet || '').replace(/\s+/g, ' ').trim();
+  const card = clampReplyContent(
+    `✉️ ${sender}\n${subject}` + (snippet ? `\n\n${snippet}` : ''),
+  );
+  await (ixn as any).reply({
+    flags: MessageFlags.Ephemeral,
+    content: card,
+    components: [buildDigestActionRow(row.id)],
+  });
 }
 
 async function handleEmailDraftStart(
