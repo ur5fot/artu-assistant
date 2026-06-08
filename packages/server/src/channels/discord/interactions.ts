@@ -809,6 +809,7 @@ async function handleEmailDigestPick(
     flags: MessageFlags.Ephemeral,
     content: card,
     components: [buildDigestActionRow(row.id)],
+    allowedMentions: NO_MENTIONS,
   });
 }
 
@@ -905,6 +906,7 @@ async function handleEmailDigestFullText(
     const body = (full.bodyText || '').trim() || '(пустое тело)';
     await (ixn as any).editReply({
       content: clampReplyContent(`✉️ ${subject}\n\n${body}`),
+      allowedMentions: NO_MENTIONS,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -211,6 +211,20 @@ describe('formatDigest', () => {
     expect(out.includedIds.length + dropped.length).toBe(50);
   });
 
+  it('caps included rows at the menu 25-option limit even when the char budget allows more', () => {
+    // 40 short rows (≈15 chars each) all fit under 2000 chars, but only 25 can
+    // be surfaced by one select-menu. The included set must stop at 25 so rows
+    // 26+ stay pending (in the tail) instead of being marked delivered with no
+    // action path. Cross-checked against buildDigestMenu so text/menu agree.
+    const many = Array.from({ length: 40 }, (_, i) => mk(i + 1, 3, 'X <x@y>', 'S', 'a'));
+    const out = formatDigest(many);
+    expect(out.includedIds).toHaveLength(25);
+    expect(out.text).toContain('…ещё 15 писем');
+    const menu = buildDigestMenu(many, out.includedIds);
+    if (menu[0].type !== 'select') throw new Error('expected select');
+    expect(menu[0].menu.options.map((o) => o.value)).toEqual(out.includedIds.map(String));
+  });
+
   it('single-row boundary: never exceeds 2000 chars even with one row left', () => {
     const huge = 'a'.repeat(1990);
     const out = formatDigest([mk(1, 5, 'A <a@b>', 'S', huge)]);

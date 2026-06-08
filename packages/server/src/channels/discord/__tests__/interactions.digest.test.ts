@@ -74,6 +74,25 @@ describe('email_digest:pick (select menu → action card)', () => {
     ]);
   });
 
+  it('email-controlled @everyone text → reply suppresses mentions', async () => {
+    const deps = makeDeps({
+      emailStore: {
+        findByPendingId: vi.fn().mockReturnValue({
+          ...SAMPLE_ROW,
+          from_addr: '@everyone',
+          subject: 'ping @here now',
+        }),
+      } as unknown as EmailStore,
+    });
+    const ixn = makeSelectMenu();
+
+    await routeInteraction(ixn, deps);
+
+    const arg = ixn.reply.mock.calls[0]![0];
+    expect(arg.content).toContain('@everyone');
+    expect(arg.allowedMentions).toEqual({ parse: [] });
+  });
+
   it('missing row → ephemeral "недоступно", no card buttons', async () => {
     const deps = makeDeps({
       emailStore: {
@@ -307,6 +326,26 @@ describe('email_digest:fulltext (Полный текст button)', () => {
     const arg = ixn.editReply.mock.calls[0]![0];
     expect(arg.content).toContain('Large transaction notice');
     expect(arg.content).toContain('Hello, world');
+  });
+
+  it('email-controlled @everyone body → editReply suppresses mentions', async () => {
+    const deps = fullTextDeps({
+      imapClient: {
+        fetchHeaders: vi.fn(),
+        fetchFullBody: vi.fn().mockResolvedValue({
+          ...SAMPLE_FULL,
+          subject: 'alert @everyone',
+          bodyText: 'Hey @here, your card was charged.',
+        }),
+      } as any,
+    });
+    const ixn = makeButton({ customId: 'email_digest:fulltext:7' });
+
+    await routeInteraction(ixn, deps);
+
+    const arg = ixn.editReply.mock.calls[0]![0];
+    expect(arg.content).toContain('@everyone');
+    expect(arg.allowedMentions).toEqual({ parse: [] });
   });
 
   it('missing row → editReply "пропало"', async () => {

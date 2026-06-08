@@ -5,6 +5,12 @@ import type { ComponentData } from '../types.js';
 const DISCORD_MAX = 2000;
 const SUMMARY_CHARS = 140;
 const TAIL_BUDGET = 50;
+// Discord string select-menu hard limit. Also caps the digest's included rows:
+// every included id is both rendered as a text row AND marked delivered on
+// publish, so the included set must stay ≤ what one menu can surface. Rows
+// beyond this fold into the "…ещё N писем" tail and stay pending for the next
+// digest, instead of being silently removed from awaiting with no action path.
+const MENU_MAX_OPTIONS = 25;
 // If no morning-brief publish row exists within this window, fall back to a
 // fixed morning release hour. Prevents the digest from being permanently
 // gated on a handler that may never register (Discord bot off) or that may
@@ -119,6 +125,9 @@ export function formatDigest(rows: EmailPendingRow[], totalPending?: number): Fo
   const included: number[] = [];
 
   for (const r of rows) {
+    // Cap included rows at the menu limit so every text row also has an action
+    // option and is marked delivered consistently. Excess rows go to the tail.
+    if (included.length >= MENU_MAX_OPTIONS) break;
     const ln = line(r);
     const remaining = total - included.length - 1;
     // Always reserve room for a "…ещё N писем" tail when more rows follow.
@@ -138,8 +147,8 @@ export function formatDigest(rows: EmailPendingRow[], totalPending?: number): Fo
   return { text: lines.join('\n'), includedIds: included };
 }
 
-// Discord select-menu hard limits.
-const MENU_MAX_OPTIONS = 25;
+// Discord select-menu hard limit (MENU_MAX_OPTIONS defined at top — shared with
+// formatDigest so the included set never exceeds what the menu can surface).
 const OPTION_TEXT_MAX = 100;
 
 function clamp(s: string, max: number): string {
