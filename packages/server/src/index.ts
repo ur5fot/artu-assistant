@@ -1184,7 +1184,7 @@ if (discordToken) {
       // would still write \Answered to the mailbox, breaking the "zero behaviour
       // change when off" guarantee.
       imapClient: emailEnabled
-        ? { fetchHeaders, ...(emailFeedbackEnabled ? { markAnswered } : {}) }
+        ? { fetchHeaders, fetchFullBody, ...(emailFeedbackEnabled ? { markAnswered } : {}) }
         : undefined,
       threadFetcher: emailEnabled ? { fetchThread } : undefined,
       anthropic: client.anthropic,

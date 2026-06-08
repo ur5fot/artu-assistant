@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import { routeInteraction, type InteractionDeps } from '../interactions.js';
 import type { EmailStore } from '../../../emails/store.js';
-import type { EmailPendingRow } from '../../../emails/types.js';
+import type { EmailPendingRow, FullMessage, ImapAccount } from '../../../emails/types.js';
 
 const SAMPLE_ROW: EmailPendingRow = {
   id: 7,
@@ -144,5 +144,225 @@ describe('email_digest:pick (select menu → action card)', () => {
     await routeInteraction(ixn, deps);
 
     expect((deps.emailStore as any).findByPendingId).not.toHaveBeenCalled();
+  });
+});
+
+const SAMPLE_ACCOUNT: ImapAccount = {
+  id: 'acc-1',
+  host: 'imap.example.com',
+  port: 993,
+  user: 'me@example.com',
+  password: 'secret',
+  tls: true,
+};
+
+const SAMPLE_FULL: FullMessage = {
+  uid: 42,
+  from: 'alerts@bank.com',
+  subject: 'Large transaction notice',
+  bodyText: 'Hello, world. Your card was charged.',
+  receivedAt: 1_700_000_000_000,
+};
+
+function makeButton(overrides: Record<string, any> = {}) {
+  return {
+    isButton: () => true,
+    isStringSelectMenu: () => false,
+    isModalSubmit: () => false,
+    isChatInputCommand: () => false,
+    user: { id: 'user-1' },
+    customId: 'email_digest:dismiss:7',
+    deferReply: vi.fn().mockResolvedValue(undefined),
+    editReply: vi.fn().mockResolvedValue({ id: 'msg-1' }),
+    reply: vi.fn().mockResolvedValue(undefined),
+    update: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  } as any;
+}
+
+describe('email_digest:dismiss (Разобрать button)', () => {
+  it('awaiting row → markDelivered + "✓ Разобрано"', async () => {
+    const markDelivered = vi.fn();
+    const deps = makeDeps({
+      emailStore: {
+        findByPendingId: vi.fn().mockReturnValue(SAMPLE_ROW),
+        markDelivered,
+      } as unknown as EmailStore,
+    });
+    const ixn = makeButton();
+
+    await routeInteraction(ixn, deps);
+
+    expect(markDelivered).toHaveBeenCalledWith([7], expect.any(Number));
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        content: expect.stringContaining('Разобрано'),
+      }),
+    );
+  });
+
+  it('already-delivered row → idempotent "Уже разобрано", no markDelivered', async () => {
+    const markDelivered = vi.fn();
+    const deps = makeDeps({
+      emailStore: {
+        findByPendingId: vi
+          .fn()
+          .mockReturnValue({ ...SAMPLE_ROW, delivered_at: 123 }),
+        markDelivered,
+      } as unknown as EmailStore,
+    });
+    const ixn = makeButton();
+
+    await routeInteraction(ixn, deps);
+
+    expect(markDelivered).not.toHaveBeenCalled();
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Уже разобрано') }),
+    );
+  });
+
+  it('positively urgent-pinged row → "Уже разобрано", no markDelivered', async () => {
+    const markDelivered = vi.fn();
+    const deps = makeDeps({
+      emailStore: {
+        findByPendingId: vi
+          .fn()
+          .mockReturnValue({ ...SAMPLE_ROW, urgent_pinged_at: 999 }),
+        markDelivered,
+      } as unknown as EmailStore,
+    });
+    const ixn = makeButton();
+
+    await routeInteraction(ixn, deps);
+
+    expect(markDelivered).not.toHaveBeenCalled();
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Уже разобрано') }),
+    );
+  });
+
+  it('missing row → "недоступно"', async () => {
+    const deps = makeDeps({
+      emailStore: {
+        findByPendingId: vi.fn().mockReturnValue(null),
+        markDelivered: vi.fn(),
+      } as unknown as EmailStore,
+    });
+    const ixn = makeButton();
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('недоступно') }),
+    );
+  });
+
+  it('non-numeric id → "Некорректная", no DB read', async () => {
+    const deps = makeDeps({
+      emailStore: {
+        findByPendingId: vi.fn(),
+        markDelivered: vi.fn(),
+      } as unknown as EmailStore,
+    });
+    const ixn = makeButton({ customId: 'email_digest:dismiss:abc' });
+
+    await routeInteraction(ixn, deps);
+
+    expect((deps.emailStore as any).findByPendingId).not.toHaveBeenCalled();
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Некорректная') }),
+    );
+  });
+});
+
+describe('email_digest:fulltext (Полный текст button)', () => {
+  function fullTextDeps(overrides: Partial<InteractionDeps> = {}): InteractionDeps {
+    return makeDeps({
+      emailStore: {
+        findByPendingId: vi.fn().mockReturnValue(SAMPLE_ROW),
+      } as unknown as EmailStore,
+      imapClient: {
+        fetchHeaders: vi.fn(),
+        fetchFullBody: vi.fn().mockResolvedValue(SAMPLE_FULL),
+      } as any,
+      imapAccounts: new Map<string, ImapAccount>([['acc-1', SAMPLE_ACCOUNT]]),
+      ...overrides,
+    });
+  }
+
+  it('valid id → defers then editReply with subject + body', async () => {
+    const deps = fullTextDeps();
+    const ixn = makeButton({ customId: 'email_digest:fulltext:7' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.deferReply).toHaveBeenCalledWith(
+      expect.objectContaining({ flags: MessageFlags.Ephemeral }),
+    );
+    expect((deps.imapClient as any).fetchFullBody).toHaveBeenCalledWith(
+      SAMPLE_ACCOUNT,
+      42,
+    );
+    const arg = ixn.editReply.mock.calls[0]![0];
+    expect(arg.content).toContain('Large transaction notice');
+    expect(arg.content).toContain('Hello, world');
+  });
+
+  it('missing row → editReply "пропало"', async () => {
+    const deps = fullTextDeps({
+      emailStore: {
+        findByPendingId: vi.fn().mockReturnValue(null),
+      } as unknown as EmailStore,
+    });
+    const ixn = makeButton({ customId: 'email_digest:fulltext:7' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('пропало') }),
+    );
+  });
+
+  it('IMAP error → editReply error notice (no throw)', async () => {
+    const deps = fullTextDeps({
+      imapClient: {
+        fetchHeaders: vi.fn(),
+        fetchFullBody: vi.fn().mockRejectedValue(new Error('connection reset')),
+      } as any,
+    });
+    const ixn = makeButton({ customId: 'email_digest:fulltext:7' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('connection reset') }),
+    );
+  });
+
+  it('non-numeric id → "Некорректная" before defer/DB read', async () => {
+    const deps = fullTextDeps();
+    const ixn = makeButton({ customId: 'email_digest:fulltext:nope' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.deferReply).not.toHaveBeenCalled();
+    expect((deps.emailStore as any).findByPendingId).not.toHaveBeenCalled();
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Некорректная') }),
+    );
+  });
+
+  it('fetchFullBody not wired → "not configured"', async () => {
+    const deps = fullTextDeps({
+      imapClient: { fetchHeaders: vi.fn() } as any,
+    });
+    const ixn = makeButton({ customId: 'email_digest:fulltext:7' });
+
+    await routeInteraction(ixn, deps);
+
+    expect(ixn.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('not configured') }),
+    );
   });
 });

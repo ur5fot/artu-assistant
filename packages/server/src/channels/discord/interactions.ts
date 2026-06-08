@@ -79,6 +79,10 @@ export interface DraftImapClient {
    *  auto-suppression) instead of finalizing the sender as read/ignored.
    *  Optional so call sites without IMAP write wiring stay a no-op. */
   markAnswered?(account: ImapAccount, uid: number): Promise<boolean>;
+  /** Fetch the full (already HTML→text-decoded) body for the `Полный текст`
+   *  digest action. Optional so draft-only wiring stays valid; the handler
+   *  surfaces a notice when it's absent. */
+  fetchFullBody?(account: ImapAccount, uid: number): Promise<FullMessage>;
 }
 
 export interface DraftThreadFetcher {
@@ -381,6 +385,18 @@ async function routeButton(
     }
     if (action === 'cancelSend') {
       await handleEmailDraftCancelSend(ixn, deps, rawId ?? '');
+      return;
+    }
+    return;
+  }
+
+  if (domain === 'email_digest') {
+    if (action === 'dismiss') {
+      await handleEmailDigestDismiss(ixn, deps, rawId ?? '');
+      return;
+    }
+    if (action === 'fulltext') {
+      await handleEmailDigestFullText(ixn, deps, rawId ?? '');
       return;
     }
     return;
@@ -794,6 +810,108 @@ async function handleEmailDigestPick(
     content: card,
     components: [buildDigestActionRow(row.id)],
   });
+}
+
+// `Разобрать` — mark a digest email as handled (removed from the awaiting
+// queue). Mirrors the emails_dismiss tool's awaiting predicate so a double
+// click (or a stale digest menu) honestly reports "уже разобрано" instead of
+// lying about a no-op markDelivered.
+async function handleEmailDigestDismiss(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (!deps.emailStore) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Email actions are not configured.',
+    });
+    return;
+  }
+  const rowId = Number(rawId);
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Некорректная ссылка на письмо',
+    });
+    return;
+  }
+  const row = deps.emailStore.findByPendingId(rowId);
+  if (!row) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Письмо больше недоступно',
+    });
+    return;
+  }
+  // Same predicate as emails_dismiss: a row is in the awaiting queue only when
+  // it's undelivered and not positively urgent-pinged (NULL or the <0 sentinel).
+  const wasAwaiting =
+    row.delivered_at === null && (row.urgent_pinged_at === null || row.urgent_pinged_at < 0);
+  if (!wasAwaiting) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Уже разобрано',
+    });
+    return;
+  }
+  deps.emailStore.markDelivered([rowId], Date.now());
+  await (ixn as any).reply({
+    flags: MessageFlags.Ephemeral,
+    content: '✓ Разобрано',
+  });
+}
+
+// `Полный текст` — fetch and show the full, HTML→text-decoded body of a digest
+// email. The IMAP round-trip exceeds Discord's 3s ack window, so defer first.
+async function handleEmailDigestFullText(
+  ixn: ButtonInteraction,
+  deps: InteractionDeps,
+  rawId: string,
+): Promise<void> {
+  if (!deps.emailStore || !deps.imapClient?.fetchFullBody || !deps.imapAccounts) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: 'Email actions are not configured.',
+    });
+    return;
+  }
+  const rowId = Number(rawId);
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    await (ixn as any).reply({
+      flags: MessageFlags.Ephemeral,
+      content: '⚠️ Некорректная ссылка на письмо',
+    });
+    return;
+  }
+
+  await (ixn as any).deferReply({ flags: MessageFlags.Ephemeral });
+
+  const row = deps.emailStore.findByPendingId(rowId);
+  if (!row) {
+    await (ixn as any).editReply({ content: '⚠️ Письмо пропало' });
+    return;
+  }
+  const account = deps.imapAccounts.get(row.account_id);
+  if (!account) {
+    await (ixn as any).editReply({
+      content: `⚠️ Аккаунт ${row.account_id} не настроен`,
+    });
+    return;
+  }
+  try {
+    const full = await deps.imapClient.fetchFullBody(account, row.message_uid);
+    const subject = (full.subject || '(без темы)').trim();
+    const body = (full.bodyText || '').trim() || '(пустое тело)';
+    await (ixn as any).editReply({
+      content: clampReplyContent(`✉️ ${subject}\n\n${body}`),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await (ixn as any).editReply({
+      content: clampReplyContent(`❌ Не удалось загрузить письмо: ${msg}`),
+    });
+  }
 }
 
 async function handleEmailDraftStart(

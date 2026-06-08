@@ -103,11 +103,11 @@ Dependencies identified: no new npm deps. discord.js 14 already exports `StringS
 - [x] run `npm test -w @r2/server` — must pass before Task 6
 
 ### Task 6: New button handlers — Разобрать & Полный текст
-- [ ] in `routeButton`: add `email_digest` domain with actions `dismiss` and `fulltext`
-- [ ] `handleEmailDigestDismiss(ixn, deps, rawId)`: parse id; `findByPendingId`; apply the same awaiting predicate as `emails_dismiss` (`delivered_at === null && (urgent_pinged_at === null || urgent_pinged_at < 0)`); if awaiting → `markDelivered([id], Date.now())` and reply/`update` ephemeral `✓ Разобрано`; if already handled → ephemeral `Уже разобрано` (honest, idempotent — safe on double-click)
-- [ ] `handleEmailDigestFullText(ixn, deps, rawId)`: parse id; `findByPendingId` (missing → ephemeral notice); `deps.imapClient`/account guard; `deferReply({ ephemeral })`; `fetchFullBody(account, row.message_uid)` (already clean text from Task 2); `editReply` with subject + body clamped to Discord's limit; catch IMAP errors → ephemeral error
-- [ ] write tests: dismiss marks delivered + idempotent second call reports already-handled; dismiss of missing row guarded; full-text returns body text (stubbed imapClient); full-text IMAP error surfaces gracefully; invalid id guarded
-- [ ] run `npm run build -w @r2/server` (tsc) and `npm test -w @r2/server` — must pass before Task 7
+- [x] in `routeButton`: add `email_digest` domain with actions `dismiss` and `fulltext`
+- [x] `handleEmailDigestDismiss(ixn, deps, rawId)`: parse id; `findByPendingId`; apply the same awaiting predicate as `emails_dismiss` (`delivered_at === null && (urgent_pinged_at === null || urgent_pinged_at < 0)`); if awaiting → `markDelivered([id], Date.now())` and reply/`update` ephemeral `✓ Разобрано`; if already handled → ephemeral `Уже разобрано` (honest, idempotent — safe on double-click)
+- [x] `handleEmailDigestFullText(ixn, deps, rawId)`: parse id; `findByPendingId` (missing → ephemeral notice); `deps.imapClient`/account guard; `deferReply({ ephemeral })`; `fetchFullBody(account, row.message_uid)` (already clean text from Task 2); `editReply` with subject + body clamped to Discord's limit; catch IMAP errors → ephemeral error (also wired `fetchFullBody` into `DraftImapClient` + the bot's imapClient deps in `index.ts`)
+- [x] write tests: dismiss marks delivered + idempotent second call reports already-handled; dismiss of missing row guarded; full-text returns body text (stubbed imapClient); full-text IMAP error surfaces gracefully; invalid id guarded
+- [x] run `npm run build -w @r2/server` (tsc) and `npm test -w @r2/server` — must pass before Task 7
 
 ### Task 7: Verify acceptance criteria
 - [ ] HTML no longer appears in: digest snippet, scorer input (snippet), `emails_get` body, full-text action — confirmed by tests
