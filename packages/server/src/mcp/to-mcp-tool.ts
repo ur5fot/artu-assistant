@@ -21,10 +21,16 @@ export interface McpTool {
 /**
  * Convert an R2 `ToolDefinition` to an MCP tool descriptor. Parallel to
  * `toClaudeTool` ([base.ts]). A tool is flagged destructive when R2 would
- * confirm it (`permissionLevel === 'confirm'`) or when it carries a `preCheck`.
+ * confirm it (`permissionLevel === 'confirm'`), when it carries a `preCheck`,
+ * or when it self-gates via `ctx.requestMemoryConfirm` and so opts in with an
+ * explicit `destructiveHint` (e.g. the memory mutation tools, which run at
+ * `auto` but still mutate stored facts).
  */
 export function toMcpTool(tool: ToolDefinition): McpTool {
-  const isDestructive = tool.permissionLevel === 'confirm' || tool.preCheck !== undefined;
+  const isDestructive =
+    tool.permissionLevel === 'confirm' ||
+    tool.preCheck !== undefined ||
+    tool.destructiveHint === true;
   return {
     name: tool.name,
     description: tool.description,

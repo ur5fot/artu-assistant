@@ -1,5 +1,6 @@
 import type { Express } from 'express';
 import type { ToolRegistry } from '../tools/registry.js';
+import type { PiiProxy } from '../pii/proxy.js';
 import { createMcpRouter } from './server.js';
 
 export interface MountMcpOptions {
@@ -8,6 +9,8 @@ export interface MountMcpOptions {
   registry: ToolRegistry;
   /** Extra tool names to exclude (from `MCP_TOOL_DENYLIST`). */
   denylist?: readonly string[];
+  /** PII proxy for anonymizing the audit-log copy of MCP tool calls. */
+  piiProxy?: PiiProxy;
 }
 
 /**
@@ -17,9 +20,9 @@ export interface MountMcpOptions {
  */
 export function mountMcpRouter(
   app: Express,
-  { enabled, registry, denylist = [] }: MountMcpOptions,
+  { enabled, registry, denylist = [], piiProxy }: MountMcpOptions,
 ): boolean {
   if (!enabled) return false;
-  app.use('/mcp', createMcpRouter({ registry, denylist }));
+  app.use('/mcp', createMcpRouter({ registry, denylist, piiProxy }));
   return true;
 }

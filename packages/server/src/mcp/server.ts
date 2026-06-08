@@ -7,14 +7,22 @@ import {
   type CallToolResult,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolRegistry } from '../tools/registry.js';
+import type { PiiProxy } from '../pii/proxy.js';
 import { selectMcpTools } from './select-tools.js';
 import { toMcpTool } from './to-mcp-tool.js';
 import { toCallToolResult, makeHeadlessCtx } from './runtime.js';
+import { auditMcpToolCall } from './audit.js';
 
 export interface McpServerOptions {
   registry: ToolRegistry;
   /** Extra tool names to exclude (from `MCP_TOOL_DENYLIST`). */
   denylist?: readonly string[];
+  /**
+   * PII proxy used to anonymize the audit-log copy of each tool call (the
+   * result returned to the client stays raw — see the MCP design's PII note).
+   * Omitted in unit tests that don't exercise auditing.
+   */
+  piiProxy?: PiiProxy;
 }
 
 const SERVER_INFO = { name: 'r2', version: '0.1.0' } as const;
@@ -27,7 +35,7 @@ const SERVER_INFO = { name: 'r2', version: '0.1.0' } as const;
  * re-checks exposure (defence in depth), runs the tool handler with a headless
  * `ToolContext`, and maps the `ToolResult` via `toCallToolResult`.
  */
-export function createMcpServer({ registry, denylist = [] }: McpServerOptions): Server {
+export function createMcpServer({ registry, denylist = [], piiProxy }: McpServerOptions): Server {
   const server = new Server(SERVER_INFO, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -54,13 +62,30 @@ export function createMcpServer({ registry, denylist = [] }: McpServerOptions): 
         isError: true,
       };
     }
+    const input = (args ?? {}) as Record<string, unknown>;
+    const startTime = Date.now();
     try {
       const ctx = makeHeadlessCtx({ signal: extra.signal, callId: String(extra.requestId) });
-      const result = await tool.handler((args ?? {}) as Record<string, unknown>, ctx);
+      const result = await tool.handler(input, ctx);
+      await auditMcpToolCall({
+        toolName: tool.name,
+        input,
+        result,
+        durationMs: Date.now() - startTime,
+        piiProxy,
+      });
       return toCallToolResult(result) as CallToolResult;
     } catch (err) {
+      const result = { success: false, error: err instanceof Error ? err.message : String(err) };
+      await auditMcpToolCall({
+        toolName: tool.name,
+        input,
+        result,
+        durationMs: Date.now() - startTime,
+        piiProxy,
+      });
       return {
-        content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+        content: [{ type: 'text', text: result.error }],
         isError: true,
       };
     }
@@ -129,6 +154,21 @@ export function createMcpRouter(options: McpServerOptions): Router {
         });
       }
     }
+  });
+
+  // The Streamable HTTP client probes `GET /mcp` after `notifications/initialized`
+  // to open an optional standalone SSE stream. We run stateless (no
+  // server-initiated messages), so there's nothing to stream — answer the probe
+  // with `405 Method Not Allowed` + `Allow: POST`, which the SDK treats as the
+  // expected "no standalone SSE". Without this route Express returns `404`, which
+  // the client surfaces as a transport error.
+  router.get('/', (_req, res) => {
+    res.set('Allow', 'POST');
+    res.status(405).json({
+      jsonrpc: '2.0',
+      error: { code: -32601, message: 'Method not allowed: use POST' },
+      id: null,
+    });
   });
 
   return router;

@@ -8,4 +8,8 @@
 # Requires Node/npx on PATH and R2 running with MCP_ENABLED=true.
 set -euo pipefail
 
-exec npx -y mcp-remote "http://127.0.0.1:${PORT:-3001}/mcp"
+# Pin the bridge version so `npx` can't silently fetch a new (potentially
+# compromised) release at runtime. Override via MCP_REMOTE_VERSION if needed.
+MCP_REMOTE_VERSION="${MCP_REMOTE_VERSION:-0.1.38}"
+
+exec npx -y "mcp-remote@${MCP_REMOTE_VERSION}" "http://127.0.0.1:${PORT:-3001}/mcp"

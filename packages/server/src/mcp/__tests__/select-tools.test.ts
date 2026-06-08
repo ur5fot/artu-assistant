@@ -34,6 +34,22 @@ describe('INTERNAL_TOOL_DENYLIST', () => {
       ]),
     );
   });
+
+  it('excludes memory_forget_last (cannot work over the headless MCP context)', () => {
+    expect(INTERNAL_TOOL_DENYLIST).toContain('memory_forget_last');
+  });
+});
+
+describe('selectMcpTools memory_forget_last', () => {
+  it('does not expose memory_forget_last even when registered', () => {
+    const reg = seed([
+      makeTool({ name: 'memory_forget' }),
+      makeTool({ name: 'memory_forget_last' }),
+    ]);
+    const names = selectMcpTools(reg).map((t) => t.name);
+    expect(names).toContain('memory_forget');
+    expect(names).not.toContain('memory_forget_last');
+  });
 });
 
 describe('selectMcpTools', () => {

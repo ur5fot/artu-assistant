@@ -1291,6 +1291,7 @@ const mcpMounted = mountMcpRouter(app, {
   enabled: envBool(process.env.MCP_ENABLED, false),
   registry,
   denylist: envCsv(process.env.MCP_TOOL_DENYLIST),
+  piiProxy,
 });
 if (mcpMounted) {
   console.log('MCP server enabled at /mcp');

@@ -11,6 +11,11 @@ import type { ToolRegistry } from '../tools/registry.js';
  *   - tool-code-task (`code_task`, `task`), tool-code-deploy (`code_deploy`)
  *   - tool-eval (`eval_add`, `eval_run`)
  *   - tool-prompt-overlay CONFIGS (`prompt_overlay_claude`, `prompt_overlay_ollama`)
+ *
+ * `memory_forget_last` is excluded for a different reason: it depends on
+ * `ctx.currentUserMessageTimestamp` to find "the previous turn", which the
+ * headless MCP context never sets, so it always fails closed. Rather than
+ * expose a tool that can only ever error over MCP, we denylist it here.
  */
 export const INTERNAL_TOOL_DENYLIST: readonly string[] = [
   'code_deploy',
@@ -20,6 +25,7 @@ export const INTERNAL_TOOL_DENYLIST: readonly string[] = [
   'eval_run',
   'prompt_overlay_claude',
   'prompt_overlay_ollama',
+  'memory_forget_last',
 ];
 
 /**

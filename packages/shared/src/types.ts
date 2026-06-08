@@ -84,6 +84,14 @@ export interface ToolDefinition {
   };
   handler: (params: Record<string, unknown>, ctx?: ToolContext) => Promise<ToolResult>;
   preCheck?: (input: Record<string, unknown>) => Promise<{ destructive: boolean; reason: string }>;
+  /**
+   * Marks a tool as destructive even though it runs at `permissionLevel: 'auto'`.
+   * Some tools (e.g. memory mutations) keep `auto` but gate themselves via
+   * `ctx.requestMemoryConfirm` instead of the generic confirm flow. Over MCP that
+   * interactive gate is auto-approved, so this flag is what surfaces a
+   * `destructiveHint` warning to the MCP client (see `toMcpTool`).
+   */
+  destructiveHint?: boolean;
   command?: {
     name: string;
     description: string;

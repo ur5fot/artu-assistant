@@ -201,6 +201,7 @@ export function createMemoryForgetTool(deps: { memoryService: MemoryServiceLike 
     name: 'memory_forget',
     description: 'Mark a memory fact as forgotten so it no longer appears in recall. Use when the user asks to forget something.',
     permissionLevel: 'auto',
+    destructiveHint: true,
     provider: 'all',
     parameters: {
       type: 'object',
@@ -287,6 +288,7 @@ export function createMemoryUpdateTool(deps: { memoryService: MemoryServiceLike 
     name: 'memory_update',
     description: 'Update the value of an existing memory fact. Use when the user corrects a previously stored fact (e.g. "мой возраст не 42 а 43").',
     permissionLevel: 'auto',
+    destructiveHint: true,
     provider: 'all',
     parameters: {
       type: 'object',
@@ -363,6 +365,7 @@ export function createMemoryForgetLastTool(deps: { memoryService: MemoryServiceL
     name: 'memory_forget_last',
     description: "Forget all facts extracted from the user's most recent previous message. Use when the user says \"це неправильно\" / \"ерунду запомнил\" / \"забудь що я тільки що сказав\".",
     permissionLevel: 'auto',
+    destructiveHint: true,
     provider: 'all',
     parameters: {
       type: 'object',

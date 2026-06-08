@@ -54,6 +54,11 @@ describe('toMcpTool', () => {
     expect(mcp.annotations?.destructiveHint).toBeUndefined();
   });
 
+  it('sets destructiveHint:true for an auto tool with explicit destructiveHint', () => {
+    const mcp = toMcpTool({ ...baseTool, permissionLevel: 'auto', destructiveHint: true });
+    expect(mcp.annotations?.destructiveHint).toBe(true);
+  });
+
   it('sets destructiveHint:true when preCheck is present even at auto level', () => {
     const mcp = toMcpTool({
       ...baseTool,

@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
+import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createRegistry, type ToolRegistry } from '../../tools/registry.js';
+import { initDb, getDb, closeDb } from '../../db.js';
 import type { ToolDefinition } from '../../tools/base.js';
 import {
   createReminderCreateTool,
@@ -88,6 +92,7 @@ function internalTool(name: string): ToolDefinition {
 describe('createMcpServer (integration over InMemoryTransport)', () => {
   let temp: ReturnType<typeof makeTempStore>;
   let registry: ToolRegistry;
+  let auditDir: string;
   // Track every Client/Server created so afterEach can close them — otherwise
   // the transport pairs leak across the suite.
   let open: Array<{ close: () => Promise<void> }>;
@@ -103,6 +108,10 @@ describe('createMcpServer (integration over InMemoryTransport)', () => {
   }
 
   beforeEach(() => {
+    // Real DB so the audit-log write path (createMcpServer → auditMcpToolCall →
+    // logToolCall) runs end-to-end and can be asserted.
+    auditDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2-mcp-int-'));
+    initDb(path.join(auditDir, 'test.db'));
     temp = makeTempStore();
     open = [];
     registry = createRegistry();
@@ -115,6 +124,8 @@ describe('createMcpServer (integration over InMemoryTransport)', () => {
   afterEach(async () => {
     await Promise.all(open.map((c) => c.close()));
     temp.close();
+    closeDb();
+    fs.rmSync(auditDir, { recursive: true, force: true });
   });
 
   it('list_tools returns the exposed set and excludes internal tools', async () => {
@@ -145,6 +156,12 @@ describe('createMcpServer (integration over InMemoryTransport)', () => {
     expect(temp.count()).toBe(1);
     const text = (res.content as Array<{ type: string; text: string }>)[0].text;
     expect(text).toContain('выпить воды');
+    // The write must leave an audit trail (regression guard for the MCP path
+    // that previously called handlers without logging).
+    const audit = getDb()
+      .prepare('SELECT tool_name, success FROM audit_log')
+      .all() as Array<{ tool_name: string; success: number }>;
+    expect(audit).toEqual([{ tool_name: 'reminder_create', success: 1 }]);
   });
 
   it('maps a tool reporting failure to isError', async () => {
