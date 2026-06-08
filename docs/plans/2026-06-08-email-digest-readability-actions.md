@@ -61,13 +61,13 @@ Dependencies identified: no new npm deps. discord.js 14 already exports `StringS
 ## Implementation Steps
 
 ### Task 1: `htmlToText` utility
-- [ ] create `packages/server/src/emails/html-to-text.ts` exporting `htmlToText(html: string): string`
-- [ ] strip `<script>…</script>` and `<style>…</style>` (including contents) first
-- [ ] convert block boundaries to newlines: `<br>`, `</p>`, `</div>`, `</li>`, `</tr>`, `</h1>`–`</h6>`
-- [ ] remove all remaining tags (`<[^>]+>`); decode HTML entities — named (`&nbsp; &amp; &lt; &gt; &quot; &#39; &apos;`) and numeric (`&#NNN;`, `&#xHH;`)
-- [ ] collapse runs of blank lines/spaces to keep output compact but readable
-- [ ] write tests: tags removed; entities decoded; script/style dropped; nested/real-world HTML (a `<!DOCTYPE html>…` sample like the GERC.UA / Patreon mails); plain text with no tags returned unchanged; bare `&`/`<` in plain text not corrupted; empty string
-- [ ] run `npm test -w @r2/server` — must pass before Task 2
+- [x] create `packages/server/src/emails/html-to-text.ts` exporting `htmlToText(html: string): string`
+- [x] strip `<script>…</script>` and `<style>…</style>` (including contents) first
+- [x] convert block boundaries to newlines: `<br>`, `</p>`, `</div>`, `</li>`, `</tr>`, `</h1>`–`</h6>`
+- [x] remove all remaining tags (`<[^>]+>`); decode HTML entities — named (`&nbsp; &amp; &lt; &gt; &quot; &#39; &apos;`) and numeric (`&#NNN;`, `&#xHH;`)
+- [x] collapse runs of blank lines/spaces to keep output compact but readable
+- [x] write tests: tags removed; entities decoded; script/style dropped; nested/real-world HTML (a `<!DOCTYPE html>…` sample like the GERC.UA / Patreon mails); plain text with no tags returned unchanged; bare `&`/`<` in plain text not corrupted; empty string
+- [x] run `npm test -w @r2/server` — must pass before Task 2
 
 ### Task 2: Strip HTML at the decode chokepoint
 - [ ] in `decodePickedText` (`imap-client.ts:48`): after `decodeBodyPart(...)`, when `picked.type === 'text/html'` return `htmlToText(decoded)`, else return decoded as-is
