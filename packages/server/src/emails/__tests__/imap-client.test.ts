@@ -167,7 +167,7 @@ describe('fetchNewMessages', () => {
     expect(msgs[0].snippet).toBe('Привет, мир');
   });
 
-  it('decodes base64 text/html when bodyStructure reports base64', async () => {
+  it('strips HTML from a text/html snippet (tags never leak into the digest/scorer)', async () => {
     const html = '<p>Hello, world</p>';
     const b64Body = Buffer.from(Buffer.from(html, 'utf-8').toString('base64'), 'latin1');
     __setImapFlowCtor(
@@ -191,7 +191,69 @@ describe('fetchNewMessages', () => {
     );
     const msgs = await fetchNewMessages(account, 200, 50);
     expect(msgs[0].snippet).toContain('Hello, world');
-    expect(msgs[0].snippet).toContain('<p>');
+    expect(msgs[0].snippet).not.toContain('<p>');
+    expect(msgs[0].snippet).not.toContain('<');
+  });
+
+  it('strips a real-world text/html document (DOCTYPE/head/body) down to clean text', async () => {
+    const html =
+      '<!DOCTYPE html>\n<html lang="en"><head><style>.x{color:red}</style>' +
+      '<title>ignored</title></head><body><p>Привет&nbsp;&amp; пока</p>' +
+      '<script>track();</script><div>Вторая строка</div></body></html>';
+    const b64Body = Buffer.from(Buffer.from(html, 'utf-8').toString('base64'), 'latin1');
+    __setImapFlowCtor(
+      makeClientStub({
+        searchReturns: [209],
+        fetchRows: [
+          {
+            uid: 209,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyParts: new Map([['1', b64Body]]),
+            bodyStructure: {
+              type: 'text/html',
+              encoding: 'base64',
+              parameters: { charset: 'utf-8' },
+              part: '1',
+            },
+            internalDate: new Date(0),
+          },
+        ],
+      }) as any,
+    );
+    const msgs = await fetchNewMessages(account, 200, 50);
+    expect(msgs[0].snippet).toContain('Привет & пока');
+    expect(msgs[0].snippet).toContain('Вторая строка');
+    expect(msgs[0].snippet).not.toContain('<');
+    expect(msgs[0].snippet).not.toMatch(/DOCTYPE/i);
+    expect(msgs[0].snippet).not.toContain('track()');
+    expect(msgs[0].snippet).not.toContain('color:red');
+  });
+
+  it('passes text/plain through untouched — bare < and & are not mangled', async () => {
+    // A plain-text body that happens to contain < and & must NOT be HTML-decoded
+    // or tag-stripped (only server-declared text/html parts get the htmlToText pass).
+    const plain = 'if a < b && c > d then x';
+    __setImapFlowCtor(
+      makeClientStub({
+        searchReturns: [210],
+        fetchRows: [
+          {
+            uid: 210,
+            envelope: { from: [{ address: 'x@y' }], subject: 's' },
+            bodyParts: new Map([['1', Buffer.from(plain, 'latin1')]]),
+            bodyStructure: {
+              type: 'text/plain',
+              encoding: '7bit',
+              parameters: { charset: 'utf-8' },
+              part: '1',
+            },
+            internalDate: new Date(0),
+          },
+        ],
+      }) as any,
+    );
+    const msgs = await fetchNewMessages(account, 200, 50);
+    expect(msgs[0].snippet).toBe('if a < b && c > d then x');
   });
 
   it('prefers text/plain over text/html in multipart/alternative', async () => {
@@ -894,7 +956,7 @@ describe('fetchFullBody', () => {
     expect(full.bodyText).toBe('Привет, мир\nLine 2');
   });
 
-  it('decodes base64 body when bodyStructure reports base64', async () => {
+  it('decodes base64 body and strips HTML when bodyStructure reports text/html', async () => {
     const html = '<p>Hello, world</p>\n<p>Second line</p>';
     const b64Body = Buffer.from(Buffer.from(html, 'utf-8').toString('base64'), 'latin1');
     __setImapFlowCtor(
@@ -916,8 +978,10 @@ describe('fetchFullBody', () => {
       }) as any,
     );
     const full = await fetchFullBody(account, 8);
-    expect(full.bodyText).toContain('<p>Hello, world</p>');
-    expect(full.bodyText).toContain('<p>Second line</p>');
+    expect(full.bodyText).toContain('Hello, world');
+    expect(full.bodyText).toContain('Second line');
+    expect(full.bodyText).not.toContain('<p>');
+    expect(full.bodyText).not.toContain('<');
   });
 
   it('uses two-phase fetchOne: metadata first, then picked partId only', async () => {

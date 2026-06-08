@@ -1,6 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import type { ImapAccount, NewMessage, FullMessage } from './types.js';
 import { decodeHeader, decodeBodyPart, pickTextPart, type PickedPart } from './mime-decode.js';
+import { htmlToText } from './html-to-text.js';
 
 type ImapFlowCtor = new (opts: any) => any;
 let Ctor: ImapFlowCtor = ImapFlow as unknown as ImapFlowCtor;
@@ -44,10 +45,15 @@ function getBodyPart(bodyParts: any, partId: string): unknown {
 }
 
 // Decode the buffer of a picked text leaf. Returns '' when the message has
-// no text part (image-only) or the part wasn't returned by the server.
+// no text part (image-only) or the part wasn't returned by the server. When the
+// server declared the part `text/html`, run an HTML→text pass so raw tags stop
+// leaking into the snippet (digest + scorer), `emails_get`, the full-text
+// action, and the draft-thread context. Plain-text parts are passed through
+// untouched, so bodies that merely contain `<` or `&` are never mangled.
 function decodePickedText(buf: unknown, picked: PickedPart | null): string {
   if (!picked || buf == null) return '';
-  return decodeBodyPart(buf, picked.encoding, picked.charset);
+  const decoded = decodeBodyPart(buf, picked.encoding, picked.charset);
+  return picked.type === 'text/html' ? htmlToText(decoded) : decoded;
 }
 
 // Snippet is used for LLM scoring — a single line of collapsed whitespace is

@@ -70,12 +70,12 @@ Dependencies identified: no new npm deps. discord.js 14 already exports `StringS
 - [x] run `npm test -w @r2/server` — must pass before Task 2
 
 ### Task 2: Strip HTML at the decode chokepoint
-- [ ] in `decodePickedText` (`imap-client.ts:48`): after `decodeBodyPart(...)`, when `picked.type === 'text/html'` return `htmlToText(decoded)`, else return decoded as-is
-- [ ] confirm this single change flows to `fetchNewMessages` (snippet → digest + scorer), `fetchFullBody` (`emails_get` + full-text action), and `fetchByMessageId` (draft thread)
-- [ ] update existing test in `__tests__/imap-client.test.ts` (~line 170-195): HTML-only message snippet now asserts clean text (e.g. contains `Hello, world`, does **not** contain `<p>`)
-- [ ] add test: `text/plain` part is passed through untouched (no entity/tag mangling)
-- [ ] add test: HTML-only `fetchFullBody` returns tag-free `body_text`
-- [ ] run `npm test -w @r2/server` — must pass before Task 3
+- [x] in `decodePickedText` (`imap-client.ts:48`): after `decodeBodyPart(...)`, when `picked.type === 'text/html'` return `htmlToText(decoded)`, else return decoded as-is
+- [x] confirm this single change flows to `fetchNewMessages` (snippet → digest + scorer), `fetchFullBody` (`emails_get` + full-text action), and `fetchByMessageId` (draft thread)
+- [x] update existing test in `__tests__/imap-client.test.ts` (~line 170-195): HTML-only message snippet now asserts clean text (e.g. contains `Hello, world`, does **not** contain `<p>`)
+- [x] add test: `text/plain` part is passed through untouched (no entity/tag mangling)
+- [x] add test: HTML-only `fetchFullBody` returns tag-free `body_text`
+- [x] run `npm test -w @r2/server` — must pass before Task 3
 
 ### Task 3: Select-menu support in the plain-data component model
 - [ ] in `cognition/types.ts`: add `SelectOptionData { label; value; description?; emoji? }` and `SelectMenuData { customId; placeholder?; options: SelectOptionData[] }`; widen `ComponentData` to `{ type: 'row'; buttons: ButtonData[] } | { type: 'select'; menu: SelectMenuData }`
