@@ -1378,4 +1378,36 @@ describe('fetchByMessageId', () => {
     expect(msg!.bodyText).toContain('body text');
     expect(calls[0]).toEqual({ header: { 'Message-ID': '<m42@h>' } });
   });
+
+  it('strips HTML from an HTML-only message body (draft-thread context)', async () => {
+    const Ctor = class {
+      async connect() {}
+      async logout() {}
+      mailboxOpen = vi.fn(async () => {});
+      search = vi.fn(async () => [7]);
+      fetchAll = vi.fn(async () => [
+        {
+          uid: 7,
+          envelope: { from: [{ name: 'X', address: 'x@y' }], subject: 'hi' },
+          bodyParts: new Map([
+            ['1', Buffer.from('<!DOCTYPE html><html><body><p>Hello, world</p></body></html>', 'latin1')],
+          ]),
+          bodyStructure: {
+            type: 'text/html',
+            encoding: '7bit',
+            parameters: { charset: 'utf-8' },
+            part: '1',
+          },
+          internalDate: new Date('2026-04-20T10:00:00Z'),
+        },
+      ]);
+      fetchOne = vi.fn();
+    };
+    __setImapFlowCtor(Ctor as any);
+    const msg = await fetchByMessageId(account, '<m7@h>');
+    expect(msg).not.toBeNull();
+    expect(msg!.bodyText).toContain('Hello, world');
+    expect(msg!.bodyText).not.toContain('<p>');
+    expect(msg!.bodyText).not.toContain('DOCTYPE');
+  });
 });

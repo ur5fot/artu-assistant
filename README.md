@@ -391,6 +391,10 @@ and either delivered as a digest in Discord or surfaced on demand via
 New accounts skip historical backlog on first connect — only emails arriving
 **after** the account is configured are processed. Bodies and headers are
 MIME-decoded (quoted-printable, base64, charset via `bodyStructure` dispatch).
+HTML-only messages (no `text/plain` part) are converted to readable plain text
+at the decode chokepoint, so raw tags no longer leak into digest previews, the
+importance scorer input, `emails_get`, the full-text action, or draft-thread
+context; plain-text bodies are passed through untouched.
 
 **Mailbox-recreate self-heal (`UIDVALIDITY`).** IMAP UIDs are only stable while
 the mailbox's `UIDVALIDITY` is unchanged. If a provider recreates/resets the
@@ -424,6 +428,14 @@ again only after a successful poll resets the flag.
 
 Urgent emails (`importance=5`) ping immediately when `EMAIL_URGENT_ENABLED=true`
 (suppressed during quiet hours; one ping per cognition tick).
+
+**Actionable digest.** The digest carries a select-menu under the list — pick an
+email to open an ephemeral action card with five buttons: **Разобрать** (mark
+handled / drop from the next digest, idempotent), **Ответить** (the same Claude
+draft flow as urgent pings), **🙈 Отправитель** / **🙈 Тема** (the same TTL-based
+suppression), and **Полный текст** (fetch the full, readable body on demand).
+Urgent and digest emails share one action surface — only dismiss and full-text
+are digest-specific.
 
 **One-click drafts.** The urgent ping carries a `Draft reply` button. Click →
 R2 walks the IMAP thread via `References`/`In-Reply-To` headers, asks Claude
