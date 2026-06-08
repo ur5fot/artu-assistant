@@ -39,8 +39,7 @@ describe('toCallToolResult', () => {
     const result: ToolResult = { success: false };
     const out = toCallToolResult(result);
     expect(out.isError).toBe(true);
-    expect(out.content[0].type).toBe('text');
-    expect((out.content[0] as { text: string }).text.length).toBeGreaterThan(0);
+    expect(out.content).toEqual([{ type: 'text', text: 'Tool reported failure' }]);
   });
 });
 

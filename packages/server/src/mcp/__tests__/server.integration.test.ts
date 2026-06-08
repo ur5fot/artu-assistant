@@ -85,21 +85,26 @@ function internalTool(name: string): ToolDefinition {
   };
 }
 
-/** Wire a Client to the MCP server over an in-memory transport pair. */
-async function connectClient(registry: ToolRegistry, denylist: string[] = []): Promise<Client> {
-  const server = createMcpServer({ registry, denylist });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: 'test-client', version: '0.0.0' });
-  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-  return client;
-}
-
 describe('createMcpServer (integration over InMemoryTransport)', () => {
   let temp: ReturnType<typeof makeTempStore>;
   let registry: ToolRegistry;
+  // Track every Client/Server created so afterEach can close them — otherwise
+  // the transport pairs leak across the suite.
+  let open: Array<{ close: () => Promise<void> }>;
+
+  /** Wire a Client to the MCP server over an in-memory transport pair. */
+  async function connectClient(reg: ToolRegistry, denylist: string[] = []): Promise<Client> {
+    const server = createMcpServer({ registry: reg, denylist });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    open.push(client, server);
+    return client;
+  }
 
   beforeEach(() => {
     temp = makeTempStore();
+    open = [];
     registry = createRegistry();
     registry.register(readTool('weather', 'It is 20°C in Kyiv'));
     registry.register(createReminderCreateTool({ reminderStore: temp.store }));
@@ -107,7 +112,8 @@ describe('createMcpServer (integration over InMemoryTransport)', () => {
     registry.register(internalTool('code_deploy')); // internal → must be excluded
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await Promise.all(open.map((c) => c.close()));
     temp.close();
   });
 

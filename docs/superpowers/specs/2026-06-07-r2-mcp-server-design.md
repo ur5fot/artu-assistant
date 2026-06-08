@@ -127,6 +127,11 @@ before every tool call**, which is the human gate.
 ## Security & PII
 
 - Bind `127.0.0.1` only (already how the Express server binds); no network auth in v1.
+- DNS-rebinding guard: the `/mcp` router rejects any request whose `Host` (or, when
+  present, `Origin`) header does not resolve to loopback. Binding to `127.0.0.1` alone
+  does not stop a malicious page from rebinding a hostname it controls to `127.0.0.1`
+  and POSTing to this unauthenticated, tool-executing endpoint; the SDK transport
+  (v1.29.0) has no built-in Host/Origin validation, so the router enforces it.
 - Denylist keeps R2 self-management (`code-deploy`/`code-task`) out of reach.
 - PII: v1 returns raw tool results. Anonymizing via the Presidio proxy would strip the
   data the user actually wants. Optional future flag: route MCP results through the PII

@@ -28,17 +28,29 @@ describe('mountMcpRouter', () => {
     registry = makeRegistry();
   });
 
-  it('mounts the /mcp route when enabled', async () => {
+  it('mounts the /mcp route when enabled and serves the registered tools', async () => {
     const mounted = mountMcpRouter(app, { enabled: true, registry, denylist: [] });
     expect(mounted).toBe(true);
 
-    // A POST to /mcp reaches the MCP transport (not a 404). The MCP transport
-    // rejects a non-JSON-RPC body, but the route exists.
+    // A POST to /mcp reaches the MCP transport and a real tools/list exchange
+    // returns the registered tool — not just "the route exists".
     const res = await request(app)
       .post('/mcp')
       .set('Accept', 'application/json, text/event-stream')
       .send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
-    expect(res.status).not.toBe(404);
+    expect(res.status).toBe(200);
+    // Streamable HTTP replies as SSE; the JSON-RPC result is in the body text.
+    expect(res.text).toContain('ping');
+  });
+
+  it('rejects a non-local Host header (DNS-rebinding guard)', async () => {
+    mountMcpRouter(app, { enabled: true, registry, denylist: [] });
+    const res = await request(app)
+      .post('/mcp')
+      .set('Host', 'evil.example.com')
+      .set('Accept', 'application/json, text/event-stream')
+      .send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+    expect(res.status).toBe(403);
   });
 
   it('does not mount the /mcp route when disabled', async () => {

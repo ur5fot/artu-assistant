@@ -70,6 +70,28 @@ export function createMcpServer({ registry, denylist = [] }: McpServerOptions): 
 }
 
 /**
+ * Guard against DNS-rebinding. The endpoint is unauthenticated and bound to
+ * loopback, but a malicious web page can point a hostname it controls at
+ * 127.0.0.1 and have the victim's browser POST here (the browser sends the
+ * attacker's domain in `Host`). We only accept requests whose `Host` — and
+ * `Origin`, when present — resolve to loopback. SDK 1.29.0's transport has no
+ * built-in Host/Origin validation, so this is the only line of defence.
+ */
+function isLoopbackHost(value: string | undefined): boolean {
+  if (!value) return false;
+  // Strip scheme (Origin carries one) and any path, leaving host[:port].
+  let host = value.replace(/^[a-z]+:\/\//i, '').split('/')[0];
+  if (host.startsWith('[')) {
+    // IPv6 literal: `[::1]:3001` → `::1`
+    host = host.slice(1, host.indexOf(']'));
+  } else {
+    host = host.split(':')[0];
+  }
+  host = host.toLowerCase();
+  return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+}
+
+/**
  * Express router exposing the MCP endpoint over Streamable HTTP at the mount
  * point (mounted at `/mcp` in `index.ts`). Stateless mode: a fresh `Server` +
  * `StreamableHTTPServerTransport` per request, torn down when the response
@@ -80,6 +102,15 @@ export function createMcpRouter(options: McpServerOptions): Router {
   router.use(express.json());
 
   router.post('/', async (req, res) => {
+    const origin = req.headers.origin;
+    if (!isLoopbackHost(req.headers.host) || (origin && !isLoopbackHost(origin))) {
+      res.status(403).json({
+        jsonrpc: '2.0',
+        error: { code: -32600, message: 'Forbidden: non-local Host/Origin' },
+        id: null,
+      });
+      return;
+    }
     const server = createMcpServer(options);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on('close', () => {
