@@ -151,8 +151,14 @@ stdio bridge for Claude Desktop. Local only, no network auth, PII raw in v1.
       success + error + edge cases (35 tests)
 
 ### Task 9: [Final] Documentation
-- [ ] finalize README MCP section and `.env.example`
-- [ ] note the new `packages/server/src/mcp/` module in project knowledge/AGENTS.md if patterns warrant
+- [x] finalize README MCP section and `.env.example` — both already complete and
+      verified accurate (README §"MCP server", `.env.example` lines 249-262):
+      enable/restart, Streamable HTTP endpoint, Claude Code `mcp add`, Claude Desktop
+      bridge config, denylist semantics
+- [x] note the new `packages/server/src/mcp/` module in project knowledge/AGENTS.md if
+      patterns warrant — added the `mcp/` subtree (to-mcp-tool, runtime, select-tools,
+      server, mount) to the Архитектура tree and `MCP_ENABLED`/`MCP_TOOL_DENYLIST` to
+      the Env Variables block
 
 *Note: ralphex automatically moves completed plans to `docs/plans/completed/`.*
 

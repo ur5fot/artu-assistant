@@ -70,6 +70,12 @@ r2/
 │   │   │   ├── tools/
 │   │   │   │   ├── registry.ts       # Авто-загрузка и регистрация tools
 │   │   │   │   └── base.ts           # ToolDefinition interface
+│   │   │   ├── mcp/                  # R2 as a local MCP server (gated on MCP_ENABLED)
+│   │   │   │   ├── to-mcp-tool.ts    # ToolDefinition → MCP Tool (inputSchema + destructiveHint)
+│   │   │   │   ├── runtime.ts        # ToolResult → CallToolResult + headless ToolContext
+│   │   │   │   ├── select-tools.ts   # selectMcpTools: arsenal minus internal/forbidden + denylist
+│   │   │   │   ├── server.ts         # createMcpRouter: low-level Server over Streamable HTTP
+│   │   │   │   └── mount.ts          # mountMcpRouter helper (gated, denylist from env)
 │   │   │   └── errors.ts             # Централизованная обработка ошибок
 │   │   ├── package.json
 │   │   └── tsconfig.json
@@ -574,6 +580,9 @@ WEATHER_ALERT_DEDUPE_H=12          # don't re-ping the same event for N hours (1
 WEATHER_QUIET_START=22             # no pings at/after this local hour (0-23, else default)
 WEATHER_QUIET_END=8                # no pings before this local hour (0-23, else default)
 REDELIVER_MAX_AGE_MS=21600000     # max age (ms) of an undelivered cognition publish run still re-delivered on Discord (re)connect/restart; valid range 5m..48h, else default 6h
+# MCP server (expose R2 tools to Claude Desktop / Claude Code) — see packages/server/src/mcp/
+MCP_ENABLED=false                 # off by default; only an exact "true" mounts /mcp (Streamable HTTP, bound to 127.0.0.1 inside the existing Express app)
+MCP_TOOL_DENYLIST=                 # comma-separated extra tool names to hide; EXTENDS the built-in internal denylist (code_deploy, code_task, task, eval_add, eval_run, prompt-overlay); forbidden-level tools always excluded; unknown names ignored; whitespace trimmed
 ```
 
 ## Discord Bot (DM channel)
