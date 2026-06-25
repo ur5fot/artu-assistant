@@ -56,11 +56,11 @@ soft; `done≥1` informative only.
 
 ### Task 1: Title signature pure module
 
-- [ ] write tests `packages/server/src/observers/__tests__/title-signature.test.ts` (table-driven): known domains (youtube/facebook/twitch/instagram/reddit/telegram), generic host extractor (`foo.com`), bracketed counters `(17)`/`(257)` stripped, emoji/`#`/`@` prefixes stripped, pure-number token skipped, empty/null/uninformative → `''`, output shape `<app>:<token>`
-- [ ] create `packages/server/src/observers/title-signature.ts` exporting `titleSignature(app: string, title: string | null): string`
-- [ ] implement domain detection (known-domain substring scan + `\b([a-z0-9-]+)\.(com|org|net|tv|io|me)\b` host extractor) then first-meaningful-word fallback (strip leading bracketed counters, emoji, `#`/`@`, punctuation; first token length ≥2 and not all-digits)
-- [ ] empty/uninformative title returns `''` outright (no `<app>:` fallback)
-- [ ] run `npm test` (server) — must pass before Task 2
+- [x] write tests `packages/server/src/observers/__tests__/title-signature.test.ts` (table-driven): known domains (youtube/facebook/twitch/instagram/reddit/telegram), generic host extractor (`foo.com`), bracketed counters `(17)`/`(257)` stripped, emoji/`#`/`@` prefixes stripped, pure-number token skipped, empty/null/uninformative → `''`, output shape `<app>:<token>`
+- [x] create `packages/server/src/observers/title-signature.ts` exporting `titleSignature(app: string, title: string | null): string`
+- [x] implement domain detection (known-domain substring scan + `\b([a-z0-9-]+)\.(com|org|net|tv|io|me)\b` host extractor) then first-meaningful-word fallback (strip leading bracketed counters, emoji, `#`/`@`, punctuation; first token length ≥2 and not all-digits)
+- [x] empty/uninformative title returns `''` outright (no `<app>:` fallback)
+- [x] run `npm test` (server) — must pass before Task 2
 
 ### Task 2: Store — listFeedbackSince
 
