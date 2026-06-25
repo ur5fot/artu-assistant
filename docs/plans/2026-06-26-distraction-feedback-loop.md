@@ -95,8 +95,8 @@ soft; `done≥1` informative only.
 
 ### Task 6: Documentation
 
-- [ ] update `AGENTS.md` distraction section (or the module's doc block) noting the feedback-loop signature + thresholds if a relevant section exists
-- [ ] move design spec reference / note iter-2 in any distraction overview doc if present
+- [x] update `AGENTS.md` distraction section (or the module's doc block) noting the feedback-loop signature + thresholds if a relevant section exists — appended iter-2 feedback-loop note to the `distractionPullback` entry (signature, lookback env, FeedbackHint thresholds)
+- [x] move design spec reference / note iter-2 in any distraction overview doc if present — marked the "Future → персистентное обучение из фидбэка" item shipped in `2026-06-02-distraction-pullback-design.md`, pointing at the iter-2 design spec
 
 ## Technical Details
 
