@@ -186,6 +186,51 @@ describe('createDistractionEvalStore', () => {
     });
   });
 
+  describe('listFeedbackSince', () => {
+    it('returns only rows that have feedback attached', () => {
+      const store = createDistractionEvalStore({ db: getDb() });
+      store.recordEval(baseInput({ app_name: 'NoFb', dwell_started_at: T0, evaluated_at: T0 }));
+      store.recordEval(baseInput({ app_name: 'Fb', dwell_started_at: T0 + MIN, evaluated_at: T0 + MIN }));
+      store.recordFeedback('Fb', T0 + MIN, 'work');
+
+      const rows = store.listFeedbackSince(T0);
+      expect(rows.map((r) => r.app_name)).toEqual(['Fb']);
+      expect(rows[0].feedback).toBe('work');
+    });
+
+    it('respects the since lower bound (inclusive)', () => {
+      const store = createDistractionEvalStore({ db: getDb() });
+      store.recordEval(baseInput({ app_name: 'Before', dwell_started_at: T0 - MIN, evaluated_at: T0 - MIN }));
+      store.recordEval(baseInput({ app_name: 'AtSince', dwell_started_at: T0, evaluated_at: T0 }));
+      store.recordEval(baseInput({ app_name: 'After', dwell_started_at: T0 + MIN, evaluated_at: T0 + MIN }));
+      store.recordFeedback('Before', T0 - MIN, 'work');
+      store.recordFeedback('AtSince', T0, 'work');
+      store.recordFeedback('After', T0 + MIN, 'done');
+
+      const rows = store.listFeedbackSince(T0);
+      expect(rows.map((r) => r.app_name)).toEqual(['AtSince', 'After']);
+    });
+
+    it('returns rows in chronological ASC order', () => {
+      const store = createDistractionEvalStore({ db: getDb() });
+      store.recordEval(baseInput({ app_name: 'Third', dwell_started_at: T0 + 3 * MIN, evaluated_at: T0 + 3 * MIN }));
+      store.recordEval(baseInput({ app_name: 'First', dwell_started_at: T0 + MIN, evaluated_at: T0 + MIN }));
+      store.recordEval(baseInput({ app_name: 'Second', dwell_started_at: T0 + 2 * MIN, evaluated_at: T0 + 2 * MIN }));
+      store.recordFeedback('Third', T0 + 3 * MIN, 'work');
+      store.recordFeedback('First', T0 + MIN, 'done');
+      store.recordFeedback('Second', T0 + 2 * MIN, 'work');
+
+      const rows = store.listFeedbackSince(T0);
+      expect(rows.map((r) => r.app_name)).toEqual(['First', 'Second', 'Third']);
+    });
+
+    it('returns an empty array when no feedback rows exist', () => {
+      const store = createDistractionEvalStore({ db: getDb() });
+      store.recordEval(baseInput({ evaluated_at: T0 }));
+      expect(store.listFeedbackSince(T0)).toEqual([]);
+    });
+  });
+
   describe('recordFeedback', () => {
     it('attaches "work" feedback to the latest eval for a dwell', () => {
       const store = createDistractionEvalStore({ db: getDb() });

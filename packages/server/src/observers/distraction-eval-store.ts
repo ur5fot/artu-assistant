@@ -37,6 +37,8 @@ export interface DistractionEvalStore {
   countEvalsSince(since: number): number;
   /** Evals with `evaluated_at` in `[from, to]`, chronological — the `activity` tool's observer layer. */
   listEvalsInWindow(from: number, to: number): DistractionEvalRow[];
+  /** Evals carrying button feedback with `evaluated_at >= since`, chronological — the judge feedback loop. */
+  listFeedbackSince(since: number): DistractionEvalRow[];
   /** Max snooze_until still in the future relative to `now`, else null. */
   activeSnoozeUntil(now: number): number | null;
   /** Insert a new eval row, returning its id. */
@@ -80,6 +82,11 @@ export function createDistractionEvalStore(deps: { db: Database.Database }): Dis
      WHERE evaluated_at >= ? AND evaluated_at <= ?
      ORDER BY evaluated_at ASC, id ASC`,
   );
+  const selectFeedbackSince = db.prepare(
+    `SELECT ${COLUMNS} FROM distraction_evals
+     WHERE feedback IS NOT NULL AND evaluated_at >= ?
+     ORDER BY evaluated_at ASC, id ASC`,
+  );
   const selectSnooze = db.prepare(
     `SELECT MAX(snooze_until) AS s FROM distraction_evals WHERE snooze_until > ?`,
   );
@@ -117,6 +124,10 @@ export function createDistractionEvalStore(deps: { db: Database.Database }): Dis
 
     listEvalsInWindow(from, to) {
       return selectInWindow.all(from, to) as DistractionEvalRow[];
+    },
+
+    listFeedbackSince(since) {
+      return selectFeedbackSince.all(since) as DistractionEvalRow[];
     },
 
     activeSnoozeUntil(now) {

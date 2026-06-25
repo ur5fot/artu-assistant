@@ -64,10 +64,10 @@ soft; `done≥1` informative only.
 
 ### Task 2: Store — listFeedbackSince
 
-- [ ] write tests in `packages/server/src/observers/__tests__/distraction-eval-store.test.ts`: returns only `feedback IS NOT NULL` rows, respects `since` lower bound (boundary inclusive), chronological `ASC` order
-- [ ] add `listFeedbackSince(since: number): DistractionEvalRow[]` to the `DistractionEvalStore` interface
-- [ ] implement with a prepared statement reusing `COLUMNS`: `WHERE feedback IS NOT NULL AND evaluated_at >= ? ORDER BY evaluated_at ASC, id ASC`
-- [ ] run `npm test` — must pass before Task 3
+- [x] write tests in `packages/server/src/observers/__tests__/distraction-eval-store.test.ts`: returns only `feedback IS NOT NULL` rows, respects `since` lower bound (boundary inclusive), chronological `ASC` order
+- [x] add `listFeedbackSince(since: number): DistractionEvalRow[]` to the `DistractionEvalStore` interface
+- [x] implement with a prepared statement reusing `COLUMNS`: `WHERE feedback IS NOT NULL AND evaluated_at >= ? ORDER BY evaluated_at ASC, id ASC`
+- [x] run `npm test` — must pass before Task 3
 
 ### Task 3: Judge prompt — FeedbackHint block
 
