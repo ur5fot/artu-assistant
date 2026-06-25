@@ -71,11 +71,11 @@ soft; `done≥1` informative only.
 
 ### Task 3: Judge prompt — FeedbackHint block
 
-- [ ] write tests in `packages/server/src/cognition/__tests__/handlers/distractionPullback.judge.test.ts`: `hint` undefined → no feedback block; `work>=2` → hard "верни working" instruction present (mentions signature); `work==1` → soft "учитывай" line only (no hard instruction); `done>=1` → "не торопись" line; `work` and `done` lines can co-occur
-- [ ] export `interface FeedbackHint { signature: string; work: number; done: number }` from `distractionPullback.judge.ts`
-- [ ] extend `buildJudgePrompt(timeline, current, hint?)` to append the RU feedback section per the spec thresholds (work≥2 hard, work==1 soft, done≥1 informative); judge retains override right on explicit infinite-feed titles (wording from spec)
-- [ ] extend `judgeDistraction(deps, timeline, current, hint?)` to thread `hint` into `buildJudgePrompt`
-- [ ] run `npm test` — must pass before Task 4
+- [x] write tests in `packages/server/src/cognition/__tests__/handlers/distractionPullback.judge.test.ts`: `hint` undefined → no feedback block; `work>=2` → hard "верни working" instruction present (mentions signature); `work==1` → soft "учитывай" line only (no hard instruction); `done>=1` → "не торопись" line; `work` and `done` lines can co-occur
+- [x] export `interface FeedbackHint { signature: string; work: number; done: number }` from `distractionPullback.judge.ts`
+- [x] extend `buildJudgePrompt(timeline, current, hint?)` to append the RU feedback section per the spec thresholds (work≥2 hard, work==1 soft, done≥1 informative); judge retains override right on explicit infinite-feed titles (wording from spec)
+- [x] extend `judgeDistraction(deps, timeline, current, hint?)` to thread `hint` into `buildJudgePrompt`
+- [x] run `npm test` — must pass before Task 4
 
 ### Task 4: Handler — signature aggregation + hint threading
 

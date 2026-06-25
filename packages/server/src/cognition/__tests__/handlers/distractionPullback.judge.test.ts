@@ -4,6 +4,7 @@ import {
   judgeDistraction,
   type TimelineEntry,
   type CurrentDwell,
+  type FeedbackHint,
 } from '../../handlers/distractionPullback.judge.js';
 
 const TIMELINE: TimelineEntry[] = [
@@ -83,6 +84,74 @@ describe('buildJudgePrompt', () => {
     // distracted is reserved for infinite/feed formats
     expect(system).toMatch(/лент/i);
     expect(system).toMatch(/Shorts|Reels|TikTok/i);
+  });
+});
+
+describe('buildJudgePrompt — feedback hint', () => {
+  const SIG = 'Google Chrome:facebook';
+
+  it('omits the feedback block when hint is undefined', () => {
+    const { user } = buildJudgePrompt(TIMELINE, CURRENT);
+    expect(user).not.toMatch(/сигнатур/i);
+    expect(user).not.toMatch(/работу/);
+  });
+
+  it('emits a hard "верни working" instruction for work>=2 (mentions signature)', () => {
+    const hint: FeedbackHint = { signature: SIG, work: 3, done: 0 };
+    const { user } = buildJudgePrompt(TIMELINE, CURRENT, hint);
+    expect(user).toContain(SIG);
+    expect(user).toContain('верни "working"');
+    expect(user).toContain('3');
+    // no soft "1×" line when hard bias applies
+    expect(user).not.toContain('1× сказал');
+    // no done line when done==0
+    expect(user).not.toMatch(/не торопись/);
+  });
+
+  it('emits only a soft "учитывай" line for work==1 (no hard instruction)', () => {
+    const hint: FeedbackHint = { signature: SIG, work: 1, done: 0 };
+    const { user } = buildJudgePrompt(TIMELINE, CURRENT, hint);
+    expect(user).toContain(SIG);
+    expect(user).toContain('учитывай');
+    expect(user).not.toContain('верни "working"');
+    expect(user).not.toMatch(/не торопись/);
+  });
+
+  it('emits a "не торопись" line for done>=1', () => {
+    const hint: FeedbackHint = { signature: SIG, work: 0, done: 2 };
+    const { user } = buildJudgePrompt(TIMELINE, CURRENT, hint);
+    expect(user).toContain(SIG);
+    expect(user).toMatch(/не торопись/);
+    expect(user).not.toContain('верни "working"');
+    expect(user).not.toContain('учитывай');
+  });
+
+  it('lets work and done lines co-occur', () => {
+    const hint: FeedbackHint = { signature: SIG, work: 2, done: 1 };
+    const { user } = buildJudgePrompt(TIMELINE, CURRENT, hint);
+    expect(user).toContain('верни "working"');
+    expect(user).toMatch(/не торопись/);
+  });
+
+  it('threads the hint through judgeDistraction into the prompt', async () => {
+    const { anthropic, create } = fakeAnthropic(
+      makeToolUseResponse({
+        verdict: 'working',
+        confidence: 70,
+        reason: 'r',
+        work_summary: 'w',
+      }),
+    );
+    const hint: FeedbackHint = { signature: SIG, work: 3, done: 0 };
+    await judgeDistraction(
+      { anthropic: anthropic as any, model: 'm', signal: notAborted },
+      TIMELINE,
+      CURRENT,
+      hint,
+    );
+    const callArgs = (create.mock.calls as any[])[0][0] as any;
+    expect(callArgs.messages[0].content).toContain('верни "working"');
+    expect(callArgs.messages[0].content).toContain(SIG);
   });
 });
 

@@ -15,6 +15,18 @@ export interface CurrentDwell {
   dwellMin: number;
 }
 
+/**
+ * Aggregated past button feedback for the current dwell's title signature.
+ * Injected into the judge prompt to bias (not override) the verdict.
+ */
+export interface FeedbackHint {
+  signature: string;
+  /** count of past "это по работе" for this signature */
+  work: number;
+  /** count of past "✅ Закончил" for this signature */
+  done: number;
+}
+
 export type JudgeVerdict = 'distracted' | 'break' | 'working' | 'unknown';
 
 export interface JudgeResult {
@@ -91,6 +103,7 @@ const VERDICT_TOOL: Tool = {
 export function buildJudgePrompt(
   timeline: TimelineEntry[],
   current: CurrentDwell,
+  hint?: FeedbackHint,
 ): { system: string; user: string } {
   const lines = timeline.map(
     (e) => `- ${e.app} · «${e.title}» — ${e.durationMin} мин`,
@@ -98,15 +111,42 @@ export function buildJudgePrompt(
   const timelineBlock = lines.length > 0 ? lines.join('\n') : '(пусто)';
   const currentLine = `${current.app} · «${current.title}» — уже ${current.dwellMin} мин`;
 
+  const feedbackBlock = buildFeedbackBlock(hint);
+
   const user = `Таймлайн активных окон (самые свежие сверху):
 ${timelineBlock}
 
 Сейчас юзер залип здесь:
 ${currentLine}
-
+${feedbackBlock}
 Оцени и ответь инструментом report_verdict.`;
 
   return { system: SYSTEM_PROMPT, user };
+}
+
+/**
+ * Renders the optional feedback section appended to the user message. Empty
+ * string when there is no hint (today's behavior). Thresholds:
+ * `work>=2` → hard bias to "working"; `work==1` → soft; `done>=1` → informative.
+ */
+function buildFeedbackBlock(hint?: FeedbackHint): string {
+  if (!hint || (hint.work <= 0 && hint.done <= 0)) return '';
+  const sig = hint.signature;
+  const lines: string[] = [];
+  if (hint.work >= 2) {
+    lines.push(
+      `По сигнатуре \`${sig}\` юзер уже ${hint.work}× помечал это как работу. НЕ ставь "distracted" — верни "working", если только заголовок прямо сейчас не явная бесконечная лента (Shorts/Reels/соцлента).`,
+    );
+  } else if (hint.work === 1) {
+    lines.push(`По сигнатуре \`${sig}\` юзер 1× сказал, что это работа — учитывай это.`);
+  }
+  if (hint.done >= 1) {
+    lines.push(
+      `По сигнатуре \`${sig}\` юзер обычно сам доделывает и уходит — не торопись пинговать.`,
+    );
+  }
+  if (lines.length === 0) return '';
+  return `\nЧто известно из прошлой обратной связи:\n${lines.join('\n')}\n`;
 }
 
 export interface JudgeDeps {
@@ -128,9 +168,10 @@ export async function judgeDistraction(
   deps: JudgeDeps,
   timeline: TimelineEntry[],
   current: CurrentDwell,
+  hint?: FeedbackHint,
 ): Promise<JudgeResult> {
   const { anthropic, model, signal } = deps;
-  const { system, user } = buildJudgePrompt(timeline, current);
+  const { system, user } = buildJudgePrompt(timeline, current, hint);
 
   const msg = await anthropic.messages.create(
     {
