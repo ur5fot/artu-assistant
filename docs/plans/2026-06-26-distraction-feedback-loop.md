@@ -88,10 +88,10 @@ soft; `done≥1` informative only.
 
 ### Task 5: Wire default + verify acceptance criteria
 
-- [ ] set `feedbackLookbackDays: 60` at the handler construction/registration site (locate where `createDistractionHandler` is wired into cognition)
-- [ ] verify acceptance criteria from spec: (1) sig with ≥2 work → hard instruction in prompt; (2) FB replay (`Google Chrome:facebook`, 3× work) → no ping end-to-end; (3) done-only → soft line, never forces; (4) empty titles unchanged; (5) no migration, existing distraction tests green
-- [ ] run full server test suite — must pass
-- [ ] run linter (`npm run lint` in server) — fix all issues
+- [x] set `feedbackLookbackDays: 60` at the handler construction/registration site (locate where `createDistractionHandler` is wired into cognition) — wired in `packages/server/src/index.ts` via `envInt(DISTRACTION_FEEDBACK_LOOKBACK_DAYS, 60, 1, 365)`
+- [x] verify acceptance criteria from spec: (1) sig with ≥2 work → hard instruction in prompt; (2) FB replay (`Google Chrome:facebook`, 3× work) → no ping end-to-end; (3) done-only → soft line, never forces; (4) empty titles unchanged; (5) no migration, existing distraction tests green — all covered by Task 1–4 test suites, 1887/1887 green
+- [x] run full server test suite — must pass (1887 passed)
+- [x] run linter (`npm run lint` in server) — no `lint` script in repo; ran `tsc --noEmit` instead, clean
 
 ### Task 6: Documentation
 

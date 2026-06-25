@@ -1078,6 +1078,9 @@ const registerDiscordGatedHandlers = guardOnce(async () => {
         // poller block uses so the two stay in lockstep without shared scope.
         freshnessMs: envInt(process.env.WINDOW_LOGGER_INTERVAL_MS, 30_000, 5_000, 300_000) * 3,
         snoozeMin: distractionSnoozeMin,
+        // Lookback (days) for the button-feedback judge hint (spec iter-2). 60d
+        // default; signatures with ≥2 past `work` feedbacks bias the judge.
+        feedbackLookbackDays: envInt(process.env.DISTRACTION_FEEDBACK_LOOKBACK_DAYS, 60, 1, 365),
       }),
     );
     console.log('[distraction] pullback handler registered');
