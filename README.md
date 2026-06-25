@@ -592,6 +592,13 @@ like `work` for re-nag suppression and feeds the judge's future learning),
 pings, feedback and snoozes are persisted in `distraction_evals` for dedup and
 the daily cap.
 
+The feedback loop is live (iter-2): on each judge run R2 signatures the current
+dwell (`<app>:<token>`) and replays past `work`/`done` taps for the same
+signature into the prompt, biasing the verdict — `work≥2` → hard bias to
+`working`, `work==1` → soft hint, `done≥1` → "don't rush to ping". The judge
+keeps override rights on an obvious infinite feed. Lookback is
+`DISTRACTION_FEEDBACK_LOOKBACK_DAYS` (default 60).
+
 **Self-diagnostics (iter 1.5).** The poller can go silently blind — after a
 sleep/wake macOS often revokes Automation access and `osascript` starts
 returning `null`/timeout, so the observer stops recording with no log line and
@@ -626,7 +633,9 @@ exactly one alert per blind streak.
    `DISTRACTION_REEVAL_MIN` (30), `DISTRACTION_CONFIDENCE_PCT` (70 — min judge
    confidence to ping), `DISTRACTION_SNOOZE_MIN` (60 — "Отстань" mute window),
    `DISTRACTION_DAILY_LLM_CAP` (40 — max judge calls/day),
-   `DISTRACTION_JUDGE_MODEL` (`claude-haiku-4-5`).
+   `DISTRACTION_JUDGE_MODEL` (`claude-haiku-4-5`),
+   `DISTRACTION_FEEDBACK_LOOKBACK_DAYS` (60 — days of button feedback fed to the
+   judge hint).
 4. **Old restore handler is off by default.** The iter-1 `contextSwitch`
    (passive "restore on return") stays in the codebase but silent; set
    `CONTEXT_SWITCH_ENABLED=true` to re-enable it alongside the pullback. Its

@@ -133,6 +133,15 @@ describe('buildJudgePrompt — feedback hint', () => {
     expect(user).toMatch(/не торопись/);
   });
 
+  it('emits the soft line (not the hard one) alongside done for work==1 && done>=1', () => {
+    const hint: FeedbackHint = { signature: SIG, work: 1, done: 1 };
+    const { user } = buildJudgePrompt(TIMELINE, CURRENT, hint);
+    // soft + done co-occur, hard bias stays suppressed (mutually exclusive branch)
+    expect(user).toContain('учитывай');
+    expect(user).toMatch(/не торопись/);
+    expect(user).not.toContain('верни "working"');
+  });
+
   it('threads the hint through judgeDistraction into the prompt', async () => {
     const { anthropic, create } = fakeAnthropic(
       makeToolUseResponse({

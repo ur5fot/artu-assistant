@@ -285,6 +285,43 @@ describe('createDistractionHandler.run', () => {
     });
   });
 
+  it('aggregates mixed work/done feedback into the hint counts', async () => {
+    const judge = vi.fn<DistractionJudge>(async () => VERDICT_WORKING);
+    const { store, evalStore, handler } = mkHandler(judge);
+    seedFeedback(evalStore, 'Chrome', 'Facebook', T0 - 10 * DAY, 'done');
+    seedFeedback(evalStore, 'Chrome', 'Facebook — Log In', T0 - 10 * DAY + MIN, 'done');
+    seedFeedback(evalStore, 'Chrome', 'facebook.com', T0 - 10 * DAY + 2 * MIN, 'work');
+
+    const { now } = seedDriftIntoChromeTitled(store, 'Facebook — Log In or Sign Up');
+    await handler.run(mkCtx(now));
+
+    expect(judge).toHaveBeenCalledOnce();
+    expect(judge.mock.calls[0][3]).toEqual({
+      signature: 'Chrome:facebook',
+      work: 1,
+      done: 2,
+    });
+  });
+
+  it('excludes feedback older than the lookback window from the hint', async () => {
+    const judge = vi.fn<DistractionJudge>(async () => VERDICT_WORKING);
+    const { store, evalStore, handler } = mkHandler(judge);
+    // One row inside the 60-day window, one well outside it.
+    seedFeedback(evalStore, 'Chrome', 'Facebook', T0 - 10 * DAY, 'work');
+    seedFeedback(evalStore, 'Chrome', 'Facebook — Log In', T0 - 70 * DAY, 'work');
+
+    const { now } = seedDriftIntoChromeTitled(store, 'Facebook — Log In or Sign Up');
+    await handler.run(mkCtx(now));
+
+    expect(judge).toHaveBeenCalledOnce();
+    // Only the in-window row counts; the 70-day-old one is dropped.
+    expect(judge.mock.calls[0][3]).toEqual({
+      signature: 'Chrome:facebook',
+      work: 1,
+      done: 0,
+    });
+  });
+
   it('passes no hint when the current dwell title signature is empty', async () => {
     const judge = vi.fn<DistractionJudge>(async () => VERDICT_WORKING);
     const { store, evalStore, handler } = mkHandler(judge);
