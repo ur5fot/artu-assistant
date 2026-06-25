@@ -4,24 +4,30 @@ import type { WindowHistoryStore } from '../../observers/window-history-store.js
 import type { DistractionEvalStore } from '../../observers/distraction-eval-store.js';
 import { shouldEvaluateDistraction } from '../../observers/distraction-detector.js';
 import type { DistractionCandidate } from '../../observers/distraction-detector.js';
+import { titleSignature } from '../../observers/title-signature.js';
 import { buildDistractionNudge } from '../../channels/discord/embeds.js';
 import {
   judgeDistraction,
   type TimelineEntry,
   type CurrentDwell,
   type JudgeResult,
+  type FeedbackHint,
 } from './distractionPullback.judge.js';
 
 const MINUTE_MS = 60_000;
+const DAY_MS = 86_400_000;
+const DEFAULT_FEEDBACK_LOOKBACK_DAYS = 60;
 
 /**
  * Judge callable — injected in tests with a deterministic stub, defaults to the
- * real `judgeDistraction` LLM call. The signal is threaded from `ctx.signal`.
+ * real `judgeDistraction` LLM call. The signal is threaded from `ctx.signal`;
+ * `hint` carries aggregated past button feedback for the current signature.
  */
 export type DistractionJudge = (
   timeline: TimelineEntry[],
   current: CurrentDwell,
   signal: AbortSignal,
+  hint?: FeedbackHint,
 ) => Promise<JudgeResult>;
 
 export interface DistractionHandlerDeps {
@@ -42,6 +48,9 @@ export interface DistractionHandlerDeps {
   /** Snooze window (minutes) rendered into the nudge's "Отстань на Nм" button.
    *  Defaults to the spec default (60) when omitted. */
   snoozeMin?: number;
+  /** How far back (days) to read button feedback for the judge hint. Defaults to
+   *  60 (the spec lookback) when omitted; wired explicitly at construction. */
+  feedbackLookbackDays?: number;
   /** Injectable judge for tests; defaults to the real LLM call. */
   judge?: DistractionJudge;
 }
@@ -74,11 +83,45 @@ function buildTimeline(deps: DistractionHandlerDeps, firedAt: number): TimelineE
   }));
 }
 
+// Re-signatures each feedback row at read time (no stored signature column) and
+// aggregates work/done counts for the current dwell's signature. Returns
+// undefined when the signature is empty, there is no matching feedback, or the
+// store read fails — so a feedback error never crosses into `run`.
+function computeFeedbackHint(
+  deps: DistractionHandlerDeps,
+  candidate: DistractionCandidate,
+  firedAt: number,
+): FeedbackHint | undefined {
+  const signature = titleSignature(candidate.app, candidate.title);
+  if (signature === '') return undefined;
+
+  try {
+    const lookbackDays = deps.feedbackLookbackDays ?? DEFAULT_FEEDBACK_LOOKBACK_DAYS;
+    const rows = deps.evalStore.listFeedbackSince(firedAt - lookbackDays * DAY_MS);
+    let work = 0;
+    let done = 0;
+    for (const row of rows) {
+      if (titleSignature(row.app_name, row.window_title) !== signature) continue;
+      if (row.feedback === 'work') work += 1;
+      else if (row.feedback === 'done') done += 1;
+    }
+    if (work === 0 && done === 0) return undefined;
+    return { signature, work, done };
+  } catch {
+    return undefined;
+  }
+}
+
 export function createDistractionHandler(deps: DistractionHandlerDeps): Handler {
   const judge: DistractionJudge =
     deps.judge ??
-    ((timeline, current, signal) =>
-      judgeDistraction({ anthropic: deps.anthropic, model: deps.model, signal }, timeline, current));
+    ((timeline, current, signal, hint) =>
+      judgeDistraction(
+        { anthropic: deps.anthropic, model: deps.model, signal },
+        timeline,
+        current,
+        hint,
+      ));
 
   return {
     name: 'distractionPullback',
@@ -107,9 +150,11 @@ export function createDistractionHandler(deps: DistractionHandlerDeps): Handler 
         eval_dwell_ms: candidate.dwellMs,
       };
 
+      const hint = computeFeedbackHint(deps, candidate, ctx.firedAt);
+
       let verdict: JudgeResult;
       try {
-        verdict = await judge(timeline, current, ctx.signal);
+        verdict = await judge(timeline, current, ctx.signal, hint);
       } catch (err) {
         // Never publish on a judge failure. Record verdict='error' with the
         // dwell length so the filter (§2.6) defers the retry by REEVAL_MIN

@@ -79,12 +79,12 @@ soft; `done≥1` informative only.
 
 ### Task 4: Handler — signature aggregation + hint threading
 
-- [ ] write tests in `packages/server/src/cognition/__tests__/handlers/distractionPullback.test.ts`: FB ×3 `work` rows in store → judge receives `hint.work===3` with the FB signature; rows of a different signature do not contribute (no cross-contamination); empty-signature current dwell → no hint passed; `evalStore.listFeedbackSince` throwing → no hint, judge still runs (defensive)
-- [ ] add `feedbackLookbackDays: number` to `DistractionHandlerDeps` (default 60 wired at construction site)
-- [ ] in `run`, after computing `candidate`, compute `sig = titleSignature(candidate.app, candidate.title)`; if non-empty, call `listFeedbackSince(firedAt - feedbackLookbackDays*DAY_MS)`, re-signature each row, aggregate `{work, done}` for matching sig, build `hint` when `work>0 || done>0`
-- [ ] wrap the feedback read defensively (try/catch → undefined hint) so a store error never crashes `run`
-- [ ] pass `hint` into the `judge(...)` call (extend the `DistractionJudge` type + default closure signature)
-- [ ] run `npm test` — must pass before Task 5
+- [x] write tests in `packages/server/src/cognition/__tests__/handlers/distractionPullback.test.ts`: FB ×3 `work` rows in store → judge receives `hint.work===3` with the FB signature; rows of a different signature do not contribute (no cross-contamination); empty-signature current dwell → no hint passed; `evalStore.listFeedbackSince` throwing → no hint, judge still runs (defensive)
+- [x] add `feedbackLookbackDays: number` to `DistractionHandlerDeps` (default 60 wired at construction site)
+- [x] in `run`, after computing `candidate`, compute `sig = titleSignature(candidate.app, candidate.title)`; if non-empty, call `listFeedbackSince(firedAt - feedbackLookbackDays*DAY_MS)`, re-signature each row, aggregate `{work, done}` for matching sig, build `hint` when `work>0 || done>0`
+- [x] wrap the feedback read defensively (try/catch → undefined hint) so a store error never crashes `run`
+- [x] pass `hint` into the `judge(...)` call (extend the `DistractionJudge` type + default closure signature)
+- [x] run `npm test` — must pass before Task 5
 
 ### Task 5: Wire default + verify acceptance criteria
 

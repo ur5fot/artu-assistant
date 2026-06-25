@@ -13,6 +13,7 @@ afterEach(() => {
 });
 
 const MIN = 60_000;
+const DAY = 86_400_000;
 const T0 = 1_700_000_000_000;
 
 const THRESHOLDS = {
@@ -47,6 +48,48 @@ function seedDriftIntoChrome(store: ReturnType<typeof createWindowHistoryStore>)
   const now = chromeStart + 30 * MIN; // 30 min into Chrome > dwellMin
   return { chromeStart, now };
 }
+
+// Same drift shape but with a custom Chrome window title so the candidate's
+// title signature is controllable from the test.
+function seedDriftIntoChromeTitled(
+  store: ReturnType<typeof createWindowHistoryStore>,
+  title: string,
+) {
+  seedSession(store, 'iTerm', T0, T0 + 40 * MIN);
+  const chromeStart = T0 + 40 * MIN + 30_000;
+  seedSession(store, 'Chrome', chromeStart, chromeStart, title);
+  const now = chromeStart + 30 * MIN;
+  return { chromeStart, now };
+}
+
+// Seeds a past pinged eval carrying button feedback. `evaluatedAt` doubles as the
+// dwell key so each row is independently addressable by recordFeedback.
+function seedFeedback(
+  evalStore: ReturnType<typeof createDistractionEvalStore>,
+  app: string,
+  title: string | null,
+  evaluatedAt: number,
+  feedback: 'work' | 'done',
+) {
+  evalStore.recordEval({
+    app_name: app,
+    dwell_started_at: evaluatedAt,
+    window_title: title,
+    evaluated_at: evaluatedAt,
+    eval_dwell_ms: 25 * MIN,
+    verdict: 'distracted',
+    confidence: 90,
+    pinged: true,
+  });
+  evalStore.recordFeedback(app, evaluatedAt, feedback);
+}
+
+const VERDICT_WORKING: JudgeResult = {
+  verdict: 'working',
+  confidence: 95,
+  reason: 'это работа',
+  work_summary: '',
+};
 
 function mkHandler(judge: DistractionJudge) {
   const store = createWindowHistoryStore({ db: getDb() });
@@ -219,6 +262,65 @@ describe('createDistractionHandler.run', () => {
     expect(latest?.verdict).toBe('unknown');
     expect(latest?.pinged).toBe(0);
     expect(evalStore.findRecentPing('Chrome', now - 1)).toBeNull();
+  });
+
+  it('threads hint.work===3 for a matching FB signature, ignoring other signatures', async () => {
+    const judge = vi.fn<DistractionJudge>(async () => VERDICT_WORKING);
+    const { store, evalStore, handler } = mkHandler(judge);
+    // 3 FB work feedbacks (within the 60-day lookback, older than the 3h dedup).
+    seedFeedback(evalStore, 'Chrome', 'Facebook — Log In', T0 - 10 * DAY, 'work');
+    seedFeedback(evalStore, 'Chrome', 'Facebook', T0 - 10 * DAY + MIN, 'work');
+    seedFeedback(evalStore, 'Chrome', 'facebook.com', T0 - 10 * DAY + 2 * MIN, 'work');
+    // A different-signature row that must not contribute.
+    seedFeedback(evalStore, 'Chrome', 'YouTube', T0 - 10 * DAY + 3 * MIN, 'work');
+
+    const { now } = seedDriftIntoChromeTitled(store, 'Facebook — Log In or Sign Up');
+    await handler.run(mkCtx(now));
+
+    expect(judge).toHaveBeenCalledOnce();
+    expect(judge.mock.calls[0][3]).toEqual({
+      signature: 'Chrome:facebook',
+      work: 3,
+      done: 0,
+    });
+  });
+
+  it('passes no hint when the current dwell title signature is empty', async () => {
+    const judge = vi.fn<DistractionJudge>(async () => VERDICT_WORKING);
+    const { store, evalStore, handler } = mkHandler(judge);
+    seedFeedback(evalStore, 'Chrome', 'Facebook', T0 - 10 * DAY, 'work');
+
+    const { now } = seedDriftIntoChromeTitled(store, '');
+    await handler.run(mkCtx(now));
+
+    expect(judge).toHaveBeenCalledOnce();
+    expect(judge.mock.calls[0][3]).toBeUndefined();
+  });
+
+  it('still runs the judge with no hint when listFeedbackSince throws', async () => {
+    const judge = vi.fn<DistractionJudge>(async () => VERDICT_WORKING);
+    const store = createWindowHistoryStore({ db: getDb() });
+    const real = createDistractionEvalStore({ db: getDb() });
+    const evalStore = {
+      ...real,
+      listFeedbackSince: () => {
+        throw new Error('db fail');
+      },
+    };
+    const handler = createDistractionHandler({
+      store,
+      evalStore,
+      anthropic: {} as never,
+      model: 'test-model',
+      judge,
+      ...THRESHOLDS,
+    });
+
+    const { now } = seedDriftIntoChromeTitled(store, 'Facebook — Log In');
+    await handler.run(mkCtx(now));
+
+    expect(judge).toHaveBeenCalledOnce();
+    expect(judge.mock.calls[0][3]).toBeUndefined();
   });
 
   it('never publishes when the judge throws — records verdict=error and skips', async () => {
