@@ -592,6 +592,19 @@ like `work` for re-nag suppression and feeds the judge's future learning),
 pings, feedback and snoozes are persisted in `distraction_evals` for dedup and
 the daily cap.
 
+**Restore button (iter-2, the Digital Observer's first real action).** When
+`DISTRACTION_RESTORE_ENABLED=true`, the nudge also carries a one-tap **↩️
+Вернуть: \<app\>** button. R2 looks back over `window_history` for the dominant
+*work* surface you were on just before the distraction started (max-duration
+app, excluding the distraction app itself), and the button reopens it via macOS
+`open -a <app>` — plus the URL (`https://<host/path>`) if that surface was a
+browser tab. The target is re-derived defensively at click time, the ack is
+ephemeral (`↩️ Открыл <app>` / `· <url>`), and the original nudge is left
+untouched. If there's no clear work surface the button is simply omitted; every
+error path (no target, `open` failure, unconfigured) replies ephemerally and
+never throws. Ships dark — flag default off, so the nudge behaves exactly as
+before until you opt in.
+
 The feedback loop is live (iter-2): on each judge run R2 signatures the current
 dwell (`<app>:<token>`) and replays past `work`/`done` taps for the same
 signature into the prompt, biasing the verdict — `work≥2` → hard bias to
@@ -635,7 +648,8 @@ exactly one alert per blind streak.
    `DISTRACTION_DAILY_LLM_CAP` (40 — max judge calls/day),
    `DISTRACTION_JUDGE_MODEL` (`claude-haiku-4-5`),
    `DISTRACTION_FEEDBACK_LOOKBACK_DAYS` (60 — days of button feedback fed to the
-   judge hint).
+   judge hint), `DISTRACTION_RESTORE_ENABLED` (`false` — the ↩️ restore button;
+   reuses `DISTRACTION_WORK_LOOKBACK_MIN` for the work-surface lookback).
 4. **Old restore handler is off by default.** The iter-1 `contextSwitch`
    (passive "restore on return") stays in the codebase but silent; set
    `CONTEXT_SWITCH_ENABLED=true` to re-enable it alongside the pullback. Its

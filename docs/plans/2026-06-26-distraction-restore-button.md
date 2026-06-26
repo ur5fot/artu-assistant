@@ -154,9 +154,9 @@ Design spec: `docs/superpowers/specs/2026-06-26-distraction-restore-button-desig
 - [x] verify coverage on new modules (window-restore, window-history-store, embeds.distraction, interactions.distraction, distractionPullback all have restore-specific tests)
 
 ### Task 7: Documentation
-- [ ] document `DISTRACTION_RESTORE_ENABLED` in `AGENTS.md` env section + the
+- [x] document `DISTRACTION_RESTORE_ENABLED` in `AGENTS.md` env section + the
       restore-button behaviour in the Digital Observer / distraction section of
-      `README.md`
+      `README.md` (also added flag to `.env.example` distraction block)
 
 ## Technical Details
 
