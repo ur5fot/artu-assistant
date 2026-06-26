@@ -83,15 +83,15 @@ Design spec: `docs/superpowers/specs/2026-06-26-distraction-restore-button-desig
 - [x] run tests — must pass before Task 2
 
 ### Task 2: Executor — `observers/window-restore.ts`
-- [ ] create module exporting
+- [x] create module exporting
       `restoreWorkSurface(target: { app: string; url?: string }, opts?: { exec?, timeoutMs? }): Promise<{ ok: boolean; reason?: string }>`
-- [ ] url present → `execFile('open', ['-a', app, 'https://' + url])`; absent →
+- [x] url present → `execFile('open', ['-a', app, 'https://' + url])`; absent →
       `execFile('open', ['-a', app])`; args passed as array (no shell), injectable
       `exec` defaulting to real `execFile`
-- [ ] non-zero exit / timeout → resolve `{ ok: false, reason }` (never throw)
-- [ ] write tests: correct `open` args for url vs no-url; app name with
+- [x] non-zero exit / timeout → resolve `{ ok: false, reason }` (never throw)
+- [x] write tests: correct `open` args for url vs no-url; app name with
       spaces/special chars stays one argument; exec failure → `{ ok:false }`
-- [ ] run tests — must pass before Task 3
+- [x] run tests — must pass before Task 3
 
 ### Task 3: Nudge button — `buildDistractionNudge` + handler target compute
 - [ ] extend `DistractionNudgeEvent` with optional `restoreTarget?: { app: string; url?: string }`
