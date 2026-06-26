@@ -12,7 +12,9 @@
  * fall back to `<app>:`, so blank-title dwells never bucket together.
  */
 
-// Known social/feed domains matched by lowercase substring scan over the title.
+// Known social/feed domains matched as whole words over the lowercased title.
+// Word boundaries avoid mid-word false positives (`shreddited` → `reddit`,
+// `telegramming` → `telegram`) that a plain substring scan would produce.
 const KNOWN_DOMAINS = [
   'youtube',
   'facebook',
@@ -21,6 +23,9 @@ const KNOWN_DOMAINS = [
   'reddit',
   'telegram',
 ];
+const KNOWN_DOMAIN_RES = KNOWN_DOMAINS.map(
+  (domain) => [domain, new RegExp(`\\b${domain}\\b`)] as const,
+);
 
 // Generic host extractor — first `<name>.<tld>` token in the title.
 const HOST_RE = /\b([a-z0-9-]+)\.(?:com|org|net|tv|io|me)\b/;
@@ -40,9 +45,9 @@ export function titleSignature(app: string, title: string | null): string {
 
   const lower = trimmed.toLowerCase();
 
-  // 1. Known-domain substring scan.
-  for (const domain of KNOWN_DOMAINS) {
-    if (lower.includes(domain)) return `${app}:${domain}`;
+  // 1. Known-domain whole-word scan (list-priority order).
+  for (const [domain, re] of KNOWN_DOMAIN_RES) {
+    if (re.test(lower)) return `${app}:${domain}`;
   }
 
   // 2. Generic host extractor.

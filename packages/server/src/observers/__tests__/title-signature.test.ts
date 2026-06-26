@@ -21,6 +21,10 @@ describe('titleSignature', () => {
     // --- known domain wins over generic host when both present ---
     ['known domain preferred', 'Google Chrome', 'youtube.com watch', 'Google Chrome:youtube'],
 
+    // --- known-domain match is whole-word, not substring ---
+    ['domain as substring not matched', 'Editor', 'shreddited posts', 'Editor:shreddited'],
+    ['domain mid-word not matched', 'Editor', 'my telegramming notes', 'Editor:my'],
+
     // --- first-meaningful-word fallback ---
     ['bracketed counter stripped', 'Slack', '(17) general | Acme', 'Slack:general'],
     ['large counter stripped', 'Mail', '(257) Inbox', 'Mail:inbox'],

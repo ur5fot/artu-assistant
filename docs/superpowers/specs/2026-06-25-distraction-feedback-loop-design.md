@@ -79,7 +79,7 @@ The token is derived from the title:
 
 - If the title contains a recognizable domain token (`youtube`, `facebook`,
   `twitch`, `instagram`, `reddit`, `telegram`, …) → that domain. Match is a
-  lowercase substring scan over a small known-domain list plus a generic
+  lowercase whole-word scan over a small known-domain list plus a generic
   `\b([a-z0-9-]+)\.(com|org|net|tv|io|me)\b` host extractor.
 - Else → the **first meaningful word** of the title: lowercase, after stripping
   leading bracketed counters (`(17)`, `(257)`), emoji, channel prefixes (`#`,
