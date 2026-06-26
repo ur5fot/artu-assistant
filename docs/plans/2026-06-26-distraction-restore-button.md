@@ -94,21 +94,21 @@ Design spec: `docs/superpowers/specs/2026-06-26-distraction-restore-button-desig
 - [x] run tests — must pass before Task 3
 
 ### Task 3: Nudge button — `buildDistractionNudge` + handler target compute
-- [ ] extend `DistractionNudgeEvent` with optional `restoreTarget?: { app: string; url?: string }`
+- [x] extend `DistractionNudgeEvent` with optional `restoreTarget?: { app: string; url?: string }`
       in `channels/discord/embeds.ts`
-- [ ] when `restoreTarget` present, append button
+- [x] when `restoreTarget` present, append button
       `customId = distract:restore:<distractionApp>:<runStart>`, label
       `↩️ Вернуть: <workApp>` (truncate label), with the same overflow-guard as
       other buttons (drop if customId > limit)
-- [ ] in `distractionPullback.ts`: add `restoreEnabled?: boolean` to
+- [x] in `distractionPullback.ts`: add `restoreEnabled?: boolean` to
       `DistractionHandlerDeps`; in `run()` after `shouldPing`, when `restoreEnabled`
       call `store.findDominantWorkSurfaceBefore(candidate.runStart,
       workLookbackMin*60_000, candidate.app)` and pass result as `restoreTarget`
-- [ ] write tests (embeds): button present with target / absent without;
+- [x] write tests (embeds): button present with target / absent without;
       customId shape; overflow drops button but keeps text + other buttons
-- [ ] write tests (handler): target computed & threaded when `restoreEnabled`;
+- [x] write tests (handler): target computed & threaded when `restoreEnabled`;
       omitted when flag off or surface `null` (stub `store`/`judge`)
-- [ ] run tests — must pass before Task 4
+- [x] run tests — must pass before Task 4
 
 ### Task 4: Interaction — `restore` branch + deps wiring
 - [ ] add to `InteractionDeps` (`interactions.ts`): `restoreExecutor?` (the

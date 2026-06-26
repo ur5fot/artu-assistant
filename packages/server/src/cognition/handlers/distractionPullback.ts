@@ -51,6 +51,10 @@ export interface DistractionHandlerDeps {
   /** How far back (days) to read button feedback for the judge hint. Defaults to
    *  60 (the spec lookback) when omitted; wired explicitly at construction. */
   feedbackLookbackDays?: number;
+  /** When true, compute the dominant pre-distraction work surface and thread it
+   *  into the nudge as a restore target (adds the "↩️ Вернуть" button). Ships
+   *  off by default — the nudge behaves exactly as today when omitted/false. */
+  restoreEnabled?: boolean;
   /** Injectable judge for tests; defaults to the real LLM call. */
   judge?: DistractionJudge;
 }
@@ -181,6 +185,17 @@ export function createDistractionHandler(deps: DistractionHandlerDeps): Handler 
         };
       }
 
+      // Compute the surface to restore the user to — the dominant work app/tab
+      // in the window-lookback before the distraction began. Gated by
+      // restoreEnabled; null when nothing qualifies → nudge omits the button.
+      const restoreTarget = deps.restoreEnabled
+        ? (deps.store.findDominantWorkSurfaceBefore(
+            candidate.runStart,
+            deps.workLookbackMin * MINUTE_MS,
+            candidate.app,
+          ) ?? undefined)
+        : undefined;
+
       const nudge = buildDistractionNudge({
         app: candidate.app,
         title: candidate.title,
@@ -188,6 +203,7 @@ export function createDistractionHandler(deps: DistractionHandlerDeps): Handler 
         workSummary: verdict.work_summary,
         runStart: candidate.runStart,
         snoozeMin: deps.snoozeMin ?? DEFAULT_SNOOZE_MIN,
+        restoreTarget,
       });
 
       return {

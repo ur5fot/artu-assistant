@@ -347,7 +347,17 @@ export interface DistractionNudgeEvent {
   runStart: number;
   /** Snooze window in minutes — rendered into the "Отстань на Nм" label. */
   snoozeMin: number;
+  /** The dominant work surface to restore the user to (app, + browser tab URL
+   *  when present). When set, a one-tap "↩️ Вернуть: <app>" restore button is
+   *  appended; the URL is re-derived at click time, so only the app name is
+   *  needed here (for the label). Absent → no restore button (today's behaviour). */
+  restoreTarget?: { app: string; url?: string };
 }
+
+// Discord caps a button label at 80 chars. The "↩️ Вернуть: " prefix eats into
+// that, so clamp the work-app name to keep the label legal.
+const RESTORE_LABEL_PREFIX = '↩️ Вернуть: ';
+const RESTORE_APP_LABEL_MAX = 80 - RESTORE_LABEL_PREFIX.length;
 
 // Builds the proactive pullback ping: a short "you've been stuck N min" line +
 // four buttons (back / it's-work / done / snooze). Mirrors buildWindowRestoreEmbed's
@@ -389,6 +399,20 @@ export function buildDistractionNudge(event: DistractionNudgeEvent): {
   }
   if (snoozeId.length <= CUSTOM_ID_LIMIT) {
     buttons.push({ customId: snoozeId, label: `Отстань на ${event.snoozeMin}м`, style: 'danger' });
+  }
+  if (event.restoreTarget) {
+    // customId embeds the distraction app (re-derive of the work surface at
+    // click time keys off runStart). Same overflow guard as the other ids — for
+    // a pathologically long distraction-app name, drop the button rather than
+    // let setCustomId throw and fail the whole publish.
+    const restoreId = `distract:restore:${event.app}:${event.runStart}`;
+    if (restoreId.length <= CUSTOM_ID_LIMIT) {
+      buttons.push({
+        customId: restoreId,
+        label: `${RESTORE_LABEL_PREFIX}${truncate(event.restoreTarget.app, RESTORE_APP_LABEL_MAX)}`,
+        style: 'primary',
+      });
+    }
   }
   return { content, components: [{ type: 'row', buttons }] };
 }

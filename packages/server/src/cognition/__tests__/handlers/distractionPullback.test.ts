@@ -360,6 +360,62 @@ describe('createDistractionHandler.run', () => {
     expect(judge.mock.calls[0][3]).toBeUndefined();
   });
 
+  it('threads the dominant work surface as restoreTarget when restoreEnabled', async () => {
+    const judge = vi.fn<DistractionJudge>(async () => VERDICT_DISTRACTED);
+    const store = createWindowHistoryStore({ db: getDb() });
+    const evalStore = createDistractionEvalStore({ db: getDb() });
+    const handler = createDistractionHandler({
+      store,
+      evalStore,
+      anthropic: {} as never,
+      model: 'test-model',
+      judge,
+      restoreEnabled: true,
+      ...THRESHOLDS,
+    });
+    const { now } = seedDriftIntoChrome(store); // iTerm worked before Chrome drift
+
+    const res = await handler.run(mkCtx(now));
+    if (!('publish' in res)) throw new Error('expected publish');
+    const buttons = buttonsOf(res.components?.[0]);
+    const restore = buttons.find((b) => b.customId.startsWith('distract:restore:'));
+    expect(restore).toBeDefined();
+    expect(restore!.label).toBe('↩️ Вернуть: iTerm');
+  });
+
+  it('omits the restore button when restoreEnabled is off (default)', async () => {
+    const judge = vi.fn<DistractionJudge>(async () => VERDICT_DISTRACTED);
+    const { store, handler } = mkHandler(judge);
+    const { now } = seedDriftIntoChrome(store);
+
+    const res = await handler.run(mkCtx(now));
+    if (!('publish' in res)) throw new Error('expected publish');
+    const buttons = buttonsOf(res.components?.[0]);
+    expect(buttons.some((b) => b.customId.startsWith('distract:restore:'))).toBe(false);
+  });
+
+  it('omits the restore button when no work surface qualifies', async () => {
+    const judge = vi.fn<DistractionJudge>(async () => VERDICT_DISTRACTED);
+    const real = createWindowHistoryStore({ db: getDb() });
+    const store = { ...real, findDominantWorkSurfaceBefore: () => null };
+    const evalStore = createDistractionEvalStore({ db: getDb() });
+    const handler = createDistractionHandler({
+      store,
+      evalStore,
+      anthropic: {} as never,
+      model: 'test-model',
+      judge,
+      restoreEnabled: true,
+      ...THRESHOLDS,
+    });
+    const { now } = seedDriftIntoChrome(real);
+
+    const res = await handler.run(mkCtx(now));
+    if (!('publish' in res)) throw new Error('expected publish');
+    const buttons = buttonsOf(res.components?.[0]);
+    expect(buttons.some((b) => b.customId.startsWith('distract:restore:'))).toBe(false);
+  });
+
   it('never publishes when the judge throws — records verdict=error and skips', async () => {
     const judge = vi.fn<DistractionJudge>(async () => {
       throw new Error('boom');

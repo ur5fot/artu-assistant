@@ -95,4 +95,50 @@ describe('buildDistractionNudge', () => {
     // The nudge text still renders so the pullback is not lost.
     expect(content).toContain('🧲');
   });
+
+  it('appends a restore button when a restoreTarget is present', () => {
+    const { components } = buildDistractionNudge({
+      ...EVENT,
+      restoreTarget: { app: 'iTerm', url: 'github.com/foo' },
+    });
+    const buttons = buttonsOf(components[0]);
+    const restore = buttons.at(-1);
+    // customId encodes the DISTRACTION app + dwell key (the work surface is
+    // re-derived at click time off runStart).
+    expect(restore?.customId).toBe(`distract:restore:Chrome:${RUN_START}`);
+    expect(restore?.label).toBe('↩️ Вернуть: iTerm');
+    expect(restore?.style).toBe('primary');
+  });
+
+  it('omits the restore button when no restoreTarget is given', () => {
+    const { components } = buildDistractionNudge(EVENT);
+    const buttons = buttonsOf(components[0]);
+    expect(buttons.some((b) => b.customId.startsWith('distract:restore:'))).toBe(false);
+  });
+
+  it('truncates a long work-app name in the restore label', () => {
+    const { components } = buildDistractionNudge({
+      ...EVENT,
+      restoreTarget: { app: 'W'.repeat(120) },
+    });
+    const buttons = buttonsOf(components[0]);
+    const restore = buttons.find((b) => b.customId.startsWith('distract:restore:'));
+    expect(restore).toBeDefined();
+    expect(restore!.label.length).toBeLessThanOrEqual(80);
+    expect(restore!.label.endsWith('…')).toBe(true);
+  });
+
+  it('drops the restore button (keeps text + other buttons) when the distraction app overflows the customId', () => {
+    const longApp = 'A'.repeat(90);
+    const { content, components } = buildDistractionNudge({
+      ...EVENT,
+      app: longApp,
+      restoreTarget: { app: 'iTerm' },
+    });
+    const buttons = buttonsOf(components[0]);
+    expect(buttons.some((b) => b.customId.startsWith('distract:restore:'))).toBe(false);
+    // Ack + text survive.
+    expect(buttons.map((b) => b.customId)).toEqual([`distract:back:${RUN_START}`]);
+    expect(content).toContain('🧲');
+  });
 });
