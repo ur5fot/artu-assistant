@@ -30,6 +30,13 @@ export interface RecentUrl {
   last_seen_at: number;
 }
 
+/** A work surface to restore the user to — an app, plus its active-tab URL when
+ * the surface was a browser (absent for native apps). */
+export interface WorkSurface {
+  app: string;
+  url?: string;
+}
+
 export interface WindowHistoryStore {
   recordSample(sample: WindowSampleInput): void;
   /** The latest recorded session (most recent row). "Current" = newest. */
@@ -41,6 +48,15 @@ export interface WindowHistoryStore {
   listTitlesInSession(app: string, from: number, to: number): SessionTitle[];
   /** Distinct visited URLs (non-null) with last_seen_at >= sinceMs, newest first. */
   recentUrlsSince(sinceMs: number, limit?: number): RecentUrl[];
+  /** The dominant (max total-dwell) work surface in [beforeTs - lookbackMs,
+   * beforeTs), excluding `excludeApp` (the distraction). Used to restore the user
+   * to whatever they were working on before getting distracted. `null` when no
+   * qualifying surface exists. */
+  findDominantWorkSurfaceBefore(
+    beforeTs: number,
+    lookbackMs: number,
+    excludeApp: string,
+  ): WorkSurface | null;
   purgeOlderThan(cutoff: number): number;
 }
 
@@ -116,6 +132,19 @@ export function createWindowHistoryStore(deps: {
      GROUP BY window_title
      ORDER BY last_seen_at DESC`,
   );
+  // Dominant work surface before a moment: sessions started within the lookback
+  // window and strictly before beforeTs, excluding the distraction app, grouped
+  // by (app_name, url) and ranked by total dwell (SUM of session durations). A
+  // NULL url groups separately and surfaces as a urlless WorkSurface.
+  const selectDominantWorkSurface = db.prepare(
+    `SELECT app_name, url, SUM(last_seen_at - started_at) AS weight
+     FROM window_history
+     WHERE started_at >= @lowerBound AND started_at < @beforeTs
+       AND app_name != @excludeApp
+     GROUP BY app_name, url
+     ORDER BY weight DESC
+     LIMIT 1`,
+  );
   const deleteOlder = db.prepare(
     `DELETE FROM window_history WHERE last_seen_at < ?`,
   );
@@ -161,6 +190,16 @@ export function createWindowHistoryStore(deps: {
 
     recentUrlsSince(sinceMs, limit = 500) {
       return selectRecentUrls.all(sinceMs, limit) as RecentUrl[];
+    },
+
+    findDominantWorkSurfaceBefore(beforeTs, lookbackMs, excludeApp) {
+      const row = selectDominantWorkSurface.get({
+        lowerBound: beforeTs - lookbackMs,
+        beforeTs,
+        excludeApp,
+      }) as { app_name: string; url: string | null; weight: number } | undefined;
+      if (!row) return null;
+      return row.url !== null ? { app: row.app_name, url: row.url } : { app: row.app_name };
     },
 
     purgeOlderThan(cutoff) {

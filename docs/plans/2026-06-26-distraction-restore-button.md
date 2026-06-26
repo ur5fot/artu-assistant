@@ -69,18 +69,18 @@ Design spec: `docs/superpowers/specs/2026-06-26-distraction-restore-button-desig
 ## Implementation Steps
 
 ### Task 1: Store — `findDominantWorkSurfaceBefore`
-- [ ] add `WorkSurface` type `{ app: string; url?: string }` and method
+- [x] add `WorkSurface` type `{ app: string; url?: string }` and method
       `findDominantWorkSurfaceBefore(beforeTs, lookbackMs, excludeApp): WorkSurface | null`
       to `observers/window-history-store.ts`
-- [ ] SQL: rows with `started_at >= beforeTs - lookbackMs AND started_at < beforeTs
+- [x] SQL: rows with `started_at >= beforeTs - lookbackMs AND started_at < beforeTs
       AND app_name != excludeApp`, group by `(app_name, url)`, weight =
       `SUM(last_seen_at - started_at)`, `ORDER BY weight DESC LIMIT 1`; `NULL`
       url → result without `url`
-- [ ] write tests: picks max-duration surface; excludes distraction app; NULL url
+- [x] write tests: picks max-duration surface; excludes distraction app; NULL url
       → no `url` field; empty/all-excluded → `null`
-- [ ] write tests: tie/boundary (`started_at == beforeTs` excluded, `== beforeTs -
+- [x] write tests: tie/boundary (`started_at == beforeTs` excluded, `== beforeTs -
       lookbackMs` included)
-- [ ] run tests — must pass before Task 2
+- [x] run tests — must pass before Task 2
 
 ### Task 2: Executor — `observers/window-restore.ts`
 - [ ] create module exporting

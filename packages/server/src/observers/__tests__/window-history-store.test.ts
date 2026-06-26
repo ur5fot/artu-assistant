@@ -384,6 +384,118 @@ describe('createWindowHistoryStore', () => {
     });
   });
 
+  describe('findDominantWorkSurfaceBefore', () => {
+    // Helper: build a session of given duration by recording two samples of the
+    // same (app,title) `durMs` apart (within the 90s gap so they form one row).
+    const session = (
+      store: ReturnType<typeof createWindowHistoryStore>,
+      app: string,
+      title: string,
+      startedAt: number,
+      durMs: number,
+      url?: string,
+    ) => {
+      store.recordSample({ app_name: app, window_title: title, sampled_at: startedAt, url });
+      if (durMs > 0) {
+        store.recordSample({ app_name: app, window_title: title, sampled_at: startedAt + durMs, url });
+      }
+    };
+
+    it('picks the max-total-dwell surface before the moment', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      // VS Code: two short sessions totalling 90s.
+      session(store, 'Code', 'a.ts', t0, 45_000);
+      session(store, 'Slack', 'general', t0 + 45_001, 10_000);
+      session(store, 'Code', 'b.ts', t0 + 56_000, 45_000);
+      const before = t0 + 200_000;
+
+      const surface = store.findDominantWorkSurfaceBefore(before, 3_600_000, 'YouTube');
+      expect(surface).toEqual({ app: 'Code' });
+    });
+
+    it('excludes the distraction app even if it has the most dwell', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      session(store, 'YouTube', 'video', t0, 120_000);
+      session(store, 'Code', 'a.ts', t0 + 120_001, 30_000);
+      const before = t0 + 200_000;
+
+      const surface = store.findDominantWorkSurfaceBefore(before, 3_600_000, 'YouTube');
+      expect(surface).toEqual({ app: 'Code' });
+    });
+
+    it('returns url when the dominant surface is a browser tab', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      session(store, 'Chrome', 'Issue', t0, 60_000, 'gh.com/o/r');
+      const before = t0 + 100_000;
+
+      const surface = store.findDominantWorkSurfaceBefore(before, 3_600_000, 'YouTube');
+      expect(surface).toEqual({ app: 'Chrome', url: 'gh.com/o/r' });
+    });
+
+    it('omits url field when the dominant surface has a NULL url', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      session(store, 'Code', 'a.ts', t0, 60_000);
+      const before = t0 + 100_000;
+
+      const surface = store.findDominantWorkSurfaceBefore(before, 3_600_000, 'YouTube');
+      expect(surface).toEqual({ app: 'Code' });
+      expect(surface).not.toHaveProperty('url');
+    });
+
+    it('returns null when no rows exist in the lookback window', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      session(store, 'Code', 'a.ts', t0, 60_000);
+      // Lookback window is far in the future, so the row is too old.
+      const before = t0 + 10_000_000;
+      expect(store.findDominantWorkSurfaceBefore(before, 60_000, 'YouTube')).toBeNull();
+    });
+
+    it('returns null when every candidate is the excluded app', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      session(store, 'YouTube', 'v1', t0, 60_000);
+      session(store, 'YouTube', 'v2', t0 + 61_000, 60_000);
+      const before = t0 + 200_000;
+      expect(store.findDominantWorkSurfaceBefore(before, 3_600_000, 'YouTube')).toBeNull();
+    });
+
+    it('excludes a session started exactly at beforeTs (strict upper bound)', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      // Only session starts exactly at the boundary -> excluded -> null.
+      session(store, 'Code', 'a.ts', t0, 60_000);
+      expect(store.findDominantWorkSurfaceBefore(t0, 3_600_000, 'YouTube')).toBeNull();
+    });
+
+    it('includes a session started exactly at the lookback lower bound (inclusive)', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      const before = t0 + 600_000;
+      const lookbackMs = 600_000; // lowerBound == t0 exactly
+      session(store, 'Code', 'a.ts', t0, 30_000);
+      const surface = store.findDominantWorkSurfaceBefore(before, lookbackMs, 'YouTube');
+      expect(surface).toEqual({ app: 'Code' });
+    });
+
+    it('groups the same (app,url) across sessions and beats a single longer other surface', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      // Chrome on the same url across two sessions: 50s + 50s = 100s total.
+      session(store, 'Chrome', 'Doc', t0, 50_000, 'docs.com/x');
+      session(store, 'Slack', 'general', t0 + 51_000, 80_000);
+      session(store, 'Chrome', 'Doc again', t0 + 140_000, 50_000, 'docs.com/x');
+      const before = t0 + 300_000;
+
+      const surface = store.findDominantWorkSurfaceBefore(before, 3_600_000, 'YouTube');
+      expect(surface).toEqual({ app: 'Chrome', url: 'docs.com/x' });
+    });
+  });
+
   describe('purgeOlderThan', () => {
     it('deletes rows with last_seen_at < cutoff', () => {
       const store = createWindowHistoryStore({ db: getDb() });
