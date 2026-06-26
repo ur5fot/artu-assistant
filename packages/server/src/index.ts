@@ -67,6 +67,7 @@ import { createEmailSentLog } from './emails/sent-log.js';
 import { createWindowHistoryStore } from './observers/window-history-store.js';
 import { createContextPingStore } from './observers/context-switch-detector.js';
 import { createOsascriptProvider } from './observers/window-snapshot.js';
+import { restoreWorkSurface } from './observers/window-restore.js';
 import { startWindowLogger } from './observers/window-logger.js';
 import { createIoregIdleSource } from './observers/idle-source.js';
 import { createPresenceStore } from './observers/presence-store.js';
@@ -1059,6 +1060,9 @@ const registerDiscordGatedHandlers = guardOnce(async () => {
   const distractionFlag = process.env.DISTRACTION_ENABLED === 'true';
   const isDarwin = process.platform === 'darwin';
   const discordReady = discordBot !== null;
+  // Restore button ships dark — opt in with DISTRACTION_RESTORE_ENABLED=true.
+  // When off the nudge omits the button and the `restore` branch is unreachable.
+  const restoreEnabled = process.env.DISTRACTION_RESTORE_ENABLED === 'true';
   if (distractionFlag && isDarwin && discordReady) {
     cognitionService.register(
       createDistractionHandler({
@@ -1081,9 +1085,12 @@ const registerDiscordGatedHandlers = guardOnce(async () => {
         // Lookback (days) for the button-feedback judge hint (spec iter-2). 60d
         // default; signatures with ≥2 past `work` feedbacks bias the judge.
         feedbackLookbackDays: envInt(process.env.DISTRACTION_FEEDBACK_LOOKBACK_DAYS, 60, 1, 365),
+        // Compute a restore target for the nudge only when the button is enabled
+        // (spec iter-2). Off → restoreTarget omitted, nudge unchanged.
+        restoreEnabled,
       }),
     );
-    console.log('[distraction] pullback handler registered');
+    console.log(`[distraction] pullback handler registered (restore=${restoreEnabled})`);
   } else {
     console.log(
       `[distraction] disabled (flag=${distractionFlag}, darwin=${isDarwin}, discord=${discordReady})`,
@@ -1210,6 +1217,13 @@ if (discordToken) {
       // thus no buttons when the feature is off, so the store is never touched.
       distractionEvalStore,
       distractionSnoozeMin,
+      // distract:restore button focuses the work app (macOS `open`). Passed
+      // unconditionally — when DISTRACTION_RESTORE_ENABLED is off no restore
+      // buttons are ever created, so the executor is never invoked.
+      restoreExecutor: restoreWorkSurface,
+      // Re-derive the work surface at click time over the same lookback the
+      // handler used to build the button (default 120).
+      distractionWorkLookbackMin: envInt(process.env.DISTRACTION_WORK_LOOKBACK_MIN, 120, 10, 480),
       requestTimeoutMs: (() => {
         const n = Number(process.env.DISCORD_REQUEST_TIMEOUT_MS);
         return Number.isFinite(n) && n > 0 ? n : 300_000;

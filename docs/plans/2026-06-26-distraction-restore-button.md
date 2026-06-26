@@ -129,17 +129,18 @@ Design spec: `docs/superpowers/specs/2026-06-26-distraction-restore-button-desig
 - [x] run tests — must pass before Task 5
 
 ### Task 5: Env flag wiring — `DISTRACTION_RESTORE_ENABLED`
-- [ ] `index.ts` distraction block (~1056): read
+- [x] `index.ts` distraction block (~1056): read
       `restoreEnabled = process.env.DISTRACTION_RESTORE_ENABLED === 'true'` and pass
       into `createDistractionHandler({ ..., restoreEnabled })`
-- [ ] pass `restoreExecutor: restoreWorkSurface` and
+- [x] pass `restoreExecutor: restoreWorkSurface` and
       `distractionWorkLookbackMin` (same `DISTRACTION_WORK_LOOKBACK_MIN` value, default 120)
       into bot deps (~1212)
-- [ ] log gate state alongside existing `[distraction]` lines
+- [x] log gate state alongside existing `[distraction]` lines
       (`restore=${restoreEnabled}`)
-- [ ] write/extend tests covering the wiring if a startup/integration test exists;
-      otherwise assert via handler/interaction unit tests already added
-- [ ] run tests — must pass before Task 6
+- [x] write/extend tests covering the wiring if a startup/integration test exists;
+      otherwise assert via handler/interaction unit tests already added (no index.ts
+      startup test exists → covered by handler/interaction unit tests from Tasks 3-4)
+- [x] run tests — must pass before Task 6
 
 ### Task 6: Verify acceptance criteria
 - [ ] flag on + work surface → nudge carries `↩️ Вернуть: <app>` button
