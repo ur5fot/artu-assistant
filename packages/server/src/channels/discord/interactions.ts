@@ -35,6 +35,7 @@ import type { MessageHeaders } from '../../emails/imap-client.js';
 import type { PiiProxy } from '../../pii/proxy.js';
 import type { WindowHistoryStore } from '../../observers/window-history-store.js';
 import type { DistractionEvalStore } from '../../observers/distraction-eval-store.js';
+import type { RestoreTarget, RestoreResult } from '../../observers/window-restore.js';
 import type { TopicStore } from '../../topics/store.js';
 import { parseFromAddress } from '../../emails/address.js';
 import {
@@ -89,6 +90,11 @@ export interface DraftThreadFetcher {
   fetchThread(account: ImapAccount, uid: number): Promise<FullMessage[]>;
 }
 
+/** Brings a work surface back to the foreground (macOS `open -a`). Injected as
+ *  the real `restoreWorkSurface`; the optional opts arg is omitted at the call
+ *  site so the default exec/timeout apply. Never throws — resolves a result. */
+export type RestoreExecutor = (target: RestoreTarget) => Promise<RestoreResult>;
+
 export interface SmtpClient {
   sendReply(params: {
     account: ImapAccount;
@@ -141,6 +147,14 @@ export interface InteractionDeps {
   distractionEvalStore?: DistractionEvalStore;
   /** Snooze window (minutes) applied by the `distract:snooze` button. */
   distractionSnoozeMin?: number;
+  /** Restore executor — invoked by the `distract:restore` button to focus the
+   *  work app (and reopen its tab URL when the surface was a browser). Without
+   *  it the restore button replies with a graceful "not configured" notice. */
+  restoreExecutor?: RestoreExecutor;
+  /** Lookback (minutes) used by the `distract:restore` button to re-derive the
+   *  dominant work surface before the distraction. Mirrors the handler's
+   *  DISTRACTION_WORK_LOOKBACK_MIN; falls back to a 120-min default. */
+  distractionWorkLookbackMin?: number;
   /** Topic store — read/written by the `followup:done` button to dismiss a
    *  finalized topic's pending action (the morning-brief "✓ Готово" button). */
   topicStore?: TopicStore | null;
@@ -521,6 +535,9 @@ function truncate(s: string, max: number): string {
 // Default snooze window when distractionSnoozeMin is not wired (mirrors the
 // spec default and DISTRACTION_SNOOZE_MIN's fallback).
 const DEFAULT_DISTRACTION_SNOOZE_MIN = 60;
+// Default work-surface lookback when distractionWorkLookbackMin is not wired
+// (mirrors the handler's DISTRACTION_WORK_LOOKBACK_MIN fallback).
+const DEFAULT_DISTRACTION_WORK_LOOKBACK_MIN = 120;
 const MINUTE_MS = 60_000;
 
 // Parses `{app}:{runStart}` where the app may itself contain colons — the
@@ -542,7 +559,9 @@ function parseAppDwell(rawId: string): { app: string; runStart: number } | null 
 // `work` marks the dwell as work so the filter stops re-evaluating it; `done`
 // records that the user finished the task (a data signal for iter-2, behaves
 // like `work` for re-nag suppression); `snooze` writes a global snooze_until
-// that mutes all pings for DISTRACTION_SNOOZE_MIN.
+// that mutes all pings for DISTRACTION_SNOOZE_MIN; `restore` re-derives the
+// dominant work surface before the distraction and brings it to the foreground
+// via the injected executor (the first real Digital Observer action).
 // The reply is ephemeral (mirrors window:show) so the original nudge stays
 // visible in the DM. Writes are no-ops if the eval row is missing (e.g. the
 // store was not wired) — the user still gets an acknowledgement.
@@ -560,6 +579,48 @@ async function handleDistractFeedback(
   const parsed = parseAppDwell(rawId);
   if (!parsed) return;
   const { app, runStart } = parsed;
+
+  if (action === 'restore') {
+    // The button carries only `<distractionApp>:<runStart>`; re-derive the work
+    // surface at click time (codebase's "re-detect at run" style) so a stale
+    // nudge still restores whatever the user was actually on before this app.
+    if (!deps.windowHistoryStore || !deps.restoreExecutor) {
+      await (ixn as any).reply({
+        flags: MessageFlags.Ephemeral,
+        content: 'Восстановление не настроено.',
+      });
+      return;
+    }
+    const lookbackMin =
+      deps.distractionWorkLookbackMin ?? DEFAULT_DISTRACTION_WORK_LOOKBACK_MIN;
+    const target = deps.windowHistoryStore.findDominantWorkSurfaceBefore(
+      runStart,
+      lookbackMin * MINUTE_MS,
+      app,
+    );
+    if (!target) {
+      await (ixn as any).reply({
+        flags: MessageFlags.Ephemeral,
+        content: 'Не нашёл рабочий контекст для восстановления.',
+      });
+      return;
+    }
+    const result = await deps.restoreExecutor(target);
+    if (result.ok) {
+      await (ixn as any).reply({
+        flags: MessageFlags.Ephemeral,
+        content: target.url
+          ? `↩️ Открыл ${target.app} · ${target.url}`
+          : `↩️ Открыл ${target.app}`,
+      });
+    } else {
+      await (ixn as any).reply({
+        flags: MessageFlags.Ephemeral,
+        content: `Не смог открыть ${target.app}.`,
+      });
+    }
+    return;
+  }
 
   if (action === 'work') {
     deps.distractionEvalStore?.recordFeedback(app, runStart, 'work');

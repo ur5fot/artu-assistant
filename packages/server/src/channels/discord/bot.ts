@@ -35,6 +35,7 @@ import type {
   DraftImapClient,
   DraftThreadFetcher,
   SmtpClient,
+  RestoreExecutor,
 } from './interactions.js';
 import type { DraftReplyService } from '../../services/draft-reply-service.js';
 import type { EmailStore } from '../../emails/store.js';
@@ -130,6 +131,13 @@ export interface DiscordBotDeps {
   distractionEvalStore?: DistractionEvalStore;
   /** Snooze window (minutes) applied by the `distract:snooze` button. */
   distractionSnoozeMin?: number;
+  /** Restore executor — invoked by the `distract:restore` button to focus the
+   *  work app the user was distracted from. Without it the button replies with
+   *  a graceful "not configured" notice. */
+  restoreExecutor?: RestoreExecutor;
+  /** Lookback (minutes) used by the `distract:restore` button to re-derive the
+   *  dominant work surface before the distraction. */
+  distractionWorkLookbackMin?: number;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -348,6 +356,8 @@ export async function startDiscordBot(
         windowHistoryStore: deps.windowHistoryStore,
         distractionEvalStore: deps.distractionEvalStore,
         distractionSnoozeMin: deps.distractionSnoozeMin,
+        restoreExecutor: deps.restoreExecutor,
+        distractionWorkLookbackMin: deps.distractionWorkLookbackMin,
         topicStore: deps.topicStore,
       });
     } catch (err) {

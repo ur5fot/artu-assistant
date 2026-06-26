@@ -111,22 +111,22 @@ Design spec: `docs/superpowers/specs/2026-06-26-distraction-restore-button-desig
 - [x] run tests — must pass before Task 4
 
 ### Task 4: Interaction — `restore` branch + deps wiring
-- [ ] add to `InteractionDeps` (`interactions.ts`): `restoreExecutor?` (the
+- [x] add to `InteractionDeps` (`interactions.ts`): `restoreExecutor?` (the
       `restoreWorkSurface` fn) and `distractionWorkLookbackMin?` (default-fallback
       like `distractionSnoozeMin`); `windowHistoryStore` already present
-- [ ] in `handleDistractFeedback`, `action === 'restore'`: `parseAppDwell(rawId)`
+- [x] in `handleDistractFeedback`, `action === 'restore'`: `parseAppDwell(rawId)`
       → `{ app, runStart }`; re-derive target via
       `windowHistoryStore.findDominantWorkSurfaceBefore(runStart, lookbackMs, app)`
-- [ ] target found → `await restoreExecutor(target)`; `ok` → ephemeral
+- [x] target found → `await restoreExecutor(target)`; `ok` → ephemeral
       `↩️ Открыл <app>` / `↩️ Открыл <app> · <url>`; `ok:false` → ephemeral
       `Не смог открыть <app>.`; target null → ephemeral
       `Не нашёл рабочий контекст для восстановления.`
-- [ ] guard: missing `windowHistoryStore`/`restoreExecutor` → ephemeral graceful
+- [x] guard: missing `windowHistoryStore`/`restoreExecutor` → ephemeral graceful
       message (mirror existing «not configured» replies)
-- [ ] thread new deps through `bot.ts` `BotDeps` → `routeInteraction`
-- [ ] write tests: restore branch calls executor with re-derived target; the
+- [x] thread new deps through `bot.ts` `BotDeps` → `routeInteraction`
+- [x] write tests: restore branch calls executor with re-derived target; the
       three ephemeral outcomes (ok / exec-fail / no-target); unconfigured deps path
-- [ ] run tests — must pass before Task 5
+- [x] run tests — must pass before Task 5
 
 ### Task 5: Env flag wiring — `DISTRACTION_RESTORE_ENABLED`
 - [ ] `index.ts` distraction block (~1056): read
