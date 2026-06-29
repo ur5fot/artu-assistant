@@ -1,4 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
+
+const execFileMock = vi.hoisted(() => vi.fn());
+vi.mock('node:child_process', () => ({ execFile: execFileMock }));
+
 import { restoreWorkSurface, type ExecFn } from '../window-restore.js';
 
 /** Capture the args passed to `open` and let the test drive the callback. */
@@ -68,10 +72,17 @@ describe('restoreWorkSurface', () => {
     expect(calls[0].timeout).toBe(1234);
   });
 
-  it('defaults exec to the real execFile when none injected', () => {
-    // Just assert it returns a promise without configuration (won't await the
-    // real `open` here — covered by injected-exec cases above).
-    const p = restoreWorkSurface({ app: 'Finder' }, { exec: vi.fn() as unknown as ExecFn });
-    expect(p).toBeInstanceOf(Promise);
+  it('defaults exec to the real execFile when none injected', async () => {
+    // No opts → exercises the `opts.exec ?? execFile` default branch (the path
+    // that actually runs in production) against a mocked node:child_process.
+    execFileMock.mockImplementation((_cmd, _args, _opts, cb) => cb(null));
+    const res = await restoreWorkSurface({ app: 'Finder' });
+    expect(res).toEqual({ ok: true });
+    expect(execFileMock).toHaveBeenCalledWith(
+      'open',
+      ['-a', 'Finder'],
+      { timeout: 5000 },
+      expect.any(Function),
+    );
   });
 });

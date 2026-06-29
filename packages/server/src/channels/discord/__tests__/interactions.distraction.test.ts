@@ -176,6 +176,8 @@ describe('distract:restore interaction', () => {
     const arg = ixn.reply.mock.calls[0][0];
     expect(arg.flags).toBe(MessageFlags.Ephemeral);
     expect(arg.content).toBe('↩️ Открыл Code');
+    // Restore must ack ephemerally and leave the original nudge untouched.
+    expect(ixn.update).not.toHaveBeenCalled();
   });
 
   it('falls back to a 120-min lookback when none is configured', async () => {
