@@ -48,10 +48,10 @@ export interface WindowHistoryStore {
   listTitlesInSession(app: string, from: number, to: number): SessionTitle[];
   /** Distinct visited URLs (non-null) with last_seen_at >= sinceMs, newest first. */
   recentUrlsSince(sinceMs: number, limit?: number): RecentUrl[];
-  /** The dominant (max total-dwell) work surface in [beforeTs - lookbackMs,
-   * beforeTs), excluding `excludeApp` (the distraction). Used to restore the user
-   * to whatever they were working on before getting distracted. `null` when no
-   * qualifying surface exists. */
+  /** The dominant (max in-window dwell) work surface overlapping [beforeTs -
+   * lookbackMs, beforeTs), excluding `excludeApp` (the distraction). Used to
+   * restore the user to whatever they were working on before getting distracted.
+   * `null` when no qualifying surface exists. */
   findDominantWorkSurfaceBefore(
     beforeTs: number,
     lookbackMs: number,
@@ -132,14 +132,21 @@ export function createWindowHistoryStore(deps: {
      GROUP BY window_title
      ORDER BY last_seen_at DESC`,
   );
-  // Dominant work surface before a moment: sessions started within the lookback
-  // window and strictly before beforeTs, excluding the distraction app, grouped
-  // by (app_name, url) and ranked by total dwell (SUM of session durations). A
-  // NULL url groups separately and surfaces as a urlless WorkSurface.
+  // Dominant work surface before a moment: sessions OVERLAPPING the lookback
+  // window [lowerBound, beforeTs), excluding the distraction app, grouped by
+  // (app_name, url) and ranked by total dwell. Overlap (last_seen_at >=
+  // lowerBound AND started_at < beforeTs) mirrors selectInWindow, so a long
+  // session that started before the window but ran right up to the distraction
+  // is still counted. The weight clamps each session to its in-window portion
+  // (MIN(last_seen_at, beforeTs) - MAX(started_at, lowerBound)) so a session
+  // straddling the lower bound is credited only for time inside the window, not
+  // its full pre-window history. A NULL url groups separately and surfaces as a
+  // urlless WorkSurface.
   const selectDominantWorkSurface = db.prepare(
-    `SELECT app_name, url, SUM(last_seen_at - started_at) AS weight
+    `SELECT app_name, url,
+       SUM(MIN(last_seen_at, @beforeTs) - MAX(started_at, @lowerBound)) AS weight
      FROM window_history
-     WHERE started_at >= @lowerBound AND started_at < @beforeTs
+     WHERE last_seen_at >= @lowerBound AND started_at < @beforeTs
        AND app_name != @excludeApp
      GROUP BY app_name, url
      ORDER BY weight DESC

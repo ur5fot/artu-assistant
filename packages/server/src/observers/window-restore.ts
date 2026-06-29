@@ -30,11 +30,32 @@ export interface RestoreOptions {
 
 const DEFAULT_TIMEOUT_MS = 5000;
 
+/** Loopback hosts only ever serve plain http in dev (a stored
+ * `localhost:3000/app` reopened as https would be a non-loadable URL). The
+ * stored URL is host[:port]/path with the scheme stripped at capture, so we
+ * pick the scheme back: http for loopback, https for everything else (the
+ * public web is effectively https-only). */
+function schemeFor(url: string): 'http' | 'https' {
+  const hostPort = url.split('/', 1)[0];
+  const host = hostPort.split(':', 1)[0];
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.startsWith('127.') ||
+    host === '0.0.0.0' ||
+    hostPort.startsWith('[::1]')
+  ) {
+    return 'http';
+  }
+  return 'https';
+}
+
 /**
  * Focus a work app via macOS `open -a`. When the target carried a URL (the
  * surface was a browser tab), reopen that URL in the app so the right tab comes
- * back: `open -a <app> https://<host/path>`. The stored URL is host+path only
- * (scheme stripped at capture), so it's reconstructed as https.
+ * back: `open -a <app> <scheme>://<host/path>`. The stored URL is host+path only
+ * (scheme stripped at capture), so the scheme is reconstructed — http for
+ * loopback dev servers, https otherwise (see schemeFor).
  *
  * Never throws: a non-zero exit, missing app, or timeout resolves to
  * `{ ok: false, reason }`, mirroring window-snapshot's silent-fail style.
@@ -48,7 +69,7 @@ export function restoreWorkSurface(
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   const args = target.url
-    ? ['-a', target.app, `https://${target.url}`]
+    ? ['-a', target.app, `${schemeFor(target.url)}://${target.url}`]
     : ['-a', target.app];
 
   return new Promise<RestoreResult>((resolve) => {

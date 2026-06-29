@@ -482,6 +482,32 @@ describe('createWindowHistoryStore', () => {
       expect(surface).toEqual({ app: 'Code' });
     });
 
+    it('includes a session that started before the window but ran into it (overlap)', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      const before = t0 + 600_000;
+      const lookbackMs = 120_000; // lowerBound = before - 120_000
+      // Code started well before the window but was active right up to `before`.
+      // Its started_at is < lowerBound, so a started_at-only filter would drop it.
+      session(store, 'Code', 'a.ts', t0, 590_000);
+      const surface = store.findDominantWorkSurfaceBefore(before, lookbackMs, 'YouTube');
+      expect(surface).toEqual({ app: 'Code' });
+    });
+
+    it('clamps weight to the in-window portion so a straddling session does not over-credit', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      const before = t0 + 600_000;
+      const lookbackMs = 120_000; // lowerBound = t0 + 480_000
+      // Slack straddles the lower bound: long total dwell, but only ~20s falls
+      // inside the window (last_seen_at = t0 + 500_000, lowerBound = t0 + 480_000).
+      session(store, 'Slack', 'general', t0, 500_000);
+      // Code is fully inside the window with 60s dwell -> should win on in-window time.
+      session(store, 'Code', 'a.ts', t0 + 520_000, 60_000);
+      const surface = store.findDominantWorkSurfaceBefore(before, lookbackMs, 'YouTube');
+      expect(surface).toEqual({ app: 'Code' });
+    });
+
     it('groups the same (app,url) across sessions and beats a single longer other surface', () => {
       const store = createWindowHistoryStore({ db: getDb() });
       const t0 = 1_700_000_000_000;

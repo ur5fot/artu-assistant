@@ -34,6 +34,30 @@ describe('restoreWorkSurface', () => {
     ]);
   });
 
+  it('reopens a loopback dev-server URL with http (not https)', async () => {
+    // A stored `localhost:3000/app` reopened as https would be non-loadable.
+    const { exec, calls } = okExec();
+    const res = await restoreWorkSurface(
+      { app: 'Google Chrome', url: 'localhost:3000/app' },
+      { exec },
+    );
+    expect(res).toEqual({ ok: true });
+    expect(calls[0].args).toEqual([
+      '-a',
+      'Google Chrome',
+      'http://localhost:3000/app',
+    ]);
+  });
+
+  it('reopens a 127.0.0.1 URL with http', async () => {
+    const { exec, calls } = okExec();
+    await restoreWorkSurface(
+      { app: 'Google Chrome', url: '127.0.0.1:8080/x' },
+      { exec },
+    );
+    expect(calls[0].args[2]).toBe('http://127.0.0.1:8080/x');
+  });
+
   it('opens app only when target has no url', async () => {
     const { exec, calls } = okExec();
     const res = await restoreWorkSurface({ app: 'Visual Studio Code' }, { exec });
