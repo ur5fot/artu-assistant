@@ -229,4 +229,26 @@ describe('distract:restore interaction', () => {
     expect(arg.flags).toBe(MessageFlags.Ephemeral);
     expect(arg.content).toBe('Восстановление не настроено.');
   });
+
+  it('passes a colon-containing distraction app whole as the excludeApp', async () => {
+    const windowStore = makeWindowStore({ app: 'Code' });
+    const restoreExecutor = vi.fn().mockResolvedValue({ ok: true });
+    const ixn = makeButton(`distract:restore:App:With:Colons:${RUN_START}`);
+    await routeInteraction(ixn, makeRestoreDeps({ windowStore, restoreExecutor }));
+    expect(windowStore.findDominantWorkSurfaceBefore).toHaveBeenCalledWith(
+      RUN_START,
+      120 * 60_000,
+      'App:With:Colons',
+    );
+  });
+
+  it('is a pure action — never records distraction feedback', async () => {
+    const deps = makeRestoreDeps({
+      windowStore: makeWindowStore({ app: 'Code' }),
+      restoreExecutor: vi.fn().mockResolvedValue({ ok: true }),
+    });
+    const ixn = makeButton(`distract:restore:Chrome:${RUN_START}`);
+    await routeInteraction(ixn, deps);
+    expect(deps.distractionEvalStore!.recordFeedback).not.toHaveBeenCalled();
+  });
 });
