@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import type { Coords, Forecast } from '../../weather/types.js';
 import type { OpenAction } from '../../topics/store.js';
 import { formatBriefOutlook } from '../../weather/open-meteo.js';
+import { IDLE_APP_NAMES } from '../../observers/window-history-store.js';
 
 function tzOffsetMs(ts: number, tz: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -76,11 +77,9 @@ export function hasUserActivityInLastHour(
   return row !== undefined;
 }
 
-// Frontmost macOS apps that mean "Mac is idle / locked", not real interaction:
-// `loginwindow` is foreground while the screen is locked, `ScreenSaverEngine`
-// while the screensaver runs. A window session starting on one of these isn't
-// the user sitting down to work, so it must not trigger the morning brief.
-const IDLE_APP_NAMES = ['loginwindow', 'ScreenSaverEngine'];
+// IDLE_APP_NAMES (loginwindow / ScreenSaverEngine) is imported from
+// window-history-store — a window session starting on one of those isn't the
+// user sitting down to work, so it must not trigger the morning brief.
 
 // True if a window session *started* in [since, now]. We key on `started_at`
 // (the instant the user actually switched/opened a window), not `last_seen_at`:

@@ -1,5 +1,12 @@
 import type Database from 'better-sqlite3';
 
+// Frontmost macOS apps that mean "Mac is idle / locked", not real interaction:
+// `loginwindow` is foreground while the screen is locked, `ScreenSaverEngine`
+// while the screensaver runs. These are recorded in window_history like any
+// other app, so any query that treats rows as "real work" must exclude them.
+// Canonical home — distraction-detector.ts and morningBrief.helpers.ts import it.
+export const IDLE_APP_NAMES = ['loginwindow', 'ScreenSaverEngine'];
+
 export interface WindowHistoryRow {
   id: number;
   app_name: string;
@@ -141,13 +148,21 @@ export function createWindowHistoryStore(deps: {
   // (MIN(last_seen_at, beforeTs) - MAX(started_at, lowerBound)) so a session
   // straddling the lower bound is credited only for time inside the window, not
   // its full pre-window history. A NULL url groups separately and surfaces as a
-  // urlless WorkSurface.
+  // urlless WorkSurface. Idle/lock apps (IDLE_APP_NAMES) are excluded too — they
+  // are recorded in window_history while the Mac is locked/screensaving, so a
+  // lookback dominated by them must not surface `open -a ScreenSaverEngine` as
+  // the "work" to restore.
+  const idleAppPlaceholders = IDLE_APP_NAMES.map((_, i) => `@idleApp${i}`).join(', ');
+  const idleAppParams = Object.fromEntries(
+    IDLE_APP_NAMES.map((name, i) => [`idleApp${i}`, name]),
+  );
   const selectDominantWorkSurface = db.prepare(
     `SELECT app_name, url,
        SUM(MIN(last_seen_at, @beforeTs) - MAX(started_at, @lowerBound)) AS weight
      FROM window_history
      WHERE last_seen_at >= @lowerBound AND started_at < @beforeTs
        AND app_name != @excludeApp
+       AND app_name NOT IN (${idleAppPlaceholders})
      GROUP BY app_name, url
      ORDER BY weight DESC
      LIMIT 1`,
@@ -204,6 +219,7 @@ export function createWindowHistoryStore(deps: {
         lowerBound: beforeTs - lookbackMs,
         beforeTs,
         excludeApp,
+        ...idleAppParams,
       }) as { app_name: string; url: string | null; weight: number } | undefined;
       if (!row) return null;
       return row.url !== null ? { app: row.app_name, url: row.url } : { app: row.app_name };

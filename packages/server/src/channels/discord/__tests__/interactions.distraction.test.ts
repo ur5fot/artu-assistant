@@ -54,12 +54,15 @@ function makeRestoreDeps(opts: {
   windowStore?: WindowHistoryStore;
   restoreExecutor?: (target: WorkSurface) => Promise<RestoreResult>;
   lookbackMin?: number;
+  restoreEnabled?: boolean;
 }): InteractionDeps {
   return {
     ...makeDeps(makeEvalStore()),
     windowHistoryStore: opts.windowStore,
     restoreExecutor: opts.restoreExecutor as any,
     distractionWorkLookbackMin: opts.lookbackMin,
+    // Live config has the flag on; tests opt out explicitly to exercise the gate.
+    restoreEnabled: opts.restoreEnabled ?? true,
   };
 }
 
@@ -225,6 +228,21 @@ describe('distract:restore interaction', () => {
   it('replies gracefully when the window store / executor are not wired', async () => {
     const ixn = makeButton(`distract:restore:Chrome:${RUN_START}`);
     await routeInteraction(ixn, makeRestoreDeps({}));
+    const arg = ixn.reply.mock.calls[0][0];
+    expect(arg.flags).toBe(MessageFlags.Ephemeral);
+    expect(arg.content).toBe('Восстановление не настроено.');
+  });
+
+  it('is inert when the flag is off — a stale button never runs the executor', async () => {
+    const windowStore = makeWindowStore({ app: 'Code' });
+    const restoreExecutor = vi.fn().mockResolvedValue({ ok: true });
+    const ixn = makeButton(`distract:restore:Chrome:${RUN_START}`);
+    await routeInteraction(
+      ixn,
+      makeRestoreDeps({ windowStore, restoreExecutor, restoreEnabled: false }),
+    );
+    expect(restoreExecutor).not.toHaveBeenCalled();
+    expect(windowStore.findDominantWorkSurfaceBefore).not.toHaveBeenCalled();
     const arg = ixn.reply.mock.calls[0][0];
     expect(arg.flags).toBe(MessageFlags.Ephemeral);
     expect(arg.content).toBe('Восстановление не настроено.');

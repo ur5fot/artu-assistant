@@ -1,12 +1,11 @@
-import type { WindowHistoryStore } from './window-history-store.js';
+import { IDLE_APP_NAMES, type WindowHistoryStore } from './window-history-store.js';
 import type { DistractionEvalStore } from './distraction-eval-store.js';
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 3_600_000;
 
 // Lock/idle apps that must never count as a dwell context or as the "prior
-// other app" anchor. Mirrors IDLE_APP_NAMES in morningBrief.helpers.ts.
-const IDLE_APP_NAMES = ['loginwindow', 'ScreenSaverEngine'];
+// other app" anchor. Re-exported from window-history-store (canonical home).
 
 export interface DistractionCandidate {
   /** App the user is currently stuck in. */

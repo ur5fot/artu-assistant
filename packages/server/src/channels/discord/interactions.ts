@@ -151,6 +151,10 @@ export interface InteractionDeps {
    *  work app (and reopen its tab URL when the surface was a browser). Without
    *  it the restore button replies with a graceful "not configured" notice. */
   restoreExecutor?: RestoreExecutor;
+  /** Mirrors DISTRACTION_RESTORE_ENABLED. Gates the `restore` branch itself, not
+   *  just button creation — so flipping the flag off makes a stale restore
+   *  button (created while it was on) inert instead of still running `open`. */
+  restoreEnabled?: boolean;
   /** Lookback (minutes) used by the `distract:restore` button to re-derive the
    *  dominant work surface before the distraction. Mirrors the handler's
    *  DISTRACTION_WORK_LOOKBACK_MIN; falls back to a 120-min default. */
@@ -584,7 +588,9 @@ async function handleDistractFeedback(
     // The button carries only `<distractionApp>:<runStart>`; re-derive the work
     // surface at click time (codebase's "re-detect at run" style) so a stale
     // nudge still restores whatever the user was actually on before this app.
-    if (!deps.windowHistoryStore || !deps.restoreExecutor) {
+    // Gate the branch on the flag too (not only on button creation): a button
+    // built while the flag was on must not still run `open` after it's off.
+    if (!deps.restoreEnabled || !deps.windowHistoryStore || !deps.restoreExecutor) {
       await (ixn as any).reply({
         flags: MessageFlags.Ephemeral,
         content: 'Восстановление не настроено.',

@@ -1217,10 +1217,12 @@ if (discordToken) {
       // thus no buttons when the feature is off, so the store is never touched.
       distractionEvalStore,
       distractionSnoozeMin,
-      // distract:restore button focuses the work app (macOS `open`). Passed
-      // unconditionally — when DISTRACTION_RESTORE_ENABLED is off no restore
-      // buttons are ever created, so the executor is never invoked.
+      // distract:restore button focuses the work app (macOS `open`). The
+      // executor is passed unconditionally, but the `restore` branch is gated on
+      // restoreEnabled so a stale button (built while the flag was on) is inert
+      // once the flag is off — not just absent from new nudges.
       restoreExecutor: restoreWorkSurface,
+      restoreEnabled: process.env.DISTRACTION_RESTORE_ENABLED === 'true',
       // Re-derive the work surface at click time over the same lookback the
       // handler used to build the button (default 120).
       distractionWorkLookbackMin: envInt(process.env.DISTRACTION_WORK_LOOKBACK_MIN, 120, 10, 480),

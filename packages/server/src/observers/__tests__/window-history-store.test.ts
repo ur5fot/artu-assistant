@@ -425,6 +425,28 @@ describe('createWindowHistoryStore', () => {
       expect(surface).toEqual({ app: 'Code' });
     });
 
+    it('excludes idle/lock apps even when they dominate the lookback', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      // Mac was locked (loginwindow) far longer than the real work app, and the
+      // screensaver ran too — neither is a surface to restore the user to.
+      session(store, 'loginwindow', '', t0, 600_000);
+      session(store, 'ScreenSaverEngine', '', t0 + 600_001, 300_000);
+      session(store, 'Code', 'a.ts', t0 + 900_002, 30_000);
+      const before = t0 + 1_000_000;
+
+      const surface = store.findDominantWorkSurfaceBefore(before, 3_600_000, 'YouTube');
+      expect(surface).toEqual({ app: 'Code' });
+    });
+
+    it('returns null when only idle/lock apps are in the lookback', () => {
+      const store = createWindowHistoryStore({ db: getDb() });
+      const t0 = 1_700_000_000_000;
+      session(store, 'loginwindow', '', t0, 600_000);
+      const before = t0 + 700_000;
+      expect(store.findDominantWorkSurfaceBefore(before, 3_600_000, 'YouTube')).toBeNull();
+    });
+
     it('returns url when the dominant surface is a browser tab', () => {
       const store = createWindowHistoryStore({ db: getDb() });
       const t0 = 1_700_000_000_000;

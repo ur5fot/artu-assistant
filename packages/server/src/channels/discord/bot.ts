@@ -135,6 +135,9 @@ export interface DiscordBotDeps {
    *  work app the user was distracted from. Without it the button replies with
    *  a graceful "not configured" notice. */
   restoreExecutor?: RestoreExecutor;
+  /** Mirrors DISTRACTION_RESTORE_ENABLED — gates the `restore` branch so a stale
+   *  button stays inert once the flag is turned off. */
+  restoreEnabled?: boolean;
   /** Lookback (minutes) used by the `distract:restore` button to re-derive the
    *  dominant work surface before the distraction. */
   distractionWorkLookbackMin?: number;
@@ -357,6 +360,7 @@ export async function startDiscordBot(
         distractionEvalStore: deps.distractionEvalStore,
         distractionSnoozeMin: deps.distractionSnoozeMin,
         restoreExecutor: deps.restoreExecutor,
+        restoreEnabled: deps.restoreEnabled,
         distractionWorkLookbackMin: deps.distractionWorkLookbackMin,
         topicStore: deps.topicStore,
       });
