@@ -597,8 +597,8 @@ the daily cap.
 Вернуть: \<app\>** button. R2 looks back over `window_history` for the dominant
 *work* surface you were on just before the distraction started (max-duration
 app, excluding the distraction app itself), and the button reopens it via macOS
-`open -a <app>` — plus the URL (`https://<host/path>`) if that surface was a
-browser tab. The target is re-derived defensively at click time, the ack is
+`open -a <app>` — plus the URL if that surface was a browser tab (reopened as
+`http://<host/path>` for localhost/loopback dev servers, `https://` otherwise). The target is re-derived defensively at click time, the ack is
 ephemeral (`↩️ Открыл <app>` / `· <url>`), and the original nudge is left
 untouched. If there's no clear work surface the button is simply omitted; every
 error path (no target, `open` failure, unconfigured) replies ephemerally and

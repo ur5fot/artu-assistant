@@ -58,6 +58,42 @@ describe('restoreWorkSurface', () => {
     expect(calls[0].args[2]).toBe('http://127.0.0.1:8080/x');
   });
 
+  it('reopens a *.localhost subdomain URL with http', async () => {
+    const { exec, calls } = okExec();
+    await restoreWorkSurface(
+      { app: 'Google Chrome', url: 'app.localhost:3000/x' },
+      { exec },
+    );
+    expect(calls[0].args[2]).toBe('http://app.localhost:3000/x');
+  });
+
+  it('reopens a 0.0.0.0 URL with http', async () => {
+    const { exec, calls } = okExec();
+    await restoreWorkSurface(
+      { app: 'Google Chrome', url: '0.0.0.0:8080/x' },
+      { exec },
+    );
+    expect(calls[0].args[2]).toBe('http://0.0.0.0:8080/x');
+  });
+
+  it('reopens an IPv6 loopback ([::1]) URL with http', async () => {
+    const { exec, calls } = okExec();
+    await restoreWorkSurface(
+      { app: 'Google Chrome', url: '[::1]:3000/x' },
+      { exec },
+    );
+    expect(calls[0].args[2]).toBe('http://[::1]:3000/x');
+  });
+
+  it('reopens a bare public host (no port/path) with https', async () => {
+    const { exec, calls } = okExec();
+    await restoreWorkSurface(
+      { app: 'Google Chrome', url: 'github.com' },
+      { exec },
+    );
+    expect(calls[0].args[2]).toBe('https://github.com');
+  });
+
   it('opens app only when target has no url', async () => {
     const { exec, calls } = okExec();
     const res = await restoreWorkSurface({ app: 'Visual Studio Code' }, { exec });

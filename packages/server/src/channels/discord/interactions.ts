@@ -614,6 +614,11 @@ async function handleDistractFeedback(
           : `↩️ Открыл ${target.app}`,
       });
     } else {
+      // Surface the failure reason — restore is otherwise a silent side effect,
+      // so a non-loadable app/URL would be undebuggable without this.
+      console.warn(
+        `distract:restore failed for ${target.app}: ${result.reason ?? 'unknown'}`,
+      );
       await (ixn as any).reply({
         flags: MessageFlags.Ephemeral,
         content: `Не смог открыть ${target.app}.`,
