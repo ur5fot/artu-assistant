@@ -72,15 +72,15 @@ Design spec: `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
 - [x] run tests — must pass before Task 2
 
 ### Task 2: `tutor/lesson-generator.ts`
-- [ ] `generateLesson(input, deps) → Lesson` где `input = { level, recentTopics,
+- [x] `generateLesson(input, deps) → Lesson` где `input = { level, recentTopics,
       weakTopics }`, `deps = { anthropic, model, signal }`; промпт просит JSON
       `{topic, explanation, exercises:[{kind,prompt,options?,answer,rubric?}]}`
-- [ ] парс через `extractJson`-подобный хелпер; валидация формы (≥1 упражнение,
+- [x] парс через `extractJson`-подобный хелпер; валидация формы (≥1 упражнение,
       корректные kind); кривой/невалидный JSON → один ретрай, затем throw
       `LessonGenError`
-- [ ] write tests: валидный JSON → Lesson; промпт включает level/recent/weak;
+- [x] write tests: валидный JSON → Lesson; промпт включает level/recent/weak;
       кривой JSON → ретрай; повторный провал → throw
-- [ ] run tests — must pass before Task 3
+- [x] run tests — must pass before Task 3
 
 ### Task 3: `tutor/grader.ts`
 - [ ] `gradeMcq(exercise, choiceIdx) → { correct }` — детерминированно
