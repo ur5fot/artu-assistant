@@ -139,13 +139,15 @@ Design spec: `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
 - [x] run tests — must pass before Task 9
 
 ### Task 9: Флаги + wiring в index.ts
-- [ ] `ENGLISH_TUTOR_ENABLED` (default false), `ENGLISH_TUTOR_HOUR` (envInt),
+- [x] `ENGLISH_TUTOR_ENABLED` (default false), `ENGLISH_TUTOR_HOUR` (envInt),
       `ENGLISH_TUTOR_MODEL` (default `claude-sonnet-4-6`)
-- [ ] собрать tutor store/deps, зарегистрировать `englishLesson` (условно, после
+- [x] собрать tutor store/deps, зарегистрировать `englishLesson` (условно, после
       Discord, как morningBrief), прокинуть session/store в bot+interactions
-- [ ] лог состояния флага
-- [ ] write/extend wiring-тесты, если есть startup-тест; иначе покрыто юнитами
-- [ ] run tests — must pass before Task 10
+      (bot.ts: `tutor` теперь форвардится в routeInteraction)
+- [x] лог состояния флага
+- [x] write/extend wiring-тесты, если есть startup-тест; иначе покрыто юнитами
+      (startup-теста нет → покрыто tutor/discord юнитами; tsc --noEmit чистый)
+- [x] run tests — must pass before Task 10 (422 server-теста зелёные)
 
 ### Task 10: Verify acceptance criteria
 - [ ] placement выставляет CEFR; дневной урок постится по часу с гейтами

@@ -47,3 +47,7 @@
   `docs/plans/2026-07-02-english-tutor.md` (11 задач). Запустил ralphex Full/50
   с `--serve` (дашборд http://localhost:8080) + `--wait=1h` (переживёт
   session-limit) на dev (task `bc76b945a`). Ждём выполнение + review.
+- **Task 9 (english tutor) — флаги + wiring.** `ENGLISH_TUTOR_ENABLED`/`_HOUR`/
+  `_MODEL` в index.ts, собран `tutorStore` + `tutorDeps`, `englishLesson`-хендлер
+  зарегистрирован в Discord-gated блоке (как morningBrief), `tutor` прокинут в bot
+  и форвардится в routeInteraction. 422 server-теста зелёные, tsc чистый.

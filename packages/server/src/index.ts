@@ -47,6 +47,9 @@ import { runChatRequest } from './ai/router.js';
 import { createCognitionService } from './cognition/service.js';
 import { pulseHandler } from './cognition/handlers/pulse.js';
 import { createMorningBriefHandler } from './cognition/handlers/morningBrief.js';
+import { createEnglishLessonHandler } from './cognition/handlers/englishLesson.js';
+import { createTutorStore } from './tutor/store.js';
+import type { TutorInteractionDeps } from './channels/discord/tutor-handlers.js';
 import { parseImapAccounts } from './emails/config.js';
 import { createEmailStore } from './emails/store.js';
 import { createEmailSuppressionStore } from './emails/suppression-store.js';
@@ -884,6 +887,27 @@ if (emailEnabled) {
   console.log('[emails] disabled (EMAIL_ENABLED=false or IMAP_ACCOUNTS empty)');
 }
 
+// ---- English tutor (Task 9) — bootstrap ----
+// Store is created unconditionally (cheap prepared statements over always-migrated
+// tutor_* tables) so `/english` + the tutor:mcq:* buttons + the free-text hook
+// share one instance. Behaviour is gated on the `enabled` flag: off → `/english`
+// answers "выключено", the message hook is inert, and the daily handler is not
+// registered (see registerDiscordGatedHandlers). Model defaults to Sonnet.
+const englishTutorEnabled = envBool(process.env.ENGLISH_TUTOR_ENABLED, false);
+const englishTutorHour = envInt(process.env.ENGLISH_TUTOR_HOUR, 9, 0, 23);
+const englishTutorModel = process.env.ENGLISH_TUTOR_MODEL || 'claude-sonnet-4-6';
+const tutorStore = createTutorStore({ db: getDb() });
+const tutorDeps: TutorInteractionDeps = {
+  enabled: englishTutorEnabled,
+  store: tutorStore,
+  anthropic: client.anthropic,
+  model: englishTutorModel,
+};
+console.log(
+  `[tutor] english tutor ${englishTutorEnabled ? 'enabled' : 'disabled'} (ENGLISH_TUTOR_ENABLED)` +
+    (englishTutorEnabled ? `, hour=${englishTutorHour}, model=${englishTutorModel}` : ''),
+);
+
 // Discord bot (optional — only starts if DISCORD_BOT_TOKEN is set).
 //
 // Connect resilience (root #2): the first attempt runs inline (fast path). If it
@@ -919,6 +943,24 @@ const registerDiscordGatedHandlers = guardOnce(async () => {
         topicStore,
       }),
     );
+
+    // English tutor daily lesson — gated on Discord like morningBrief: it
+    // publishes the lesson via the cognition bus and there is nobody else to
+    // consume it. Registered only when the flag is on; the handler's own
+    // `trigger` applies the remaining gates (placement done, target hour, quiet
+    // hours, not paused, no unfinished lesson).
+    if (englishTutorEnabled) {
+      cognitionService.register(
+        createEnglishLessonHandler({
+          enabled: true,
+          store: tutorStore,
+          anthropic: client.anthropic,
+          model: englishTutorModel,
+          hour: englishTutorHour,
+        }),
+      );
+      console.log(`[tutor] daily lesson handler registered (hour=${englishTutorHour})`);
+    }
 
     // Digest handler stays gated on Discord — it publishes via the cognition
     // bus and there is nobody else to consume the event today. Polling is
@@ -1213,6 +1255,10 @@ if (discordToken) {
       memoryConfirmService,
       commandService,
       draftReplyService,
+      // English tutor surface (Task 9) — backs the free-text hook in
+      // handleMessage and, via routeInteraction, `/english` + tutor:mcq:*
+      // buttons. `enabled` gates all behaviour, so it's safe to pass always.
+      tutor: tutorDeps,
       emailStore: emailEnabled ? emailStore : undefined,
       // markAnswered exists only to feed the implicit-feedback resolver, so
       // only wire it when feedback is enabled — otherwise EMAIL_FEEDBACK_ENABLED=false

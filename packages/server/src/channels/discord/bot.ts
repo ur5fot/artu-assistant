@@ -391,6 +391,7 @@ export async function startDiscordBot(
         restoreEnabled: deps.restoreEnabled,
         distractionWorkLookbackMin: deps.distractionWorkLookbackMin,
         topicStore: deps.topicStore,
+        tutor: deps.tutor,
       });
     } catch (err) {
       console.error('[discord] interaction error:', err instanceof Error ? err.message : err);
