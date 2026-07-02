@@ -584,6 +584,10 @@ REDELIVER_MAX_AGE_MS=21600000     # max age (ms) of an undelivered cognition pub
 # MCP server (expose R2 tools to Claude Desktop / Claude Code) — see packages/server/src/mcp/
 MCP_ENABLED=false                 # off by default; only an exact "true" mounts /mcp (Streamable HTTP, bound to 127.0.0.1 inside the existing Express app)
 MCP_TOOL_DENYLIST=                 # comma-separated extra tool names to hide; EXTENDS the built-in internal denylist (code_deploy, code_task, task, eval_add, eval_run, prompt-overlay); forbidden-level tools always excluded; unknown names ignored; whitespace trimmed
+# English tutor — proactive personal English teacher (see packages/server/src/tutor/)
+ENGLISH_TUTOR_ENABLED=false        # master switch: daily lesson handler + `/english` command + free-text grading hook (off ⇒ handler not registered, `/english` replies "учитель выключен", message hook inert)
+ENGLISH_TUTOR_HOUR=9               # local hour the daily lesson posts (0-23, else default 9; envInt)
+ENGLISH_TUTOR_MODEL=claude-sonnet-4-6  # Claude model for lesson generation / free-text grading (string)
 ```
 
 ## Discord Bot (DM channel)

@@ -137,6 +137,9 @@ Closing the gap between Claude Code (the harness) and R2:
     pings you mid-distraction. `contextSwitch` (iter 1, passive restore) is now
     off by default. See the
     [Digital Observer](#digital-observer-pain-2--macos-only) section.
+  - `englishLesson` — proactive English tutor; posts a daily adaptive lesson at
+    `ENGLISH_TUTOR_HOUR`. Gated on `ENGLISH_TUTOR_ENABLED=true`. See the
+    [English tutor](#english-tutor) section.
   - `pulseHandler` — demo / placeholder.
 - **Discord channel** — DM-only, whitelist-gated. The only active channel today.
   Interactive embeds: reminder ring (dismiss / snooze 10m), permission requests
@@ -551,6 +554,42 @@ geocoding the name).
 An Open-Meteo outage degrades gracefully: the brief falls back to "погода
 недоступна", the tool returns `{success:false,error}`, and the alert handler
 skips the tick — nothing crashes.
+
+---
+
+## English tutor
+
+A proactive personal English teacher living inside R2 (`packages/server/src/tutor/`).
+Zero manual setup: on first use it runs a short **placement** to estimate your
+CEFR level, then generates **LLM-adaptive daily lessons** — each an explanation
+plus a mix of multiple-choice and free-text exercises. It tracks per-topic
+**mastery** (EWMA) and picks the next topic from your weak and recent themes.
+Off by default; `ENGLISH_TUTOR_ENABLED=true` turns it on.
+
+Two surfaces:
+
+- **Daily lesson (`englishLesson` cognition handler).** Posts one lesson at
+  `ENGLISH_TUTOR_HOUR` (local, default 9). Gated: flag on, placement done, right
+  hour, not in quiet hours, not paused, and no unfinished lesson already open.
+  A generation failure skips the tick with a reason and creates no state.
+- **`/english` Discord command.** No profile / placement not done → starts
+  placement; an active lesson → resume it; otherwise → generate a fresh lesson.
+  `/english stop` closes the active lesson/session. With the flag off it replies
+  "учитель выключен".
+
+**Grading.** MCQ answers are graded deterministically via the `tutor:mcq:*`
+buttons — click, get ephemeral feedback and the next exercise. Free-text answers
+are graded by Claude with a Russian-language breakdown (`correct` / `partial` /
+`wrong` + feedback). A free-text answer or a placement reply typed as a normal
+message is routed to the tutor **only** while a lesson is awaiting free text or a
+placement is in progress; at any other time your chat reaches the general
+assistant untouched.
+
+**Config** (all in `.env.example`): `ENGLISH_TUTOR_ENABLED` (master switch),
+`ENGLISH_TUTOR_HOUR` (0–23, default 9), `ENGLISH_TUTOR_MODEL` (default
+`claude-sonnet-4-6`, used for lesson generation and free-text grading). LLM
+failures degrade gracefully — a generation error skips the daily post and a
+grading error surfaces an error rather than inventing a verdict.
 
 ---
 

@@ -164,8 +164,8 @@ Design spec: `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
       (vitest run: 2399 passed / 168 files; tsc --noEmit exit 0)
 
 ### Task 11: Документация
-- [ ] `ENGLISH_TUTOR_ENABLED`/`_HOUR`/`_MODEL` в `AGENTS.md` + `.env.example`
-- [ ] описать модуль-учитель в `README.md`
+- [x] `ENGLISH_TUTOR_ENABLED`/`_HOUR`/`_MODEL` в `AGENTS.md` + `.env.example`
+- [x] описать модуль-учитель в `README.md`
 
 ## Technical Details
 
