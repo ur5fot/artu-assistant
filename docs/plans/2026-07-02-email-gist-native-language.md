@@ -121,13 +121,13 @@ Design spec: `docs/superpowers/specs/2026-07-02-email-gist-native-language-desig
 - [x] run tests — must pass before Task 6
 
 ### Task 6: Флаг + wiring в index.ts
-- [ ] `index.ts`: `gistEnabled = process.env.EMAIL_GIST_ENABLED === 'true'`;
+- [x] `index.ts`: `gistEnabled = process.env.EMAIL_GIST_ENABLED === 'true'`;
       собрать `gister` через `summarizeGists` с теми же piiProxy/ollama/anthropic,
       что у скорера; прокинуть `gister`/`gistEnabled`/`importanceCutoff` в поллер
-- [ ] лог состояния флага рядом с email-инициализацией
-- [ ] write/extend tests на wiring, если есть startup-тест; иначе покрыто
-      юнитами поллера/модуля
-- [ ] run tests — must pass before Task 7
+- [x] лог состояния флага рядом с email-инициализацией
+- [x] write/extend tests на wiring, если есть startup-тест; иначе покрыто
+      юнитами поллера/модуля (startup-теста нет → покрыто gist/поллер юнитами)
+- [x] run tests — must pass before Task 7
 
 ### Task 7: Verify acceptance criteria
 - [ ] flag on → письмо ≥cutoff получает русскую суть в `email_pending.gist`

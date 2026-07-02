@@ -55,6 +55,7 @@ import { fetchNewMessages, fetchFullBody, getMaxUid, getUidValidity, fetchHeader
 import { fetchThread } from './emails/thread-fetcher.js';
 import { sendReply as sendSmtpReply } from './emails/smtp-client.js';
 import { scoreBatch } from './emails/scorer.js';
+import { summarizeGists } from './emails/gist.js';
 import { startEmailPoller } from './emails/multi-account-poller.js';
 import { createEmailDigestHandler } from './cognition/handlers/emailDigest.js';
 import { createEmailUrgentHandler } from './cognition/handlers/emailUrgent.js';
@@ -348,6 +349,13 @@ const emailFeedbackMaxRepoll = envInt(process.env.EMAIL_FEEDBACK_MAX_REPOLL, 50,
 // once (latched until the next successful poll clears the streak). Default 3 ×
 // the 5-min interval ≈ 15 min of silence before escalating.
 const emailBlindAlertAfter = envInt(process.env.EMAIL_ACCOUNT_BLIND_ALERT_AFTER, 3, 1, 100);
+// Native-language gist (Pain #1) — summarize each above-cutoff email into a short
+// Russian gist shown in the urgent ping, digest and emails tool instead of the raw
+// foreign-language snippet. Hard-gated on the flag AND email being enabled, so the
+// default (flag unset) is zero behaviour change: no extra LLM tokens spent, every
+// row stored with gist=null → snippet shown exactly as before. Reuses the scorer's
+// piiProxy/ollama/anthropic wiring (same anonymize↔deanonymize mapping).
+const emailGistEnabled = process.env.EMAIL_GIST_ENABLED === 'true' && emailEnabled;
 // When the feature is disabled, hand `null` to tool-emails so `emails_list` /
 // `emails_get` return a clear "not enabled" error instead of empty data or
 // references to stale accounts.
@@ -824,6 +832,20 @@ if (emailEnabled) {
         anthropic: client.anthropic,
         signal: pollerAbort.signal,
       }),
+    // Native-language gist step (behind EMAIL_GIST_ENABLED). `gistEnabled` false →
+    // the poller skips this entirely (no tokens spent, gist=null everywhere).
+    // Reuses the same piiProxy/ollama/anthropic as the scorer so the anonymize↔
+    // deanonymize placeholder mapping is shared across both LLM calls.
+    gistEnabled: emailGistEnabled,
+    gister: emailGistEnabled
+      ? (msgs) =>
+          summarizeGists(msgs, {
+            piiProxy,
+            ollama: ollamaForRouter,
+            anthropic: client.anthropic,
+            signal: pollerAbort.signal,
+          })
+      : undefined,
     intervalMs: envInt(process.env.EMAIL_POLL_INTERVAL_MS, 300_000, 1_000),
     // Importance cutoff (scorer scale 1-5): emails scored >= this become pending;
     // below it they're fetched, scored, then dropped. Default 3 surfaces the
@@ -854,6 +876,9 @@ if (emailEnabled) {
   console.log(
     `[emails] poller started for ${imapAccounts.length} account(s)` +
       (emailFeedbackStore ? ' (implicit feedback enabled)' : ''),
+  );
+  console.log(
+    `[emails] native-language gist ${emailGistEnabled ? 'enabled' : 'disabled'} (EMAIL_GIST_ENABLED)`,
   );
 } else {
   console.log('[emails] disabled (EMAIL_ENABLED=false or IMAP_ACCOUNTS empty)');
