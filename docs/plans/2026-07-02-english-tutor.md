@@ -150,12 +150,18 @@ Design spec: `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
 - [x] run tests — must pass before Task 10 (422 server-теста зелёные)
 
 ### Task 10: Verify acceptance criteria
-- [ ] placement выставляет CEFR; дневной урок постится по часу с гейтами
-- [ ] MCQ кнопкой детерминированно; свободный ответ LLM-грейдером с ru-разбором
-- [ ] чат-роутинг активен только при awaiting_free/placement; иначе ассистент цел
-- [ ] на done обновляется mastery; следующий урок учитывает слабые/недавние темы
-- [ ] флаг off → R2 без изменений; LLM-сбои → graceful
-- [ ] полный server-набор + линтер зелёные; coverage на новых модулях
+- [x] placement выставляет CEFR; дневной урок постится по часу с гейтами
+      (placement.test.ts + cognition/handlers/__tests__/englishLesson.test.ts)
+- [x] MCQ кнопкой детерминированно; свободный ответ LLM-грейдером с ru-разбором
+      (grader.test.ts + discord/__tests__/tutor-handlers.test.ts)
+- [x] чат-роутинг активен только при awaiting_free/placement; иначе ассистент цел
+      (session.test.ts routingState + discord/__tests__/bot.test.ts hook)
+- [x] на done обновляется mastery; следующий урок учитывает слабые/недавние темы
+      (session.test.ts progress-on-done + lesson-generator.test.ts weak/recent)
+- [x] флаг off → R2 без изменений; LLM-сбои → graceful
+      (tutor-handlers.test.ts flag-off + *GenError/GradeError throw tests)
+- [x] полный server-набор + линтер зелёные; coverage на новых модулях
+      (vitest run: 2399 passed / 168 files; tsc --noEmit exit 0)
 
 ### Task 11: Документация
 - [ ] `ENGLISH_TUTOR_ENABLED`/`_HOUR`/`_MODEL` в `AGENTS.md` + `.env.example`
