@@ -7,6 +7,11 @@
 
 ## 2026-07-02
 
+- **English tutor Task 1 (схема БД + store).** Добавил аддитивные таблицы
+  `tutor_profile`/`tutor_lesson`/`tutor_progress` в `db.ts` и модуль
+  `tutor/store.ts` (CRUD профиля, урок с getActive=последний не-done, progress
+  с mastery EWMA). 13 юнит-тестов зелёные, tsc чистый. Флаг ещё не заведён —
+  R2 без изменений.
 - **Старт журнала.** С этого момента веду лог (юзер работает без просмотра стрима).
 - **Точка отсчёта:** Digital Observer iter-2 restore-button уже в проде
   (`origin/master` @ `7d9f42c`) — кнопка `↩️ Вернуть` в pullback-нудже,
@@ -27,3 +32,18 @@
   session-limit (4-й раз, не код). Откатил случайный мусор в `.env.example`
   («ку» прилипло). Лимит отпустило (21:14 Kiev > сброс 18:50) → запустил
   `--codex-only` (task `bkygwcbuv`). После завершения — деплой dev→master.
+- **email gist задеплоено.** Codex-review чисто (REVIEW_DONE, 0 critical/major,
+  фикс `249103a`), 1964 теста зелёные. Merge dev→master + push
+  (`7d9f42c..249103a`). Фича в проде за флагом `EMAIL_GIST_ENABLED` (default off).
+- **Включил gist в рантайме.** `EMAIL_GIST_ENABLED=true` в `.env`, рестарт
+  `com.r2.supervisor`. Лог нового воркера: `native-language gist enabled`.
+  Обе фичи сессии живые: restore-кнопка + email gist.
+- **Новая фича: модуль «Учитель английского».** Забрейнштормили (структурные
+  уроки, LLM-адаптивный куррикулум, проактивно+команда, микс MCQ/свободный ответ,
+  placement на старте) → спека `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
+  Модуль `tutor/` + cognition-хендлер + `/english`, флаг `ENGLISH_TUTOR_ENABLED`.
+  Дальше — план + ralphex (с `--serve`).
+- **План + запуск ralphex (english tutor).** План
+  `docs/plans/2026-07-02-english-tutor.md` (11 задач). Запустил ralphex Full/50
+  с `--serve` (дашборд http://localhost:8080) + `--wait=1h` (переживёт
+  session-limit) на dev (task `bc76b945a`). Ждём выполнение + review.

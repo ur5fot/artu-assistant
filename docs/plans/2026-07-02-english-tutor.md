@@ -60,16 +60,16 @@ Design spec: `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
 ## Implementation Steps
 
 ### Task 1: Схема БД + `tutor/store.ts`
-- [ ] `db.ts`: `CREATE TABLE IF NOT EXISTS` для `tutor_profile`, `tutor_lesson`,
+- [x] `db.ts`: `CREATE TABLE IF NOT EXISTS` для `tutor_profile`, `tutor_lesson`,
       `tutor_progress` (поля по спеке)
-- [ ] `tutor/store.ts`: CRUD профиля (get/upsert, level, placement_state,
+- [x] `tutor/store.ts`: CRUD профиля (get/upsert, level, placement_state,
       placement_payload, daily_hour, paused); урок (create, getActive
       (`status!=done`), update payload/status/current_ex/score/complete); progress
       (get, upsert с mastery EWMA)
-- [ ] write tests: профиль upsert/read; активный урок = последний не-done;
+- [x] write tests: профиль upsert/read; активный урок = последний не-done;
       mastery EWMA-апдейт; пустое состояние (нет профиля/урока)
-- [ ] write tests: миграции создают таблицы идемпотентно
-- [ ] run tests — must pass before Task 2
+- [x] write tests: миграции создают таблицы идемпотентно
+- [x] run tests — must pass before Task 2
 
 ### Task 2: `tutor/lesson-generator.ts`
 - [ ] `generateLesson(input, deps) → Lesson` где `input = { level, recentTopics,

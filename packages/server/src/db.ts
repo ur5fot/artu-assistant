@@ -531,6 +531,54 @@ export function initDb(dbPath?: string): void {
     )
   `);
 
+  // English tutor module (behind ENGLISH_TUTOR_ENABLED). Additive tables that
+  // hold the flashcard-style tutor state semantic memory can't: single-row
+  // profile (CEFR level + placement state), the (≤1 active) lesson with its
+  // JSON payload + state-machine status, and per-topic mastery progress.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tutor_profile (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      level TEXT,
+      placement_state TEXT NOT NULL DEFAULT 'none'
+        CHECK (placement_state IN ('none', 'in_progress', 'done')),
+      placement_payload TEXT,
+      daily_hour INTEGER,
+      paused INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tutor_lesson (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      topic TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'awaiting_mcq'
+        CHECK (status IN ('awaiting_mcq', 'awaiting_free', 'done')),
+      current_ex INTEGER NOT NULL DEFAULT 0,
+      score REAL,
+      created_at INTEGER NOT NULL,
+      completed_at INTEGER
+    )
+  `);
+  // The active lesson is the newest row with status != done — index the
+  // status/id lookup that getActive runs on every tutor turn.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_tutor_lesson_status
+      ON tutor_lesson(status, id DESC)
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tutor_progress (
+      topic TEXT PRIMARY KEY,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      correct INTEGER NOT NULL DEFAULT 0,
+      mastery REAL NOT NULL DEFAULT 0,
+      last_at INTEGER NOT NULL
+    )
+  `);
+
   // Migration: add importance / forgotten columns to memory_facts if missing.
   // SQLite can't do IF NOT EXISTS for columns, so we gate on PRAGMA table_info.
   const factCols = db.prepare('PRAGMA table_info(memory_facts)').all() as Array<{ name: string }>;
