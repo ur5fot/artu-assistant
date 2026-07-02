@@ -88,9 +88,16 @@ export function createEmailUrgentHandler(deps: Deps): Handler {
       // that would break the expected 3-line Discord layout.
       const from = row.from_addr.replace(/\s+/g, ' ').trim();
       const subject = row.subject.replace(/\s+/g, ' ').trim();
+      // Prefer the native-language gist (Russian summary) when present; fall
+      // back to the raw foreign-language snippet when there is no gist (old
+      // rows, below cutoff, gist miss/failure, flag off). Same whitespace
+      // collapse + truncation for either source so the 3-line Discord layout
+      // holds.
+      const gist = (row.gist ?? '').replace(/\s+/g, ' ').trim();
       const snippet = row.snippet.replace(/\s+/g, ' ').trim();
+      const body = gist.length > 0 ? gist : snippet;
       const truncated =
-        snippet.length > SNIPPET_MAX ? snippet.slice(0, SNIPPET_MAX - 1) + '…' : snippet;
+        body.length > SNIPPET_MAX ? body.slice(0, SNIPPET_MAX - 1) + '…' : body;
       const content = `🚨 ${from}\n${subject}\n${truncated}`;
       const { embed, components } = buildUrgentEmailEmbed(row);
       return {

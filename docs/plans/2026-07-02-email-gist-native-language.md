@@ -106,11 +106,11 @@ Design spec: `docs/superpowers/specs/2026-07-02-email-gist-native-language-desig
 - [x] run tests — must pass before Task 4
 
 ### Task 4: Показ — urgent-пинг
-- [ ] `emailUrgent.ts`: если `row.gist` не пуст → `content = 🚨 from\nsubject\n<gist>`;
+- [x] `emailUrgent.ts`: если `row.gist` не пуст → `content = 🚨 from\nsubject\n<gist>`;
       иначе fallback на текущий snippet-путь (усечение как есть)
-- [ ] write tests: gist присутствует → в content суть, не snippet; gist null →
+- [x] write tests: gist присутствует → в content суть, не snippet; gist null →
       snippet (текущее поведение)
-- [ ] run tests — must pass before Task 5
+- [x] run tests — must pass before Task 5
 
 ### Task 5: Показ — дайджест + `emails`-тул
 - [ ] `emailDigest.helpers.ts` `formatRow`: при наличии `gist` использовать его

@@ -20,10 +20,11 @@ function mkPending(opts: {
   from?: string;
   subject?: string;
   snippet?: string;
+  gist?: string | null;
 }) {
   getDb().prepare(`
-    INSERT INTO email_pending (account_id, message_uid, from_addr, subject, snippet, importance, received_at, added_at)
-    VALUES ('a', ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO email_pending (account_id, message_uid, from_addr, subject, snippet, importance, received_at, added_at, gist)
+    VALUES ('a', ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     opts.uid,
     opts.from ?? 'sender@example.com',
@@ -32,6 +33,7 @@ function mkPending(opts: {
     opts.importance,
     opts.received_at,
     opts.received_at,
+    opts.gist ?? null,
   );
 }
 
@@ -118,6 +120,92 @@ describe('createEmailUrgentHandler.run', () => {
     expect('publish' in res && res.publish).toBe(true);
     if ('publish' in res && res.publish) {
       expect(res.content).toBe('🚨 boss@acme.com\nServer down\nProd is on fire');
+    }
+  });
+
+  it('uses the gist (not the snippet) in content when a gist is present', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const suppressionStore = createEmailSuppressionStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, suppressionStore, tz: TZ, quietStart: 22 });
+    mkPending({
+      uid: 1,
+      importance: 5,
+      received_at: 1000,
+      from: 'boss@acme.com',
+      subject: 'Server down',
+      snippet: 'Prod ist in Flammen — bitte sofort reagieren',
+      gist: 'Прод упал. От тебя ждут срочной реакции.',
+    });
+    const res = await h.run(mkCtx(Date.now()));
+    expect('publish' in res && res.publish).toBe(true);
+    if ('publish' in res && res.publish) {
+      expect(res.content).toBe(
+        '🚨 boss@acme.com\nServer down\nПрод упал. От тебя ждут срочной реакции.',
+      );
+      // Snippet must NOT leak into the ping when a gist exists.
+      expect(res.content).not.toContain('Prod ist in Flammen');
+    }
+  });
+
+  it('falls back to the snippet when gist is null (unchanged behavior)', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const suppressionStore = createEmailSuppressionStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, suppressionStore, tz: TZ, quietStart: 22 });
+    mkPending({
+      uid: 1,
+      importance: 5,
+      received_at: 1000,
+      from: 'boss@acme.com',
+      subject: 'Server down',
+      snippet: 'Prod is on fire',
+      gist: null,
+    });
+    const res = await h.run(mkCtx(Date.now()));
+    expect('publish' in res && res.publish).toBe(true);
+    if ('publish' in res && res.publish) {
+      expect(res.content).toBe('🚨 boss@acme.com\nServer down\nProd is on fire');
+    }
+  });
+
+  it('falls back to the snippet when gist is empty/whitespace only', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const suppressionStore = createEmailSuppressionStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, suppressionStore, tz: TZ, quietStart: 22 });
+    mkPending({
+      uid: 1,
+      importance: 5,
+      received_at: 1000,
+      from: 'x@y.com',
+      subject: 's',
+      snippet: 'real snippet',
+      gist: '   ',
+    });
+    const res = await h.run(mkCtx(Date.now()));
+    expect('publish' in res && res.publish).toBe(true);
+    if ('publish' in res && res.publish) {
+      expect(res.content.split('\n')[2]).toBe('real snippet');
+    }
+  });
+
+  it('truncates a long gist > 200 chars with ellipsis', async () => {
+    const store = createEmailStore({ db: getDb() });
+    const suppressionStore = createEmailSuppressionStore({ db: getDb() });
+    const h = createEmailUrgentHandler({ store, suppressionStore, tz: TZ, quietStart: 22 });
+    mkPending({
+      uid: 1,
+      importance: 5,
+      received_at: 1000,
+      from: 'x@y.com',
+      subject: 's',
+      snippet: 'short snippet',
+      gist: 'я'.repeat(250),
+    });
+    const res = await h.run(mkCtx(Date.now()));
+    expect('publish' in res && res.publish).toBe(true);
+    if ('publish' in res && res.publish) {
+      const bodyLine = res.content.split('\n')[2];
+      expect(bodyLine.length).toBe(200);
+      expect(bodyLine.endsWith('…')).toBe(true);
     }
   });
 
