@@ -16,6 +16,9 @@ export function __setImapFlowCtor(c: ImapFlowCtor): void {
 // every tick and the account would never advance last_seen_uid.
 const SOCKET_TIMEOUT_MS = 60_000;
 const SNIPPET_LEN = 500;
+// Longer body slice fed to the gist summarizer for more context than the
+// scorer's snippet. Both come from the same decoded text (no extra IMAP fetch).
+const BODY_EXCERPT_LEN = 1200;
 const FULL_BODY_LEN = 50_000;
 const TRUNCATION_MARKER = '\n…[truncated]';
 
@@ -227,6 +230,7 @@ export async function fetchNewMessages(
         from: formatFrom(row.envelope),
         subject: decodeHeader(row.envelope?.subject),
         snippet: toSnippet(text, SNIPPET_LEN),
+        bodyExcerpt: toSnippet(text, BODY_EXCERPT_LEN) || undefined,
         receivedAt: pickReceivedAt(row),
       });
     }

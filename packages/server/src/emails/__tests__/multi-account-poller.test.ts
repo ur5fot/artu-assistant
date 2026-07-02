@@ -136,6 +136,105 @@ describe('runPollTick', () => {
     expect(store.getAccountError('a')?.message).toContain('llm-down');
   });
 
+  it('writes gist for >=cutoff rows and not for below-cutoff when gist enabled', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    // uid 2 -> importance 5 (ingested), uid 3 -> importance 2 (dropped).
+    const fetcher = vi.fn(async () => [msg(2), msg(3)]);
+    const scorer = vi.fn(async (ms: NewMessage[]) =>
+      ms.map((m) => ({ uid: m.uid, importance: m.uid === 2 ? 5 : 2 })),
+    );
+    const gister = vi.fn(async (ms: Array<{ uid: number }>) => {
+      // Only the above-cutoff uid should reach the gister.
+      expect(ms.map((m) => m.uid)).toEqual([2]);
+      return new Map([[2, 'суть письма']]);
+    });
+
+    await runPollTick({
+      accounts: [accA],
+      store,
+      fetcher,
+      scorer,
+      gister,
+      gistEnabled: true,
+      maxUidProbe: noProbe,
+      validityProbe: noValidity,
+      now: 5000,
+    });
+
+    expect(gister).toHaveBeenCalledTimes(1);
+    const rows = store.fetchPendingUndelivered(10);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].message_uid).toBe(2);
+    expect(rows[0].gist).toBe('суть письма');
+  });
+
+  it('passes bodyExcerpt (falling back to snippet) as gist body', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    const withExcerpt: NewMessage = {
+      uid: 2, from: 'x', subject: 's', snippet: 'short', bodyExcerpt: 'long body', receivedAt: 1002,
+    };
+    const noExcerpt: NewMessage = {
+      uid: 4, from: 'y', subject: 's', snippet: 'only-snippet', receivedAt: 1004,
+    };
+    const fetcher = vi.fn(async () => [withExcerpt, noExcerpt]);
+    const scorer = vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 5 })));
+    let seen: Array<{ uid: number; body: string }> = [];
+    const gister = vi.fn(async (ms: Array<{ uid: number; body: string }>) => {
+      seen = ms.map((m) => ({ uid: m.uid, body: m.body }));
+      return new Map<number, string>();
+    });
+
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, gister, gistEnabled: true,
+      maxUidProbe: noProbe, validityProbe: noValidity, now: 5000,
+    });
+
+    expect(seen).toContainEqual({ uid: 2, body: 'long body' });
+    expect(seen).toContainEqual({ uid: 4, body: 'only-snippet' });
+  });
+
+  it('does not call gister when gist disabled (flag off): rows stored gist=null', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    const fetcher = vi.fn(async () => [msg(2)]);
+    const scorer = vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 5 })));
+    const gister = vi.fn(async () => new Map([[2, 'x']]));
+
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, gister, gistEnabled: false,
+      maxUidProbe: noProbe, validityProbe: noValidity, now: 5000,
+    });
+
+    expect(gister).not.toHaveBeenCalled();
+    const rows = store.fetchPendingUndelivered(10);
+    expect(rows[0].gist).toBeNull();
+  });
+
+  it('gister throwing does not break ingest: row saved with gist=null', async () => {
+    const store = createEmailStore({ db: getDb() });
+    store.updateLastSeenUid('a', 1, 100);
+    const fetcher = vi.fn(async () => [msg(2)]);
+    const scorer = vi.fn(async (ms: NewMessage[]) => ms.map((m) => ({ uid: m.uid, importance: 5 })));
+    const gister = vi.fn(async () => { throw new Error('gist-boom'); });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await runPollTick({
+      accounts: [accA], store, fetcher, scorer, gister, gistEnabled: true,
+      maxUidProbe: noProbe, validityProbe: noValidity, now: 5000,
+    });
+
+    // Importance path is unaffected: the email is still ingested, just without a gist.
+    const rows = store.fetchPendingUndelivered(10);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].message_uid).toBe(2);
+    expect(rows[0].gist).toBeNull();
+    expect(store.getAccountError('a')).toBeNull();
+    expect(store.getLastSeenUid('a')).toBe(2);
+    warn.mockRestore();
+  });
+
   it('skips accounts with no new messages silently', async () => {
     const store = createEmailStore({ db: getDb() });
     store.updateLastSeenUid('a', 1, 100);

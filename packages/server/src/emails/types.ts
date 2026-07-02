@@ -12,6 +12,11 @@ export interface NewMessage {
   from: string;
   subject: string;
   snippet: string;
+  /** Longer slice of the decoded body (than `snippet`) fed to the gist
+   *  summarizer for more context. Same decoded text as `snippet`, no extra IMAP
+   *  fetch. Optional: absent when the message has no text body — the gister then
+   *  falls back to `snippet`. */
+  bodyExcerpt?: string;
   receivedAt: number;
 }
 

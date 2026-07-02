@@ -93,17 +93,17 @@ Design spec: `docs/superpowers/specs/2026-07-02-email-gist-native-language-desig
 - [x] run tests — must pass before Task 3
 
 ### Task 3: `bodyExcerpt` + wiring в поллере (за флагом)
-- [ ] `types.ts`: `NewMessage.bodyExcerpt?: string`; `imap-client.ts` — заполнять
+- [x] `types.ts`: `NewMessage.bodyExcerpt?: string`; `imap-client.ts` — заполнять
       из того же декодированного `text` (лимит ~1200, отдельно от `SNIPPET_LEN`)
-- [ ] `multi-account-poller.ts`: опциональный `gister?: (msgs) => Promise<Map>` +
+- [x] `multi-account-poller.ts`: опциональный `gister?: (msgs) => Promise<Map>` +
       `gistEnabled` + `importanceCutoff`; после `scoreBatch` для писем
       `importance ≥ cutoff` собрать `GistInput[]` (body = `bodyExcerpt ?? snippet`),
       вызвать `gister`, положить `gist` в `insertPending`
-- [ ] gist ниже cutoff / `gistEnabled=false` → не вызывается, `gist=null`
-- [ ] gist-провал не ломает ingest письма (importance-путь неизменен)
-- [ ] write tests: gist пишется для ≥cutoff и не для ниже; flag off → gister не
+- [x] gist ниже cutoff / `gistEnabled=false` → не вызывается, `gist=null`
+- [x] gist-провал не ломает ingest письма (importance-путь неизменен)
+- [x] write tests: gist пишется для ≥cutoff и не для ниже; flag off → gister не
       зван; провал gister → письмо всё равно сохранено (gist=null)
-- [ ] run tests — must pass before Task 4
+- [x] run tests — must pass before Task 4
 
 ### Task 4: Показ — urgent-пинг
 - [ ] `emailUrgent.ts`: если `row.gist` не пуст → `content = 🚨 from\nsubject\n<gist>`;

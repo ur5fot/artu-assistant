@@ -6,6 +6,12 @@ import { evaluateSender, type FeedbackScorerConfig } from './feedback-scorer.js'
 
 export type MessageFetcher = (account: ImapAccount, sinceUid: number, limit: number) => Promise<NewMessage[]>;
 export type MessageScorer = (msgs: NewMessage[]) => Promise<Array<{ uid: number; importance: number }>>;
+/** Summarize a batch of above-cutoff emails into short native-language gists,
+ *  keyed by uid. Best-effort: never throws (see summarizeGists), a missing uid
+ *  simply yields no gist for that row (stored NULL → snippet shown). */
+export type Gister = (
+  msgs: Array<{ uid: number; from: string; subject: string; body: string }>,
+) => Promise<Map<number, string>>;
 export type MaxUidProbe = (account: ImapAccount) => Promise<number>;
 /** Read the mailbox's current UIDVALIDITY (imap-client.getUidValidity). Probed
  *  at the start of every ongoing tick, BEFORE the fetch, so we never ingest a
@@ -53,6 +59,12 @@ interface TickParams {
   now: number;
   fetchLimit?: number;
   importanceCutoff?: number;
+  // Optional native-language gist summarizer (behind EMAIL_GIST_ENABLED). Absent
+  // or `gistEnabled` false → the gist step is skipped entirely (no LLM tokens
+  // spent) and every row is stored with `gist=null` — behaviour identical to
+  // before the feature. Only above-cutoff (ingested) messages are summarized.
+  gister?: Gister;
+  gistEnabled?: boolean;
   feedback?: FeedbackResolution;
   // Re-poll IMAP `\Seen` flags for the awaiting (queue-visible, non-urgent-pinged)
   // rows so any email the user already read OR moved out of INBOX in Gmail is
@@ -407,24 +419,45 @@ export async function runPollTick(params: TickParams): Promise<void> {
         const scored = await params.scorer(msgs);
         const byUid = new Map(scored.map((s) => [s.uid, s.importance]));
 
-        for (const m of msgs) {
-          // Scorer guarantees coverage on success (see scorer.ts normalize).
-          // A missing uid here signals a contract break, not a "low importance"
-          // call — skip rather than default to 3 and silently drop.
-          if (!byUid.has(m.uid)) continue;
-          const importance = byUid.get(m.uid)!;
-          if (importance >= cutoff) {
-            params.store.insertPending({
-              account_id: acc.id,
-              message_uid: m.uid,
-              from_addr: m.from,
-              subject: m.subject,
-              snippet: m.snippet,
-              importance,
-              received_at: m.receivedAt,
-              added_at: params.now,
-            });
+        // Above-cutoff messages we're about to ingest. Scorer guarantees
+        // coverage on success (see scorer.ts normalize); a missing uid signals a
+        // contract break, not "low importance" — skip rather than default and
+        // silently drop.
+        const toIngest = msgs.filter((m) => (byUid.get(m.uid) ?? -1) >= cutoff);
+
+        // Gist step (behind the flag): summarize only the above-cutoff batch so
+        // no tokens are spent on below-cutoff mail. Best-effort — summarizeGists
+        // never throws, but the extra try/catch guarantees a wiring/gister bug
+        // can't break the (already-scored) importance ingest path below.
+        let gistByUid = new Map<number, string>();
+        if (params.gistEnabled && params.gister && toIngest.length > 0) {
+          try {
+            gistByUid = await params.gister(
+              toIngest.map((m) => ({
+                uid: m.uid,
+                from: m.from,
+                subject: m.subject,
+                body: m.bodyExcerpt ?? m.snippet,
+              })),
+            );
+          } catch (err) {
+            const gmsg = err instanceof Error ? err.message : String(err);
+            console.warn(`[emails] gist step failed for ${acc.id}, storing without gists:`, gmsg);
           }
+        }
+
+        for (const m of toIngest) {
+          params.store.insertPending({
+            account_id: acc.id,
+            message_uid: m.uid,
+            from_addr: m.from,
+            subject: m.subject,
+            snippet: m.snippet,
+            importance: byUid.get(m.uid)!,
+            received_at: m.receivedAt,
+            added_at: params.now,
+            gist: gistByUid.get(m.uid) ?? null,
+          });
         }
 
         const maxUid = msgs.reduce((m, x) => Math.max(m, x.uid), 0);
