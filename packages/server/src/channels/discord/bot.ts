@@ -30,6 +30,8 @@ import type { TopicStore } from '../../topics/store.js';
 import { buildReminderEmbed, buildPermissionEmbed, buildPlanReviewChunks } from './embeds.js';
 import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from './tool-embeds.js';
 import { routeInteraction } from './interactions.js';
+import { routeTutorMessage } from './tutor-handlers.js';
+import type { TutorInteractionDeps } from './tutor-handlers.js';
 import { isTransientNetworkError } from '../../net/transient-error.js';
 import type {
   DraftImapClient,
@@ -141,6 +143,11 @@ export interface DiscordBotDeps {
   /** Lookback (minutes) used by the `distract:restore` button to re-derive the
    *  dominant work surface before the distraction. */
   distractionWorkLookbackMin?: number;
+  /** English tutor surface. When present and `enabled`, an incoming DM that
+   *  answers an in-progress placement or an `awaiting_free` lesson is routed to
+   *  the tutor grader instead of the general assistant. Absent/disabled ⇒ every
+   *  DM goes to the assistant as before. */
+  tutor?: TutorInteractionDeps;
 }
 
 const RETRY_DELAYS = [1000, 3000];
@@ -250,6 +257,27 @@ export async function sendReply(channel: DMChannel, text: string): Promise<void>
     await channel.send({ content: remaining.slice(0, splitAt), allowedMentions: noMentions });
     remaining = remaining.slice(splitAt).trimStart();
   }
+}
+
+/** Post a tutor grader reply into the DM. Text-only replies split on the 2000
+ *  char cap like `sendReply`; MCQ button rows (short prompts) ride the final
+ *  chunk. Blocks @everyone / role pings — content is LLM-generated feedback. */
+export async function sendTutorReply(
+  channel: DMChannel,
+  content: string,
+  components?: (ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>)[],
+): Promise<void> {
+  const MAX = 2000;
+  const noMentions = { parse: [] as never[] };
+  const comps = components ?? [];
+  let remaining = content;
+  while (remaining.length > MAX) {
+    let splitAt = remaining.lastIndexOf(' ', MAX);
+    if (splitAt <= 0) splitAt = MAX;
+    await channel.send({ content: remaining.slice(0, splitAt), allowedMentions: noMentions });
+    remaining = remaining.slice(splitAt).trimStart();
+  }
+  await channel.send({ content: remaining, components: comps, allowedMentions: noMentions });
 }
 
 export async function startDiscordBot(
@@ -515,6 +543,29 @@ export async function startDiscordBot(
       typingInterval = setInterval(() => {
         dmChannel.sendTyping().catch(() => {});
       }, 8_000);
+
+      // English-tutor free-text hook: if a placement is in progress or a lesson
+      // awaits a free answer, this DM IS that answer — route it to the tutor
+      // grader and short-circuit before the general assistant. Slash commands
+      // and buttons are interactions (never reach handleMessage), so they always
+      // bypass. When no tutor state is active, routeTutorMessage returns false
+      // and normal chat proceeds untouched.
+      if (deps.tutor?.enabled) {
+        const routed = await routeTutorMessage(msg.content, deps.tutor, {
+          send: ({ content, components }) =>
+            sendTutorReply(dmChannel, content, components),
+        }).catch((err) => {
+          console.error(
+            '[discord] tutor routing error:',
+            err instanceof Error ? err.message : err,
+          );
+          return false;
+        });
+        if (routed) {
+          sendSucceeded = true;
+          return;
+        }
+      }
 
       const source = `discord:${msg.author.id}`;
 

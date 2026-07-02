@@ -6,6 +6,8 @@ import { startDiscordBot, sendReply, isRetryableError, buildComponentsFromData, 
 import type { ComponentData } from '../../../cognition/types.js';
 import { getDb, initDb } from '../../../db.js';
 import { createCognitionStore, type CognitionStore } from '../../../cognition/store.js';
+import { createTutorStore } from '../../../tutor/store.js';
+import type { TutorInteractionDeps } from '../tutor-handlers.js';
 
 function makeFakeClient() {
   const emitter = new EventEmitter();
@@ -2166,5 +2168,117 @@ describe('sendReply', () => {
     }
     const joined = ch.send.mock.calls.map((c: any) => c[0].content).join('');
     expect(joined).toBe(text);
+  });
+});
+
+describe('English-tutor free-text hook', () => {
+  function stubAnthropic(reply: string) {
+    return {
+      messages: {
+        create: vi.fn(async () => ({ content: [{ type: 'text', text: reply }] })),
+      },
+    };
+  }
+
+  function makeTutor(reply: string): TutorInteractionDeps & { store: ReturnType<typeof createTutorStore> } {
+    initDb(':memory:');
+    return {
+      enabled: true,
+      store: createTutorStore({ db: getDb() }),
+      anthropic: stubAnthropic(reply) as any,
+      model: 'claude-test',
+    };
+  }
+
+  it('routes an awaiting_free answer to the grader, not the assistant', async () => {
+    const tutor = makeTutor(JSON.stringify({ verdict: 'correct', feedback: 'Молодец!' }));
+    tutor.store.updateProfile({ level: 'B1', placementState: 'done' });
+    const lesson = tutor.store.createLesson({
+      topic: 'translation',
+      payload: {
+        topic: 'translation',
+        explanation: '...',
+        exercises: [{ kind: 'free', prompt: 'Переведи', answer: 'I am a student', rubric: 'to be' }],
+      },
+    });
+    tutor.store.updateLesson(lesson.id, { status: 'awaiting_free' });
+
+    const { client, runChatRequest, channel } = await (async () => {
+      const s = await setup({ tutor });
+      const { msg, channel } = makeMessage({ content: 'I am a student' });
+      s.client.emit('messageCreate', msg as any);
+      return { ...s, channel };
+    })();
+    await delay();
+
+    // Assistant untouched; grader called; feedback delivered.
+    expect(runChatRequest).not.toHaveBeenCalled();
+    expect((tutor.anthropic.messages.create as any)).toHaveBeenCalledTimes(1);
+    expect(channel.send).toHaveBeenCalled();
+    const contents = channel.send.mock.calls.map((c: any) => c[0].content).join('\n');
+    expect(contents).toContain('Молодец');
+    expect(tutor.store.getLesson(lesson.id)?.status).toBe('done');
+    // hooked reference to avoid unused lint on client
+    expect(client).toBeDefined();
+  });
+
+  it('leaves the general assistant untouched when no tutor state is active', async () => {
+    const tutor = makeTutor('{}');
+    tutor.store.updateProfile({ level: 'B1', placementState: 'done' });
+
+    const { client, runChatRequest } = await setup({ tutor });
+    const { msg } = makeMessage({ content: 'просто вопрос' });
+    client.emit('messageCreate', msg as any);
+    await delay();
+
+    expect(runChatRequest).toHaveBeenCalledTimes(1);
+    expect((tutor.anthropic.messages.create as any)).not.toHaveBeenCalled();
+  });
+
+  it('routes a placement answer to the placement flow, not the assistant', async () => {
+    const tutor = makeTutor('{}');
+    tutor.store.updateProfile({
+      placementState: 'in_progress',
+      placementPayload: {
+        questions: Array.from({ length: 5 }, (_, i) => ({
+          prompt: `Q${i + 1}?`,
+          options: ['a', 'b', 'c'],
+          answer: 0,
+        })),
+        answers: [],
+      },
+    });
+
+    const { client, runChatRequest, channel } = await (async () => {
+      const s = await setup({ tutor });
+      const { msg, channel } = makeMessage({ content: '1' });
+      s.client.emit('messageCreate', msg as any);
+      return { ...s, channel };
+    })();
+    await delay();
+
+    expect(runChatRequest).not.toHaveBeenCalled();
+    const contents = channel.send.mock.calls.map((c: any) => c[0].content).join('\n');
+    expect(contents).toContain('Вопрос 2/5');
+    expect(client).toBeDefined();
+  });
+
+  it('does not route when the tutor flag is off', async () => {
+    const tutor = makeTutor('{}');
+    tutor.enabled = false;
+    tutor.store.updateProfile({
+      placementState: 'in_progress',
+      placementPayload: {
+        questions: [{ prompt: 'Q1?', options: ['a', 'b'], answer: 0 }],
+        answers: [],
+      },
+    });
+
+    const { client, runChatRequest } = await setup({ tutor });
+    const { msg } = makeMessage({ content: '1' });
+    client.emit('messageCreate', msg as any);
+    await delay();
+
+    expect(runChatRequest).toHaveBeenCalledTimes(1);
   });
 });

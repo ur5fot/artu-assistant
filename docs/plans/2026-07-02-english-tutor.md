@@ -121,13 +121,13 @@ Design spec: `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
 - [x] run tests — must pass before Task 7
 
 ### Task 7: Message-хук для свободного ответа
-- [ ] `bot.ts` `handleMessage`: перед общим ассистентом — если
+- [x] `bot.ts` `handleMessage`: перед общим ассистентом — если
       `session.routingState()` активен (awaiting_free / placement in_progress) →
       отдать текст `gradeFree`/`assessPlacement`-пути, не общему ассистенту
-- [ ] escape и slash/кнопки всегда в обход; нет активного состояния → обычный чат
-- [ ] write tests: awaiting_free → сообщение идёт в грейдер; нет активного →
+- [x] escape и slash/кнопки всегда в обход; нет активного состояния → обычный чат
+- [x] write tests: awaiting_free → сообщение идёт в грейдер; нет активного →
       общий ассистент не затронут; placement in_progress → в placement
-- [ ] run tests — must pass before Task 8
+- [x] run tests — must pass before Task 8
 
 ### Task 8: Дневной хендлер `cognition/handlers/englishLesson.ts`
 - [ ] Handler `trigger` = флаг on + placement done + нужный час + не quiet hours +

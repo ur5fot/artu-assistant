@@ -7,13 +7,21 @@ import {
 } from 'discord.js';
 import { generateLesson } from '../../tutor/lesson-generator.js';
 import type { Lesson } from '../../tutor/lesson-generator.js';
-import { gradeMcq } from '../../tutor/grader.js';
-import { beginPlacement } from '../../tutor/placement.js';
+import { gradeMcq, gradeFree } from '../../tutor/grader.js';
+import {
+  beginPlacement,
+  recordPlacementAnswer,
+} from '../../tutor/placement.js';
 import type {
   PlacementQuestion,
   PlacementState,
 } from '../../tutor/placement.js';
-import { advance, statusForExercise } from '../../tutor/session.js';
+import {
+  advance,
+  currentExercise,
+  routingState,
+  statusForExercise,
+} from '../../tutor/session.js';
 import type { LessonPayload } from '../../tutor/session.js';
 import type { TutorLesson, TutorStore } from '../../tutor/store.js';
 
@@ -370,4 +378,133 @@ export async function handleTutorMcqButton(
   }
   const next = exerciseMessage(result.lesson, result.nextIndex);
   await ixn.followUp({ content: next.content, components: next.components });
+}
+
+// The DM channel the free-text hook posts back into. Kept minimal (content +
+// optional MCQ button rows) so a fake stands in during tests, and so bot.ts can
+// adapt its DMChannel to it without exposing discord.js internals here.
+export interface TutorMessageChannel {
+  send(payload: {
+    content: string;
+    components?: ActionRowBuilder<ButtonBuilder>[];
+  }): Promise<void>;
+}
+
+/** Parse a 1-based option number from a free-text reply. Returns the 0-based
+ *  index, or null when the text isn't a valid in-range option number. */
+function parseOptionChoice(text: string, optionCount: number): number | null {
+  const trimmed = text.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const n = Number(trimmed);
+  if (!Number.isInteger(n) || n < 1 || n > optionCount) return null;
+  return n - 1;
+}
+
+async function routePlacementAnswer(
+  text: string,
+  tutor: TutorInteractionDeps,
+  channel: TutorMessageChannel,
+): Promise<void> {
+  const state = tutor.store.getProfile()?.placementPayload as
+    | PlacementState
+    | null;
+  if (!state || !Array.isArray(state.questions)) return;
+  const idx = (state.answers ?? []).length;
+  const question = state.questions[idx];
+  if (!question) return;
+
+  const choice = parseOptionChoice(text, question.options.length);
+  if (choice === null) {
+    await channel.send({
+      content: `Ответь номером варианта (1–${question.options.length}).`,
+    });
+    return;
+  }
+
+  let step;
+  try {
+    step = await recordPlacementAnswer(tutor.store, choice, llmDeps(tutor));
+  } catch {
+    // LLM assessment failed on the final answer — the choice stays persisted,
+    // so the user can re-answer/resend to retry. State is not corrupted.
+    await channel.send({
+      content: '⚠️ Не смог оценить placement, попробуй ответить ещё раз.',
+    });
+    return;
+  }
+
+  if (step.done) {
+    await channel.send({
+      content:
+        `🎯 Уровень определён: **${step.level}**.\n` +
+        'Напиши /english, чтобы начать первый урок.',
+    });
+    return;
+  }
+  await channel.send({
+    content: formatPlacementQuestion(step.question, step.index, step.total),
+  });
+}
+
+async function routeFreeAnswer(
+  text: string,
+  lesson: TutorLesson,
+  tutor: TutorInteractionDeps,
+  channel: TutorMessageChannel,
+): Promise<void> {
+  const ex = currentExercise(lesson);
+  if (!ex || ex.kind !== 'free') return; // defensive: status said awaiting_free
+
+  let result;
+  try {
+    result = await gradeFree(ex, text, llmDeps(tutor));
+  } catch {
+    // Grader failed — never fabricate a verdict. `current_ex` stays put so the
+    // user can simply answer again.
+    await channel.send({
+      content: '⚠️ Не смог проверить ответ, попробуй ещё раз.',
+    });
+    return;
+  }
+
+  const mark =
+    result.verdict === 'correct' ? '✅' : result.verdict === 'partial' ? '🟡' : '❌';
+  await channel.send({ content: `${mark} ${result.feedback}` });
+
+  const advanced = advance(tutor.store, lesson, {
+    correct: result.verdict === 'correct',
+  });
+  if (advanced.done) {
+    const pct = Math.round(advanced.score * 100);
+    await channel.send({
+      content: `🏁 Урок «${advanced.lesson.topic}» завершён. Результат: ${pct}%.`,
+    });
+    return;
+  }
+  const next = exerciseMessage(advanced.lesson, advanced.nextIndex);
+  await channel.send({ content: next.content, components: next.components });
+}
+
+/**
+ * Free-text chat hook: when a placement is in progress or a lesson awaits a
+ * free answer, an incoming plain DM is that answer — route it to the placement/
+ * free grader instead of the general assistant. Returns `true` when it handled
+ * the message (caller must not fall through to the assistant), `false` when no
+ * tutor state is active (normal chat). Slash commands and buttons are Discord
+ * interactions and never reach this path, so they always bypass.
+ */
+export async function routeTutorMessage(
+  text: string,
+  tutor: TutorInteractionDeps | undefined,
+  channel: TutorMessageChannel,
+): Promise<boolean> {
+  if (!tutor || !tutor.enabled) return false;
+  const routing = routingState(tutor.store);
+  if (routing.kind === 'none') return false;
+  if (routing.kind === 'placement') {
+    await routePlacementAnswer(text, tutor, channel);
+    return true;
+  }
+  await routeFreeAnswer(text, routing.lesson, tutor, channel);
+  return true;
 }

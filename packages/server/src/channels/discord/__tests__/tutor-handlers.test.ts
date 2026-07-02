@@ -5,6 +5,7 @@ import type { TutorStore } from '../../../tutor/store.js';
 import {
   handleEnglishSlash,
   handleTutorMcqButton,
+  routeTutorMessage,
   type TutorInteractionDeps,
 } from '../tutor-handlers.js';
 
@@ -294,5 +295,173 @@ describe('tutor:mcq button', () => {
     const ixn = fakeButton();
     await handleTutorMcqButton(ixn as any, deps, `1:0:0`);
     expect(ixn.calls[0].payload.content).toContain('выключен');
+  });
+});
+
+const FREE_LESSON = {
+  topic: 'translation',
+  explanation: 'Переведи предложение на английский.',
+  exercises: [
+    {
+      kind: 'free' as const,
+      prompt: 'Переведи: «Я студент».',
+      answer: 'I am a student',
+      rubric: 'артикль + to be',
+    },
+    {
+      kind: 'mcq' as const,
+      prompt: 'They ___ football.',
+      options: ['play', 'played', 'playing'],
+      answer: 1,
+    },
+  ],
+};
+
+/** Fake DM channel implementing TutorMessageChannel, recording every send. */
+function fakeChannel() {
+  const calls: Array<{ content: string; components?: unknown[] }> = [];
+  return {
+    calls,
+    send: async (payload: { content: string; components?: unknown[] }) => {
+      calls.push(payload);
+    },
+  };
+}
+
+describe('routeTutorMessage — free-text hook', () => {
+  it('returns false and sends nothing when no tutor state is active', async () => {
+    const deps = makeDeps();
+    deps.store.updateProfile({ level: 'B1', placementState: 'done' });
+    const ch = fakeChannel();
+    const routed = await routeTutorMessage('привет', deps, ch);
+    expect(routed).toBe(false);
+    expect(ch.calls).toHaveLength(0);
+  });
+
+  it('returns false when the tutor is disabled', async () => {
+    const deps = makeDeps({ enabled: false });
+    const ch = fakeChannel();
+    expect(await routeTutorMessage('anything', deps, ch)).toBe(false);
+    expect(ch.calls).toHaveLength(0);
+  });
+
+  it('returns false when tutor is undefined', async () => {
+    const ch = fakeChannel();
+    expect(await routeTutorMessage('anything', undefined, ch)).toBe(false);
+    expect(ch.calls).toHaveLength(0);
+  });
+
+  it('routes a free answer to the grader and advances to the next exercise', async () => {
+    const grade = JSON.stringify({ verdict: 'correct', feedback: 'Отлично!' });
+    const deps = makeDeps({ replies: [grade] });
+    deps.store.updateProfile({ level: 'B1', placementState: 'done' });
+    const created = deps.store.createLesson({
+      topic: FREE_LESSON.topic,
+      payload: FREE_LESSON,
+    });
+    deps.store.updateLesson(created.id, { status: 'awaiting_free' });
+
+    const ch = fakeChannel();
+    const routed = await routeTutorMessage('I am a student', deps, ch);
+
+    expect(routed).toBe(true);
+    expect((deps.anthropic.messages.create as any)).toHaveBeenCalledTimes(1);
+    // feedback, then the next (MCQ) exercise with a button row
+    expect(ch.calls[0].content).toContain('Отлично');
+    expect(ch.calls[1].content).toContain('They ___ football');
+    expect(ch.calls[1].components).toHaveLength(1);
+
+    const updated = deps.store.getLesson(created.id);
+    expect(updated?.currentEx).toBe(1);
+    expect(updated?.status).toBe('awaiting_mcq');
+  });
+
+  it('completes the lesson and records mastery when the free answer is last', async () => {
+    const grade = JSON.stringify({ verdict: 'correct', feedback: 'Верно.' });
+    const deps = makeDeps({ replies: [grade] });
+    deps.store.updateProfile({ level: 'B1', placementState: 'done' });
+    const single = {
+      topic: 'solo',
+      explanation: '...',
+      exercises: [FREE_LESSON.exercises[0]],
+    };
+    const created = deps.store.createLesson({ topic: single.topic, payload: single });
+    deps.store.updateLesson(created.id, { status: 'awaiting_free' });
+
+    const ch = fakeChannel();
+    await routeTutorMessage('I am a student', deps, ch);
+
+    expect(ch.calls.some((c) => c.content.includes('завершён'))).toBe(true);
+    expect(deps.store.getLesson(created.id)?.status).toBe('done');
+    expect(deps.store.getProgress('solo')?.mastery).toBeGreaterThan(0);
+  });
+
+  it('does not advance when the free grader fails', async () => {
+    const deps = makeDeps({ replies: ['not json'] });
+    deps.store.updateProfile({ level: 'B1', placementState: 'done' });
+    const created = deps.store.createLesson({
+      topic: FREE_LESSON.topic,
+      payload: FREE_LESSON,
+    });
+    deps.store.updateLesson(created.id, { status: 'awaiting_free' });
+
+    const ch = fakeChannel();
+    const routed = await routeTutorMessage('I am a student', deps, ch);
+
+    expect(routed).toBe(true);
+    expect(ch.calls[0].content).toContain('Не смог проверить');
+    const updated = deps.store.getLesson(created.id);
+    expect(updated?.currentEx).toBe(0);
+    expect(updated?.status).toBe('awaiting_free');
+  });
+
+  it('routes a placement answer and shows the next question', async () => {
+    const deps = makeDeps();
+    deps.store.updateProfile({
+      placementState: 'in_progress',
+      placementPayload: { questions: PLACEMENT_QUESTIONS.questions, answers: [] },
+    });
+    const ch = fakeChannel();
+    const routed = await routeTutorMessage('1', deps, ch);
+
+    expect(routed).toBe(true);
+    expect(ch.calls[0].content).toContain('Вопрос 2/5');
+    expect(deps.store.getProfile()?.placementState).toBe('in_progress');
+    // no LLM call yet — still collecting answers
+    expect((deps.anthropic.messages.create as any)).not.toHaveBeenCalled();
+  });
+
+  it('assesses the final placement answer into a CEFR level', async () => {
+    const deps = makeDeps({ replies: [JSON.stringify({ level: 'B2' })] });
+    deps.store.updateProfile({
+      placementState: 'in_progress',
+      placementPayload: {
+        questions: PLACEMENT_QUESTIONS.questions,
+        answers: [0, 0, 0, 0],
+      },
+    });
+    const ch = fakeChannel();
+    await routeTutorMessage('2', deps, ch);
+
+    expect(ch.calls[0].content).toContain('B2');
+    const profile = deps.store.getProfile();
+    expect(profile?.level).toBe('B2');
+    expect(profile?.placementState).toBe('done');
+  });
+
+  it('re-prompts on an invalid placement option number without advancing', async () => {
+    const deps = makeDeps();
+    deps.store.updateProfile({
+      placementState: 'in_progress',
+      placementPayload: { questions: PLACEMENT_QUESTIONS.questions, answers: [] },
+    });
+    const ch = fakeChannel();
+    const routed = await routeTutorMessage('нет', deps, ch);
+
+    expect(routed).toBe(true);
+    expect(ch.calls[0].content).toContain('номером варианта');
+    // no answer recorded
+    const state = deps.store.getProfile()?.placementPayload as any;
+    expect(state.answers).toHaveLength(0);
   });
 });
