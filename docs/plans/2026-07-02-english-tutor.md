@@ -83,13 +83,13 @@ Design spec: `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
 - [x] run tests — must pass before Task 3
 
 ### Task 3: `tutor/grader.ts`
-- [ ] `gradeMcq(exercise, choiceIdx) → { correct }` — детерминированно
-- [ ] `gradeFree(exercise, userAnswer, deps) → { verdict: correct|partial|wrong,
+- [x] `gradeMcq(exercise, choiceIdx) → { correct }` — детерминированно
+- [x] `gradeFree(exercise, userAnswer, deps) → { verdict: correct|partial|wrong,
       feedback }` — LLM (Claude), feedback на русском; ошибка LLM → throw
       `GradeError` (не выдумывать verdict)
-- [ ] write tests: MCQ совпал/не совпал/вне диапазона; free correct/partial/wrong
+- [x] write tests: MCQ совпал/не совпал/вне диапазона; free correct/partial/wrong
       (стаб LLM); LLM-ошибка → throw
-- [ ] run tests — must pass before Task 4
+- [x] run tests — must pass before Task 4
 
 ### Task 4: `tutor/placement.ts`
 - [ ] `startPlacement(deps) → questions[]` (5–10, по возрастанию сложности);
