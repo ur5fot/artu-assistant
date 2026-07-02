@@ -15,6 +15,7 @@ function toListItem(row: EmailPendingRow) {
     from: row.from_addr,
     subject: row.subject,
     snippet: row.snippet,
+    gist: row.gist,
     importance: row.importance,
     received_at: row.received_at,
     delivered: row.delivered_at !== null,
@@ -159,6 +160,9 @@ function createEmailsGetTool(deps: Deps): ToolDefinition {
             from: full.from,
             subject: full.subject,
             received_at: full.receivedAt,
+            // Native-language gist from the stored row (null when absent) so the
+            // model gets the Russian summary alongside the full foreign body.
+            gist: row.gist,
             body_text: full.bodyText,
           },
         };

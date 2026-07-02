@@ -7,6 +7,7 @@ function mkRow(
   importance: number,
   delivered = false,
   urgentPinged: number | null = null,
+  gist: string | null = null,
 ): EmailPendingRow {
   return {
     id,
@@ -15,6 +16,7 @@ function mkRow(
     from_addr: 'A <a@b>',
     subject: 'S',
     snippet: 'x',
+    gist,
     importance,
     received_at: 1000 + id,
     added_at: 1000 + id,
@@ -55,7 +57,7 @@ function mkImap(overrides: Partial<ImapClientLike> = {}): ImapClientLike {
 describe('emails_list tool', () => {
   it('returns JSON array of rows with full public shape', async () => {
     const tools = createTool({
-      emailStore: mkStore([mkRow(1, 5), mkRow(2, 4, true)]),
+      emailStore: mkStore([mkRow(1, 5, false, null, 'Русская суть'), mkRow(2, 4, true)]),
       imapClient: mkImap(),
     });
     const list = tools.find((t) => t.name === 'emails_list')!;
@@ -71,10 +73,13 @@ describe('emails_list tool', () => {
       from: 'A <a@b>',
       subject: 'S',
       snippet: 'x',
+      gist: 'Русская суть',
       importance: 5,
       received_at: 1001,
       delivered: false,
     });
+    // gist is null when absent — carried through, not dropped.
+    expect(data[1].gist).toBeNull();
     expect(data[1].delivered).toBe(true);
   });
 
@@ -210,7 +215,7 @@ describe('emails_status tool', () => {
 
 describe('emails_get tool', () => {
   it('returns full body for known id', async () => {
-    const rows = [mkRow(5, 5)];
+    const rows = [mkRow(5, 5, false, null, 'Русская суть письма')];
     const fetchFullBody = vi.fn(async () => ({
       uid: 5,
       from: 'A <a@b>',
@@ -232,6 +237,8 @@ describe('emails_get tool', () => {
     expect(data.from).toBe('A <a@b>');
     expect(data.subject).toBe('S');
     expect(data.received_at).toBe(1000);
+    // Native-language gist from the stored row travels alongside the full body.
+    expect(data.gist).toBe('Русская суть письма');
   });
 
   it('returns error when id unknown', async () => {

@@ -27,6 +27,9 @@ export interface EmailPendingRow {
   from_addr: string;
   subject: string;
   snippet: string;
+  // Native-language (Russian) summary. Null when absent (old rows, below cutoff,
+  // gist miss/failure, flag off) — callers fall back to snippet.
+  gist: string | null;
   importance: number;
   received_at: number;
   added_at: number;

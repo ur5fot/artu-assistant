@@ -160,10 +160,32 @@ describe('morningBriefPublishedToday', () => {
 });
 
 describe('formatDigest', () => {
-  const mk = (id: number, importance: number, from = 'Alice <a@b.com>', subject = 'Hi', snippet = 'Hello world') => ({
+  const mk = (id: number, importance: number, from = 'Alice <a@b.com>', subject = 'Hi', snippet = 'Hello world', gist: string | null = null) => ({
     id, account_id: 'acc', message_uid: id, from_addr: from, subject, snippet,
     importance, received_at: 1000, added_at: 1000, delivered_at: null,
-    urgent_pinged_at: null, gist: null,
+    urgent_pinged_at: null, gist,
+  });
+
+  it('uses the gist as summary when present, not the raw snippet', () => {
+    const out = formatDigest([mk(1, 5, 'Alice <a@b>', 'Invoice', 'foreign snippet text', 'Счёт на оплату к пятнице')]);
+    const ln = out.text.split('\n').find((l) => l.includes('[5]'))!;
+    expect(ln).toContain('Счёт на оплату к пятнице');
+    expect(ln).not.toContain('foreign snippet text');
+  });
+
+  it('falls back to snippet when gist is null', () => {
+    const out = formatDigest([mk(1, 5, 'Alice <a@b>', 'Hi', 'plain snippet body', null)]);
+    const ln = out.text.split('\n').find((l) => l.includes('[5]'))!;
+    expect(ln).toContain('plain snippet body');
+  });
+
+  it('truncates a long gist to SUMMARY_CHARS', () => {
+    const longGist = 'г'.repeat(300);
+    const out = formatDigest([mk(1, 5, 'A <a@b>', 'S', 'snip', longGist)]);
+    const ln = out.text.split('\n').find((l) => l.includes('[5]'))!;
+    const summaryPart = ln.split(': ').slice(1).join(': ');
+    expect(summaryPart).toBe('г'.repeat(140));
+    expect(summaryPart.length).toBeLessThanOrEqual(140);
   });
 
   it('renders count line + emoji + score + sender + summary', () => {

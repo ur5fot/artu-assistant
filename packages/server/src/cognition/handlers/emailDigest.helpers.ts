@@ -103,7 +103,13 @@ function emojiFor(importance: number): string {
 function line(row: EmailPendingRow): string {
   const sender = cleanSender(row.from_addr);
   const subject = (row.subject || '(без темы)').replace(/\s+/g, ' ').trim();
-  const summary = (row.snippet || '').replace(/\s+/g, ' ').trim().slice(0, SUMMARY_CHARS);
+  // Prefer the native-language gist (Russian summary) over the raw foreign
+  // snippet. Fall back to snippet when there is no gist (old rows, below cutoff,
+  // gist miss/failure, flag off). Same collapse + SUMMARY_CHARS truncation for
+  // either source so the digest line stays within budget.
+  const gist = (row.gist || '').replace(/\s+/g, ' ').trim();
+  const raw = gist.length > 0 ? gist : (row.snippet || '').replace(/\s+/g, ' ').trim();
+  const summary = raw.slice(0, SUMMARY_CHARS);
   return `${emojiFor(row.importance)} [${row.importance}] ${sender} — ${subject}: ${summary}`;
 }
 

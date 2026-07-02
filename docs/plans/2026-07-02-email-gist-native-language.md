@@ -113,12 +113,12 @@ Design spec: `docs/superpowers/specs/2026-07-02-email-gist-native-language-desig
 - [x] run tests — must pass before Task 5
 
 ### Task 5: Показ — дайджест + `emails`-тул
-- [ ] `emailDigest.helpers.ts` `formatRow`: при наличии `gist` использовать его
+- [x] `emailDigest.helpers.ts` `formatRow`: при наличии `gist` использовать его
       как summary-часть (с усечением `SUMMARY_CHARS`), иначе snippet
-- [ ] `tool-emails` `toModel` + `types.ts`: добавить `gist` в выдачу
+- [x] `tool-emails` `toModel` + `types.ts`: добавить `gist` в выдачу
       `emails_list`/`emails_get`
-- [ ] write tests: дайджест-строка с gist / fallback на snippet; тул отдаёт gist
-- [ ] run tests — must pass before Task 6
+- [x] write tests: дайджест-строка с gist / fallback на snippet; тул отдаёт gist
+- [x] run tests — must pass before Task 6
 
 ### Task 6: Флаг + wiring в index.ts
 - [ ] `index.ts`: `gistEnabled = process.env.EMAIL_GIST_ENABLED === 'true'`;
