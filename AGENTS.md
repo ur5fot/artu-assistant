@@ -560,6 +560,7 @@ EMAIL_QUIET_HOUR_START=22          # local hour when evening quiet starts (0-23)
 EMAIL_URGENT_ENABLED=false         # opt-in: immediate Discord ping for importance=5 emails (also requires Discord bot live; suppressed during quiet hours)
 EMAIL_SEND_HOLD_SECONDS=30         # hold zone before SMTP send for draft replies (0-300, default 30); 0 bypasses the hold (kill switch, restores pre-iter-3 instant send)
 EMAIL_ACCOUNT_BLIND_ALERT_AFTER=3  # consecutive failed poll ticks before an account is flagged "blind" and a one-shot Discord alert fires; reset by the next successful poll (1-100, default 3 ≈15 min at the 5-min interval)
+EMAIL_GIST_ENABLED=false           # opt-in: give each surfaced email (importance >= cutoff) a short 2–3 sentence native-language (Russian) gist shown in the urgent ping / digest / emails tool instead of the raw foreign snippet; best-effort separate LLM step (Ollama-first → Claude), PII anonymized in / de-anonymized out; default off = raw snippet everywhere, zero extra tokens
 # Implicit feedback (Pain #1 iter 4) — learn from how the user reacts to urgent pings
 EMAIL_FEEDBACK_ENABLED=false       # opt-in: collect IMAP-flag outcomes per urgent ping and auto-demote ignored senders; default off = zero behaviour change (no feedback rows, no auto-rules)
 EMAIL_FEEDBACK_IGNORE_HOURS=24     # hours after a ping before an unanswered email is finalized as read (\Seen) or ignored (never \Seen) (1-168)

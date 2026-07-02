@@ -429,6 +429,19 @@ again only after a successful poll resets the flag.
 Urgent emails (`importance=5`) ping immediately when `EMAIL_URGENT_ENABLED=true`
 (suppressed during quiet hours; one ping per cognition tick).
 
+**Native-language gist (`EMAIL_GIST_ENABLED`).** Opt-in (default off). When on,
+each surfaced email (`importance >= EMAIL_IMPORTANCE_CUTOFF`) gets a short 2–3
+sentence gist in your native language (Russian) — what it's about and what's
+expected of you — shown in the urgent ping, the digest and the `emails` tool
+instead of the raw foreign-language snippet. It's a **separate best-effort LLM
+step** run after importance scoring (Ollama-first → Claude fallback), so it never
+affects scoring reliability: emails below the cutoff and a disabled flag spend
+zero extra tokens, and any failure falls back to the raw snippet. PII is
+anonymized before the LLM and de-anonymized in the returned gist (names/amounts
+restored), reusing the scorer's proxy. The gist is stored in `email_pending.gist`
+(nullable — `NULL` = no gist, i.e. old rows / below cutoff / miss / flag off);
+the original body is always available via `emails_get`.
+
 **Actionable digest.** The digest carries a select-menu under the list — pick an
 email to open an ephemeral action card with five buttons: **Разобрать** (mark
 handled / drop from the next digest, idempotent), **Ответить** (the same Claude

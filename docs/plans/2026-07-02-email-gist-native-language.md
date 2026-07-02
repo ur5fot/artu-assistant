@@ -145,8 +145,8 @@ Design spec: `docs/superpowers/specs/2026-07-02-email-gist-native-language-desig
       gist.ts 10 dedicated tests; репо без lint-скрипта)
 
 ### Task 8: Документация
-- [ ] `EMAIL_GIST_ENABLED` в `AGENTS.md` (env-секция) + `.env.example`
-- [ ] описать поведение сути в email-секции `README.md`
+- [x] `EMAIL_GIST_ENABLED` в `AGENTS.md` (env-секция) + `.env.example`
+- [x] описать поведение сути в email-секции `README.md`
 
 ## Technical Details
 
