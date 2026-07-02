@@ -130,13 +130,13 @@ Design spec: `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
 - [x] run tests — must pass before Task 8
 
 ### Task 8: Дневной хендлер `cognition/handlers/englishLesson.ts`
-- [ ] Handler `trigger` = флаг on + placement done + нужный час + не quiet hours +
+- [x] Handler `trigger` = флаг on + placement done + нужный час + не quiet hours +
       не `paused` + нет незавершённого урока; `run` = generateLesson → пост
       объяснения + первого упражнения → create `tutor_lesson`
-- [ ] генерация упала → skip с reason, состояние не создаётся
-- [ ] write tests: триггер по часу; блок при quiet hours/paused/незавершённый
+- [x] генерация упала → skip с reason, состояние не создаётся
+- [x] write tests: триггер по часу; блок при quiet hours/paused/незавершённый
       урок/placement не done/флаг off; run создаёт урок; генерация упала → skip
-- [ ] run tests — must pass before Task 9
+- [x] run tests — must pass before Task 9
 
 ### Task 9: Флаги + wiring в index.ts
 - [ ] `ENGLISH_TUTOR_ENABLED` (default false), `ENGLISH_TUTOR_HOUR` (envInt),
