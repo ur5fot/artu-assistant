@@ -96,6 +96,45 @@ describe('createEmailStore', () => {
     expect(store.countPendingUndelivered()).toBe(0);
   });
 
+  it('email_pending has a gist column (migration added it)', () => {
+    const cols = getDb()
+      .prepare('PRAGMA table_info(email_pending)')
+      .all() as Array<{ name: string }>;
+    expect(cols.some((c) => c.name === 'gist')).toBe(true);
+  });
+
+  it('insertPending defaults gist to null when omitted (old-style callers)', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 4, received_at: 1000, added_at: 1000,
+    });
+    const row = store.fetchPendingUndelivered(50)[0];
+    expect(row.gist).toBeNull();
+  });
+
+  it('insertPending persists a provided gist and reads it back', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+      gist: 'Короткая суть письма.',
+    });
+    const row = store.fetchPendingUndelivered(50)[0];
+    expect(row.gist).toBe('Короткая суть письма.');
+  });
+
+  it('insertPending accepts an explicit null gist', () => {
+    const store = createEmailStore({ db: getDb() });
+    store.insertPending({
+      account_id: 'a', message_uid: 1, from_addr: 'x', subject: 's',
+      snippet: 'x', importance: 5, received_at: 1000, added_at: 1000,
+      gist: null,
+    });
+    const row = store.fetchPendingUndelivered(50)[0];
+    expect(row.gist).toBeNull();
+  });
+
   it('countHandledSince counts rows pinged (>0) or delivered at/after the cutoff', () => {
     const store = createEmailStore({ db: getDb() });
     for (const uid of [1, 2, 3, 4]) {

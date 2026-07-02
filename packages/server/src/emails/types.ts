@@ -35,4 +35,7 @@ export interface EmailPendingRow {
   added_at: number;
   delivered_at: number | null;
   urgent_pinged_at: number | null;
+  /** Short native-language (Russian) summary of the email, or null when no
+   *  summary exists (old rows, below cutoff, gist miss/failure, flag off). */
+  gist: string | null;
 }

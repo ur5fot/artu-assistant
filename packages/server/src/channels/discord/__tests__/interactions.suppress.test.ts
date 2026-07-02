@@ -18,6 +18,7 @@ const SAMPLE_ROW: EmailPendingRow = {
   added_at: 1_700_000_001_000,
   delivered_at: null,
   urgent_pinged_at: null,
+  gist: null,
 };
 
 function makeDeps(overrides: Partial<InteractionDeps> = {}): InteractionDeps {
@@ -555,6 +556,7 @@ describe('embed renders email_suppress buttons', () => {
       added_at: 1000,
       delivered_at: null,
       urgent_pinged_at: null,
+      gist: null,
     });
     const ids = buttonsOf(components[0]).map((b) => b.customId);
     expect(ids).toContain('email_suppress:sender_start:42');

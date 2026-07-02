@@ -38,6 +38,7 @@ function mkRow(overrides: Partial<EmailPendingRow> = {}): EmailPendingRow {
     added_at: 1000,
     delivered_at: null,
     urgent_pinged_at: null,
+    gist: null,
     ...overrides,
   };
 }

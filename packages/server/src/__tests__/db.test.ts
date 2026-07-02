@@ -81,7 +81,7 @@ describe('email tables', () => {
       .all() as Array<{ name: string }>;
     const names = cols.map((c) => c.name).sort();
     expect(names).toEqual([
-      'account_id', 'added_at', 'delivered_at', 'from_addr',
+      'account_id', 'added_at', 'delivered_at', 'from_addr', 'gist',
       'id', 'importance', 'message_uid', 'received_at', 'snippet', 'subject',
       'urgent_pinged_at',
     ].sort());

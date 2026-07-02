@@ -22,6 +22,7 @@ const SAMPLE_ROW: EmailPendingRow = {
   added_at: 1_700_000_001_000,
   delivered_at: null,
   urgent_pinged_at: 1_700_000_002_000,
+  gist: null,
 };
 
 const SAMPLE_ACCOUNT: ImapAccount = {

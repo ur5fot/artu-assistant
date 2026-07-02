@@ -44,7 +44,11 @@ export interface EmailStore {
    *  Plain UPDATE: only reached when a state row already exists. */
   clearAccountError(accountId: string, now: number): void;
 
-  insertPending(row: Omit<EmailPendingRow, 'id' | 'delivered_at' | 'urgent_pinged_at'>): void;
+  insertPending(
+    row: Omit<EmailPendingRow, 'id' | 'delivered_at' | 'urgent_pinged_at' | 'gist'> & {
+      gist?: string | null;
+    },
+  ): void;
   countPendingUndelivered(): number;
   fetchPendingUndelivered(limit: number): EmailPendingRow[];
   /** Awaiting (queue-visible) rows for a single account, oldest first, `limit`
@@ -205,11 +209,12 @@ export function createEmailStore(deps: { db: Database.Database }): EmailStore {
     insertPending(row) {
       db.prepare(`
         INSERT OR IGNORE INTO email_pending
-        (account_id, message_uid, from_addr, subject, snippet, importance, received_at, added_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (account_id, message_uid, from_addr, subject, snippet, importance, received_at, added_at, gist)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         row.account_id, row.message_uid, row.from_addr, row.subject,
         row.snippet, row.importance, row.received_at, row.added_at,
+        row.gist ?? null,
       );
     },
     countPendingUndelivered() {

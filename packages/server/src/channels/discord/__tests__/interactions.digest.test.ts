@@ -16,6 +16,7 @@ const SAMPLE_ROW: EmailPendingRow = {
   added_at: 1_700_000_001_000,
   delivered_at: null,
   urgent_pinged_at: null,
+  gist: null,
 };
 
 function makeDeps(overrides: Partial<InteractionDeps> = {}): InteractionDeps {

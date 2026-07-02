@@ -163,7 +163,7 @@ describe('formatDigest', () => {
   const mk = (id: number, importance: number, from = 'Alice <a@b.com>', subject = 'Hi', snippet = 'Hello world') => ({
     id, account_id: 'acc', message_uid: id, from_addr: from, subject, snippet,
     importance, received_at: 1000, added_at: 1000, delivered_at: null,
-    urgent_pinged_at: null,
+    urgent_pinged_at: null, gist: null,
   });
 
   it('renders count line + emoji + score + sender + summary', () => {
@@ -260,7 +260,7 @@ describe('buildDigestMenu', () => {
   const mk = (id: number, importance: number, from = 'Alice <a@b.com>', subject = 'Hi', snippet = 'Hello world') => ({
     id, account_id: 'acc', message_uid: id, from_addr: from, subject, snippet,
     importance, received_at: 1000, added_at: 1000, delivered_at: null,
-    urgent_pinged_at: null,
+    urgent_pinged_at: null, gist: null,
   });
 
   it('returns [] when no rows are included', () => {

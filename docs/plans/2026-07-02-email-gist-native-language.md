@@ -67,14 +67,14 @@ Design spec: `docs/superpowers/specs/2026-07-02-email-gist-native-language-desig
 ## Implementation Steps
 
 ### Task 1: DB-миграция + store + типы для `gist`
-- [ ] `db.ts`: после блока `urgent_pinged_at` — `PRAGMA table_info(email_pending)`,
+- [x] `db.ts`: после блока `urgent_pinged_at` — `PRAGMA table_info(email_pending)`,
       если нет `gist` → `ALTER TABLE email_pending ADD COLUMN gist TEXT`
-- [ ] `types.ts`: `EmailPendingRow.gist: string | null`
-- [ ] `store.ts` `insertPending`: принять `gist` (nullable) и писать в колонку
+- [x] `types.ts`: `EmailPendingRow.gist: string | null`
+- [x] `store.ts` `insertPending`: принять `gist` (nullable) и писать в колонку
       (расширить список колонок INSERT)
-- [ ] write tests: миграция добавляет колонку; старые строки читаются `gist=null`;
+- [x] write tests: миграция добавляет колонку; старые строки читаются `gist=null`;
       `insertPending` пишет и читает gist (в т.ч. null)
-- [ ] run tests — must pass before Task 2
+- [x] run tests — must pass before Task 2
 
 ### Task 2: Модуль `emails/gist.ts`
 - [ ] `summarizeGists(msgs: GistInput[], deps: GistDeps): Promise<Map<number,string>>`,

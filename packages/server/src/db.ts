@@ -281,6 +281,14 @@ export function initDb(dbPath?: string): void {
   if (!emailPendingCols.some((c) => c.name === 'urgent_pinged_at')) {
     db.exec(`ALTER TABLE email_pending ADD COLUMN urgent_pinged_at INTEGER`);
   }
+
+  // Migration: add `gist` column if missing. Holds a short native-language
+  // (Russian) summary of the email, produced best-effort by the gist step for
+  // rows at/above the importance cutoff. NULL = no summary (old rows, below
+  // cutoff, gist miss/failure, or the EMAIL_GIST_ENABLED flag off).
+  if (!emailPendingCols.some((c) => c.name === 'gist')) {
+    db.exec(`ALTER TABLE email_pending ADD COLUMN gist TEXT`);
+  }
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_email_pending_urgent_unpinged
       ON email_pending(importance, urgent_pinged_at)

@@ -448,6 +448,7 @@ describe('/why slash command routing', () => {
       added_at: 1_700_000_001_000,
       delivered_at: null,
       urgent_pinged_at: 1_700_000_005_000,
+      gist: null,
     };
     const ixn = makeWhySlashIxn({ id: 7 });
     const deps = makeBaseDeps({
@@ -490,6 +491,7 @@ describe('/why slash command routing', () => {
       added_at: 1_700_000_001_000,
       delivered_at: null,
       urgent_pinged_at: 1_700_000_005_000,
+      gist: null,
     };
     const ixn = makeWhySlashIxn({ id: 9 });
     const deps = makeBaseDeps({
@@ -536,6 +538,7 @@ describe('/why slash command routing', () => {
       added_at: 1_700_000_001_000,
       delivered_at: null,
       urgent_pinged_at: 1_700_000_005_000,
+      gist: null,
     };
     const ixn = makeWhySlashIxn({ id: 51 });
     const deps = makeBaseDeps({
@@ -577,6 +580,7 @@ describe('/why slash command routing', () => {
       added_at: 1_700_000_001_000,
       delivered_at: null,
       urgent_pinged_at: 1_700_000_005_000,
+      gist: null,
     };
     const ixn = makeWhySlashIxn({ id: 52 });
     const deps = makeBaseDeps({
@@ -609,6 +613,7 @@ describe('/why slash command routing', () => {
       added_at: 1_700_000_001_000,
       delivered_at: null,
       urgent_pinged_at: null,
+      gist: null,
     };
     const ixn = makeWhySlashIxn({ id: 17 });
     const deps = makeBaseDeps({
@@ -639,6 +644,7 @@ describe('/why slash command routing', () => {
       added_at: 1_700_000_001_000,
       delivered_at: null,
       urgent_pinged_at: -1,
+      gist: null,
     };
     const ixn = makeWhySlashIxn({ id: 13 });
     const deps = makeBaseDeps({
@@ -681,6 +687,7 @@ describe('/why slash command routing', () => {
       added_at: 1_700_000_001_000,
       delivered_at: null,
       urgent_pinged_at: -1,
+      gist: null,
     };
     const ixn = makeWhySlashIxn({ id: 21 });
     const deps = makeBaseDeps({
@@ -707,6 +714,7 @@ describe('/why slash command routing', () => {
       added_at: 1_700_000_001_000,
       delivered_at: null,
       urgent_pinged_at: -1,
+      gist: null,
     };
     const ixn = makeWhySlashIxn({ id: 22 });
     const deps = makeBaseDeps({
@@ -760,6 +768,7 @@ describe('/why slash command routing', () => {
       added_at: 1_700_000_001_000,
       delivered_at: null,
       urgent_pinged_at: 1_700_000_005_000,
+      gist: null,
     };
     const ixn = makeWhySlashIxn({ id: 31 });
     const deps = makeBaseDeps({
