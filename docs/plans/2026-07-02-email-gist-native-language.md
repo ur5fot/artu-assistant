@@ -77,20 +77,20 @@ Design spec: `docs/superpowers/specs/2026-07-02-email-gist-native-language-desig
 - [x] run tests — must pass before Task 2
 
 ### Task 2: Модуль `emails/gist.ts`
-- [ ] `summarizeGists(msgs: GistInput[], deps: GistDeps): Promise<Map<number,string>>`,
+- [x] `summarizeGists(msgs: GistInput[], deps: GistDeps): Promise<Map<number,string>>`,
       `GistInput = { uid, from, subject, body }`, `GistDeps = { piiProxy, ollama,
       anthropic, signal }`
-- [ ] русский промпт: суть 2–3 предложения (о чём + что ожидается), ответ JSON
+- [x] русский промпт: суть 2–3 предложения (о чём + что ожидается), ответ JSON
       `[{uid, gist}]`; `extractJson` как в scorer
-- [ ] Ollama-first (при `LOCAL_LLM_MODE=enabled`) → Claude fallback
-- [ ] PII: `anonymize(from/subject/body)` перед LLM, `deanonymize(gist)` перед
+- [x] Ollama-first (при `LOCAL_LLM_MODE=enabled`) → Claude fallback
+- [x] PII: `anonymize(from/subject/body)` перед LLM, `deanonymize(gist)` перед
       возвратом; тем же `piiProxy`
-- [ ] best-effort: uid без валидной сути отсутствует в Map; оба провайдера/парс
+- [x] best-effort: uid без валидной сути отсутствует в Map; оба провайдера/парс
       упали → пустой Map для батча (лог warn), НЕ throw
-- [ ] write tests: Ollama success; Ollama-fail→Claude; частичный промах uid →
+- [x] write tests: Ollama success; Ollama-fail→Claude; частичный промах uid →
       нет в Map; deanonymize восстанавливает плейсхолдеры; оба провайдера упали →
       пустой Map без throw
-- [ ] run tests — must pass before Task 3
+- [x] run tests — must pass before Task 3
 
 ### Task 3: `bodyExcerpt` + wiring в поллере (за флагом)
 - [ ] `types.ts`: `NewMessage.bodyExcerpt?: string`; `imap-client.ts` — заполнять
