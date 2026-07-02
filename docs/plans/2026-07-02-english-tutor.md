@@ -100,14 +100,14 @@ Design spec: `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
 - [x] run tests — must pass before Task 5
 
 ### Task 5: `tutor/session.ts` (state-machine)
-- [ ] `advance(lesson, answer) ` — применяет ответ к `current_ex`, двигает
+- [x] `advance(lesson, answer) ` — применяет ответ к `current_ex`, двигает
       `awaiting_mcq`/`awaiting_free`, на последнем → `done` + score + агрегат в
       `tutor_progress`
-- [ ] `routingState()` — есть ли активный `awaiting_free` урок / placement
+- [x] `routingState()` — есть ли активный `awaiting_free` урок / placement
       `in_progress` (для message-хука); helper «что показать дальше»
-- [ ] write tests: awaiting_mcq→awaiting_free→done; апдейт progress на done;
+- [x] write tests: awaiting_mcq→awaiting_free→done; апдейт progress на done;
       routingState активен только при awaiting_free/placement in_progress
-- [ ] run tests — must pass before Task 6
+- [x] run tests — must pass before Task 6
 
 ### Task 6: Discord `/english` + кнопки `tutor:mcq:*`
 - [ ] `slash-commands.ts`: команда `/english` (опц. подкоманда/арг `stop`)
