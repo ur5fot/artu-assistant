@@ -130,13 +130,19 @@ Design spec: `docs/superpowers/specs/2026-07-02-email-gist-native-language-desig
 - [x] run tests — must pass before Task 7
 
 ### Task 7: Verify acceptance criteria
-- [ ] flag on → письмо ≥cutoff получает русскую суть в `email_pending.gist`
-- [ ] urgent-пинг показывает суть / fallback snippet при null
-- [ ] дайджест и тул показывают суть
-- [ ] PII в сути восстановлены (не плейсхолдеры)
-- [ ] ниже cutoff и flag-off не тратят токены; поведение как сейчас
-- [ ] провал gist/deanon → snippet-fallback, importance-путь не затронут
-- [ ] полный server-набор + линтер зелёные; coverage на новом модуле
+- [x] flag on → письмо ≥cutoff получает русскую суть в `email_pending.gist`
+      (covered by multi-account-poller unit tests; runtime = Post-Completion manual)
+- [x] urgent-пинг показывает суть / fallback snippet при null
+      (covered by emailUrgent unit tests)
+- [x] дайджест и тул показывают суть (covered by emailDigest + tool-emails unit tests)
+- [x] PII в сути восстановлены (не плейсхолдеры) (covered by gist.ts deanonymize test)
+- [x] ниже cutoff и flag-off не тратят токены; поведение как сейчас
+      (covered by poller tests: gister не зван flag-off/ниже cutoff)
+- [x] провал gist/deanon → snippet-fallback, importance-путь не затронут
+      (covered by poller + gist error-path tests)
+- [x] полный server-набор + линтер зелёные; coverage на новом модуле
+      (1959 server tests + 22 tool-emails tests pass; tsc --noEmit clean;
+      gist.ts 10 dedicated tests; репо без lint-скрипта)
 
 ### Task 8: Документация
 - [ ] `EMAIL_GIST_ENABLED` в `AGENTS.md` (env-секция) + `.env.example`
