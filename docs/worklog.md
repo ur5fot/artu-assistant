@@ -22,3 +22,8 @@
 - **План + запуск ralphex (email gist).** План
   `docs/plans/2026-07-02-email-gist-native-language.md` (8 задач). Запустил
   ralphex Full/50 на dev (task `bsigwy3tv`). Ждём выполнение + review.
+- **email gist: код готов, review через codex-only.** Все 8 задач в коде на dev
+  (коммиты `102ce97`→`1e834e7`, 39/39). Full-прогон review упал на Claude
+  session-limit (4-й раз, не код). Откатил случайный мусор в `.env.example`
+  («ку» прилипло). Лимит отпустило (21:14 Kiev > сброс 18:50) → запустил
+  `--codex-only` (task `bkygwcbuv`). После завершения — деплой dev→master.

@@ -294,6 +294,31 @@ describe('buildUrgentEmailEmbed', () => {
     expect(embed.fields!.map((f) => f.name)).toEqual(['From', 'Subject']);
   });
 
+  it('shows the gist (as "Суть") instead of the raw snippet when gist is present', () => {
+    const { embed } = buildUrgentEmailEmbed(
+      mkRow({ snippet: 'raw foreign snippet', gist: 'Русская суть письма' }),
+    );
+    const fields = embed.fields!;
+    expect(fields.find((f) => f.name === 'Суть')!.value).toBe('Русская суть письма');
+    expect(fields.find((f) => f.name === 'Snippet')).toBeUndefined();
+  });
+
+  it('collapses whitespace and truncates the gist > 200 chars', () => {
+    const long = 'я'.repeat(250);
+    const { embed } = buildUrgentEmailEmbed(
+      mkRow({ snippet: 'snip', gist: `  ${long}  ` }),
+    );
+    const value = embed.fields!.find((f) => f.name === 'Суть')!.value;
+    expect(value.length).toBe(200);
+    expect(value.endsWith('…')).toBe(true);
+  });
+
+  it('falls back to the snippet field when gist is empty string', () => {
+    const { embed } = buildUrgentEmailEmbed(mkRow({ snippet: 'raw', gist: '   ' }));
+    expect(embed.fields!.find((f) => f.name === 'Суть')).toBeUndefined();
+    expect(embed.fields!.find((f) => f.name === 'Snippet')!.value).toBe('raw');
+  });
+
   it('falls back to "(no subject)" when subject is empty', () => {
     const { embed } = buildUrgentEmailEmbed(mkRow({ subject: '' }));
     expect(embed.fields!.find((f) => f.name === 'Subject')!.value).toBe('(no subject)');

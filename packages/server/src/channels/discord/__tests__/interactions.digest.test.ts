@@ -75,6 +75,24 @@ describe('email_digest:pick (select menu → action card)', () => {
     ]);
   });
 
+  it('shows the gist instead of the raw snippet when gist is present', async () => {
+    const deps = makeDeps({
+      emailStore: {
+        findByPendingId: vi.fn().mockReturnValue({
+          ...SAMPLE_ROW,
+          gist: 'Списание 100 USD со счёта',
+        }),
+      } as unknown as EmailStore,
+    });
+    const ixn = makeSelectMenu();
+
+    await routeInteraction(ixn, deps);
+
+    const arg = ixn.reply.mock.calls[0]![0];
+    expect(arg.content).toContain('Списание 100 USD со счёта');
+    expect(arg.content).not.toContain('Your account was charged 100 USD');
+  });
+
   it('email-controlled @everyone text → reply suppresses mentions', async () => {
     const deps = makeDeps({
       emailStore: {

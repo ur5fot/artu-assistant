@@ -229,15 +229,25 @@ export function buildUrgentEmailEmbed(row: EmailPendingRow): {
 } {
   const from = collapseWs(row.from_addr);
   const subject = collapseWs(row.subject) || '(no subject)';
-  const snippetRaw = collapseWs(row.snippet);
-  const snippet = truncate(snippetRaw, URGENT_SNIPPET_MAX);
+  // Prefer the native-language gist (Russian summary) over the raw foreign
+  // snippet — the delivery path (bot.ts) drops `content` whenever an embed is
+  // present, so the gist must live in the embed itself to reach the user. Fall
+  // back to snippet when there is no gist (old rows, below cutoff, gist
+  // miss/failure, flag off).
+  const gist = collapseWs(row.gist ?? '');
+  const useGist = gist.length > 0;
+  const bodyRaw = useGist ? gist : collapseWs(row.snippet);
+  const body = truncate(bodyRaw, URGENT_SNIPPET_MAX);
 
   const fields = [
     { name: 'From', value: truncate(from, URGENT_FIELD_VALUE_LIMIT) },
     { name: 'Subject', value: truncate(subject, URGENT_FIELD_VALUE_LIMIT) },
   ];
-  if (snippet.length > 0) {
-    fields.push({ name: 'Snippet', value: truncate(snippet, URGENT_FIELD_VALUE_LIMIT) });
+  if (body.length > 0) {
+    fields.push({
+      name: useGist ? 'Суть' : 'Snippet',
+      value: truncate(body, URGENT_FIELD_VALUE_LIMIT),
+    });
   }
 
   return {

@@ -175,8 +175,11 @@ export function buildDigestMenu(rows: EmailPendingRow[], includedIds: number[]):
     const sender = cleanSender(r.from_addr);
     const subject = (r.subject || '(без темы)').replace(/\s+/g, ' ').trim();
     const label = clamp(`${emojiFor(r.importance)} ${sender} — ${subject}`, OPTION_TEXT_MAX);
-    const snippet = (r.snippet || '').replace(/\s+/g, ' ').trim();
-    const description = clamp(snippet, OPTION_TEXT_MAX);
+    // Prefer the native-language gist over the raw foreign snippet; fall back to
+    // snippet when there is no gist (old rows, below cutoff, gist miss, flag off).
+    const gist = (r.gist || '').replace(/\s+/g, ' ').trim();
+    const summary = gist.length > 0 ? gist : (r.snippet || '').replace(/\s+/g, ' ').trim();
+    const description = clamp(summary, OPTION_TEXT_MAX);
     return description
       ? { label, value: String(r.id), description }
       : { label, value: String(r.id) };

@@ -873,9 +873,12 @@ async function handleEmailDigestPick(
 
   const sender = row.from_addr;
   const subject = (row.subject || '(без темы)').replace(/\s+/g, ' ').trim();
-  const snippet = (row.snippet || '').replace(/\s+/g, ' ').trim();
+  // Prefer the native-language gist over the raw foreign snippet; fall back to
+  // snippet when there is no gist (old rows, below cutoff, gist miss, flag off).
+  const gist = (row.gist || '').replace(/\s+/g, ' ').trim();
+  const summary = gist.length > 0 ? gist : (row.snippet || '').replace(/\s+/g, ' ').trim();
   const card = clampReplyContent(
-    `✉️ ${sender}\n${subject}` + (snippet ? `\n\n${snippet}` : ''),
+    `✉️ ${sender}\n${subject}` + (summary ? `\n\n${summary}` : ''),
   );
   await (ixn as any).reply({
     flags: MessageFlags.Ephemeral,

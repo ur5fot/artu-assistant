@@ -279,10 +279,10 @@ describe('formatDigest', () => {
 });
 
 describe('buildDigestMenu', () => {
-  const mk = (id: number, importance: number, from = 'Alice <a@b.com>', subject = 'Hi', snippet = 'Hello world') => ({
+  const mk = (id: number, importance: number, from = 'Alice <a@b.com>', subject = 'Hi', snippet = 'Hello world', gist: string | null = null) => ({
     id, account_id: 'acc', message_uid: id, from_addr: from, subject, snippet,
     importance, received_at: 1000, added_at: 1000, delivered_at: null,
-    urgent_pinged_at: null, gist: null,
+    urgent_pinged_at: null, gist,
   });
 
   it('returns [] when no rows are included', () => {
@@ -328,6 +328,13 @@ describe('buildDigestMenu', () => {
     const out = buildDigestMenu(rows, [1]);
     if (out[0].type !== 'select') throw new Error('expected select');
     expect(out[0].menu.options[0].description).toBeUndefined();
+  });
+
+  it('uses the gist as description when present, not the raw snippet', () => {
+    const rows = [mk(1, 5, 'Alice <a@b>', 'Pay', 'foreign snippet', 'Счёт к оплате')];
+    const out = buildDigestMenu(rows, [1]);
+    if (out[0].type !== 'select') throw new Error('expected select');
+    expect(out[0].menu.options[0].description).toBe('Счёт к оплате');
   });
 
   it('caps options at Discord 25-option limit', () => {
