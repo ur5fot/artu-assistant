@@ -92,12 +92,12 @@ Design spec: `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
 - [x] run tests — must pass before Task 4
 
 ### Task 4: `tutor/placement.ts`
-- [ ] `startPlacement(deps) → questions[]` (5–10, по возрастанию сложности);
+- [x] `startPlacement(deps) → questions[]` (5–10, по возрастанию сложности);
       `assessPlacement(qa, deps) → { level: CEFR }`
-- [ ] хранит промежуточное состояние в `placement_payload` (через store)
-- [ ] write tests: генерация вопросов; сбор ответов пошагово; финальная оценка →
+- [x] хранит промежуточное состояние в `placement_payload` (через store)
+- [x] write tests: генерация вопросов; сбор ответов пошагово; финальная оценка →
       CEFR; LLM-ошибка → graceful
-- [ ] run tests — must pass before Task 5
+- [x] run tests — must pass before Task 5
 
 ### Task 5: `tutor/session.ts` (state-machine)
 - [ ] `advance(lesson, answer) ` — применяет ответ к `current_ex`, двигает
