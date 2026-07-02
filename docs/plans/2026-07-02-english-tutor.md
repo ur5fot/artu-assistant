@@ -110,15 +110,15 @@ Design spec: `docs/superpowers/specs/2026-07-02-english-tutor-design.md`.
 - [x] run tests — must pass before Task 6
 
 ### Task 6: Discord `/english` + кнопки `tutor:mcq:*`
-- [ ] `slash-commands.ts`: команда `/english` (опц. подкоманда/арг `stop`)
-- [ ] `interactions.ts`: домен `tutor`, кнопки `tutor:mcq:<lessonId>:<exIdx>:<choice>`
+- [x] `slash-commands.ts`: команда `/english` (опц. подкоманда/арг `stop`)
+- [x] `interactions.ts`: домен `tutor`, кнопки `tutor:mcq:<lessonId>:<exIdx>:<choice>`
       → `gradeMcq` → session.advance → ephemeral-фидбек + следующее упражнение/итог
-- [ ] `/english`: нет профиля/placement не done → запуск placement; активный урок
+- [x] `/english`: нет профиля/placement не done → запуск placement; активный урок
       → продолжить; иначе → сгенерить урок; `stop` → закрыть активный урок/сессию
-- [ ] флаг off → `/english` отвечает «учитель выключен»
-- [ ] write tests: `/english` старт placement/новый урок/продолжение/stop; кнопка
+- [x] флаг off → `/english` отвечает «учитель выключен»
+- [x] write tests: `/english` старт placement/новый урок/продолжение/stop; кнопка
       MCQ грейдит и продвигает; флаг off
-- [ ] run tests — must pass before Task 7
+- [x] run tests — must pass before Task 7
 
 ### Task 7: Message-хук для свободного ответа
 - [ ] `bot.ts` `handleMessage`: перед общим ассистентом — если

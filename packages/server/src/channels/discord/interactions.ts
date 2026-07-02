@@ -43,6 +43,11 @@ import {
   buildPermissionEmbed,
   buildPermissionsListReply,
 } from './embeds.js';
+import {
+  handleEnglishSlash,
+  handleTutorMcqButton,
+} from './tutor-handlers.js';
+import type { TutorInteractionDeps } from './tutor-handlers.js';
 
 // Discord hard-limits a single reply to 2000 chars; leave a tail for the
 // "…N more" marker so a long list degrades gracefully instead of 50035-ing.
@@ -162,6 +167,9 @@ export interface InteractionDeps {
   /** Topic store — read/written by the `followup:done` button to dismiss a
    *  finalized topic's pending action (the morning-brief "✓ Готово" button). */
   topicStore?: TopicStore | null;
+  /** English tutor surface — backs `/english` and the `tutor:mcq:*` buttons.
+   *  Absent or `enabled=false` ⇒ both reply "выключено" and touch no state. */
+  tutor?: TutorInteractionDeps;
 }
 
 // Parses the description rendered by buildPermissionEmbed —
@@ -474,6 +482,11 @@ async function routeButton(
       embeds: reply.embeds,
       components: reply.components,
     });
+    return;
+  }
+
+  if (domain === 'tutor' && action === 'mcq') {
+    await handleTutorMcqButton(ixn as any, deps.tutor, rawId ?? '');
     return;
   }
 }
@@ -2172,6 +2185,10 @@ async function routeSlashCommand(
   }
   if (name === 'why') {
     await handleWhySlash(ixn, deps);
+    return;
+  }
+  if (name === 'english') {
+    await handleEnglishSlash(ixn as any, deps.tutor);
     return;
   }
   if (name === 'heartbeat') {

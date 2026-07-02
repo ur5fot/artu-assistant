@@ -41,4 +41,15 @@ export const SLASH_COMMAND_DEFINITIONS = [
         .setRequired(false),
     )
     .setDMPermission(true),
+  new SlashCommandBuilder()
+    .setName('english')
+    .setDescription('English tutor: placement, daily lesson, or continue')
+    .addStringOption((o) =>
+      o
+        .setName('action')
+        .setDescription('Use "stop" to end the active lesson/placement')
+        .setRequired(false)
+        .addChoices({ name: 'stop', value: 'stop' }),
+    )
+    .setDMPermission(true),
 ].map((b) => b.toJSON());
