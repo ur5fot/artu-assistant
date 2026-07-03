@@ -2222,6 +2222,30 @@ describe('English-tutor free-text hook', () => {
     expect(client).toBeDefined();
   });
 
+  it('does not persist tutor answers to chat_messages (no history pollution)', async () => {
+    const tutor = makeTutor(JSON.stringify({ verdict: 'correct', feedback: 'Молодец!' }));
+    tutor.store.updateProfile({ level: 'B1', placementState: 'done' });
+    const lesson = tutor.store.createLesson({
+      topic: 'translation',
+      payload: {
+        topic: 'translation',
+        explanation: '...',
+        exercises: [{ kind: 'free', prompt: 'Переведи', answer: 'I am a student', rubric: 'to be' }],
+      },
+    });
+    tutor.store.updateLesson(lesson.id, { status: 'awaiting_free' });
+
+    const { client, saveMessage } = await setup({ tutor });
+    const { msg } = makeMessage({ content: 'I am a student' });
+    client.emit('messageCreate', msg as any);
+    await delay();
+
+    // The answer was graded (grader called) but never written to history —
+    // otherwise the orphaned user row would leak into the assistant context.
+    expect((tutor.anthropic.messages.create as any)).toHaveBeenCalledTimes(1);
+    expect(saveMessage).not.toHaveBeenCalled();
+  });
+
   it('leaves the general assistant untouched when no tutor state is active', async () => {
     const tutor = makeTutor('{}');
     tutor.store.updateProfile({ level: 'B1', placementState: 'done' });

@@ -32,6 +32,7 @@ import { buildToolCallEmbed, buildDiffAttachment, SILENT_TOOLS } from './tool-em
 import { routeInteraction } from './interactions.js';
 import { routeTutorMessage } from './tutor-handlers.js';
 import type { TutorInteractionDeps } from './tutor-handlers.js';
+import { routingState } from '../../tutor/session.js';
 import { isTransientNetworkError } from '../../net/transient-error.js';
 import type {
   DraftImapClient,
@@ -426,6 +427,41 @@ export async function startDiscordBot(
     const source = `discord:${userId}`;
     const messageId = crypto.randomUUID();
     const timestamp = Date.now();
+
+    // English-tutor answers are discrete replies, not conversational turns:
+    // when a placement or free-text lesson is already awaiting an answer, this
+    // DM IS that answer. Route it straight to the tutor and return — bypassing
+    // chat_messages (so tutor turns never pollute the shared assistant history,
+    // which is read source-agnostically) and the coalescing queue (so each
+    // answer is graded individually and in order rather than collapsed to the
+    // last burst message). Still serialized through userQueues so rapid answers
+    // don't race on placement/lesson state. Slash commands and buttons are
+    // Discord interactions and never reach messageCreate, so they always bypass.
+    if (deps.tutor?.enabled && routingState(deps.tutor.store).kind !== 'none') {
+      const tutor = deps.tutor;
+      const dmChannel = msg.channel as DMChannel;
+      const prev = userQueues.get(userId) ?? Promise.resolve();
+      const safe = prev
+        .then(() =>
+          routeTutorMessage(msg.content, tutor, {
+            send: ({ content, components }) =>
+              sendTutorReply(dmChannel, content, components),
+          }),
+        )
+        .then(() => undefined)
+        .catch((err) => {
+          console.error(
+            '[discord] tutor routing error:',
+            err instanceof Error ? err.message : err,
+          );
+        });
+      userQueues.set(userId, safe);
+      safe.then(() => {
+        if (userQueues.get(userId) === safe) userQueues.delete(userId);
+      });
+      return;
+    }
+
     try {
       deps.saveMessage({
         messageId,
