@@ -2246,6 +2246,39 @@ describe('English-tutor free-text hook', () => {
     expect(saveMessage).not.toHaveBeenCalled();
   });
 
+  it('falls back to the general assistant instead of dropping a message when tutor state clears mid-queue', async () => {
+    // Regression: two DMs arrive back-to-back while a single-exercise lesson
+    // is awaiting a free answer. The first completes the lesson (tutor state
+    // flips to 'none'); the second was already gated into the tutor queue at
+    // receipt time. It must fall through to normal chat handling instead of
+    // being silently dropped (never saved, never answered).
+    const tutor = makeTutor(JSON.stringify({ verdict: 'correct', feedback: 'Молодец!' }));
+    tutor.store.updateProfile({ level: 'B1', placementState: 'done' });
+    const lesson = tutor.store.createLesson({
+      topic: 'solo',
+      payload: {
+        topic: 'solo',
+        explanation: '...',
+        exercises: [{ kind: 'free', prompt: 'Переведи', answer: 'I am a student', rubric: 'to be' }],
+      },
+    });
+    tutor.store.updateLesson(lesson.id, { status: 'awaiting_free' });
+
+    const { client, runChatRequest, saveMessage } = await setup({ tutor });
+    const { msg: msgA } = makeMessage({ content: 'I am a student' });
+    const { msg: msgB } = makeMessage({ content: 'a normal follow-up question' });
+    client.emit('messageCreate', msgA as any);
+    client.emit('messageCreate', msgB as any);
+    await delay();
+
+    // A was graded by the tutor; the lesson is done, so B must not vanish.
+    expect(tutor.store.getLesson(lesson.id)?.status).toBe('done');
+    expect(saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'a normal follow-up question' }),
+    );
+    expect(runChatRequest).toHaveBeenCalledTimes(1);
+  });
+
   it('leaves the general assistant untouched when no tutor state is active', async () => {
     const tutor = makeTutor('{}');
     tutor.store.updateProfile({ level: 'B1', placementState: 'done' });

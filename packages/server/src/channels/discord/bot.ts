@@ -448,7 +448,13 @@ export async function startDiscordBot(
               sendTutorReply(dmChannel, content, components),
           }),
         )
-        .then(() => undefined)
+        .then((routed) => {
+          // Tutor state may have flipped to inactive while this turn waited in
+          // the per-user queue (e.g. a preceding queued answer just completed
+          // the lesson/placement) — fall back to normal chat handling instead
+          // of dropping the message.
+          if (!routed) return handleMessage(msg);
+        })
         .catch((err) => {
           console.error(
             '[discord] tutor routing error:',
@@ -580,29 +586,6 @@ export async function startDiscordBot(
       typingInterval = setInterval(() => {
         dmChannel.sendTyping().catch(() => {});
       }, 8_000);
-
-      // English-tutor free-text hook: if a placement is in progress or a lesson
-      // awaits a free answer, this DM IS that answer — route it to the tutor
-      // grader and short-circuit before the general assistant. Slash commands
-      // and buttons are interactions (never reach handleMessage), so they always
-      // bypass. When no tutor state is active, routeTutorMessage returns false
-      // and normal chat proceeds untouched.
-      if (deps.tutor?.enabled) {
-        const routed = await routeTutorMessage(msg.content, deps.tutor, {
-          send: ({ content, components }) =>
-            sendTutorReply(dmChannel, content, components),
-        }).catch((err) => {
-          console.error(
-            '[discord] tutor routing error:',
-            err instanceof Error ? err.message : err,
-          );
-          return false;
-        });
-        if (routed) {
-          sendSucceeded = true;
-          return;
-        }
-      }
 
       const source = `discord:${msg.author.id}`;
 

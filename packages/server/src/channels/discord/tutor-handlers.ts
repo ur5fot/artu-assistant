@@ -10,6 +10,7 @@ import type { Lesson } from '../../tutor/lesson-generator.js';
 import { gradeMcq, gradeFree } from '../../tutor/grader.js';
 import {
   beginPlacement,
+  finishPlacement,
   recordPlacementAnswer,
 } from '../../tutor/placement.js';
 import type {
@@ -225,6 +226,20 @@ async function runPlacementFlow(
     const state = profile.placementPayload as PlacementState | null;
     if (state && Array.isArray(state.questions)) {
       const idx = (state.answers ?? []).length;
+      // All questions answered but state is still in_progress: a prior
+      // assessment call failed. Retry it instead of falling through to
+      // beginPlacement, which would discard the already-answered questions.
+      if (idx >= state.questions.length) {
+        try {
+          const { level } = await finishPlacement(tutor.store, llmDeps(tutor));
+          await ixn.editReply({ content: `🎯 Уровень определён: ${level}.` });
+        } catch {
+          await ixn.editReply({
+            content: '⚠️ Не смог оценить placement, попробуй ещё раз позже.',
+          });
+        }
+        return;
+      }
       const question = state.questions[idx];
       if (question) {
         await ixn.editReply({
@@ -410,6 +425,27 @@ async function routePlacementAnswer(
     | null;
   if (!state || !Array.isArray(state.questions)) return;
   const idx = (state.answers ?? []).length;
+
+  // All questions answered but state is still in_progress: a prior
+  // assessment call failed. Any further message retries it (recovering the
+  // "попробуй ответить ещё раз" promised below) instead of silently
+  // no-opping on a nonexistent next question.
+  if (idx >= state.questions.length) {
+    try {
+      const { level } = await finishPlacement(tutor.store, llmDeps(tutor));
+      await channel.send({
+        content:
+          `🎯 Уровень определён: **${level}**.\n` +
+          'Напиши /english, чтобы начать первый урок.',
+      });
+    } catch {
+      await channel.send({
+        content: '⚠️ Не смог оценить placement, попробуй ответить ещё раз.',
+      });
+    }
+    return;
+  }
+
   const question = state.questions[idx];
   if (!question) return;
 

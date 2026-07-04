@@ -140,6 +140,23 @@ describe('/english slash — placement flow', () => {
     const edit = ixn.calls.find((c) => c.method === 'editReply');
     expect(edit?.payload.content).toContain('Не смог собрать placement');
   });
+
+  it('retries assessment on /english when fully answered but not yet finalized', async () => {
+    const deps = makeDeps({ replies: [JSON.stringify({ level: 'C1' })] });
+    deps.store.updateProfile({
+      placementState: 'in_progress',
+      // Fully answered but never finalized (prior assessment failure) — must
+      // retry finishPlacement, not regenerate a brand-new placement test.
+      placementPayload: { questions: PLACEMENT_QUESTIONS.questions, answers: [0, 0, 0, 0, 0] },
+    });
+    const ixn = fakeSlash();
+    await handleEnglishSlash(ixn as any, deps);
+
+    const edit = ixn.calls.find((c) => c.method === 'editReply');
+    expect(edit?.payload.content).toContain('C1');
+    expect(deps.store.getProfile()?.placementState).toBe('done');
+    expect((deps.anthropic.messages.create as any)).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('/english slash — lessons', () => {
@@ -463,5 +480,38 @@ describe('routeTutorMessage — free-text hook', () => {
     // no answer recorded
     const state = deps.store.getProfile()?.placementPayload as any;
     expect(state.answers).toHaveLength(0);
+  });
+
+  it('retries assessment on the next message after a final-answer failure, instead of dead-ending', async () => {
+    // First finishPlacement attempt exhausts assessPlacement's own two retries
+    // (both malformed), then a later attempt succeeds.
+    const deps = makeDeps({
+      replies: ['not json', 'not json', JSON.stringify({ level: 'B2' })],
+    });
+    deps.store.updateProfile({
+      placementState: 'in_progress',
+      // Fully answered but never finalized — simulates a prior assessment
+      // failure that left state.answers.length === questions.length.
+      placementPayload: {
+        questions: PLACEMENT_QUESTIONS.questions,
+        answers: [0, 0, 0, 0, 0],
+      },
+    });
+
+    const ch = fakeChannel();
+    const firstRouted = await routeTutorMessage('anything', deps, ch);
+    expect(firstRouted).toBe(true);
+    expect(ch.calls[0].content).toContain('Не смог оценить placement');
+    // Still recoverable: state must not be corrupted or reset.
+    let profile = deps.store.getProfile();
+    expect(profile?.placementState).toBe('in_progress');
+    expect((profile?.placementPayload as any).answers).toHaveLength(5);
+
+    const secondRouted = await routeTutorMessage('anything', deps, ch);
+    expect(secondRouted).toBe(true);
+    expect(ch.calls[1].content).toContain('B2');
+    profile = deps.store.getProfile();
+    expect(profile?.level).toBe('B2');
+    expect(profile?.placementState).toBe('done');
   });
 });
