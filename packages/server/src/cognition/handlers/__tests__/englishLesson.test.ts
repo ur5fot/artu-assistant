@@ -222,6 +222,36 @@ describe('createEnglishLessonHandler', () => {
       expect(store.lessons[0].status).toBe('awaiting_free');
     });
 
+    it('skips creating a duplicate lesson when one was created concurrently during generation', async () => {
+      const store = fakeStore();
+      let concurrentLesson: TutorLesson | null = null;
+      store.getActiveLesson = () => concurrentLesson;
+      const h = createEnglishLessonHandler(
+        baseDeps({
+          store,
+          anthropic: {
+            messages: {
+              create: async () => {
+                // Simulate a concurrent /english creating a lesson while this
+                // generateLesson call (the LLM await) is still in flight.
+                concurrentLesson = store.createLesson({
+                  topic: 'concurrent',
+                  payload: MCQ_LESSON,
+                });
+                return {
+                  content: [{ type: 'text', text: JSON.stringify(MCQ_LESSON) }],
+                };
+              },
+            },
+          } as never,
+        }),
+      );
+      const res = await h.run(ctx());
+      expect(res).toMatchObject({ skip: true });
+      if ('skip' in res) expect(res.reason).toContain('concurrently');
+      expect(store.lessons).toHaveLength(1);
+    });
+
     it('skips without creating state when generation fails', async () => {
       const store = fakeStore();
       const h = createEnglishLessonHandler(

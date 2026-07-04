@@ -155,6 +155,12 @@ export function createEnglishLessonHandler(deps: EnglishLessonDeps): Handler {
         };
       }
 
+      // generateLesson awaited an LLM call; re-check no lesson was created in
+      // the meantime (e.g. a concurrent /english) before inserting a second one.
+      if (store.getActiveLesson()) {
+        return { skip: true, reason: 'lesson created concurrently' };
+      }
+
       const created = store.createLesson({
         topic: lesson.topic,
         payload: lesson,

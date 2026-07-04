@@ -301,6 +301,19 @@ async function startNewLesson(
     return;
   }
 
+  // generateLesson awaited an LLM call; re-check the daily handler (or another
+  // interaction) didn't create a lesson in the meantime before inserting a
+  // second one.
+  const concurrent = tutor.store.getActiveLesson();
+  if (concurrent) {
+    const msg = exerciseMessage(concurrent, concurrent.currentEx);
+    await ixn.editReply({
+      content: `📘 Продолжаем: **${concurrent.topic}**\n\n${msg.content}`,
+      components: msg.components,
+    });
+    return;
+  }
+
   const created = tutor.store.createLesson({
     topic: lesson.topic,
     payload: lesson,
@@ -507,7 +520,16 @@ async function routeFreeAnswer(
     result.verdict === 'correct' ? '✅' : result.verdict === 'partial' ? '🟡' : '❌';
   await channel.send({ content: `${mark} ${result.feedback}` });
 
-  const advanced = advance(tutor.store, lesson, {
+  // gradeFree awaits an LLM call; re-check the lesson wasn't stopped/advanced
+  // in the meantime (e.g. `/english stop`, an interaction never serialized
+  // against this hook) before writing — advance() trusts its lesson argument,
+  // so grading a stale snapshot would clobber a concurrent stop/completion.
+  const fresh = tutor.store.getLesson(lesson.id);
+  if (!fresh || fresh.status !== 'awaiting_free' || fresh.currentEx !== lesson.currentEx) {
+    return;
+  }
+
+  const advanced = advance(tutor.store, fresh, {
     correct: result.verdict === 'correct',
   });
   if (advanced.done) {

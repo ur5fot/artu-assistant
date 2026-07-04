@@ -432,6 +432,31 @@ describe('routeTutorMessage — free-text hook', () => {
     expect(updated?.status).toBe('awaiting_free');
   });
 
+  it('does not resurrect a lesson stopped while a free answer was being graded', async () => {
+    const grade = JSON.stringify({ verdict: 'correct', feedback: 'Отлично!' });
+    const deps = makeDeps({ replies: [grade] });
+    deps.store.updateProfile({ level: 'B1', placementState: 'done' });
+    const created = deps.store.createLesson({
+      topic: FREE_LESSON.topic,
+      payload: FREE_LESSON,
+    });
+    deps.store.updateLesson(created.id, { status: 'awaiting_free' });
+
+    // Simulate `/english stop` (an interaction, never serialized against the
+    // message hook) landing while gradeFree's LLM call is still in flight.
+    (deps.anthropic.messages.create as any).mockImplementationOnce(async () => {
+      deps.store.completeLesson(created.id, 0.5);
+      return { content: [{ type: 'text', text: grade }] };
+    });
+
+    const ch = fakeChannel();
+    await routeTutorMessage('I am a student', deps, ch);
+
+    const updated = deps.store.getLesson(created.id);
+    expect(updated?.status).toBe('done');
+    expect(updated?.completedAt).not.toBeNull();
+  });
+
   it('routes a placement answer and shows the next question', async () => {
     const deps = makeDeps();
     deps.store.updateProfile({
