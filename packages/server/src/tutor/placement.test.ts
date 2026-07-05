@@ -290,4 +290,42 @@ describe('placement store flow', () => {
     expect(res).toEqual({ level: 'C1' });
     expect(s.getProfile()?.level).toBe('C1');
   });
+
+  it('does not resurrect a cancelled placement when assessment resolves after `/english stop`', async () => {
+    const s = store();
+    const { placementDeps } = deps([JSON.stringify({ questions: sixQuestions() })]);
+    await beginPlacement(s, placementDeps);
+    for (let i = 0; i < 5; i++) {
+      await recordPlacementAnswer(s, 0, placementDeps);
+    }
+
+    // Simulate `/english stop` cancelling the placement while the final
+    // assessment call (triggered by the 6th answer) is still in flight.
+    let resolveAssess!: (text: string) => void;
+    const slowDeps = {
+      anthropic: {
+        messages: {
+          create: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                resolveAssess = (text: string) => resolve({ content: [{ type: 'text', text }] });
+              }),
+          ),
+        },
+      } as any,
+      model: 'claude-test',
+      signal: new AbortController().signal,
+    };
+
+    const finishing = recordPlacementAnswer(s, 0, slowDeps);
+    s.updateProfile({ placementState: 'none', placementPayload: null });
+    resolveAssess(JSON.stringify({ level: 'C1' }));
+    const result = await finishing;
+
+    expect(result).toEqual({ done: true, level: 'C1' });
+    // The stop should stick: no level/placementState resurrection.
+    const profile = s.getProfile();
+    expect(profile?.placementState).toBe('none');
+    expect(profile?.level).toBeNull();
+  });
 });

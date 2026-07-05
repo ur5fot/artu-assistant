@@ -261,6 +261,11 @@ export async function finishPlacement(
     choice: state.answers[i],
   }));
   const { level } = await assessPlacement(qa, deps);
+  // Re-check freshness: `/english stop` can cancel the placement (setting
+  // `placementState` back to `none`) while this LLM call was in flight, since
+  // interaction handling isn't serialized against it. Don't resurrect a
+  // cancelled placement with a stale result.
+  if (!readState(store)) return { level };
   store.updateProfile({
     level,
     placementState: 'done',
