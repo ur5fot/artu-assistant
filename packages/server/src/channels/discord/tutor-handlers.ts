@@ -108,7 +108,8 @@ function formatPlacementQuestion(
 }
 
 /** Partial score for a lesson closed mid-flight (via `/english stop`): fraction
- *  of exercises answered correctly so far, so mastery isn't wiped to 0. */
+ *  of exercises answered correctly so far. Folded into `tutor_progress` via
+ *  `recordAttempt` so mastery isn't wiped to 0. */
 function partialScore(lesson: TutorLesson): number {
   const payload = payloadOf(lesson);
   const total = payload.exercises.length;
@@ -194,7 +195,15 @@ async function handleStop(
     });
     return;
   }
-  if (active) tutor.store.completeLesson(active.id, partialScore(active));
+  if (active) {
+    const score = partialScore(active);
+    tutor.store.completeLesson(active.id, score);
+    tutor.store.recordAttempt({
+      topic: active.topic,
+      correct: score >= WEAK_MASTERY_THRESHOLD,
+      outcome: score,
+    });
+  }
   if (placementActive) {
     tutor.store.updateProfile({
       placementState: 'none',

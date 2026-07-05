@@ -234,6 +234,7 @@ describe('/english stop', () => {
     expect(ixn.calls[0].payload.content).toContain('остановлен');
     expect(deps.store.getLesson(created.id)?.status).toBe('done');
     expect(deps.store.getActiveLesson()).toBeNull();
+    expect(deps.store.getProgress(LESSON.topic)?.attempts).toBe(1);
   });
 
   it('cancels an in-progress placement', async () => {
