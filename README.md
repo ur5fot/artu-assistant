@@ -372,7 +372,8 @@ one turn and the model answers once. Tune via `DISCORD_COALESCE_MS` in
 `.env` (default `1500`).
 
 Slash commands available in DM: `/clear`, `/status`, `/reminders`,
-`/memory [query]`, `/permissions`, `/heartbeat status|pause|resume`.
+`/memory [query]`, `/permissions`, `/heartbeat status|pause|resume`,
+`/english [action:stop]`.
 
 See `AGENTS.md` for the full architecture and event flow.
 

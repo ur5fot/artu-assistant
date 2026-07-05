@@ -198,6 +198,28 @@ describe('/english slash — lessons', () => {
     expect(edit?.payload.content).toContain('Не смог собрать урок');
     expect(deps.store.getActiveLesson()).toBeNull();
   });
+
+  it('skips creating a duplicate lesson when one was created concurrently during generation', async () => {
+    const deps = makeDeps();
+    deps.store.updateProfile({ level: 'B1', placementState: 'done' });
+    // Simulate a concurrent lesson creation (e.g. the daily handler) firing
+    // while this /english call's generateLesson LLM call is still in flight.
+    (deps.anthropic.messages as any).create = vi.fn(async () => {
+      deps.store.createLesson({ topic: 'concurrent', payload: LESSON });
+      return { content: [{ type: 'text', text: JSON.stringify(LESSON) }] };
+    });
+    const ixn = fakeSlash();
+    await handleEnglishSlash(ixn as any, deps);
+
+    const edit = ixn.calls.find((c) => c.method === 'editReply');
+    expect(edit?.payload.content).toContain('Продолжаем');
+    expect(edit?.payload.content).toContain('concurrent');
+    expect(deps.store.getActiveLesson()?.topic).toBe('concurrent');
+    const count = getDb()
+      .prepare('SELECT COUNT(*) AS n FROM tutor_lesson')
+      .get() as { n: number };
+    expect(count.n).toBe(1);
+  });
 });
 
 describe('/english stop', () => {

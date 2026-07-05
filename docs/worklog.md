@@ -51,3 +51,20 @@
   `_MODEL` в index.ts, собран `tutorStore` + `tutorDeps`, `englishLesson`-хендлер
   зарегистрирован в Discord-gated блоке (как morningBrief), `tutor` прокинут в bot
   и форвардится в routeInteraction. 422 server-теста зелёные, tsc чистый.
+- **Task 10 (english tutor) — проверка acceptance criteria.** Все критерии
+  приёмки (placement→CEFR, MCQ/free грейдинг, чат-роутинг только на
+  awaiting_free/placement, mastery-апдейт на done, флаг off = R2 не меняется,
+  graceful LLM-фейлы) подтверждены существующими юнит-тестами. Полный
+  server-набор (2399 тестов/168 файлов) + `tsc --noEmit` зелёные.
+- **Task 11 (english tutor) — документация.** `ENGLISH_TUTOR_ENABLED`/`_HOUR`/
+  `_MODEL` задокументированы в `AGENTS.md` + `.env.example`, добавлена секция
+  «English tutor» в `README.md`. Только доки, код/тесты не тронуты.
+- **English tutor: code review, 3 итерации фиксов.** (1) Ответы учителя
+  писались в `chat_messages` — роутинг тутора перенесён на приём DM, до
+  save/coalesce, чтобы ответы на упражнения не засоряли историю ассистента.
+  (2) Дедлок placement-ретрая (LLM падал на последнем вопросе не давая
+  завершить тест) и гонка с молчаливым дропом сообщения в `bot.ts` — оба пути
+  теперь ретраят `finishPlacement`/падают в обычный чат вместо no-op/дропа.
+  (3) Два TOCTOU: stale-lesson-write при `/english stop` во время грейдинга и
+  двойное создание урока (daily-хендлер vs `/english`) — закрыты re-check
+  перед записью/инсертом. Все три коммита `fix: address code review findings`.

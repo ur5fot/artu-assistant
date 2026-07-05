@@ -4,16 +4,14 @@ import type { TutorStore, TutorLesson } from '../../tutor/store.js';
 import { generateLesson } from '../../tutor/lesson-generator.js';
 import type { Lesson } from '../../tutor/lesson-generator.js';
 import { statusForExercise } from '../../tutor/session.js';
+import {
+  RECENT_TOPICS_LIMIT,
+  WEAK_MASTERY_THRESHOLD,
+  truncateLabel,
+} from '../../tutor/ui.js';
 import { isSameLocalDate } from './morningBrief.helpers.js';
 
 const TZ = 'Europe/Kyiv';
-// Mastery below this counts a topic as "weak" — reinforced next lesson. Mirrors
-// session.ts PASS_THRESHOLD and tutor-handlers.ts.
-const WEAK_MASTERY_THRESHOLD = 0.5;
-// How many recent topics to steer the generator away from repeating.
-const RECENT_TOPICS_LIMIT = 5;
-// Discord button labels are capped at 80 chars and must be non-empty.
-const BUTTON_LABEL_MAX = 80;
 
 export interface EnglishLessonDeps {
   // Flag gate. When false the handler is inert (trigger never fires); Task 9
@@ -46,11 +44,6 @@ function inQuietHours(
   quietEnd: number,
 ): boolean {
   return hour >= quietStart || hour < quietEnd;
-}
-
-function truncateLabel(s: string): string {
-  const t = s.trim() || '—';
-  return t.length > BUTTON_LABEL_MAX ? t.slice(0, BUTTON_LABEL_MAX - 1) + '…' : t;
 }
 
 /** Render the lesson's first exercise as publishable content + components:

@@ -1,5 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { TutorLevel } from './store.js';
+import { callClaude, extractJson, isNonEmptyString } from './llm.js';
 
 /** Exercise kinds the generator (and grader) understand. */
 export type ExerciseKind = 'mcq' | 'free';
@@ -81,23 +82,6 @@ function buildPrompt(input: GenerateLessonInput): string {
   ].join('\n');
 }
 
-/** Pull a JSON object out of an LLM reply, tolerating ```json fences and prose. */
-function extractJson(text: string): unknown {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const candidate = fenced ? fenced[1] : text;
-  const trimmed = candidate.trim();
-  const start = trimmed.indexOf('{');
-  const end = trimmed.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error('no JSON object found');
-  }
-  return JSON.parse(trimmed.slice(start, end + 1));
-}
-
-function isNonEmptyString(v: unknown): v is string {
-  return typeof v === 'string' && v.trim().length > 0;
-}
-
 /** Validate + narrow raw parsed JSON into a Lesson, or throw on bad shape. */
 function toLesson(raw: unknown): Lesson {
   if (!raw || typeof raw !== 'object') {
@@ -158,25 +142,6 @@ function toLesson(raw: unknown): Lesson {
   return { topic: obj.topic, explanation: obj.explanation, exercises };
 }
 
-async function callClaude(
-  deps: LessonGenDeps,
-  userPrompt: string,
-): Promise<string> {
-  const msg = await deps.anthropic.messages.create(
-    {
-      model: deps.model,
-      max_tokens: 2048,
-      system: SYSTEM,
-      messages: [{ role: 'user', content: userPrompt }],
-    },
-    { signal: deps.signal },
-  );
-  const block = (msg.content as Array<{ type: string; text?: string }>).find(
-    (b) => b.type === 'text',
-  );
-  return block?.text ?? '';
-}
-
 /**
  * Generate one adaptive lesson via Claude. Parses + validates the JSON reply;
  * on a malformed/invalid response retries once, then throws `LessonGenError`.
@@ -189,7 +154,7 @@ export async function generateLesson(
   let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const raw = await callClaude(deps, prompt);
+      const raw = await callClaude(deps, SYSTEM, prompt, 2048);
       return toLesson(extractJson(raw));
     } catch (err) {
       lastErr = err;

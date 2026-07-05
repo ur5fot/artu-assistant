@@ -25,6 +25,11 @@ import {
 } from '../../tutor/session.js';
 import type { LessonPayload } from '../../tutor/session.js';
 import type { TutorLesson, TutorStore } from '../../tutor/store.js';
+import {
+  RECENT_TOPICS_LIMIT,
+  WEAK_MASTERY_THRESHOLD,
+  truncateLabel,
+} from '../../tutor/ui.js';
 
 /** Wiring the tutor Discord surface needs. Absent/`enabled=false` ⇒ the
  *  `/english` command and `tutor:mcq:*` buttons reply "выключено" and no state
@@ -34,19 +39,6 @@ export interface TutorInteractionDeps {
   store: TutorStore;
   anthropic: Anthropic;
   model: string;
-}
-
-// Discord button labels are capped at 80 chars and must be non-empty.
-const BUTTON_LABEL_MAX = 80;
-// Mastery below this counts a topic as "weak" — fed back to the generator so the
-// next lesson reinforces it. Mirrors session.ts PASS_THRESHOLD.
-const WEAK_MASTERY_THRESHOLD = 0.5;
-// How many recent topics to steer the generator away from repeating.
-const RECENT_TOPICS_LIMIT = 5;
-
-function truncateLabel(s: string): string {
-  const t = s.trim() || '—';
-  return t.length > BUTTON_LABEL_MAX ? t.slice(0, BUTTON_LABEL_MAX - 1) + '…' : t;
 }
 
 // A fresh signal per LLM call; the interaction lifecycle owns cancellation, so
@@ -254,12 +246,6 @@ async function runPlacementFlow(
 
   try {
     const step = await beginPlacement(tutor.store, llmDeps(tutor));
-    if (step.done) {
-      // beginPlacement always returns the first question; this branch is
-      // unreachable but keeps the type exhaustive.
-      await ixn.editReply({ content: `Уровень определён: ${step.level}.` });
-      return;
-    }
     await ixn.editReply({
       content:
         '📝 Определим твой уровень. Ответь на несколько вопросов.\n\n' +

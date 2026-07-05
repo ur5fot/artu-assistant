@@ -1,5 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { TutorLevel, TutorStore } from './store.js';
+import { callClaude, extractJson, isNonEmptyString } from './llm.js';
 
 /** One placement question: MCQ so answers can be collected without the LLM. */
 export interface PlacementQuestion {
@@ -28,10 +29,18 @@ export interface PlacementDeps {
   signal: AbortSignal;
 }
 
-/** One step of the store-driven placement flow. */
+/** One step of the answer-by-answer placement flow (`recordPlacementAnswer`). */
 export type PlacementStep =
   | { done: false; question: PlacementQuestion; index: number; total: number }
   | { done: true; level: TutorLevel };
+
+/** Result of starting placement: always the first question (never `done`). */
+export interface PlacementStart {
+  done: false;
+  question: PlacementQuestion;
+  index: number;
+  total: number;
+}
 
 /** Thrown when the LLM fails to produce valid questions or a valid level.
  *  Placement state is left intact so the flow can be resumed/retried. */
@@ -72,23 +81,6 @@ const ASSESS_SYSTEM = `Ты оцениваешь уровень английск
 Правила:
 - Учитывай, на какие вопросы (по возрастанию сложности) ученик ответил верно.
 - "level" — итоговый CEFR-уровень.`;
-
-/** Pull a JSON object out of an LLM reply, tolerating ```json fences and prose. */
-function extractJson(text: string): unknown {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const candidate = fenced ? fenced[1] : text;
-  const trimmed = candidate.trim();
-  const start = trimmed.indexOf('{');
-  const end = trimmed.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error('no JSON object found');
-  }
-  return JSON.parse(trimmed.slice(start, end + 1));
-}
-
-function isNonEmptyString(v: unknown): v is string {
-  return typeof v === 'string' && v.trim().length > 0;
-}
 
 function toQuestions(raw: unknown): PlacementQuestion[] {
   if (!raw || typeof raw !== 'object') {
@@ -147,26 +139,6 @@ function toLevel(raw: unknown): TutorLevel {
   return obj.level as TutorLevel;
 }
 
-async function callClaude(
-  deps: PlacementDeps,
-  system: string,
-  userPrompt: string,
-): Promise<string> {
-  const msg = await deps.anthropic.messages.create(
-    {
-      model: deps.model,
-      max_tokens: 2048,
-      system,
-      messages: [{ role: 'user', content: userPrompt }],
-    },
-    { signal: deps.signal },
-  );
-  const block = (msg.content as Array<{ type: string; text?: string }>).find(
-    (b) => b.type === 'text',
-  );
-  return block?.text ?? '';
-}
-
 /**
  * Generate the placement questions via Claude (5–10 MCQ, ascending difficulty).
  * Retries once on a malformed reply, then throws `PlacementError`.
@@ -178,7 +150,7 @@ export async function startPlacement(
   let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const raw = await callClaude(deps, START_SYSTEM, prompt);
+      const raw = await callClaude(deps, START_SYSTEM, prompt, 2048);
       return toQuestions(extractJson(raw));
     } catch (err) {
       lastErr = err;
@@ -227,7 +199,7 @@ export async function assessPlacement(
   let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const raw = await callClaude(deps, ASSESS_SYSTEM, prompt);
+      const raw = await callClaude(deps, ASSESS_SYSTEM, prompt, 2048);
       return { level: toLevel(extractJson(raw)) };
     } catch (err) {
       lastErr = err;
@@ -261,7 +233,7 @@ export function placementInProgress(store: TutorStore): boolean {
 export async function beginPlacement(
   store: TutorStore,
   deps: PlacementDeps,
-): Promise<PlacementStep> {
+): Promise<PlacementStart> {
   const questions = await startPlacement(deps);
   store.updateProfile({
     placementState: 'in_progress',

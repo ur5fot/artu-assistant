@@ -125,6 +125,27 @@ describe('startPlacement', () => {
     );
   });
 
+  it('throws PlacementError when more than 10 questions are returned', async () => {
+    const tooMany = Array.from({ length: 11 }, (_, i) => ({
+      prompt: `Q${i + 1}`,
+      options: ['a', 'b'],
+      answer: 0,
+    }));
+    const { placementDeps } = deps([JSON.stringify({ questions: tooMany })]);
+    await expect(startPlacement(placementDeps)).rejects.toBeInstanceOf(
+      PlacementError,
+    );
+  });
+
+  it('throws PlacementError when a question has more than 4 options', async () => {
+    const bad = sixQuestions();
+    bad[0].options = ['a', 'b', 'c', 'd', 'e'];
+    const { placementDeps } = deps([JSON.stringify({ questions: bad })]);
+    await expect(startPlacement(placementDeps)).rejects.toBeInstanceOf(
+      PlacementError,
+    );
+  });
+
   it('throws PlacementError after two failed attempts', async () => {
     await expect(startPlacement(throwingDeps())).rejects.toBeInstanceOf(
       PlacementError,

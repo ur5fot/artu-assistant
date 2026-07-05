@@ -1,5 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { FreeExercise, McqExercise } from './lesson-generator.js';
+import { callClaude, extractJson } from './llm.js';
 
 /** Verdict the free-form grader may return for an answer. */
 export type FreeVerdict = 'correct' | 'partial' | 'wrong';
@@ -62,19 +63,6 @@ function buildPrompt(exercise: FreeExercise, userAnswer: string): string {
     .join('\n');
 }
 
-/** Pull a JSON object out of an LLM reply, tolerating ```json fences and prose. */
-function extractJson(text: string): unknown {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const candidate = fenced ? fenced[1] : text;
-  const trimmed = candidate.trim();
-  const start = trimmed.indexOf('{');
-  const end = trimmed.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error('no JSON object found');
-  }
-  return JSON.parse(trimmed.slice(start, end + 1));
-}
-
 const VERDICTS: readonly FreeVerdict[] = ['correct', 'partial', 'wrong'];
 
 function toFreeResult(raw: unknown): FreeResult {
@@ -91,25 +79,6 @@ function toFreeResult(raw: unknown): FreeResult {
   return { verdict: obj.verdict as FreeVerdict, feedback: obj.feedback };
 }
 
-async function callClaude(
-  deps: GradeFreeDeps,
-  userPrompt: string,
-): Promise<string> {
-  const msg = await deps.anthropic.messages.create(
-    {
-      model: deps.model,
-      max_tokens: 1024,
-      system: SYSTEM,
-      messages: [{ role: 'user', content: userPrompt }],
-    },
-    { signal: deps.signal },
-  );
-  const block = (msg.content as Array<{ type: string; text?: string }>).find(
-    (b) => b.type === 'text',
-  );
-  return block?.text ?? '';
-}
-
 /**
  * Grade a free-form answer via Claude. Returns a verdict + Russian feedback.
  * On any LLM/parse failure throws `GradeError` — we do not invent a verdict, so
@@ -122,7 +91,7 @@ export async function gradeFree(
 ): Promise<FreeResult> {
   const prompt = buildPrompt(exercise, userAnswer);
   try {
-    const raw = await callClaude(deps, prompt);
+    const raw = await callClaude(deps, SYSTEM, prompt, 1024);
     return toFreeResult(extractJson(raw));
   } catch (err) {
     throw new GradeError('failed to grade free answer', { cause: err });

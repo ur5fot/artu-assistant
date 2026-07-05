@@ -140,6 +140,16 @@ describe('tutor session — currentExercise', () => {
     const moved = s.updateLesson(lesson.id, { currentEx: 1 });
     expect(currentExercise(moved)).toBeNull();
   });
+
+  it('throws for a lesson whose payload has no exercises', () => {
+    const s = store();
+    const lesson = s.createLesson({
+      topic: 'broken',
+      payload: { ...lessonPayload([]), exercises: [] },
+    });
+    expect(() => currentExercise(lesson)).toThrow(/no exercises/);
+    expect(() => advance(s, lesson, { correct: true })).toThrow(/no exercises/);
+  });
 });
 
 describe('tutor session — routingState', () => {
