@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { ChannelType, Client } from 'discord.js';
 import type { SSEEvent } from '@r2/shared';
-import { startDiscordBot, sendReply, isRetryableError, buildComponentsFromData, type DiscordBotDeps } from '../bot.js';
+import { startDiscordBot, sendReply, sendTutorReply, isRetryableError, buildComponentsFromData, type DiscordBotDeps } from '../bot.js';
 import type { ComponentData } from '../../../cognition/types.js';
 import { getDb, initDb } from '../../../db.js';
 import { createCognitionStore, type CognitionStore } from '../../../cognition/store.js';
@@ -2171,6 +2171,53 @@ describe('sendReply', () => {
   });
 });
 
+describe('sendTutorReply', () => {
+  it('sends short text in one message with components attached', async () => {
+    const ch = makeDmChannel();
+    const components = [{} as any];
+    await sendTutorReply(ch as any, 'short message', components);
+    expect(ch.send).toHaveBeenCalledTimes(1);
+    expect(ch.send).toHaveBeenCalledWith({
+      content: 'short message',
+      components,
+      allowedMentions: { parse: [] },
+    });
+  });
+
+  it('splits text longer than 2000 at a word boundary, components only on the last chunk', async () => {
+    const ch = makeDmChannel();
+    const text = `${'word '.repeat(500)}tail`;
+    const components = [{} as any];
+    await sendTutorReply(ch as any, text, components);
+    expect(ch.send.mock.calls.length).toBeGreaterThanOrEqual(2);
+    for (const call of ch.send.mock.calls) {
+      expect(call[0].content.length).toBeLessThanOrEqual(2000);
+      expect(call[0].allowedMentions).toEqual({ parse: [] });
+    }
+    const nonLast = ch.send.mock.calls.slice(0, -1);
+    for (const call of nonLast) {
+      expect(call[0].components).toBeUndefined();
+    }
+    expect(ch.send.mock.calls.at(-1)![0].components).toBe(components);
+    // Each split point lands on a single space, which trimStart() then drops
+    // from the next chunk — rejoining with a single space restores the original.
+    const joined = ch.send.mock.calls.map((c: any) => c[0].content).join(' ');
+    expect(joined).toBe(text);
+  });
+
+  it('falls back to a hard split when a chunk has no spaces', async () => {
+    const ch = makeDmChannel();
+    const text = 'x'.repeat(4500);
+    await sendTutorReply(ch as any, text);
+    expect(ch.send.mock.calls.length).toBeGreaterThanOrEqual(3);
+    for (const call of ch.send.mock.calls) {
+      expect(call[0].content.length).toBeLessThanOrEqual(2000);
+    }
+    const joined = ch.send.mock.calls.map((c: any) => c[0].content).join('');
+    expect(joined).toBe(text);
+  });
+});
+
 describe('English-tutor free-text hook', () => {
   function stubAnthropic(reply: string) {
     return {
@@ -2277,6 +2324,54 @@ describe('English-tutor free-text hook', () => {
       expect.objectContaining({ content: 'a normal follow-up question' }),
     );
     expect(runChatRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs and recovers instead of crashing when routeTutorMessage throws unexpectedly, leaving the per-user queue unwedged', async () => {
+    const tutor = makeTutor(JSON.stringify({ verdict: 'correct', feedback: 'Молодец!' }));
+    tutor.store.updateProfile({ level: 'B1', placementState: 'done' });
+    const lesson = tutor.store.createLesson({
+      topic: 'translation',
+      payload: {
+        topic: 'translation',
+        explanation: '...',
+        exercises: [{ kind: 'free', prompt: 'Переведи', answer: 'I am a student', rubric: 'to be' }],
+      },
+    });
+    tutor.store.updateLesson(lesson.id, { status: 'awaiting_free' });
+
+    // Simulate an unexpected (non-Grade/PlacementError) failure deep inside
+    // advance()'s persistence step, e.g. a transient DB error.
+    const updateLessonSpy = vi
+      .spyOn(tutor.store, 'updateLesson')
+      .mockImplementationOnce(() => {
+        throw new Error('db exploded');
+      });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { client, runChatRequest, saveMessage } = await setup({ tutor });
+    const { msg: msgA } = makeMessage({ content: 'I am a student' });
+    client.emit('messageCreate', msgA as any);
+    await delay();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[discord] tutor routing error:',
+      'db exploded',
+    );
+    // The throw happened before persisting, so nothing was silently corrupted.
+    expect(tutor.store.getLesson(lesson.id)?.status).toBe('awaiting_free');
+    updateLessonSpy.mockRestore();
+
+    // The per-user queue must not be left wedged: a second DM for the same
+    // user is still processed normally afterwards.
+    const { msg: msgB, channel: channelB } = makeMessage({ content: 'I am a student' });
+    client.emit('messageCreate', msgB as any);
+    await delay();
+
+    expect(tutor.store.getLesson(lesson.id)?.status).toBe('done');
+    expect(channelB.send).toHaveBeenCalled();
+    expect(runChatRequest).not.toHaveBeenCalled();
+    expect(saveMessage).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it('leaves the general assistant untouched when no tutor state is active', async () => {

@@ -16,11 +16,6 @@ export interface LessonPayload extends Lesson {
   results?: ExerciseResult[];
 }
 
-/** Grade of a single answer, as produced by the MCQ/free graders upstream. */
-export interface AnswerOutcome {
-  correct: boolean;
-}
-
 /** Result of applying one answer via {@link advance}. */
 export type AdvanceResult =
   | {
@@ -43,7 +38,7 @@ export type Routing =
   | { kind: 'free'; lesson: TutorLesson };
 
 /** Correctness threshold above which a completed lesson counts as "passed". */
-const PASS_THRESHOLD = 0.5;
+export const PASS_THRESHOLD = 0.5;
 
 /** Map an exercise to the lesson status that awaits its answer. */
 export function statusForExercise(exercise: Exercise): LessonStatus {
@@ -74,7 +69,7 @@ export function currentExercise(lesson: TutorLesson): Exercise | null {
 export function advance(
   store: TutorStore,
   lesson: TutorLesson,
-  outcome: AnswerOutcome,
+  outcome: ExerciseResult,
 ): AdvanceResult {
   if (lesson.status === 'done') {
     throw new Error(`lesson ${lesson.id} is already done`);

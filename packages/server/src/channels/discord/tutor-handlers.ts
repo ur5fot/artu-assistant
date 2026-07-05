@@ -107,9 +107,10 @@ function formatPlacementQuestion(
   );
 }
 
-/** Partial score for a lesson closed mid-flight (via `/english stop`): fraction
- *  of exercises answered correctly so far. Folded into `tutor_progress` via
- *  `recordAttempt` so mastery isn't wiped to 0. */
+/** Partial score for a lesson closed mid-flight (via `/english stop`):
+ *  exercises answered correctly divided by the lesson's *total* exercise count
+ *  (not just the ones answered), so stopping early can't be gamed into a
+ *  perfect score. Folded into `tutor_progress` via `recordAttempt`. */
 function partialScore(lesson: TutorLesson): number {
   const payload = payloadOf(lesson);
   const total = payload.exercises.length;
@@ -232,8 +233,14 @@ async function runPlacementFlow(
       // beginPlacement, which would discard the already-answered questions.
       if (idx >= state.questions.length) {
         try {
-          const { level } = await finishPlacement(tutor.store, llmDeps(tutor));
-          await ixn.editReply({ content: `🎯 Уровень определён: ${level}.` });
+          const outcome = await finishPlacement(tutor.store, llmDeps(tutor));
+          if ('cancelled' in outcome) {
+            await ixn.editReply({ content: 'Плейсмент был остановлен.' });
+            return;
+          }
+          await ixn.editReply({
+            content: `🎯 Уровень определён: ${outcome.level}.`,
+          });
         } catch {
           await ixn.editReply({
             content: '⚠️ Не смог оценить placement, попробуй ещё раз позже.',
@@ -440,10 +447,11 @@ async function routePlacementAnswer(
   // no-opping on a nonexistent next question.
   if (idx >= state.questions.length) {
     try {
-      const { level } = await finishPlacement(tutor.store, llmDeps(tutor));
+      const outcome = await finishPlacement(tutor.store, llmDeps(tutor));
+      if ('cancelled' in outcome) return;
       await channel.send({
         content:
-          `🎯 Уровень определён: **${level}**.\n` +
+          `🎯 Уровень определён: **${outcome.level}**.\n` +
           'Напиши /english, чтобы начать первый урок.',
       });
     } catch {
@@ -478,6 +486,7 @@ async function routePlacementAnswer(
   }
 
   if (step.done) {
+    if ('cancelled' in step) return;
     await channel.send({
       content:
         `🎯 Уровень определён: **${step.level}**.\n` +

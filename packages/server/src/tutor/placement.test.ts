@@ -322,7 +322,7 @@ describe('placement store flow', () => {
     resolveAssess(JSON.stringify({ level: 'C1' }));
     const result = await finishing;
 
-    expect(result).toEqual({ done: true, level: 'C1' });
+    expect(result).toEqual({ done: true, cancelled: true });
     // The stop should stick: no level/placementState resurrection.
     const profile = s.getProfile();
     expect(profile?.placementState).toBe('none');

@@ -1,13 +1,10 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { FreeExercise, McqExercise } from './lesson-generator.js';
+import type { ExerciseResult } from './session.js';
 import { callClaude, extractJson } from './llm.js';
 
 /** Verdict the free-form grader may return for an answer. */
 export type FreeVerdict = 'correct' | 'partial' | 'wrong';
-
-export interface McqResult {
-  correct: boolean;
-}
 
 export interface FreeResult {
   verdict: FreeVerdict;
@@ -37,7 +34,7 @@ export class GradeError extends Error {
 export function gradeMcq(
   exercise: McqExercise,
   choiceIdx: number,
-): McqResult {
+): ExerciseResult {
   return { correct: choiceIdx === exercise.answer };
 }
 

@@ -29,10 +29,13 @@ export interface PlacementDeps {
   signal: AbortSignal;
 }
 
-/** One step of the answer-by-answer placement flow (`recordPlacementAnswer`). */
+/** One step of the answer-by-answer placement flow (`recordPlacementAnswer`).
+ *  `cancelled` means `/english stop` raced the final assessment call and won:
+ *  there is no level and nothing to show, since the stop already replied. */
 export type PlacementStep =
   | { done: false; question: PlacementQuestion; index: number; total: number }
-  | { done: true; level: TutorLevel };
+  | { done: true; level: TutorLevel }
+  | { done: true; cancelled: true };
 
 /** Result of starting placement: always the first question (never `done`). */
 export interface PlacementStart {
@@ -250,7 +253,7 @@ export async function beginPlacement(
 export async function finishPlacement(
   store: TutorStore,
   deps: PlacementDeps,
-): Promise<{ level: TutorLevel }> {
+): Promise<{ level: TutorLevel } | { cancelled: true }> {
   const state = readState(store);
   if (!state) throw new PlacementError('no placement in progress');
   if (state.answers.length < state.questions.length) {
@@ -264,8 +267,9 @@ export async function finishPlacement(
   // Re-check freshness: `/english stop` can cancel the placement (setting
   // `placementState` back to `none`) while this LLM call was in flight, since
   // interaction handling isn't serialized against it. Don't resurrect a
-  // cancelled placement with a stale result.
-  if (!readState(store)) return { level };
+  // cancelled placement with a stale result, and tell the caller so it
+  // doesn't announce a level that was never persisted.
+  if (!readState(store)) return { cancelled: true };
   store.updateProfile({
     level,
     placementState: 'done',
@@ -305,6 +309,7 @@ export async function recordPlacementAnswer(
       total: state.questions.length,
     };
   }
-  const { level } = await finishPlacement(store, deps);
-  return { done: true, level };
+  const outcome = await finishPlacement(store, deps);
+  if ('cancelled' in outcome) return { done: true, cancelled: true };
+  return { done: true, level: outcome.level };
 }
