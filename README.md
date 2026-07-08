@@ -53,6 +53,8 @@ or act**. Some target moments:
 - Claude API agentic loop with streaming + tool use + extended thinking
 - Modular tools — each tool is its own npm package, auto-discovered from
   `packages/tool-*/`
+- `web_search` + `web_fetch` tools: search through SearXNG, then fetch and
+  compare readable page text from up to 8 URLs in one call
 - SQLite (better-sqlite3) for chat history, audit log, memory
 - Permission system: `auto` / `confirm` / `forbidden` levels with UI dialog
 - PII gateway via Microsoft Presidio (en/ru/uk recognizers, Docker) — **frozen by default**, opt-in via the `pii` compose profile
@@ -183,19 +185,27 @@ ship it, live with it for two weeks, then decide what to extract into
 reusable modules. Full reasoning, candidates, and operating principles in
 [docs/superpowers/plans/2026-05-27-toward-ideal-r2.md](docs/superpowers/plans/2026-05-27-toward-ideal-r2.md).
 
-### Active focus — Pain #1: Email triage (June 2026)
+### Active focus — July 2026: useful proactive loops
 
-Concrete goal: by end of June, R2 catches **≥ 80%** of emails that need a
-response within 24 h *before* the user opens the inbox, with one-click
-drafts and a 30-second undo zone on send. Implicit feedback (open rate,
-reply timing, dismissals) tunes the threshold automatically — no explicit
-thumbs-up/down buttons.
+The June email-triage push shipped the core loop: IMAP watcher, importance
+scoring, urgent pings, one-click drafts, send hold, digest actions, suppression,
+implicit feedback, `\Seen` sync, native-language email gist, and resilience
+around blind mailboxes / dropped IMAP connections.
 
-Success is measured against four criteria (catch rate, false-positive
-rate, draft-usage rate, time-to-reply) at month end. Hit ≥ 2 of 4 → keep
-shipped feature. Hit ≥ 3 → extract reusable modules (implicit feedback
-aggregator, undo-zone wrapper, per-feature `/why`). Hit < 2 → diagnose
-before moving on.
+Current July work continues the same product direction:
+
+- **Email usefulness** — keep reducing raw inbox noise. The latest shipped
+  iteration is `EMAIL_GIST_ENABLED`: important emails get a short Russian gist
+  before they appear in urgent pings, digests, and the `emails` tool.
+- **Digital Observer iter 2** — distraction pullback is moving from observe +
+  nudge toward small reversible actions, including the restore button behind
+  `DISTRACTION_RESTORE_ENABLED`.
+- **English tutor** — shipped this iteration: placement, adaptive lessons,
+  grading, `/english`, and daily cognition delivery behind
+  `ENGLISH_TUTOR_ENABLED`. See the [English tutor](#english-tutor) section.
+
+The operating rule is still use-case-first: build one concrete pain end to end,
+live with it, then extract reusable pieces only after the loop proves useful.
 
 ### Long-term vision — the home life-operator
 
