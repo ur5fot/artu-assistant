@@ -31,9 +31,10 @@ const msgs = [
 
 describe('scoreBatch', () => {
   it('parses clean JSON reply from Ollama', async () => {
+    const ollama = fakeOllama('[{"uid":1,"importance":5},{"uid":2,"importance":1}]');
     const res = await scoreBatch(msgs, {
       piiProxy: fakeProxy(),
-      ollama: fakeOllama('[{"uid":1,"importance":5},{"uid":2,"importance":1}]'),
+      ollama,
       anthropic: fakeAnthropic(''),
       signal: new AbortController().signal,
     });
@@ -41,16 +42,22 @@ describe('scoreBatch', () => {
       { uid: 1, importance: 5 },
       { uid: 2, importance: 1 },
     ]);
+    expect(ollama.chat).toHaveBeenCalledWith(expect.objectContaining({
+      format: expect.objectContaining({ type: 'array' }),
+      temperature: 0,
+    }));
   });
 
-  it('strips fence markers around JSON', async () => {
+  it('rejects fenced Ollama output and falls back to Claude', async () => {
+    const anthropic = fakeAnthropic('[{"uid":1,"importance":4},{"uid":2,"importance":2}]');
     const res = await scoreBatch(msgs, {
       piiProxy: fakeProxy(),
       ollama: fakeOllama('```json\n[{"uid":1,"importance":4},{"uid":2,"importance":2}]\n```'),
-      anthropic: fakeAnthropic(''),
+      anthropic,
       signal: new AbortController().signal,
     });
     expect(res.map((r) => r.importance)).toEqual([4, 2]);
+    expect(anthropic.messages.create).toHaveBeenCalledOnce();
   });
 
   it('clamps importance into 1..5', async () => {

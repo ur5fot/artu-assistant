@@ -7,7 +7,7 @@ export interface OllamaToolCall {
   };
 }
 
-interface OllamaToolDef {
+export interface OllamaToolDef {
   type: 'function';
   function: {
     name: string;
@@ -20,15 +20,17 @@ interface OllamaToolDef {
   };
 }
 
-interface OllamaChatParams {
+export interface OllamaChatParams {
   messages: MessageParam[];
   system?: string;
   signal?: AbortSignal;
   tools?: OllamaToolDef[];
   model?: string;
+  format?: Record<string, unknown>;
+  temperature?: number;
 }
 
-interface OllamaChatResult {
+export interface OllamaChatResult {
   text: string;
   toolCalls?: OllamaToolCall[];
 }
@@ -41,6 +43,7 @@ interface OllamaMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   tool_calls?: OllamaToolCall[];
+  tool_name?: string;
 }
 
 function toOllamaMessage(msg: MessageParam | { role: string; content: string; tool_calls?: OllamaToolCall[] }): OllamaMessage {
@@ -48,7 +51,11 @@ function toOllamaMessage(msg: MessageParam | { role: string; content: string; to
   // the ollama-tool-loop and should be passed through directly.
   const anyMsg = msg as any;
   if (anyMsg.role === 'tool') {
-    return { role: 'tool', content: typeof anyMsg.content === 'string' ? anyMsg.content : '' };
+    return {
+      role: 'tool',
+      content: typeof anyMsg.content === 'string' ? anyMsg.content : '',
+      tool_name: typeof anyMsg.tool_name === 'string' ? anyMsg.tool_name : undefined,
+    };
   }
   if (anyMsg.role === 'assistant' && anyMsg.tool_calls) {
     return { role: 'assistant', content: anyMsg.content ?? '', tool_calls: anyMsg.tool_calls };
@@ -82,8 +89,10 @@ export function createOllamaClient(): OllamaClient {
   return {
     async chat(params: OllamaChatParams): Promise<OllamaChatResult> {
       const url = process.env.OLLAMA_URL || 'http://localhost:11434';
-      const model = params.model ?? process.env.OLLAMA_MODEL ?? 'qwen2.5:7b';
-      const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) || 15000;
+      const model = params.model ?? process.env.OLLAMA_MODEL ?? 'qwen3:1.7b';
+      const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) || (model.startsWith('qwen3') ? 30000 : 15000);
+      const numCtxRaw = Number(process.env.OLLAMA_NUM_CTX);
+      const numCtx = Number.isFinite(numCtxRaw) && numCtxRaw > 0 ? numCtxRaw : 8192;
 
       const ollamaMessages = params.messages.map(toOllamaMessage);
       if (params.system) {
@@ -95,12 +104,25 @@ export function createOllamaClient(): OllamaClient {
         stream: false,
         messages: ollamaMessages,
         options: {
-          temperature: 0.2,
+          temperature: params.temperature ?? 0.2,
           top_p: 0.9,
+          // Ollama's default num_ctx (4096) silently truncates once the
+          // system prompt + tool schemas + history exceed it — the model
+          // "loses" tools without any error surfacing.
+          num_ctx: numCtx,
         },
       };
+      // qwen3 thinks by default, which adds seconds per turn on M1 and
+      // compounds across tool-loop iterations. Other models may reject the
+      // flag, so only send it where it applies.
+      if (model.startsWith('qwen3')) {
+        body.think = false;
+      }
       if (params.tools && params.tools.length > 0) {
         body.tools = params.tools;
+      }
+      if (params.format) {
+        body.format = params.format;
       }
 
       const timeoutSignal = AbortSignal.timeout(timeoutMs);

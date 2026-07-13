@@ -31,25 +31,32 @@ const msgs = [
 
 describe('summarizeGists', () => {
   it('parses Ollama reply into a uid→gist map', async () => {
+    const ollama = fakeOllama('[{"uid":1,"gist":"Счёт на 100"},{"uid":2,"gist":"Нужен отчёт"}]');
     const res = await summarizeGists(msgs, {
       piiProxy: fakeProxy(),
-      ollama: fakeOllama('[{"uid":1,"gist":"Счёт на 100"},{"uid":2,"gist":"Нужен отчёт"}]'),
+      ollama,
       anthropic: fakeAnthropic(''),
       signal: new AbortController().signal,
     });
     expect(res.get(1)).toBe('Счёт на 100');
     expect(res.get(2)).toBe('Нужен отчёт');
+    expect(ollama.chat).toHaveBeenCalledWith(expect.objectContaining({
+      format: expect.objectContaining({ type: 'array' }),
+      temperature: 0,
+    }));
   });
 
-  it('strips fence markers around JSON', async () => {
+  it('rejects fenced Ollama output and falls back to Claude', async () => {
+    const anthropic = fakeAnthropic('[{"uid":1,"gist":"a"},{"uid":2,"gist":"b"}]');
     const res = await summarizeGists(msgs, {
       piiProxy: fakeProxy(),
       ollama: fakeOllama('```json\n[{"uid":1,"gist":"a"},{"uid":2,"gist":"b"}]\n```'),
-      anthropic: fakeAnthropic(''),
+      anthropic,
       signal: new AbortController().signal,
     });
     expect(res.get(1)).toBe('a');
     expect(res.get(2)).toBe('b');
+    expect(anthropic.messages.create).toHaveBeenCalledOnce();
   });
 
   it('falls back to Claude when Ollama returns unparseable', async () => {

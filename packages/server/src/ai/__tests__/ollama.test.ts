@@ -9,6 +9,7 @@ describe('OllamaClient.chat', () => {
     mockFetch.mockReset();
     process.env.OLLAMA_URL = 'http://localhost:11434';
     process.env.OLLAMA_MODEL = 'qwen2.5:7b';
+    delete process.env.OLLAMA_NUM_CTX;
   });
 
   it('calls native /api/chat with stream=false', async () => {
@@ -61,6 +62,26 @@ describe('OllamaClient.chat', () => {
     const body = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(body.messages[0].content).toBe('text one');
     expect(body.messages[1].content).toBe('part A\npart B');
+  });
+
+  it('passes tool_name on tool result messages', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ message: { role: 'assistant', content: 'done' }, done: true }),
+    });
+
+    const client = createOllamaClient();
+    await client.chat({
+      messages: [{ role: 'tool', tool_name: 'weather', content: '{"temperature":24}' } as any],
+    });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.messages[0]).toEqual({
+      role: 'tool',
+      tool_name: 'weather',
+      content: '{"temperature":24}',
+    });
   });
 
   it('throws on non-200 response', async () => {
@@ -118,5 +139,42 @@ describe('OllamaClient.chat', () => {
     expect(mockFetch).toHaveBeenCalledWith('http://custom:9999/api/chat', expect.anything());
     const body = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(body.model).toBe('llama3.2:3b');
+  });
+
+  it('passes JSON Schema format, temperature and configurable context size', async () => {
+    process.env.OLLAMA_NUM_CTX = '4096';
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ message: { role: 'assistant', content: '[]' }, done: true }),
+    });
+
+    const format = { type: 'array', items: { type: 'integer' } };
+    const client = createOllamaClient();
+    await client.chat({
+      messages: [{ role: 'user', content: 'json' }],
+      format,
+      temperature: 0,
+    });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.format).toEqual(format);
+    expect(body.options.temperature).toBe(0);
+    expect(body.options.num_ctx).toBe(4096);
+  });
+
+  it('disables thinking for qwen3 models', async () => {
+    process.env.OLLAMA_MODEL = 'qwen3:1.7b';
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ message: { role: 'assistant', content: 'ok' }, done: true }),
+    });
+
+    const client = createOllamaClient();
+    await client.chat({ messages: [{ role: 'user', content: 'hi' }] });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.think).toBe(false);
   });
 });

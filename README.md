@@ -85,8 +85,10 @@ Closing the gap between Claude Code (the harness) and R2:
   the summary into the same vector DB. Prompt builder serves recent verbatim
   + top finalized topic summaries within budget. Old topics stay reachable
   via vector recall.
-- **Local LLM router (4G)** — Ollama as first attempt for chat, Claude as
-  fallback on empty / tool-need / unreachable. `LOCAL_LLM_MODE=disabled` kill switch.
+- **Local LLM router (4G)** — deterministic risk/domain routing: `qwen3:1.7b`
+  handles simple chat or one read-only tool domain; actions, code, math, strict
+  formats and multi-domain work go directly to Claude. Runtime failures still
+  fall back to Claude. `LOCAL_LLM_MODE=disabled` is the kill switch.
 - **Email watcher (4F, partial)** — multi-account IMAP polling (Gmail / iCloud
   via app passwords), LLM importance scoring (Ollama → Claude), `emailDigest`
   cognition handler with quiet hours / cooldown / post-morning-brief hold.
@@ -244,7 +246,7 @@ following the use-case-first principle:
 - **Backend:** Express 4 + tsx watch in dev
 - **Frontend (frozen):** React 19 + Vite + diff2html
 - **AI:** Anthropic Claude API (Sonnet 4.6 / Haiku 4.5) — tool use + extended thinking
-- **Local LLM:** Ollama (qwen2.5:7b + mxbai-embed-large)
+- **Local LLM:** Ollama (`qwen3:1.7b` chat; configurable memory models)
 - **DB:** SQLite (better-sqlite3 + sqlite-vec)
 - **Search:** SearXNG (Docker)
 - **Weather:** Open-Meteo (key-less HTTP, no SDK)
@@ -775,6 +777,41 @@ the same app into one bridged row.
 - macOS only — Linux / Docker silently see nothing.
 
 ---
+
+## Local LLM routing
+
+The chat path is Ollama-first only inside a bounded safe lane. A deterministic
+TypeScript router runs before inference:
+
+- simple chat → Qwen without tools;
+- one read-only domain → Qwen with 1–3 matching tools (`weather`, `activity`,
+  mail read, file read, web read, reminder list, or memory search);
+- state changes, code, math, strict JSON/format requests, long input and
+  multi-domain work → Claude directly.
+
+Qwen never receives write/delete/send/deploy/memory-mutation tools. After a
+terminal read (`web_fetch`, `file_read`, `emails_get`, etc.) the synthesis call
+has no tools. Search/list chains may expose only the matching follow-up reader.
+An Ollama protocol error, empty response, unavailable tool or context overflow
+falls back to Claude; local tools are read-only, so replay cannot duplicate a
+side effect.
+
+Local context is calculated separately from Claude's
+`CHAT_CONTEXT_BUDGET_CHARS`. `OLLAMA_NUM_CTX` defaults to 8192 with
+`OLLAMA_OUTPUT_RESERVE_TOKENS=1024`; system prompt and selected tool schemas are
+counted before whole recent turns. `OLLAMA_ROUTE_MAX_CHARS` is the pre-route
+input ceiling. See `.env.example` for optional memory/topic block limits and
+the conservative chars/token estimate.
+
+Every chat request emits one `[local-route]` JSON log with `provider`,
+`routeReason`, `domain`, tool names, estimated prompt tokens, latency and an
+optional `fallbackReason`. It never includes prompts, messages, tool arguments
+or tool results.
+
+Ollama-backed email scoring, gist generation and action matching pass a JSON
+Schema through the native `format` option at temperature 0. The server still
+parses and validates coverage, ranges and known ids in TypeScript; malformed or
+semantically incomplete output follows the existing Claude fallback.
 
 ## Running without Ollama (API-only mode)
 

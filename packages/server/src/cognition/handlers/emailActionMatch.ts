@@ -49,6 +49,19 @@ match=true ТОЛЬКО если письмо явно сообщает о за�
 Во ВСЕХ остальных случаях match=false. По умолчанию false: реклама, напоминание, счёт к оплате, просьба действовать, неоднозначное письмо — всё это false.
 Отвечай ТОЛЬКО JSON массивом [{"i":<int>,"match":<bool>}, ...]. Без текста вокруг.`;
 
+const MATCH_FORMAT: Record<string, unknown> = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      i: { type: 'integer', minimum: 0 },
+      match: { type: 'boolean' },
+    },
+    required: ['i', 'match'],
+    additionalProperties: false,
+  },
+};
+
 function collapseWs(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
@@ -154,19 +167,19 @@ function extractJsonArray(text: string): unknown {
 // suppress a candidate set until a new email/action appears (mirrors the
 // scorer's normalize→null→fallback contract). A valid empty array `[]` is a
 // real "no matches" verdict and returns an empty set (cacheable).
-function parseMatches(raw: string): Set<number> | null {
+function parseMatches(raw: string, allowedIndices: ReadonlySet<number>, strictJson = false): Set<number> | null {
   let parsed: unknown;
   try {
-    parsed = extractJsonArray(raw);
+    parsed = strictJson ? JSON.parse(raw.trim()) : extractJsonArray(raw);
   } catch {
     return null;
   }
   if (!Array.isArray(parsed)) return null;
   const confirmed = new Set<number>();
   for (const item of parsed) {
-    if (item && typeof item.i === 'number' && item.match === true) {
-      confirmed.add(item.i);
-    }
+    if (!item || !Number.isInteger(item.i) || typeof item.match !== 'boolean') return null;
+    if (!allowedIndices.has(item.i)) return null;
+    if (item.match) confirmed.add(item.i);
   }
   return confirmed;
 }
@@ -176,6 +189,8 @@ async function callOllama(ollama: OllamaClient, prompt: string, signal: AbortSig
     messages: [{ role: 'user', content: prompt }],
     system: MATCH_SYSTEM,
     signal,
+    format: MATCH_FORMAT,
+    temperature: 0,
   });
   return r.text;
 }
@@ -205,10 +220,11 @@ async function confirmMatches(
 ): Promise<Set<number> | null> {
   const rawPrompt = buildMatchPrompt(cands);
   const prompt = deps.piiProxy ? (await deps.piiProxy.anonymize(rawPrompt)).text : rawPrompt;
+  const allowedIndices = new Set(cands.map((candidate) => candidate.i));
   const useOllama = deps.ollama && (process.env.LOCAL_LLM_MODE || 'enabled') === 'enabled';
   if (useOllama) {
     try {
-      const matches = parseMatches(await callOllama(deps.ollama!, prompt, signal));
+      const matches = parseMatches(await callOllama(deps.ollama!, prompt, signal), allowedIndices, true);
       if (matches) return matches;
       console.warn('[emailActionMatch] Ollama reply malformed, falling back to Claude');
     } catch (err) {
@@ -218,7 +234,7 @@ async function confirmMatches(
       );
     }
   }
-  return parseMatches(await callClaude(deps.anthropic, prompt, signal));
+  return parseMatches(await callClaude(deps.anthropic, prompt, signal), allowedIndices);
 }
 
 function formatNotice(closed: Array<{ action: OpenAction; email: EmailPendingRow }>): string {

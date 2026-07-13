@@ -52,7 +52,7 @@ describe('prompts overlay integration', () => {
   describe('getLocalSystemPrompt (ollama)', () => {
     it('appends overlay block when overlay is non-empty', () => {
       mockedGetOverlay.mockImplementation((m) => (m === 'ollama' ? 'англійською' : null));
-      const out = getLocalSystemPrompt([{ name: 'web_search', description: 'search' }]);
+      const out = getLocalSystemPrompt('web');
       expect(out).toContain('## Додаткові інструкції');
       expect(out).toContain('англійською');
       expect(out).toContain('web_search');
@@ -84,10 +84,10 @@ describe('prompts overlay integration', () => {
     });
 
     it('getLocalSystemPrompt routes email checks to emails_status', () => {
-      const out = getLocalSystemPrompt();
+      const out = getLocalSystemPrompt('mail');
       expect(out).toContain('emails_status');
       expect(out).toContain('awaiting_count');
-      expect(out).toContain('accounts_count');
+      expect(out).toContain('emails_get');
     });
 
     it('getSystemPrompt routes dismiss + forbids faked external actions', () => {
@@ -97,11 +97,11 @@ describe('prompts overlay integration', () => {
       expect(out).toContain('не вигадуй');
     });
 
-    it('getLocalSystemPrompt routes dismiss + forbids faked external actions', () => {
-      const out = getLocalSystemPrompt();
-      expect(out).toContain('emails_dismiss');
-      expect(out).toContain('вручну');
-      expect(out).toContain('не вигадуй');
+    it('getLocalSystemPrompt excludes mail mutations and forbids faked external actions', () => {
+      const out = getLocalSystemPrompt('mail');
+      expect(out).not.toContain('emails_dismiss');
+      expect(out).toContain('лише читати');
+      expect(out).toContain('Не вигадуй');
     });
   });
 
@@ -117,9 +117,9 @@ describe('prompts overlay integration', () => {
     });
 
     it('getLocalSystemPrompt routes activity questions to activity tool', () => {
-      const out = getLocalSystemPrompt();
+      const out = getLocalSystemPrompt('activity');
       expect(out).toContain('activity');
-      expect(out).toContain('екранний час');
+      expect(out).toContain("комп'ютером");
     });
 
     it('getSystemPrompt forbids false "no access" claims', () => {
@@ -129,9 +129,9 @@ describe('prompts overlay integration', () => {
     });
 
     it('getLocalSystemPrompt forbids false "no access" claims', () => {
-      const out = getLocalSystemPrompt();
+      const out = getLocalSystemPrompt('activity');
       expect(out).toContain('немає доступу');
-      expect(out).toContain('фізично недоступно');
+      expect(out).toContain('порожній');
     });
   });
 
@@ -148,8 +148,8 @@ describe('prompts overlay integration', () => {
 
     it('getLocalSystemPrompt contains multi-turn rule marker', () => {
       const out = getLocalSystemPrompt();
-      expect(out).toContain('Склей повну команду з історії');
-      expect(out).toContain('коротко (1-3 слова)');
+      expect(out).toContain('продовжувати попередній діалог');
+      expect(out).toContain('врахуй історію');
     });
 
     it('multi-turn rule survives when overlay is applied', () => {
@@ -160,7 +160,7 @@ describe('prompts overlay integration', () => {
       const claudeOut = getSystemPrompt();
       const ollamaOut = getLocalSystemPrompt();
       expect(claudeOut).toContain('Склей повну команду з історії');
-      expect(ollamaOut).toContain('Склей повну команду з історії');
+      expect(ollamaOut).toContain('врахуй історію');
     });
   });
 });

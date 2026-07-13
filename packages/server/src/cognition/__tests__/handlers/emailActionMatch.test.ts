@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { initDb, closeDb, getDb } from '../../../db.js';
 import { buttonsOf } from '../../types.js';
 import { createEmailStore } from '../../../emails/store.js';
@@ -109,6 +109,38 @@ describe('createEmailActionMatchHandler.trigger', () => {
 });
 
 describe('createEmailActionMatchHandler.run', () => {
+  it('uses schema-constrained Ollama output before Claude', async () => {
+    const emailStore = createEmailStore({ db: getDb() });
+    const topicStore = createTopicStore({ db: getDb() });
+    mkAction(topicStore, {
+      label: 'банк',
+      action: 'подтвердить оплату в банке',
+      url: 'https://bank.test/pay',
+      finalizedAt: NOW,
+    });
+    mkEmail({
+      uid: 1,
+      from: 'noreply@bank.test',
+      subject: 'Платёж получен',
+      snippet: 'Ваш платёж успешно проведён.',
+      received_at: NOW - 3600_000,
+    });
+    const ollama = {
+      chat: vi.fn(async () => ({ text: '[{"i":0,"match":true}]' })),
+    } as any;
+    const { client, calls } = fakeAnthropic('[]');
+    const handler = createEmailActionMatchHandler({ emailStore, topicStore, anthropic: client, ollama });
+
+    const result = await handler.run(mkCtx(NOW));
+
+    expect('publish' in result && result.publish).toBe(true);
+    expect(calls.n).toBe(0);
+    expect(ollama.chat).toHaveBeenCalledWith(expect.objectContaining({
+      format: expect.objectContaining({ type: 'array' }),
+      temperature: 0,
+    }));
+  });
+
   it('closes a matched action and returns a notice with a reopen button', async () => {
     const emailStore = createEmailStore({ db: getDb() });
     const topicStore = createTopicStore({ db: getDb() });

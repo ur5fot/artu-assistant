@@ -286,6 +286,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
 
     // Check if the latest user message is a slash command and rewrite for LLM
     let forceProvider: 'claude' | undefined;
+    let requestedToolName: string | undefined;
     let recognizedSlashCommand = false;
     const lastUserMsg = messages[messages.length - 1];
     if (lastUserMsg?.role === 'user' && typeof lastUserMsg.content === 'string') {
@@ -295,6 +296,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         const toolDef = registry.getByCommandName(commandName);
         if (toolDef) {
           recognizedSlashCommand = true;
+          requestedToolName = toolDef.name;
           // Map positional args to tool parameters
           const params: Record<string, unknown> = {};
           const requiredParams = (toolDef.command?.params ?? []).filter((p) => p.required);
@@ -423,6 +425,7 @@ export function createChatRouter({ runLoop, pendingConfirms, pendingPlanReviews,
         registry,
         memoryService,
         memoryQuery: recognizedSlashCommand ? originalUserText : undefined,
+        requestedToolName,
         currentUserMessageId: userMessageId ?? undefined,
         currentUserMessageTimestamp: userMessageTimestamp ?? undefined,
         forceProvider,

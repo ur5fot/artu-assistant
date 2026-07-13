@@ -2,12 +2,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SSEEvent } from '@r2/shared';
 import { runChatRequest } from '../router.js';
 
-function fakeRegistry() {
+function fakeTool(name: string) {
+  return {
+    name,
+    description: name,
+    permissionLevel: 'auto',
+    provider: 'all',
+    parameters: { type: 'object', properties: {} },
+    handler: vi.fn(async () => ({ success: true, data: {} })),
+  };
+}
+
+function fakeRegistry(tools: ReturnType<typeof fakeTool>[] = []) {
+  const byName = new Map(tools.map((tool) => [tool.name, tool]));
   return {
     register: vi.fn(),
-    get: vi.fn(),
-    getAll: vi.fn().mockReturnValue([]),
-    getForProvider: vi.fn().mockReturnValue([]),
+    get: vi.fn((name: string) => byName.get(name)),
+    getAll: vi.fn().mockReturnValue(tools),
+    getForProvider: vi.fn().mockReturnValue(tools),
   };
 }
 
@@ -87,16 +99,80 @@ describe('runChatRequest', () => {
     expect(events.at(-1)?.type).toBe('done');
   });
 
+  it('pre-routes state-changing requests to Claude without calling Ollama', async () => {
+    const fakeOllama = { chat: vi.fn() };
+    const fakeRunLoop = vi.fn(async ({ onEvent }) => onEvent({ type: 'done' }));
+
+    await runChatRequest({
+      messages: [{ role: 'user', content: 'создай файл notes.txt' }],
+      onEvent: () => {},
+      runLoop: fakeRunLoop as any,
+      ollama: fakeOllama as any,
+      piiProxy: passthroughPii() as any,
+      registry: fakeRegistry([fakeTool('file_write')]) as any,
+      memoryService: null,
+    });
+
+    expect(fakeOllama.chat).not.toHaveBeenCalled();
+    expect(fakeRunLoop).toHaveBeenCalledOnce();
+  });
+
+  it('offers only the selected read-only domain tools', async () => {
+    const mailTools = ['emails_status', 'emails_list', 'emails_get'].map(fakeTool);
+    const mutation = fakeTool('emails_dismiss');
+    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: 'Важных писем нет.' }) };
+
+    await runChatRequest({
+      messages: [{ role: 'user', content: 'что важного в почте?' }],
+      onEvent: () => {},
+      runLoop: vi.fn() as any,
+      ollama: fakeOllama as any,
+      piiProxy: passthroughPii() as any,
+      registry: fakeRegistry([...mailTools, mutation]) as any,
+      memoryService: null,
+    });
+
+    const offered = fakeOllama.chat.mock.calls[0][0].tools.map((item: any) => item.function.name);
+    expect(offered).toEqual(['emails_status', 'emails_list', 'emails_get']);
+    expect(offered).not.toContain('emails_dismiss');
+  });
+
+  it('logs route metadata without user text', async () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const secretText = 'секретный-текст-123';
+
+    await runChatRequest({
+      messages: [{ role: 'user', content: `привет ${secretText}` }],
+      onEvent: () => {},
+      runLoop: vi.fn() as any,
+      ollama: { chat: vi.fn().mockResolvedValueOnce({ text: 'Привет.' }) } as any,
+      piiProxy: passthroughPii() as any,
+      registry: fakeRegistry() as any,
+      memoryService: null,
+    });
+
+    const routeLog = infoSpy.mock.calls.find(([prefix]) => prefix === '[local-route]');
+    expect(routeLog).toBeDefined();
+    expect(routeLog?.join(' ')).not.toContain(secretText);
+    expect(JSON.parse(String(routeLog?.[1]))).toMatchObject({
+      event: 'local_route',
+      provider: 'ollama',
+      routeReason: 'simple_chat',
+      tools: [],
+    });
+    infoSpy.mockRestore();
+  });
+
   it('strips leading [DD.MM.YYYY, HH:MM] prefix that qwen mirrors from user turn', async () => {
     // Regression: qwen2.5 often echoes the timestamp prefix that chat.ts
     // prepends to user messages. The router must strip it before the UI
     // sees the final text_delta.
-    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: '[14.04.2026, 10:39] 4' }) };
+    const fakeOllama = { chat: vi.fn().mockResolvedValueOnce({ text: '[14.04.2026, 10:39] Привет!' }) };
     const fakeRunLoop = vi.fn();
 
     const events: SSEEvent[] = [];
     await runChatRequest({
-      messages: [{ role: 'user', content: '[14.04.2026, 10:39] 2+2=?' }],
+      messages: [{ role: 'user', content: '[14.04.2026, 10:39] привет' }],
       onEvent: (e) => events.push(e),
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
@@ -110,7 +186,7 @@ describe('runChatRequest', () => {
       content: string;
     }>;
     expect(textDeltas).toHaveLength(1);
-    expect(textDeltas[0].content).toBe('4');
+    expect(textDeltas[0].content).toBe('Привет!');
   });
 
   it('Ollama success + escalate phrase calls runToolLoop after progress event', async () => {
@@ -122,7 +198,7 @@ describe('runChatRequest', () => {
 
     const events: SSEEvent[] = [];
     await runChatRequest({
-      messages: [{ role: 'user', content: 'weather' }],
+      messages: [{ role: 'user', content: 'расскажи анекдот' }],
       onEvent: (e) => events.push(e),
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
@@ -258,7 +334,7 @@ describe('runChatRequest', () => {
 
     const events: SSEEvent[] = [];
     await runChatRequest({
-      messages: [{ role: 'user', content: 'weather for Dima' }],
+      messages: [{ role: 'user', content: 'hello Dima' }],
       onEvent: (e) => events.push(e),
       runLoop: fakeRunLoop as any,
       ollama: fakeOllama as any,
@@ -290,7 +366,7 @@ describe('runChatRequest', () => {
       runLoop: vi.fn() as any,
       ollama: fakeOllama as any,
       piiProxy: passthroughPii() as any,
-      registry: fakeRegistry() as any,
+      registry: fakeRegistry([fakeTool('memory_search')]) as any,
       memoryService: memoryService as any,
     });
 

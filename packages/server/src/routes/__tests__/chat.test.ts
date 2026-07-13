@@ -21,6 +21,7 @@ vi.mock('../../db.js', () => ({
     savedMessages.push(params);
   },
   initDb: () => {},
+  getOverlay: () => null,
 }));
 
 beforeEach(() => {
@@ -487,6 +488,50 @@ describe('POST /api/chat', () => {
 
     expect(receivedMessages[0].content).toContain('Use tool "code_task"');
     expect(receivedMessages[0].content).toContain('"task":"fix the bug"');
+  });
+
+  it('passes exact read-only slash tool to the local router', async () => {
+    const app = express();
+    app.use(express.json());
+    const statusTool = {
+      name: 'emails_status',
+      description: 'status',
+      permissionLevel: 'auto',
+      provider: 'all',
+      parameters: { type: 'object', properties: {} },
+      handler: vi.fn(),
+      command: { name: 'почта', params: [] },
+    };
+    const otherMailTools = ['emails_list', 'emails_get'].map((name) => ({
+      ...statusTool,
+      name,
+      command: undefined,
+    }));
+    const tools = [statusTool, ...otherMailTools];
+    const reg = fakeRegistry();
+    reg.getByCommandName.mockReturnValue(statusTool);
+    reg.get.mockImplementation((name: string) => tools.find((tool) => tool.name === name));
+    const ollama = { chat: vi.fn(async (_params: any) => ({ text: 'Почта проверена.' })) };
+
+    const router = createChatRouter({
+      runLoop: vi.fn(),
+      pendingConfirms: new Map(),
+      pendingPlanReviews: new Map(),
+      piiProxy: createPassthroughProxy(),
+      ollama: ollama as any,
+      registry: reg as any,
+      memoryService: null,
+    });
+    app.use('/api', router);
+
+    await request(app)
+      .post('/api/chat')
+      .send({ messages: [{ role: 'user', content: '/почта' }] })
+      .expect(200);
+
+    expect(ollama.chat).toHaveBeenCalledOnce();
+    const offered = ollama.chat.mock.calls[0]![0].tools.map((item: any) => item.function.name);
+    expect(offered).toEqual(['emails_status']);
   });
 
   it('passes unknown slash command through as normal message', async () => {

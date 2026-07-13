@@ -22,6 +22,19 @@ const GIST_SYSTEM = `Ты помощник, который делает коро
 Сохраняй плейсхолдеры вида <TYPE:xxxxxxxx> без изменений, если они встречаются.
 Отвечай ТОЛЬКО JSON массивом [{"uid":<int>,"gist":"<суть на русском>"}, ...]. Без текста вокруг.`;
 
+const GIST_FORMAT: Record<string, unknown> = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      uid: { type: 'integer' },
+      gist: { type: 'string', minLength: 1 },
+    },
+    required: ['uid', 'gist'],
+    additionalProperties: false,
+  },
+};
+
 const MAX_BATCH = 10;
 const BODY_CHARS = 1200;
 
@@ -52,7 +65,7 @@ function extractJson(text: string): unknown {
 // and the caller shows the raw snippet instead. Returns null only when the
 // reply is not an array (unparseable), so the caller can fall back to the other
 // provider before giving up.
-function normalize(raw: unknown): Map<number, string> | null {
+function normalize(raw: unknown, validUids?: ReadonlySet<number>): Map<number, string> | null {
   if (!Array.isArray(raw)) return null;
   const byUid = new Map<number, string>();
   for (const item of raw) {
@@ -62,6 +75,7 @@ function normalize(raw: unknown): Map<number, string> | null {
       typeof item.gist === 'string' &&
       item.gist.trim().length > 0
     ) {
+      if (validUids && !validUids.has(item.uid)) return null;
       byUid.set(item.uid, item.gist.trim());
     }
   }
@@ -77,6 +91,8 @@ async function callOllama(
     messages: [{ role: 'user', content: userPrompt }],
     system: GIST_SYSTEM,
     signal,
+    format: GIST_FORMAT,
+    temperature: 0,
   });
   return r.text;
 }
@@ -133,13 +149,14 @@ export async function summarizeGists(
         anonymized.push({ uid: m.uid, from: sender.text, subject: sub.text, body: body.text });
       }
       const prompt = buildPrompt(anonymized);
+      const validUids = new Set(batch.map((message) => message.uid));
 
       let parsed: Map<number, string> | null = null;
       const useOllama = deps.ollama && (process.env.LOCAL_LLM_MODE || 'enabled') === 'enabled';
       if (useOllama) {
         try {
           const raw = await callOllama(deps.ollama!, prompt, deps.signal);
-          parsed = normalize(extractJson(raw));
+          parsed = normalize(JSON.parse(raw.trim()), validUids);
         } catch (err) {
           console.warn(
             '[emails.gist] Ollama call failed, falling back to Claude:',
@@ -150,7 +167,7 @@ export async function summarizeGists(
       }
       if (!parsed || parsed.size === 0) {
         const raw = await callClaude(deps.anthropic, prompt, deps.signal);
-        parsed = normalize(extractJson(raw));
+        parsed = normalize(extractJson(raw), validUids);
       }
 
       if (parsed) {

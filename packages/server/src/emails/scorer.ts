@@ -24,6 +24,19 @@ const SCORE_SYSTEM = `Ты фильтр входящей почты. Для ка
 5 — срочное/критичное (банк, юридика, здоровье, deadline сегодня).
 Отвечай ТОЛЬКО JSON массивом [{"uid":<int>,"importance":<1..5>}, ...]. Без текста вокруг.`;
 
+const SCORE_FORMAT: Record<string, unknown> = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      uid: { type: 'integer' },
+      importance: { type: 'integer', minimum: 1, maximum: 5 },
+    },
+    required: ['uid', 'importance'],
+    additionalProperties: false,
+  },
+};
+
 const MAX_BATCH = 10;
 const SNIPPET_CHARS = 300;
 
@@ -64,9 +77,11 @@ function normalize(
   uids: number[],
 ): Array<{ uid: number; importance: number }> | null {
   if (!Array.isArray(raw)) return null;
+  const requestedUids = new Set(uids);
   const byUid = new Map<number, number>();
   for (const item of raw) {
     if (item && typeof item.uid === 'number' && typeof item.importance === 'number') {
+      if (!requestedUids.has(item.uid)) return null;
       byUid.set(item.uid, clamp(item.importance));
     }
   }
@@ -85,6 +100,8 @@ async function callOllama(
     messages: [{ role: 'user', content: userPrompt }],
     system: SCORE_SYSTEM,
     signal,
+    format: SCORE_FORMAT,
+    temperature: 0,
   });
   return r.text;
 }
@@ -134,7 +151,7 @@ export async function scoreBatch(
     if (useOllama) {
       try {
         const raw = await callOllama(deps.ollama!, prompt, deps.signal);
-        const parsed = extractJson(raw);
+        const parsed = JSON.parse(raw.trim());
         scored = normalize(parsed, batch.map((m) => m.uid));
         if (!scored) {
           console.warn('[emails.scorer] Ollama reply did not cover every uid, falling back to Claude');
