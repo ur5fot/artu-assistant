@@ -7,6 +7,12 @@
 
 ## 2026-07-13
 
+- **Постоянная отметка источника ответа в Discord.** Основной текстовый чат
+  теперь показывает `🟢 local` для Ollama/Qwen и `🔵 claude` для Claude API;
+  fallback получает итоговую отметку Claude. Метка добавляется только при
+  отправке в Discord и не загрязняет историю/память. Focused Discord suite:
+  73/73, полный server suite: 2158/2158 (141 файл), TypeScript build чистый.
+  Изменение опубликовано через `dev -> master`, R2 перезапущен.
 - **Внедрён safe-local harness для `qwen3:1.7b`.** Чат теперь до inference
   детерминированно делится: простой разговор/один read-only домен → Qwen с
   0–3 tools; actions, code/math, strict JSON, multi-domain и длинные запросы →

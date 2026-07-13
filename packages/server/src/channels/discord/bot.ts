@@ -672,16 +672,16 @@ export async function startDiscordBot(
       // stream finishes so retry/outer-catch can send a user-visible fallback
       // instead of silently leaving sendSucceeded=false.
       let sendError: unknown = null;
-      let sawOllama = false;
-      let escalated = false;
+      let answerSource: 'ollama' | 'claude' | null = null;
 
       const flush = async () => {
         if (!buffer) return;
-        let text = buffer;
-        if (escalated) {
-          text = `🔵 claude\n\n${text}`;
-          escalated = false;
-        }
+        const sourceLabel = answerSource === 'ollama'
+          ? '🟢 local'
+          : answerSource === 'claude'
+            ? '🔵 claude'
+            : null;
+        const text = sourceLabel ? `${sourceLabel}\n\n${buffer}` : buffer;
         await sendReply(dmChannel, text);
         sendSucceeded = true;
         buffer = '';
@@ -700,8 +700,7 @@ export async function startDiscordBot(
         errorSent = false;
         sendChain = Promise.resolve();
         sendError = null;
-        sawOllama = false;
-        escalated = false;
+        answerSource = null;
 
         try {
           await deps.runChatRequest({
@@ -718,11 +717,7 @@ export async function startDiscordBot(
                   return;
                 }
                 if (event.type === 'assistant_source') {
-                  if (event.source === 'ollama') {
-                    sawOllama = true;
-                  } else if (event.source === 'claude' && sawOllama) {
-                    escalated = true;
-                  }
+                  answerSource = event.source;
                   return;
                 }
                 if (event.type === 'tool_call_start') {
