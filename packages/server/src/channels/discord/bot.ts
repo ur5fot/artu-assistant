@@ -672,12 +672,14 @@ export async function startDiscordBot(
       // stream finishes so retry/outer-catch can send a user-visible fallback
       // instead of silently leaving sendSucceeded=false.
       let sendError: unknown = null;
-      let answerSource: 'ollama' | 'claude' | null = null;
+      let answerSource: 'ollama' | 'claude' | 'fallback' | null = null;
 
       const flush = async () => {
         if (!buffer) return;
         const sourceLabel = answerSource === 'ollama'
           ? '🟢 local'
+          : answerSource === 'fallback'
+            ? '🟢 local → 🔵 claude (fallback)'
           : answerSource === 'claude'
             ? '🔵 claude'
             : null;
@@ -717,7 +719,13 @@ export async function startDiscordBot(
                   return;
                 }
                 if (event.type === 'assistant_source') {
-                  answerSource = event.source;
+                  if (event.source === 'ollama') {
+                    answerSource = 'ollama';
+                  } else if (answerSource === 'ollama' || answerSource === 'fallback') {
+                    answerSource = 'fallback';
+                  } else {
+                    answerSource = 'claude';
+                  }
                   return;
                 }
                 if (event.type === 'tool_call_start') {

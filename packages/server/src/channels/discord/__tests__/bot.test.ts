@@ -1265,7 +1265,9 @@ describe('answer source prefix', () => {
     const textCalls = (channel.send as any).mock.calls
       .filter((c: any[]) => typeof c[0] === 'object' && c[0] !== null && 'content' in c[0]);
     expect(textCalls.length).toBe(1);
-    expect(textCalls[0][0].content).toBe('🔵 claude\n\nhi world');
+    expect(textCalls[0][0].content).toBe(
+      '🟢 local → 🔵 claude (fallback)\n\nhi world',
+    );
   });
 
   it('claude only: prefixes the answer', async () => {

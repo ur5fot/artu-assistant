@@ -4,7 +4,9 @@
 
 Каждый текстовый ответ основного Discord-чата показывает компактный источник:
 `🟢 local` для Ollama/Qwen и `🔵 claude` для Claude API. Метка относится только
-к отображению и не записывается в историю или память.
+к отображению и не записывается в историю или память. Если локальная модель
+начала обработку, но запрос завершил Claude, Discord показывает отдельное
+состояние `🟢 local → 🔵 claude (fallback)`.
 
 ## Tasks
 
@@ -13,6 +15,7 @@
 - [x] Покрыть local-only, Claude-only и Ollama-to-Claude fallback тестами.
 - [x] Прогнать Discord-focused тесты, server build и полный server suite.
 - [x] Обновить worklog, опубликовать `dev -> master` и перезапустить R2.
+- [x] Отличать direct Claude от Ollama-to-Claude fallback в постоянной метке.
 
 ## Verification
 
