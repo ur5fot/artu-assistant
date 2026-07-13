@@ -137,7 +137,7 @@ syntax/shape and existing TypeScript normalization for semantic correctness.
 - [x] Reconcile the pre-existing tutor changes: use `topicSteering`, preserve
   untouched-lesson mastery semantics and cover partial-stop progress.
 - [x] Run `npm run build --workspace @r2/server`: clean.
-- [x] Run `npm test --workspace @r2/server`: 2154/2154 passed across 141 files.
+- [x] Run `npm test --workspace @r2/server`: 2157/2157 passed across 141 files.
 - [x] Restart the launchd supervisor and verify `/api/health` plus runtime route
   and structured-output smoke cases.
 - [x] Document `OLLAMA_NUM_CTX`, route policy and structured route log fields.
@@ -147,7 +147,7 @@ syntax/shape and existing TypeScript normalization for semantic correctness.
 
 - Combined focused router/context/tool-loop/chat/structured-output suite:
   145 tests passed.
-- Full server suite: 2154 tests passed across 141 files; server build passed.
+- Full server suite: 2157 tests passed across 141 files; server build passed.
 - Real `qwen3:1.7b` scorer call returned complete schema-valid `5/2` results
   without Claude fallback.
 - Runtime smoke with a fake read-only weather tool completed locally in about

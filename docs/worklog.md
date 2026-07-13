@@ -17,7 +17,7 @@
   `format` + temperature 0 и проверку semantics кодом. Незавершённые tutor-
   изменения сведены с новым `topicSteering`: остановка нетронутого урока больше
   не портит mastery, а частичный ответ сохраняется и покрыт тестом. Итоговая
-  проверка: server build чистый, 2154/2154 теста зелёные (141 файл),
+  проверка: server build чистый, 2157/2157 тестов зелёные (141 файл),
   `git diff --check` чистый. LaunchAgent перезапущен, `/api/health` отвечает.
   Runtime smoke на реальной Qwen: простой чат → Ollama (~1,3 с), weather →
   только read-only `weather` (~2,2 с), strict JSON и запись файла → Claude до
