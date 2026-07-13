@@ -1,7 +1,7 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { FreeExercise, McqExercise } from './lesson-generator.js';
 import type { ExerciseResult } from './session.js';
 import { callClaude, extractJson } from './llm.js';
+import type { ClaudeCallDeps } from './llm.js';
 
 /** Verdict the free-form grader may return for an answer. */
 export type FreeVerdict = 'correct' | 'partial' | 'wrong';
@@ -12,11 +12,7 @@ export interface FreeResult {
   feedback: string;
 }
 
-export interface GradeFreeDeps {
-  anthropic: Anthropic;
-  model: string;
-  signal: AbortSignal;
-}
+export type GradeFreeDeps = ClaudeCallDeps;
 
 /** Thrown when the LLM grader fails or returns an unusable reply. We never
  *  fabricate a verdict — the caller keeps `current_ex` put and can retry. */

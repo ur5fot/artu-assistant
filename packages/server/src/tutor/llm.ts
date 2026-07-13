@@ -1,10 +1,12 @@
 import type Anthropic from '@anthropic-ai/sdk';
 
-/** Shared shape for the tutor modules' Claude calls. */
+/** Shared shape for the tutor modules' Claude calls. `signal` is optional:
+ *  cognition handlers thread `ctx.signal`; interaction flows own their
+ *  lifecycle and pass none. */
 export interface ClaudeCallDeps {
   anthropic: Anthropic;
   model: string;
-  signal: AbortSignal;
+  signal?: AbortSignal;
 }
 
 /** Call Claude with a system + user prompt, returning the first text block. */
@@ -21,7 +23,7 @@ export async function callClaude(
       system,
       messages: [{ role: 'user', content: userPrompt }],
     },
-    { signal: deps.signal },
+    deps.signal ? { signal: deps.signal } : {},
   );
   const block = (msg.content as Array<{ type: string; text?: string }>).find(
     (b) => b.type === 'text',

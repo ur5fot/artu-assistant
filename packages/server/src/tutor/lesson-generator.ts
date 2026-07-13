@@ -1,6 +1,6 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { TutorLevel } from './store.js';
 import { callClaude, extractJson, isNonEmptyString } from './llm.js';
+import type { ClaudeCallDeps } from './llm.js';
 
 /** Exercise kinds the generator (and grader) understand. */
 export type ExerciseKind = 'mcq' | 'free';
@@ -38,11 +38,7 @@ export interface GenerateLessonInput {
   weakTopics: string[];
 }
 
-export interface LessonGenDeps {
-  anthropic: Anthropic;
-  model: string;
-  signal: AbortSignal;
-}
+export type LessonGenDeps = ClaudeCallDeps;
 
 /** Thrown when the LLM cannot produce a valid lesson after one retry. */
 export class LessonGenError extends Error {
@@ -103,12 +99,17 @@ function toLesson(raw: unknown): Lesson {
       throw new Error(`exercise ${i} missing prompt`);
     }
     if (ex.kind === 'mcq') {
+      // Cap at 4 like the placement validator: all options become buttons in a
+      // single Discord action row (max 5), and the prompt asks for 3–4 — an
+      // over-long LLM reply must fail parsing (→ retry) rather than persist a
+      // lesson whose button row Discord will reject on every render.
       if (
         !Array.isArray(ex.options) ||
         ex.options.length < 2 ||
+        ex.options.length > 4 ||
         !ex.options.every(isNonEmptyString)
       ) {
-        throw new Error(`exercise ${i} (mcq) needs ≥2 string options`);
+        throw new Error(`exercise ${i} (mcq) needs 2–4 string options`);
       }
       if (
         typeof ex.answer !== 'number' ||

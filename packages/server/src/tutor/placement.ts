@@ -1,6 +1,6 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { TutorLevel, TutorStore } from './store.js';
 import { callClaude, extractJson, isNonEmptyString } from './llm.js';
+import type { ClaudeCallDeps } from './llm.js';
 
 /** One placement question: MCQ so answers can be collected without the LLM. */
 export interface PlacementQuestion {
@@ -23,11 +23,7 @@ export interface PlacementState {
   answers: number[];
 }
 
-export interface PlacementDeps {
-  anthropic: Anthropic;
-  model: string;
-  signal: AbortSignal;
-}
+export type PlacementDeps = ClaudeCallDeps;
 
 /** One step of the answer-by-answer placement flow (`recordPlacementAnswer`).
  *  `cancelled` means `/english stop` raced the final assessment call and won:

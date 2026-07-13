@@ -26,8 +26,9 @@ import {
 import type { LessonPayload } from '../../tutor/session.js';
 import type { TutorLesson, TutorStore } from '../../tutor/store.js';
 import {
-  RECENT_TOPICS_LIMIT,
   WEAK_MASTERY_THRESHOLD,
+  splitDiscordContent,
+  topicSteering,
   truncateLabel,
 } from '../../tutor/ui.js';
 
@@ -41,15 +42,16 @@ export interface TutorInteractionDeps {
   model: string;
 }
 
-// A fresh signal per LLM call; the interaction lifecycle owns cancellation, so
-// we never abort mid-flight — the deps just need a concrete AbortSignal.
+// No abort signal: the interaction lifecycle owns cancellation, so we never
+// abort a tutor LLM call mid-flight.
 function llmDeps(deps: TutorInteractionDeps) {
-  return {
-    anthropic: deps.anthropic,
-    model: deps.model,
-    signal: new AbortController().signal,
-  };
+  return { anthropic: deps.anthropic, model: deps.model };
 }
+
+// Block @everyone / role pings — lesson/placement/feedback text is
+// LLM-generated, and `/english` is a global command usable in guild channels
+// (same defense as sendReply in bot.ts).
+const NO_MENTIONS = { parse: [] as never[] };
 
 function payloadOf(lesson: TutorLesson): LessonPayload {
   return lesson.payload as LessonPayload;
@@ -126,12 +128,50 @@ interface SlashLike {
   options: { getString(name: string): string | null };
   reply(payload: unknown): Promise<unknown>;
   editReply(payload: unknown): Promise<unknown>;
+  followUp(payload: unknown): Promise<unknown>;
   deferReply(payload?: unknown): Promise<unknown>;
 }
 
 interface ButtonLike {
   reply(payload: unknown): Promise<unknown>;
   followUp(payload: unknown): Promise<unknown>;
+}
+
+/** Send interaction content that may exceed Discord's 2000-char body cap:
+ *  `first` posts the first chunk (editReply for a deferred slash, followUp for
+ *  a button), the rest follow up; components ride the final chunk. Without
+ *  this, a long LLM explanation makes the send throw 50035 after the lesson
+ *  row was already persisted, leaving a hung "thinking…" interaction. */
+async function sendChunkedReply(
+  ixn: { followUp(payload: unknown): Promise<unknown> },
+  first: (payload: unknown) => Promise<unknown>,
+  content: string,
+  components: ActionRowBuilder<ButtonBuilder>[] = [],
+): Promise<void> {
+  const chunks = splitDiscordContent(content);
+  for (let i = 0; i < chunks.length; i++) {
+    const payload = {
+      content: chunks[i],
+      components: i === chunks.length - 1 ? components : [],
+      allowedMentions: NO_MENTIONS,
+    };
+    if (i === 0) await first(payload);
+    else await ixn.followUp(payload);
+  }
+}
+
+/** Re-show the lesson's current exercise via the deferred slash reply. */
+async function resumeLesson(
+  ixn: SlashLike,
+  lesson: TutorLesson,
+): Promise<void> {
+  const msg = exerciseMessage(lesson, lesson.currentEx);
+  await sendChunkedReply(
+    ixn,
+    (p) => ixn.editReply(p),
+    `📘 Продолжаем: **${lesson.topic}**\n\n${msg.content}`,
+    msg.components,
+  );
 }
 
 /**
@@ -171,11 +211,7 @@ export async function handleEnglishSlash(
 
   const active = tutor.store.getActiveLesson();
   if (active) {
-    const msg = exerciseMessage(active, active.currentEx);
-    await ixn.editReply({
-      content: `📘 Продолжаем: **${active.topic}**\n\n${msg.content}`,
-      components: msg.components,
-    });
+    await resumeLesson(ixn, active);
     return;
   }
 
@@ -197,13 +233,20 @@ async function handleStop(
     return;
   }
   if (active) {
+    const answered = (payloadOf(active).results ?? []).filter(Boolean).length;
     const score = partialScore(active);
     tutor.store.completeLesson(active.id, score);
-    tutor.store.recordAttempt({
-      topic: active.topic,
-      correct: score >= WEAK_MASTERY_THRESHOLD,
-      outcome: score,
-    });
+    // Only fold the stop into mastery when at least one exercise was answered.
+    // Declining an untouched lesson (e.g. an unwanted daily post) says nothing
+    // about the topic — seeding mastery 0 would mark it "weak" and make the
+    // generator push exactly the topic the user just dismissed.
+    if (answered > 0) {
+      tutor.store.recordAttempt({
+        topic: active.topic,
+        correct: score >= WEAK_MASTERY_THRESHOLD,
+        outcome: score,
+      });
+    }
   }
   if (placementActive) {
     tutor.store.updateProfile({
@@ -215,6 +258,26 @@ async function handleStop(
     flags: MessageFlags.Ephemeral,
     content: '🛑 Урок остановлен.',
   });
+}
+
+/** Retry the final placement assessment (all questions answered but a prior
+ *  assessment call failed) and render the outcome as reply text. `null` means
+ *  the placement was cancelled mid-assessment — the stop already replied, so
+ *  the message hook stays silent. Shared by the slash resume path and the
+ *  free-text hook so the two recovery surfaces can't drift. */
+async function retryPlacementAssessment(
+  tutor: TutorInteractionDeps,
+): Promise<string | null> {
+  try {
+    const outcome = await finishPlacement(tutor.store, llmDeps(tutor));
+    if ('cancelled' in outcome) return null;
+    return (
+      `🎯 Уровень определён: **${outcome.level}**.\n` +
+      'Напиши /english, чтобы начать первый урок.'
+    );
+  } catch {
+    return '⚠️ Не смог оценить placement, попробуй ещё раз.';
+  }
 }
 
 async function runPlacementFlow(
@@ -232,29 +295,21 @@ async function runPlacementFlow(
       // assessment call failed. Retry it instead of falling through to
       // beginPlacement, which would discard the already-answered questions.
       if (idx >= state.questions.length) {
-        try {
-          const outcome = await finishPlacement(tutor.store, llmDeps(tutor));
-          if ('cancelled' in outcome) {
-            await ixn.editReply({ content: 'Плейсмент был остановлен.' });
-            return;
-          }
-          await ixn.editReply({
-            content: `🎯 Уровень определён: ${outcome.level}.`,
-          });
-        } catch {
-          await ixn.editReply({
-            content: '⚠️ Не смог оценить placement, попробуй ещё раз позже.',
-          });
-        }
+        const text = await retryPlacementAssessment(tutor);
+        await ixn.editReply({
+          content: text ?? 'Плейсмент был остановлен.',
+          allowedMentions: NO_MENTIONS,
+        });
         return;
       }
       const question = state.questions[idx];
       if (question) {
-        await ixn.editReply({
-          content:
-            '📝 Продолжаем placement-тест.\n\n' +
+        await sendChunkedReply(
+          ixn,
+          (p) => ixn.editReply(p),
+          '📝 Продолжаем placement-тест.\n\n' +
             formatPlacementQuestion(question, idx, state.questions.length),
-        });
+        );
         return;
       }
     }
@@ -262,11 +317,12 @@ async function runPlacementFlow(
 
   try {
     const step = await beginPlacement(tutor.store, llmDeps(tutor));
-    await ixn.editReply({
-      content:
-        '📝 Определим твой уровень. Ответь на несколько вопросов.\n\n' +
+    await sendChunkedReply(
+      ixn,
+      (p) => ixn.editReply(p),
+      '📝 Определим твой уровень. Ответь на несколько вопросов.\n\n' +
         formatPlacementQuestion(step.question, step.index, step.total),
-    });
+    );
   } catch {
     await ixn.editReply({
       content: '⚠️ Не смог собрать placement-тест, попробуй позже.',
@@ -286,11 +342,9 @@ async function startNewLesson(
     return;
   }
 
-  const progress = tutor.store.listProgress();
-  const recentTopics = progress.slice(0, RECENT_TOPICS_LIMIT).map((p) => p.topic);
-  const weakTopics = progress
-    .filter((p) => p.mastery < WEAK_MASTERY_THRESHOLD)
-    .map((p) => p.topic);
+  const { recentTopics, weakTopics } = topicSteering(
+    tutor.store.listProgress(),
+  );
 
   let lesson: Lesson;
   try {
@@ -308,11 +362,7 @@ async function startNewLesson(
   // second one.
   const concurrent = tutor.store.getActiveLesson();
   if (concurrent) {
-    const msg = exerciseMessage(concurrent, concurrent.currentEx);
-    await ixn.editReply({
-      content: `📘 Продолжаем: **${concurrent.topic}**\n\n${msg.content}`,
-      components: msg.components,
-    });
+    await resumeLesson(ixn, concurrent);
     return;
   }
 

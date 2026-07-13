@@ -75,6 +75,7 @@ function fakeSlash(action?: string) {
     options: { getString: (name: string) => (name === 'action' ? action ?? null : null) },
     reply: rec('reply'),
     editReply: rec('editReply'),
+    followUp: rec('followUp'),
     deferReply: rec('deferReply'),
   };
 }
@@ -223,7 +224,7 @@ describe('/english slash — lessons', () => {
 });
 
 describe('/english stop', () => {
-  it('closes the active lesson with a partial score', async () => {
+  it('closes an untouched lesson without changing topic mastery', async () => {
     const deps = makeDeps();
     deps.store.updateProfile({ level: 'B1', placementState: 'done' });
     const created = deps.store.createLesson({ topic: LESSON.topic, payload: LESSON });
@@ -234,7 +235,25 @@ describe('/english stop', () => {
     expect(ixn.calls[0].payload.content).toContain('остановлен');
     expect(deps.store.getLesson(created.id)?.status).toBe('done');
     expect(deps.store.getActiveLesson()).toBeNull();
-    expect(deps.store.getProgress(LESSON.topic)?.attempts).toBe(1);
+    expect(deps.store.getProgress(LESSON.topic)).toBeNull();
+  });
+
+  it('records a partial score after at least one answered exercise', async () => {
+    const deps = makeDeps();
+    deps.store.updateProfile({ level: 'B1', placementState: 'done' });
+    const created = deps.store.createLesson({
+      topic: LESSON.topic,
+      payload: { ...LESSON, results: [{ correct: true }] },
+    });
+    const ixn = fakeSlash('stop');
+    await handleEnglishSlash(ixn as any, deps);
+
+    expect(deps.store.getLesson(created.id)?.score).toBe(0.5);
+    expect(deps.store.getProgress(LESSON.topic)).toMatchObject({
+      attempts: 1,
+      correct: 1,
+      mastery: 0.5,
+    });
   });
 
   it('cancels an in-progress placement', async () => {
